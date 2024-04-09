@@ -1,3 +1,4 @@
+//changed file name from AuthService to authService
 import axiosInstance from '../utils/axiosInstance';
 import { handleServiceError } from '../utils/serviceErrorHandling';
 
