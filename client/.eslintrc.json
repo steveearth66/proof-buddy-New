@@ -6,7 +6,9 @@
   "extends": [
     "eslint:recommended",
     "plugin:react/recommended",
-    "plugin:react-hooks/recommended"
+    "plugin:react-hooks/recommended",
+    "plugin:react/recommended",
+    "prettier"
   ],
   "parserOptions": {
     "ecmaVersion": "latest",
@@ -18,32 +20,11 @@
   "globals": {
     "process": "readonly"
   },
-  "plugins": [
-    "react",
-    "react-hooks"
-  ],
+  "plugins": ["react", "react-hooks"],
   "rules": {
     "react/jsx-uses-react": "error",
     "react/jsx-uses-vars": "error",
-    "comma-dangle": [
-      "error",
-      "never"
-    ],
-    "quotes": [
-      "error",
-      "single",
-      {
-        "avoidEscape": true,
-        "allowTemplateLiterals": true
-      }
-    ],
-    "indent": [
-      "error",
-      2,
-      {
-        "SwitchCase": 1
-      }
-    ],
+    "comma-dangle": ["error", "never"],
     "no-multiple-empty-lines": [
       "error",
       {
@@ -60,9 +41,6 @@
     "no-console": "off",
     "react-hooks/rules-of-hooks": "error",
     "react-hooks/exhaustive-deps": "warn",
-    "object-curly-spacing": [
-      "error",
-      "always"
-    ]
+    "object-curly-spacing": ["error", "always"]
   }
 }
