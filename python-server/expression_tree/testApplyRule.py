@@ -32,7 +32,21 @@ test_strings_ruleIf= [
     ('consList', "(cons '(2) '(3))"), #expected '((2) 3)
     ('consList', "(cons 2 3)"), #expected error 'argument #2 of cons must be a list'
     ('consList', "(cons 2 '(cons (2 '(3))))"), #expected '(2 cons (2 '(3)))
-    ('consList', "(cons '() '(y z a))"), #expected '(x y z a)
+    ('consList', "(cons '() '(y z a))"), #expected '(null y z a)
+    ('consList', "(cons 2)"), #expected error 'cons expects 2 arguments, 1 provided'
+    ('consList', "(cons null)"), #expected error 'cons expects 2 arguments, 1 provided'
+    ('consList', "(cons 2 3 null)"), #expected error 'cons expects 2 arguments, 3 provided'
+    ('consList', "(cons null 2)"), #expected error 'cons takes in types [ANY, LIST]'
+    ('consList', "(cons null null)"), #expected '(null)
+    ('consList', "(cons '() '())"), #expected '(null)
+    ('consList', "(cons '() null)"), #expected '(null)
+    ('consList', "(cons null '())"), #expected '(null)
+    ('consList', "(cons 2 null)"), #expected '(2)
+    ('consList', "(cons null '(2))"), #expected '(null)
+    ('consList', "(cons '(2 3) '(4 5))"), #expected '(null)
+    ('consList', "(cons x '(2))"), #expected '(x 2)
+    
+    
     
 ]
 
