@@ -408,28 +408,6 @@ const ERRacket = () => {
                             });
                           }}
                         />
-                        {/* <Form.Group
-                          as={Col}
-                          md="8"
-                          className="er-proof-current-goal"
-                        >
-                          <Form.Floating className="mb-3">
-                            <Form.Control
-                              id="eRProofCurrentRHSGoal"
-                              name="proofCurrentRHSGoal"
-                              type="text"
-                              value={formValues.rHSGoal}
-                              placeholder="Current Goal"
-                              onChange={handleChange}
-                              onSelect={(e) => handleHighlight(e)}
-                              onDoubleClick={(e) => handleDoubleClick(e)}
-                              //readOnly
-                            />
-                            <label htmlFor="eRProofCurrentRHSGoal">
-                              RHS Goal
-                            </label>
-                          </Form.Floating>
-                        </Form.Group> */}
 
                         <Form.Group
                           as={Col}
@@ -471,33 +449,6 @@ const ERRacket = () => {
                               );
                             }}
                           />
-                          {/* <Form.Group
-                            as={Col}
-                            md="8"
-                            className="er-proof-racket"
-                          >
-                            <Form.Floating className="mb-3">
-                              <Form.Control
-                                id={`eRProofRHSRacket-${index}`}
-                                name={`eRProofRHSRacket_${index}`}
-                                type="text"
-                                placeholder="RHS Racket"
-                                value={field.racket}
-                                onChange={(e) =>
-                                  handleFieldChange(
-                                    showSide,
-                                    index,
-                                    "racket",
-                                    e.target.value
-                                  )
-                                }
-                                onSelect={(e) => handleHighlight(e)}
-                              />
-                              <label htmlFor={`eRProofRHSRacket-${index}`}>
-                                RHS Racket
-                              </label>
-                            </Form.Floating>
-                          </Form.Group> */}
 
                           <Form.Group as={Col} md="4" className="er-proof-rule">
                             <Form.Floating className="mb-3">
