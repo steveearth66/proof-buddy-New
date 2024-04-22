@@ -16,20 +16,29 @@ test_strings_ruleIf= [
     ("if", "(if a (+ x (y (z z))) (+ x (y (z z))))"), #expected (+ x (y (z z)))
     ("if", "(if a (+ x (y (z z))) (+ x (b (z z))))"), #expected no valid change
     ("if", "(fi #t x y)"), #expected invalid
-    ("if", "if #t x y"), #expected invalid - should it give x? without () there are no child nodes so it doesnt read as a valid tree, is it supposed to?
+    ("if", "if #t x y"), #expected invalid
     ("if", "()"), #expected invalid
     ("if", "(if )"), #expected invalid
     ("if", "(if #t b c d e)"), #expected invalid
-    ("null", "(null? (cons x (a b c)))"), #expected #f
+    ("null?", "(null? (cons x (a b c)))"), #expected #f
     ("cons?", "(cons? (cons x a))"), #expected #t
-    ('zero', '(zero? (+ 0 1))'), #expected #f
-    ('zero', '(zero? (+ 0 0))'), #expected no change
-    ('zero', '(zero? (+ a 1))'), #expected no change
+    ('zero?', '(zero? (+ 0 1))'), #expected #f
+    ('zero?', '(zero? (+ 0 0))'), #expected no change
+    ('zero?', '(zero? (+ a 1))'), #expected no change
+    ('consList', "(cons x '(y z a))"), #expected '(x y z a)
+    ('consList', "(cons x '(y) (z))"), #expected error
+    ('consList', "(cons x '())"), #expected '(x)
+    ('consList', "(cons x '(y z a b c d e))"), #expected '(x y z a b c d e)
+    ('consList', "(cons '(2) '(3))"), #expected '((2) 3)
+    ('consList', "(cons 2 3)"), #expected error 'argument #2 of cons must be a list'
+    ('consList', "(cons 2 '(cons (2 '(3))))"), #expected '(2 cons (2 '(3)))
+    ('consList', "(cons '() '(y z a))"), #expected '(x y z a)
+    
 ]
 
 print("\napplyRule testing:\n")
 for rule, expr in test_strings_ruleIf:
-    print("input =", expr)
+    print("input =", expr, "rule =", rule)
     exprList,errLog = recParser.preProcess(expr,errLog=[])
     exprTree = recParser.buildTree(exprList,)[0] # might not need to pass errLog
     labeledTree = Labeler.labelTree(exprTree)
