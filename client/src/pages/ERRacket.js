@@ -21,6 +21,8 @@ import "../scss/_forms.scss";
 import "../scss/_er-racket.scss";
 import { useExportToLocalMachine } from "../hooks/useExportToLocalMachine";
 import PersistentPad from "../components/PersistentPad";
+import { Definitions } from "../components";
+import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 
 /**
  * ERRacket component facilitates the Equational Reasoning Racket.
@@ -55,6 +57,8 @@ const ERRacket = () => {
   ] = useRacketRuleFields(startPosition);
   const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields);
   const [isOffcanvasActive, toggleOffcanvas] = useOffcanvas();
+  const [showDefinitionsWindow, toggleDefinitionsWindow] =
+    useDefinitionsWindow();
 
   const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
@@ -105,6 +109,9 @@ const ERRacket = () => {
           isActive={isOffcanvasActive}
           toggleFunction={toggleOffcanvas}
         ></OffcanvasRuleSet>
+        {showDefinitionsWindow && (
+          <Definitions toggleDefinitionsWindow={toggleDefinitionsWindow} />
+        )}
         <Form
           noValidate
           validated={validated}
@@ -162,7 +169,9 @@ const ERRacket = () => {
 
                 <Dropdown.Menu>
                   <Dropdown.Item href="#">Assertions</Dropdown.Item>
-                  <Dropdown.Item href="#">Definitions</Dropdown.Item>
+                  <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">
+                    Definitions
+                  </Dropdown.Item>
                   <Dropdown.Item onClick={toggleOffcanvas} href="#">
                     View Rule Set
                   </Dropdown.Item>
