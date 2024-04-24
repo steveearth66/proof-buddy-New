@@ -85,18 +85,49 @@ class Node:
                 domsTup = list2Tup(domsList) # 
         return
      
-    def applyRule(self, ruleID:str, errLog=None): #TODO: replace with dictionary
+    def applyRule(self, ruleID:str, errLog=None): #TODO: replace with dictionary. strange to have ruleIF (et al) for every node regardless of node entry
         if errLog==None:
             errLog=[]
         rules = {'if':self.ruleIf, 'cons':self.ruleCons, 'first':self.ruleFirst, 'rest':self.ruleRest, \
-                 'null?':self.ruleNull, 'cons?':self.ruleConsQ, 'zero?':self.ruleZero, 'consList':self.ruleConsList}
+                 'null?':self.ruleNull, 'cons?':self.ruleConsQ, 'zero?':self.ruleZero, 'consList':self.ruleConsList, 'math':self.ruleMath}
         return rules[ruleID](errLog)
+    
+    #TODO: this needs to be generalized to use a python math library and normal forms, and not just the 4 basic operations
+    def ruleMath(self, errLog, debug=False):
+        mathSymbols = ARITHMETIC+["expt","<=",">=","quotient","remainder"]
+        mathDict={"+":lambda x,y: x+y, "-":lambda x,y: x-y, "*":lambda x,y: x*y, "expt":lambda x,y: x**y, "=":lambda x,y: x==y, ">":lambda x,y: x>y, \
+                  ">=":lambda x,y: x>=y, "<":lambda x,y: x<y, "<=":lambda x,y: x<=y, "quotient":lambda x,y: x//y, "remainder":lambda x,y: x%y}
+        #note: no need to check argument types or number of arguments, since that is done in buildTree
+        if (len(self.children) != 0 and self.children[0].data not in mathSymbols):
+            errLog.append(f'Cannot apply math rule to {self.children[0].data}')
+        elif len(self.children[1].children) != 0 or len(self.children[2].children) != 0: #checking for (+ 1 (+ 2 3)) type errors
+            errLog.append("insufficiently resolved arguments")
+        else:
+            argOne = self.children[1].name
+            argTwo = self.children[2].name
+            ans = None
+            if (self.children[0].data=="remainder" or self.children[0].data=="quotient") and argTwo==0:
+                errLog.append("denominator can't be zero")
+            if self.children[0].data == "expt" and argOne*argOne != 1  and argTwo < 0: #note: currently PB has no negatives anyway!
+                errLog.append("expt with negative arguments results in non-integer output")
+            if self.children[0].data == "expt" and argOne == 0 and argTwo == 0:
+                errLog.append("0^0 is undefined") 
+            if errLog == []:   
+                newname = mathDict[self.children[0].data](argOne, argTwo) #compute the result
+                if isinstance(newname, bool):
+                    newdata = "#t" if newname else "#f" #convert to racket bool
+                    newtype = RacType((None, Type.BOOL))
+                else:
+                    newdata=str(newname)
+                    newtype = RacType((None, Type.INT))
+                self.replaceNode(Node(data=newdata, tokenType=newtype, name=newname)) #converting node
+        return errLog
 
     def ruleIf(self, errLog, debug=False):
         if (len(self.children) != 0 and self.children[0].data != 'if'):
             errLog.append(f'Cannot apply if rule to {self.children[0].data}')
         elif (len(self.children) != 4):
-            errLog.append(f'If rule expects 4 arguments, but received {len(self.children)}')
+            errLog.append(f'If function expects 3 arguments, but received {len(self.children)}')
             if debug:
                 if len(self.children) != 0:
                     print("child[0] data:",self.children[0].data)
@@ -138,9 +169,9 @@ class Node:
     
   
     def ruleConsList(self, errLog, debug=False):
-        print(f"data is {self.data}")
-        for x in range(len(self.children)):
-            print(f"child {x} is {self.children[x].data}")
+        #print(f"data is {self.data}")
+        #for x in range(len(self.children)):
+        #    print(f"child {x} is {self.children[x].data}")
         if self.data != "(":
             errLog.append("must select entire expression to apply consList rule")
         elif len(self.children) == 0 or self.children[0].data != 'cons':
