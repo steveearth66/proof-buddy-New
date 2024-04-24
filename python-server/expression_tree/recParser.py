@@ -105,7 +105,6 @@ class Node:
         else:
             argOne = self.children[1].name
             argTwo = self.children[2].name
-            ans = None
             if (self.children[0].data=="remainder" or self.children[0].data=="quotient") and argTwo==0:
                 errLog.append("denominator can't be zero")
             if self.children[0].data == "expt" and argOne*argOne != 1  and argTwo < 0: #note: currently PB has no negatives anyway!
