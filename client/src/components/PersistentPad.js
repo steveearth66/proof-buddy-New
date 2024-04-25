@@ -111,6 +111,10 @@ export default function PersistentPad({ equation, onHighlightChange }) {
     // Extract the entire expression containing the selected text
     let expression = equation.substring(start, end + 1);
 
+    if (!checkParenthesesConsistency(expression)) {
+      expression = balanceParentheses(expression);
+    }
+
     // Push opening parentheses onto the stack
     for (let i = 0; i < expression.length; i++) {
       const char = expression[i];
@@ -132,7 +136,6 @@ export default function PersistentPad({ equation, onHighlightChange }) {
       expression += ")";
       stack.pop();
     }
-
     return expression;
   };
 
