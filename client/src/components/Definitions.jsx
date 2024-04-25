@@ -132,8 +132,6 @@ function CreateDefinition({ onUpdate }) {
                 value={formValues.expression}
                 onBlur={() => handleBlur("expression")}
                 onChange={handleChange}
-                isInvalid={!!validationMessages.expression}
-                required
               />
               <label htmlFor="definitionExpression">Expression</label>
               <Form.Control.Feedback type="invalid">
@@ -142,7 +140,7 @@ function CreateDefinition({ onUpdate }) {
             </Form.Floating>
           </Col>
         </Row>
-        <div className="button-row">
+        <div className="def-button-row">
           <Button variant="outline-danger" onClick={() => onUpdate(false)}>
             Go Back
           </Button>
@@ -167,7 +165,7 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
           <Definition key={index} definition={def} eventKey={index} />
         ))}
       </div>
-      <div className="button-row">
+      <div className="def-button-row">
         <Button variant="danger" onClick={toggleDefinitionsWindow}>
           Close Definitions Window
         </Button>
