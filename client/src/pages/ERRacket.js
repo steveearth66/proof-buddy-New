@@ -168,7 +168,6 @@ const ERRacket = () => {
                 </Dropdown.Toggle>
 
                 <Dropdown.Menu>
-                  <Dropdown.Item href="#">Assertions</Dropdown.Item>
                   <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">
                     Definitions
                   </Dropdown.Item>

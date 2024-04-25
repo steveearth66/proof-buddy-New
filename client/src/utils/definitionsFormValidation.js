@@ -25,8 +25,6 @@ const validateField = (fieldName, value) => {
     return validateDefinitionField(value, "Please provide a label.");
   } else if (fieldName === "type") {
     return validateDefinitionField(value, "Please provide a type.");
-  } else if (fieldName === "expression") {
-    return validateDefinitionField(value, "Please provide an expression.");
   } else {
     return "";
   }
