@@ -23,20 +23,28 @@ CORS(app, resources={r'/*': {'origins': '*'}})
 def  get_er_proof_data():
     return jsonify({'name': 'test'})
 
+@app.route('/api/v1/proof/er-definitions', methods=['POST'])
+def add_definitions():
+    return jsonify(request.get_json())
+
 @app.route('/api/v1/proof/er-generate', methods=['POST'])
 def get_repositories():
     with app.app_context():
         json_data = request.get_json()
-        EXPRESSION_TREE =PREV_RACKETS[-1] # really this should be passed from the front end
-        EXPRESSION_TREE.fullDebug(False)
-        print(str(EXPRESSION_TREE))
+        exprList,errLog = recParser.preProcess(json_data['currentRacket'],errLog=[],debug=False)
+        if errLog==[]:
+            exprTree = recParser.buildTree(exprList,debug=False)[0] # might not need to pass errLog
+            labeledTree = Labeler.labelTree(exprTree)
+            labeledTree, _ = Labeler.fillPositions(labeledTree)
+            decTree, errLog = Decorator.decorateTree(labeledTree,errLog)
+            decTree, errLog = Decorator.checkFunctions(decTree,errLog)
+            EXPRESSION_TREE = decTree
         ERROR_LOG = EXPRESSION_TREE.generateRacketFromRule(json_data['startPosition'], json_data['rule'], errLog=[])
 
         print(f"tree={EXPRESSION_TREE} errs={ERROR_LOG}")
         if isValid := (ERROR_LOG==[]):
             racketStr = str(EXPRESSION_TREE)
             EXPRESSION_TREE=Labeler.fillPositions(EXPRESSION_TREE) [0]
-            PREV_RACKETS.append(EXPRESSION_TREE) #storing tree of most recently passed Racket
         else:
             racketStr = "Error generating racket"
         return jsonify({'isValid': isValid, 'racket': racketStr, 'errors': ERROR_LOG }), 200
