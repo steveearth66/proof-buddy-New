@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Dropdown from "react-bootstrap/Dropdown";
 import Button from "react-bootstrap/Button";
 import Container from "react-bootstrap/Container";
@@ -47,14 +47,16 @@ const ERRacket = () => {
     enhancedHandleChange
   ] = useGoalCheck(handleChange);
   const [startPosition, setStartPosition] = useState(0);
+  const [currentRacket, setCurrentRacket] = useState("");
   const [
     racketRuleFields,
     addFieldWithApiCheck,
     removeEmptyLines,
     handleFieldChange,
     validationErrors,
-    serverError
-  ] = useRacketRuleFields(startPosition);
+    serverError,
+    racketErrors
+  ] = useRacketRuleFields(startPosition, currentRacket);
   const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields);
   const [isOffcanvasActive, toggleOffcanvas] = useOffcanvas();
   const [showDefinitionsWindow, toggleDefinitionsWindow] =
@@ -101,6 +103,10 @@ const ERRacket = () => {
   const handleHighlight = (startPosition) => {
     setStartPosition(startPosition);
   };
+
+  useEffect(() => {
+    sessionStorage.removeItem("highlights");
+  }, []);
 
   return (
     <MainLayout>
@@ -310,6 +316,14 @@ const ERRacket = () => {
                     <Alert variant={"danger"}>{serverError}</Alert>
                   )}
 
+                  {racketErrors.length > 0 && (
+                    <Alert variant={"danger"} className="scroll-error">
+                      {racketErrors.map((error, index) => (
+                        <span key={`racket-error-${index}`}>{error}</span>
+                      ))}
+                    </Alert>
+                  )}
+
                   {showSide === "LHS" && (
                     <div className="racket-rule-lhs" id="racket-rule-lhs">
                       {/* Static Row Always Present */}
@@ -318,6 +332,7 @@ const ERRacket = () => {
                           equation={formValues.lHSGoal}
                           onHighlightChange={(startPosition) => {
                             handleHighlight(startPosition);
+                            setCurrentRacket(formValues.lHSGoal);
                             handleChange({
                               target: {
                                 name: "proofCurrentLHSGoal",
@@ -359,6 +374,9 @@ const ERRacket = () => {
                             equation={field.racket}
                             onHighlightChange={(startPosition) => {
                               handleHighlight(startPosition);
+                              setCurrentRacket(
+                                racketRuleFields.LHS.slice(-2)[0].racket
+                              );
                               handleFieldChange(
                                 showSide,
                                 index,
@@ -408,6 +426,7 @@ const ERRacket = () => {
                           equation={formValues.rHSGoal}
                           onHighlightChange={(startPosition) => {
                             handleHighlight(startPosition);
+                            setCurrentRacket(formValues.rHSGoal);
                             handleChange({
                               target: {
                                 name: "proofCurrentRHSGoal",
@@ -449,6 +468,9 @@ const ERRacket = () => {
                             equation={field.racket}
                             onHighlightChange={(startPosition) => {
                               handleHighlight(startPosition);
+                              setCurrentRacket(
+                                racketRuleFields.RHS.slice(-2)[0].racket
+                              );
                               handleFieldChange(
                                 showSide,
                                 index,

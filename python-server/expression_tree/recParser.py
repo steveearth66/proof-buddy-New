@@ -11,9 +11,11 @@ OPEN_GROUP = ["(","[","{","'"] # needed to separate open from closed for more pr
 CLOSE_GROUP = [")","]","}"] # possibly cond might be implemented one day with square brackets. presently, all these replaced by parens in pre-processing
 SPECIAL_CHARS = ["#","?","\u03BB","'"] # hashtag for bools,? for pred suffix, unicode is for λ (currently not in language), single quote for quoted lists
 AllowedChars = list(string.ascii_letters) + list(string.digits) + WHITESPACE + ARITHMETIC + OPEN_GROUP + CLOSE_GROUP + SPECIAL_CHARS
+KnownRules = {'if', 'cons','first', 'rest','null?', 'cons?', 'zero?', 'consList', 'math', 'logic'}
 
 # Node object used to compose the AST
 class Node:
+    
     def __init__(self, children=None, parent=None, data:str='', tokenType:RacType=RacType((None,None)), name=None, debug:bool=False, numArgs:int=None, length:int=None, startPosition=None):
         self.children = children # by specification, children[0] is the "operator" for functions
         if children == None:
@@ -85,11 +87,11 @@ class Node:
                 domsTup = list2Tup(domsList) # 
         return
      
-    def applyRule(self, ruleID:str, errLog=None): #TODO: replace with dictionary. strange to have ruleIF (et al) for every node regardless of node entry
+    def applyRule(self, ruleID:str, errLog=None): #TODO: replace with dictionary. strange to have ruleIF methods (et al) for every node regardless of node entry
         if errLog==None:
             errLog=[]
-        rules = {'if':self.ruleIf, 'cons':self.ruleCons, 'first':self.ruleFirst, 'rest':self.ruleRest, \
-                 'null?':self.ruleNull, 'cons?':self.ruleConsQ, 'zero?':self.ruleZero, 'consList':self.ruleConsList, 'math':self.ruleMath}
+        rules = {'if':self.ruleIf, 'cons':self.ruleCons, 'first':self.ruleFirst, 'rest':self.ruleRest, 'null?':self.ruleNull, 'cons?':self.ruleConsQ, \
+                 'zero?':self.ruleZero, 'consList':self.ruleConsList, 'math':self.ruleMath, 'logic':self.ruleLogic}
         return rules[ruleID](errLog)
     
     #TODO: this needs to be generalized to use a python math library and normal forms, and not just the 4 basic operations
@@ -120,6 +122,23 @@ class Node:
                     newdata=str(newname)
                     newtype = RacType((None, Type.INT))
                 self.replaceNode(Node(data=newdata, tokenType=newtype, name=newname)) #converting node
+        return errLog
+    
+    def ruleLogic(self, errLog, debug=False):
+        logicDict={"and":lambda x,y: x and y, "or":lambda x,y: x or y, "not":lambda x,y: not x, "xor":lambda x,y: (x or y) and not(x and y), \
+                   "implies":lambda x,y: (not x) or y} # not set up for "iff":lambda x,y: x==y, "nor":lambda x,y: not(x or y), "nand":lambda x,y: not(x and y) 
+        #note: no need to check argument types or number of arguments, since that is done in buildTree
+        if (len(self.children) != 0 and self.children[0].data not in logicDict.keys()):
+            errLog.append(f'Cannot apply logic rule to {self.children[0].data}')
+        elif len(self.children[1].children) != 0 or (self.children[0].data!="not" and len(self.children[2].children) != 0): #checking for (or (not #t) #t) type errors
+            errLog.append("insufficiently resolved arguments")
+        if errLog == []:
+            argOne = self.children[1].name
+            argTwo = (True if self.children[0].data=="not" else self.children[2].name) #y=True isn't used for "not" lambda operation, 2 params for consistency
+            newname = logicDict[self.children[0].data](argOne, argTwo)
+            newdata = "#t" if newname else "#f" #convert to racket bool
+            newtype = RacType((None, Type.BOOL))
+            self.replaceNode(Node(data=newdata, tokenType=newtype, name=newname)) #converting node
         return errLog
 
     def ruleIf(self, errLog, debug=False):
@@ -276,6 +295,9 @@ class Node:
         return errLog
     
     def generateRacketFromRule(self, startPos, rule, errLog):
+        if rule not in KnownRules: #also need to check if rule is in the userdefined dictionary (once that's implemented)
+            errLog.append(f'Rule {rule} not recognized')
+            return errLog
         targetNode = findNode(self, startPos, errLog)
         if targetNode is not None and targetNode!=[]:
             return targetNode[0].applyRule(rule, errLog)

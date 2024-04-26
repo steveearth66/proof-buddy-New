@@ -274,3 +274,12 @@
     }
   }
 }
+
+.scroll-error {
+  display: inline-flex;
+  flex-direction: column;
+  width: 100%;
+  line-height: 1.5;
+  height: 2.3lh;
+  overflow-y: auto;
+}
