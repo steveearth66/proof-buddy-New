@@ -1,5 +1,5 @@
 import "../scss/_persistent-pad.scss";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Col from "react-bootstrap/Col";
 import logger from "../utils/logger";
 
@@ -138,6 +138,39 @@ export default function PersistentPad({ equation, onHighlightChange }) {
     }
     return expression;
   };
+
+  useEffect(() => {
+    const saveHighlightToSession = (highlightedText) => {
+      const savedHighlights = JSON.parse(
+        sessionStorage.getItem("highlights") || "[]"
+      );
+
+      savedHighlights.forEach((highlight, index) => {
+        if (highlight.equation === equation) {
+          savedHighlights.splice(index, 1);
+        }
+      });
+
+      savedHighlights.push({ equation, highlightedText });
+      sessionStorage.setItem("highlights", JSON.stringify(savedHighlights));
+    };
+
+    if (highlightedText) {
+      saveHighlightToSession(highlightedText);
+    }
+  }, [highlightedText, equation]);
+
+  useEffect(() => {
+    const savedHighlights = JSON.parse(
+      sessionStorage.getItem("highlights") || "[]"
+    );
+
+    savedHighlights.forEach((highlight) => {
+      if (highlight.equation === equation) {
+        setHighlightedText(highlight.highlightedText);
+      }
+    });
+  }, [equation]);
 
   return (
     <Col xs={8}>
