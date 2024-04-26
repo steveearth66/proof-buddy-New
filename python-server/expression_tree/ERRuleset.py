@@ -135,3 +135,48 @@ class ZeroQ(Rule):
         if (argOne >=0 and argTwo >= 0) and (argOne > 0 or argTwo > 0):
             falseNode = Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
             return falseNode
+        
+'''
+#TODO: convert this
+def ruleConsList(self, errLog, debug=False):
+    #print(f"data is {self.data}")
+    #for x in range(len(self.children)):
+    #    print(f"child {x} is {self.children[x].data}")
+    if self.data != "(":
+        errLog.append("must select entire expression to apply consList rule")
+    elif len(self.children) == 0 or self.children[0].data != 'cons':
+        errLog.append('operator must be cons to apply consList rule')
+    elif num:=(len(self.children)) != 3: #NOTE: this case should have been caught earlier in buildtree, but just to be safe
+        errLog.append(f'cons expects 2 arguments, but you provided {num-1}')
+    elif (consObj:=self.children[1].data)=="(":
+        errLog.append('insufficiently resolved first argument')
+    elif (listname:=(self.children[2].data)) not in ("null","'("):
+        errLog.append('insufficiently resolved second argument, which must be a list')
+    else:
+        if listname=="null":
+            self.children[2].data = "'(" #changing null to '( to make consistent case handling
+        # at this point the second argument is definitely '( although possibly with no children/entries
+        if consObj =="'(": #need to get rid of the object's quote to avoid nesting quotes
+            if len(self.children[1].children) == 0:
+                newtype = RacType((None, Type.LIST)) # consing a '()
+            else:
+                newtype=self.children[1].children[0].type
+                if newtype.getType() == Type.FUNCTION:
+                    newtype = newtype.getRange() #changing the type of the paren to be the output type of the operand
+            parenNode = Node(children=self.children[1].children, data="(", tokenType=newtype, parent=self.children[1])
+            for ch in self.children[1].children:
+                ch.parent = parenNode #changing the parent of the children to the new node
+            self.children[1].children = [parenNode] #replacing the old children with the new node
+            lNode = self.children[1] #this will be the node used for replacement
+            lNode.children.extend(self.children[2].children)
+        else: #consObj is a nonquoted object
+            lNode = Node(children=[self.children[1]], data="'(", tokenType=RacType((None, Type.LIST))) #length=len(self.children[2].children)+1)
+            lNode.children.extend(self.children[2].children)
+            for child in lNode.children:
+                child.parent = lNode 
+    try:
+        self.replaceNode(lNode)
+    except:
+        print(errLog)
+    return errLog
+'''
