@@ -54,7 +54,8 @@ const ERRacket = () => {
     removeEmptyLines,
     handleFieldChange,
     validationErrors,
-    serverError
+    serverError,
+    racketErrors
   ] = useRacketRuleFields(startPosition, currentRacket);
   const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields);
   const [isOffcanvasActive, toggleOffcanvas] = useOffcanvas();
@@ -309,6 +310,14 @@ const ERRacket = () => {
                 <div className="racket-rule-wrap" id="racket-rule">
                   {serverError && (
                     <Alert variant={"danger"}>{serverError}</Alert>
+                  )}
+
+                  {racketErrors.length > 0 && (
+                    <Alert variant={"danger"}>
+                      {racketErrors.map((error, index) => (
+                        <p key={`racket-error-${index}`}>{error}</p>
+                      ))}
+                    </Alert>
                   )}
 
                   {showSide === "LHS" && (
