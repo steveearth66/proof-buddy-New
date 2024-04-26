@@ -19,6 +19,7 @@ import logger from '../utils/logger';
  */
 const useRacketRuleFields = (startPosition, currentRacket) => {
   const [serverError, handleServerError] = useServerError();
+  const [racketErrors, setRacketErrors] = useState([]);
   const [racketRuleFields, setRacketRuleFields] = useState({
     LHS: [],
     RHS: []
@@ -45,9 +46,8 @@ const useRacketRuleFields = (startPosition, currentRacket) => {
 
       try {
         const response = await erService.racketGeneration(payLoad);
-        if (response && response.racket) {
-          return response.racket;
-        }
+
+        if (response) return response;
       } catch (error) {
         handleServerError(error);
       }
@@ -80,14 +80,15 @@ const useRacketRuleFields = (startPosition, currentRacket) => {
         } else {
           try {
             const ruleValue = sideFields[lastFieldIndex].rule;
-            const racketValue = await fetchRacketValue(ruleValue);
+            const racket = await fetchRacketValue(ruleValue);
 
-            if (racketValue) {
+            if (racket.isValid) {
+              setRacketErrors([]);
               setRacketRuleFields((prevFields) => ({
                 ...prevFields,
                 [side]: [
                   ...prevFields[side].slice(0, -1),
-                  { ...sideFields[lastFieldIndex], racket: racketValue },
+                  { ...sideFields[lastFieldIndex], racket: racket.racket },
                   { racket: "", rule: "" }
                 ]
               }));
@@ -95,6 +96,8 @@ const useRacketRuleFields = (startPosition, currentRacket) => {
                 ...prevErrors,
                 [side]: {}
               }));
+            } else {
+              setRacketErrors(racket.errors);
             }
           } catch (error) {
             logger.error("Failed to fetch racket value:", error);
@@ -172,7 +175,8 @@ const useRacketRuleFields = (startPosition, currentRacket) => {
     removeEmptyLines,
     handleFieldChange,
     validationErrors,
-    serverError
+    serverError,
+    racketErrors
   ];
 };
 
