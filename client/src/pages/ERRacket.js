@@ -47,6 +47,7 @@ const ERRacket = () => {
     enhancedHandleChange
   ] = useGoalCheck(handleChange);
   const [startPosition, setStartPosition] = useState(0);
+  const [currentRacket, setCurrentRacket] = useState("");
   const [
     racketRuleFields,
     addFieldWithApiCheck,
@@ -54,7 +55,7 @@ const ERRacket = () => {
     handleFieldChange,
     validationErrors,
     serverError
-  ] = useRacketRuleFields(startPosition);
+  ] = useRacketRuleFields(startPosition, currentRacket);
   const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields);
   const [isOffcanvasActive, toggleOffcanvas] = useOffcanvas();
   const [showDefinitionsWindow, toggleDefinitionsWindow] =
@@ -318,6 +319,7 @@ const ERRacket = () => {
                           equation={formValues.lHSGoal}
                           onHighlightChange={(startPosition) => {
                             handleHighlight(startPosition);
+                            setCurrentRacket(formValues.lHSGoal);
                             handleChange({
                               target: {
                                 name: "proofCurrentLHSGoal",
@@ -359,6 +361,9 @@ const ERRacket = () => {
                             equation={field.racket}
                             onHighlightChange={(startPosition) => {
                               handleHighlight(startPosition);
+                              setCurrentRacket(
+                                racketRuleFields.LHS.slice(-2)[0].racket
+                              );
                               handleFieldChange(
                                 showSide,
                                 index,
@@ -408,6 +413,7 @@ const ERRacket = () => {
                           equation={formValues.rHSGoal}
                           onHighlightChange={(startPosition) => {
                             handleHighlight(startPosition);
+                            setCurrentRacket(formValues.rHSGoal);
                             handleChange({
                               target: {
                                 name: "proofCurrentRHSGoal",
@@ -449,6 +455,9 @@ const ERRacket = () => {
                             equation={field.racket}
                             onHighlightChange={(startPosition) => {
                               handleHighlight(startPosition);
+                              setCurrentRacket(
+                                racketRuleFields.RHS.slice(-2)[0].racket
+                              );
                               handleFieldChange(
                                 showSide,
                                 index,
