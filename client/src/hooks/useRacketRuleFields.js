@@ -18,7 +18,7 @@ import logger from '../utils/logger';
  * const { racketRuleFields, addField, handleFieldChange, serverError } = useRacketRuleFields();
  */
 const useRacketRuleFields = (startPosition, currentRacket) => {
-  const [serverError, handleServerError] = useServerError();
+  const [serverError, handleServerError, clearServerError] = useServerError();
   const [racketErrors, setRacketErrors] = useState([]);
   const [racketRuleFields, setRacketRuleFields] = useState({
     LHS: [],
@@ -84,6 +84,7 @@ const useRacketRuleFields = (startPosition, currentRacket) => {
 
             if (racket.isValid) {
               setRacketErrors([]);
+              clearServerError();
               setRacketRuleFields((prevFields) => ({
                 ...prevFields,
                 [side]: [
@@ -110,7 +111,7 @@ const useRacketRuleFields = (startPosition, currentRacket) => {
         }));
       }
     },
-    [fetchRacketValue, racketRuleFields]
+    [fetchRacketValue, racketRuleFields, clearServerError]
   );
 
   /**
