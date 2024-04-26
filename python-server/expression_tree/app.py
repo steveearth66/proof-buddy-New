@@ -31,6 +31,9 @@ def get_repositories():
         EXPRESSION_TREE.fullDebug(False)
         print(str(EXPRESSION_TREE))
         ERROR_LOG = EXPRESSION_TREE.generateRacketFromRule(json_data['startPosition'], json_data['rule'], errLog=[])
+        #ERROR_LOG = ["la de dah, this is a test of the emergency broadcast system which contains lots of words, hopefully more than the width of the screen, \
+        #             so that we can see how the text wraps around the screen","This is a test of the emergency broadcast system err2", "This is only a test.",\
+        #                "dont panic!"] # for testing
 
         print(f"tree={EXPRESSION_TREE} errs={ERROR_LOG}")
         if isValid := (ERROR_LOG==[]):
