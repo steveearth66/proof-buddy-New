@@ -1,4 +1,4 @@
-import recParser, Labeler, typeFile, Decorator
+import Parser, Labeler, ERCommon, Decorator
 
 test_strings_ruleIf= [
     ("cons", "(cons (if #t (if #f 3 4) 5) null)"),
@@ -30,8 +30,8 @@ test_strings_ruleIf= [
 print("\napplyRule testing:\n")
 for rule, expr in test_strings_ruleIf:
     print("input =", expr)
-    exprList,errLog = recParser.preProcess(expr,errLog=[])
-    exprTree = recParser.buildTree(exprList,)[0] # might not need to pass errLog
+    exprList,errLog = Parser.preProcess(expr,errLog=[])
+    exprTree = Parser.buildTree(exprList,)[0] # might not need to pass errLog
     labeledTree = Labeler.labelTree(exprTree)
     decTree, errLog = Decorator.decorateTree(labeledTree,errLog)
     errLog = Decorator.remTemps(decTree, errLog)

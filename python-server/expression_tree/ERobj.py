@@ -1,4 +1,4 @@
-from typeFile import Type
+from ERCommon import Type
 
 # this is a class that holds information that can be fed into the tree nodes
 class ERobj:
@@ -22,8 +22,8 @@ class ERobj:
         return False
  
 #making deepcopies
-def ERcopy(orig:ERobj)->ERobj:
-    return ERobj(orig.name, orig.pbType, orig.ins, orig.outtype, orig.value,orig.numArgs, orig.length)
+#def ERcopy(orig:ERobj)->ERobj:
+#    return ERobj(orig.name, orig.pbType, orig.ins, orig.outtype, orig.value,orig.numArgs, orig.length)
 
 
 # NOTE: lambdas take the ERobj.value, as inputs, not the value itself.
