@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from .ERCommon import Node
 from ERCommon import *
 def isMatch(xNode:Node, yNode:Node)->bool: #recursively check if two nodes are identical #TODO: replace elif chain with something prettier
     if xNode.data != yNode.data or \
@@ -135,48 +136,42 @@ class ZeroQ(Rule):
         if (argOne >=0 and argTwo >= 0) and (argOne > 0 or argTwo > 0):
             falseNode = Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
             return falseNode
+
+
+class ConsList(Rule):
+    def isApplicable(ruleNode: Node) -> tuple[bool, str]:
+        if ruleNode.data != "(":
+            return False, "must select entire expression to apply consList rule"
+        elif len(ruleNode.children) == 0 or ruleNode.children[0].data != 'cons':
+            return False, 'operator must be cons to apply consList rule'
+        elif num:=(len(ruleNode.children)) != 3: #NOTE: this case should have been caught earlier in buildtree, but just to be safe
+            return False, f'cons expects 2 arguments, but you provided {num-1}'
+        elif (ruleNode.children[1].data)=="(":
+            return False, 'insufficiently resolved first argument'
+        elif (ruleNode.children[2].data) not in ("null","'("):
+            return False, 'insufficiently resolved second argument, which must be a list'
         
-'''
-#TODO: convert this
-def ruleConsList(self, errLog, debug=False):
-    #print(f"data is {self.data}")
-    #for x in range(len(self.children)):
-    #    print(f"child {x} is {self.children[x].data}")
-    if self.data != "(":
-        errLog.append("must select entire expression to apply consList rule")
-    elif len(self.children) == 0 or self.children[0].data != 'cons':
-        errLog.append('operator must be cons to apply consList rule')
-    elif num:=(len(self.children)) != 3: #NOTE: this case should have been caught earlier in buildtree, but just to be safe
-        errLog.append(f'cons expects 2 arguments, but you provided {num-1}')
-    elif (consObj:=self.children[1].data)=="(":
-        errLog.append('insufficiently resolved first argument')
-    elif (listname:=(self.children[2].data)) not in ("null","'("):
-        errLog.append('insufficiently resolved second argument, which must be a list')
-    else:
-        if listname=="null":
-            self.children[2].data = "'(" #changing null to '( to make consistent case handling
+    def insertSubstitution(ruleNode: Node) -> Node:
+        if ruleNode.children[2].data=="null":
+            ruleNode.children[2].data = "'(" #changing null to '( to make consistent case handling
         # at this point the second argument is definitely '( although possibly with no children/entries
-        if consObj =="'(": #need to get rid of the object's quote to avoid nesting quotes
-            if len(self.children[1].children) == 0:
+        if ruleNode.children[1].data =="'(": #need to get rid of the object's quote to avoid nesting quotes
+            if len(ruleNode.children[1].children) == 0:
                 newtype = RacType((None, Type.LIST)) # consing a '()
             else:
-                newtype=self.children[1].children[0].type
+                newtype=ruleNode.children[1].children[0].type
                 if newtype.getType() == Type.FUNCTION:
                     newtype = newtype.getRange() #changing the type of the paren to be the output type of the operand
-            parenNode = Node(children=self.children[1].children, data="(", tokenType=newtype, parent=self.children[1])
-            for ch in self.children[1].children:
+            parenNode = Node(children=ruleNode.children[1].children, data="(", tokenType=newtype, parent=ruleNode.children[1])
+            for ch in ruleNode.children[1].children:
                 ch.parent = parenNode #changing the parent of the children to the new node
-            self.children[1].children = [parenNode] #replacing the old children with the new node
-            lNode = self.children[1] #this will be the node used for replacement
-            lNode.children.extend(self.children[2].children)
+            ruleNode.children[1].children = [parenNode] #replacing the old children with the new node
+            lNode = ruleNode.children[1] #this will be the node used for replacement
+            lNode.children.extend(ruleNode.children[2].children)
         else: #consObj is a nonquoted object
-            lNode = Node(children=[self.children[1]], data="'(", tokenType=RacType((None, Type.LIST))) #length=len(self.children[2].children)+1)
-            lNode.children.extend(self.children[2].children)
+            lNode = Node(children=[ruleNode.children[1]], data="'(", tokenType=RacType((None, Type.LIST))) #length=len(self.children[2].children)+1)
+            lNode.children.extend(ruleNode.children[2].children)
             for child in lNode.children:
                 child.parent = lNode 
-    try:
-        self.replaceNode(lNode)
-    except:
-        print(errLog)
-    return errLog
-'''
+        return lNode
+
