@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import Col from "react-bootstrap/Col";
 import logger from "../utils/logger";
 
-export default function PersistentPad({ equation, onHighlightChange }) {
+export default function PersistentPad({ equation, onHighlightChange, side }) {
   const [highlightedText, setHighlightedText] = useState("");
 
   const handelSelection = () => {
@@ -146,19 +146,19 @@ export default function PersistentPad({ equation, onHighlightChange }) {
       );
 
       savedHighlights.forEach((highlight, index) => {
-        if (highlight.equation === equation) {
+        if (highlight.equation === equation && highlight.side === side) {
           savedHighlights.splice(index, 1);
         }
       });
 
-      savedHighlights.push({ equation, highlightedText });
+      savedHighlights.push({ equation, highlightedText, side });
       sessionStorage.setItem("highlights", JSON.stringify(savedHighlights));
     };
 
     if (highlightedText) {
       saveHighlightToSession(highlightedText);
     }
-  }, [highlightedText, equation]);
+  }, [highlightedText, equation, side]);
 
   useEffect(() => {
     const savedHighlights = JSON.parse(
@@ -166,11 +166,11 @@ export default function PersistentPad({ equation, onHighlightChange }) {
     );
 
     savedHighlights.forEach((highlight) => {
-      if (highlight.equation === equation) {
+      if (highlight.equation === equation && highlight.side === side) {
         setHighlightedText(highlight.highlightedText);
       }
     });
-  }, [equation]);
+  }, [equation, side]);
 
   return (
     <Col xs={8}>

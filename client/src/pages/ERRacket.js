@@ -340,6 +340,7 @@ const ERRacket = () => {
                               }
                             });
                           }}
+                          side={showSide}
                         />
 
                         <Form.Group
@@ -384,6 +385,7 @@ const ERRacket = () => {
                                 field.racket
                               );
                             }}
+                            side={showSide}
                           />
 
                           <Form.Group as={Col} md="4" className="er-proof-rule">
@@ -434,6 +436,7 @@ const ERRacket = () => {
                               }
                             });
                           }}
+                          side={showSide}
                         />
 
                         <Form.Group
@@ -478,6 +481,7 @@ const ERRacket = () => {
                                 field.racket
                               );
                             }}
+                            side={showSide}
                           />
 
                           <Form.Group as={Col} md="4" className="er-proof-rule">
