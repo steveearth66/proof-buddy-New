@@ -313,7 +313,7 @@ const ERRacket = () => {
                   )}
 
                   {racketErrors.length > 0 && (
-                    <Alert variant={"danger"}>
+                    <Alert variant={"danger"} className="scroll-error">
                       {racketErrors.map((error, index) => (
                         <span key={`racket-error-${index}`}>{error}</span>
                       ))}

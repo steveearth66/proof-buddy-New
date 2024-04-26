@@ -21,10 +21,11 @@ const useServerError = () => {
     }
   };
 
-  return [
-    serverError,
-    handleServerError
-  ];
+  const clearServerError = () => {
+    setServerError("");
+  };
+
+  return [serverError, handleServerError, clearServerError];
 };
 
 export { useServerError };
