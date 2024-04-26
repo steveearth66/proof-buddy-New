@@ -2,6 +2,7 @@ import "../scss/_definitions.scss";
 import Form from "react-bootstrap/Form";
 import Col from "react-bootstrap/Col";
 import Row from "react-bootstrap/Row";
+import Alert from "react-bootstrap/Alert";
 import Button from "react-bootstrap/esm/Button";
 import Accordion from "react-bootstrap/Accordion";
 import validateField from "../utils/definitionsFormValidation";
@@ -9,6 +10,7 @@ import { useInputState } from "../hooks/useInputState";
 import { useFormValidation } from "../hooks/useFormValidation";
 import { useFormSubmit } from "../hooks/useFormSubmit";
 import { useState } from "react";
+import erService from "../services/erService";
 
 export default function Definitions({ toggleDefinitionsWindow }) {
   const [showCreateDefinition, setShowCreateDefinition] = useState(false);
@@ -40,6 +42,7 @@ function CreateDefinition({ onUpdate }) {
   const [validationMessages, handleBlur, setAllTouched, isFormValid] =
     useFormValidation(formValues, validateField);
   const [validated, setValidated] = useState(false);
+  const [errors, setErrors] = useState([]);
 
   const handleCreateDefinition = async () => {
     const definition = {
@@ -53,15 +56,22 @@ function CreateDefinition({ onUpdate }) {
 
     definitions.forEach((def) => {
       if (def.label === definition.label) {
-        alert("Definition already exists.");
+        setErrors(["Definition with this label already exists."]);
         exists = true;
       }
     });
 
     if (!exists) {
-      definitions.push(definition);
-      sessionStorage.setItem("definitions", JSON.stringify(definitions));
-      alert("Definition created successfully.");
+      const response = await erService.createDefinition(definition);
+      setErrors([]);
+
+      if (response.status === 200) {
+        definitions.push(definition);
+        sessionStorage.setItem("definitions", JSON.stringify(definitions));
+        alert("Definition created successfully.");
+      } else {
+        setErrors(["Failed to create definition."]);
+      }
     }
   };
 
@@ -149,6 +159,13 @@ function CreateDefinition({ onUpdate }) {
           </Button>
         </div>
       </Form>
+      {errors.length > 0 && (
+        <Alert variant="danger">
+          {errors.map((error, index) => (
+            <p key={index}>{error}</p>
+          ))}
+        </Alert>
+      )}
     </div>
   );
 }

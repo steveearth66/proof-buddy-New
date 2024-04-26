@@ -36,9 +36,23 @@ const racketGeneration = async (payLoad) => {
   }
 };
 
+const createDefinition = async (definition) => {
+  try {
+    const response = await axiosInstanceProof.post(
+      `${API_GATEWAY}/er-definitions`,
+      definition
+    );
+    return response;
+  } catch (error) {
+    handleServiceError(error, "Error during definition creation:");
+    throw error;
+  }
+};
+
 const erService = {
   checkGoal,
-  racketGeneration
+  racketGeneration,
+  createDefinition
 };
 
 export default erService;
