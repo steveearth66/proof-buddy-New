@@ -20,8 +20,7 @@ import { useFormSubmit } from "../hooks/useFormSubmit";
 import "../scss/_forms.scss";
 import "../scss/_er-racket.scss";
 import { useExportToLocalMachine } from "../hooks/useExportToLocalMachine";
-import PersistentPad from "../components/PersistentPad";
-import { Definitions } from "../components";
+import { Definitions, RacketComplete, PersistentPad } from "../components";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 
 /**
@@ -61,6 +60,7 @@ const ERRacket = () => {
   const [isOffcanvasActive, toggleOffcanvas] = useOffcanvas();
   const [showDefinitionsWindow, toggleDefinitionsWindow] =
     useDefinitionsWindow();
+  const [showRacketComplete, setShowRacketComplete] = useState(false);
 
   const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
@@ -106,7 +106,25 @@ const ERRacket = () => {
 
   useEffect(() => {
     sessionStorage.removeItem("highlights");
+    sessionStorage.removeItem("definitions");
   }, []);
+
+  useEffect(() => {
+    const removeBlankRackets = () => {
+      racketRuleFields.LHS.splice(-1);
+      racketRuleFields.RHS.splice(-1);
+    };
+
+    if (currentLHS !== "" && currentRHS !== "") {
+      if (currentLHS === currentRHS) {
+        removeBlankRackets();
+        setShowRacketComplete(true);
+        setTimeout(() => {
+          setShowRacketComplete(false);
+        }, 5000);
+      }
+    }
+  }, [currentLHS, currentRHS, racketRuleFields]);
 
   return (
     <MainLayout>
@@ -118,6 +136,9 @@ const ERRacket = () => {
         {showDefinitionsWindow && (
           <Definitions toggleDefinitionsWindow={toggleDefinitionsWindow} />
         )}
+
+        {showRacketComplete && <RacketComplete />}
+
         <Form
           noValidate
           validated={validated}
