@@ -34,7 +34,7 @@ def helpPrint(items):
     elif isinstance(items, tuple) and items[0] is None:
         return str(items[1])
     elif isinstance(items, tuple):
-        domain = ', '.join(helpPrint(item) for item in items[0] if item is not None)
+        domain = ', '.join(helpPrint(item) for item in items[0].value if item is not None)
         range = helpPrint(items[1])
         return f"({domain}) > {range}"
     return str(items)
@@ -67,6 +67,8 @@ class RacType:
 
     def isType(self, typeStr)->bool:
         return str(self.getType()) == typeStr
+    
+
 '''
 # unit tests
 tests = [RacType((None, Type.INT)), RacType((((((None, Type.LIST), (None, Type.BOOL)), \

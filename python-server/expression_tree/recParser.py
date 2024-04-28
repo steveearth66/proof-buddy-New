@@ -74,18 +74,7 @@ class Node:
 
     # a node's setter method which takes in a string and sets the type of the node based on the string
     def setType(self, strg:str)->None:
-        if ">" not in strg:
-            self.type=RacType((None,Type.__members__.get(strg)))
-        else:
-            # make a "token list"
-            slist = strg.upper().replace("(", " ( ").replace(">", " > ").replace(",", " , ").replace(")", " ) ").strip().split()
-            if (ind:=findDelim(">",slist)) == -1:
-                self.type=RacType(Type.ERROR) # e.g. mismatched parens
-            else:
-                outlist = slist[ind+1:] #everything after the >
-                outtype = list2Type(outlist)
-                domsList = slist[:ind] #everything before the >
-                domsTup = list2Tup(domsList) # 
+        self.type = str2Type(strg)
         return
      
     def applyRule(self, ruleID:str, errLog=None): #TODO: replace with dictionary. strange to have ruleIF methods (et al) for every node regardless of node entry
@@ -312,7 +301,7 @@ def findDelim(delim:str, tlist:list)->int:
     for i in range(len(tlist)): #must use range since index matters
         counter += 1 if tlist[i]=="(" else -1 if tlist[i]==")" else 0
         if counter == 0 and tlist[i]==delim:
-            return i+1
+            return i+1 #this is one more than the position for some reason (maybe i used it earlier) so i need to -1 to it in str2Type
     return -1 # the string had unbalanced parens or did not contain delim
 
 #given a tokenized list of a single type (i.e. NOT a list of types like potentially in a domain), returns the ractype for it. note: could be a function
@@ -327,18 +316,78 @@ def list2Type(slist:list[str])->RacType:
     return RacType() # TODO: this is what needs to be done if it is a function
 
 # this takes in a list of parenthesized string tokens and splits it into ans[0]= token list of first element, ans[1]=token list of parenthesized rest
-# example: "(INT,LIST,BOOL)" would be [INT, (LIST,BOOL)], all tokenized.  also [((INT,BOOL)>LIST, BOOL)] would be [(INT,BOOL)>LIST, (BOOL)]
+# example: "(INT,LIST,BOOL)" would be [[INT], [(LIST,BOOL)]], all tokenized.  also [((INT,BOOL)>LIST, BOOL)] would be [[(INT,BOOL)>LIST], [(BOOL)]]
 def sepFirst(slist:list[str])->list:
     ind = findDelim(",",slist[1:-1]) #need to ignore out parens
-    #if ind == -1:
-     #   return [slist[1:-1],["(",")"]] #note this does not convert slist to a type with list2Type yet, it just removes the parens
     return [slist[1:ind],["("]+([")"] if ind==-1 else slist[ind+1:])]
-
-def list2Tup(slist:list[str])->tuple:
-    return () #TODO complete this
-
 '''
-do settype tests with:
+tstr2="((INT,BOOL)>LIST, BOOL)"
+tstr1="(INT,LIST,BOOL)"
+tstr3="(INT,BOOL)"
+tstr="(INT)"
+print(tstr)
+slist=tstr.upper().replace("(", " ( ").replace(">", " > ").replace(",", " , ").replace(")", " ) ").strip().split()
+setplist = sepFirst(slist)
+print(setplist)'''
+
+# takes a parenthesized list of tokens (possibly one or even empty) and turns it into a tuple of RacTypes
+def list2Tup(slist:list[str])->tuple:
+    if slist==["(",")"]:
+        return tuple([])
+    firstTokL,restToksL=sepFirst(slist)
+    return tuple(str2Type(str(firstTokL[0])),)+list2Tup(restToksL)
+
+core = ["INT","LIST","BOOL","ANY"]
+#takes a string and turns it into a RacType
+def str2Type(tstr:str)->RacType:
+    if tstr==None or tstr=="":
+        return RacType(Type.ERROR)
+    #creates token list
+    slist = tstr.upper().replace("(", " ( ").replace(">", " > ").replace(",", " , ").replace(")", " ) ").strip().split()
+    for item in slist:
+        #note: core is defined outside definition. apparently global not needed for lists, only for ints that are being modified
+        if item not in core+[",","(",")",">"]: #checks to make sure all tokens are valid. 
+            return RacType(Type.ERROR)
+    if findDelim(")",slist)==len(slist):
+        slist=slist[1:-1] #stripping out unnecessary surrounding parens
+    if len(slist)==1 or (len(slist)==3 and slist[0]=="(" and slist[2]==")"):
+        mid = slist[0] if len(slist)==1 else slist[1] #grabbing a single item which could be int or (int)
+        return RacType((None,Type.__members__.get(mid))) if mid in core else RacType(Type.ERROR)
+    if (ind:=findDelim(">",slist)-1) == -1: #must exist since single types already handled, or mismatched parens
+        return RacType(Type.ERROR)
+    outlist = slist[ind+1:] #everything after the >
+    outtype = str2Type("".join(outlist)) #convert range token list back to string to do recursion
+    domsList = slist[:ind] #everything before the root >, so paren balanced already
+    if "," not in domsList: # the function just takes a single argument (which might be a function)
+        return RacType(((str2Type("".join(domsList)),), outtype))
+    domsTup = list2Tup(domsList) # makes a tuple of RacTypes
+    return (domsTup,outtype)
+
+
+print(str2Type("(INT)>BOOL"))
+print(str2Type("(INT>BOOL)"))
+ans=str2Type("INT>(BOOL)")
+
+dom=ans.value[0].value
+rang=ans.value[1].value
+print(type(dom), type(rang))
+
+
+
+print(str2Type("INT>LIST>BOOL"))
+print(str2Type("INT>(LIST)>BOOL"))
+ans=str2Type("INT>LIST>(BOOL)")
+#print(str2Type("INT>LIST>(BOOL)"))
+
+print(str2Type("(INT)>(LIST>BOOL)"))
+print(str2Type("(INT>LIST)>BOOL"))
+#print(str2Type("INT>(LIST>BOOL)"))
+#print(str2Type("(INT>LIST)>BOOL"))
+#print(str2Type("(INT,LIST)>BOOL"))
+#print(str2Type("(INT,LIST)>(INT>BOOL)"))
+#print(str2Type("(INT,LIST)>INT>BOOL"))
+
+'''do settype tests with:
 INT>BOOL
 (INT)>BOOL
 (INT,LIST)>BOOL
