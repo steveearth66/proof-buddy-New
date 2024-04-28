@@ -4,6 +4,7 @@ import string # for string helper functions
 from typeFile import * # import RacType for type hints
 from ERobj import *  # for accessing pdict and ERObj declarations in applyRule
 
+
 # SYMBOLS: perhaps in future allow square brackets and braces. 
 WHITESPACE = ["\n","\t","\r"," "] # permits linebreak and indents for conditionals. all become \s in pre-processing step
 ARITHMETIC = ["+","*","-","=",">","<"] # any other math uses ascii, such as expt, quotient, remainder. Note: "/" not permitted
@@ -492,3 +493,4 @@ def findNode(tree:Node, target:int,errLog:list[str],found=None)->Node:
         if not found:
             findNode(child, target, errLog,found)
     return found
+
