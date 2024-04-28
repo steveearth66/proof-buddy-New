@@ -7,7 +7,19 @@ const ruleSet = () => { //just creates a ruleset for the ER Page. If new rules a
       name: "cons",
       tags: "test"
     },
+    {
+      toFrom: "(first '(a b ... z))",
+      fromTo: "a",
+      name: "firstList",
+      tags: "first, quote"
+    },
     { toFrom: "(first (cons x L))", fromTo: "x", name: "first", tags: "test" },
+    {
+      toFrom: "(rest '(a b ... z))",
+      fromTo: "'(b ... z)",
+      name: "restLis",
+      tags: "rest, quote"
+    },
     { toFrom: "(rest (cons x L))", fromTo: "L", name: "rest", tags: "test" },
     {
       toFrom: "‘(x y … z)",
