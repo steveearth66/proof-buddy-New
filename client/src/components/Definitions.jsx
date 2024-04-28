@@ -74,6 +74,7 @@ function CreateDefinition({
         return;
       } else {
         setErrors(["Failed to update definition."]);
+        return;
       }
     }
 
