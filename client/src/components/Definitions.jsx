@@ -53,6 +53,15 @@ function CreateDefinition({
   const [validated, setValidated] = useState(false);
   const [errors, setErrors] = useState([]);
 
+  const handleReset = () => {
+    formValues.label = "";
+    formValues.type = "";
+    formValues.expression = "";
+    formValues.notes = "";
+    setValidated(false);
+    setErrors([]);
+  };
+
   const handleCreateDefinition = async () => {
     const definition = {
       label: formValues.label,
@@ -92,6 +101,7 @@ function CreateDefinition({
       if (response.status === 200) {
         definitions.push(definition);
         sessionStorage.setItem("definitions", JSON.stringify(definitions));
+        handleReset();
         alert("Definition created successfully.");
       } else {
         setErrors(["Failed to create definition."]);
