@@ -187,8 +187,7 @@ def findNode(tree:Node, target:int,errLog:list[str],found=None)->Node:
     if found ==  None:
         found = []
 
-    print(f"tree={tree.data} start={tree.startPosition}")
-    print(target)
+    # print(f"tree={tree.data} start={tree.startPosition}")
     if tree.startPosition == target:
         found.extend([tree])
 

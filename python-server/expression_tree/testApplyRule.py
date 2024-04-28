@@ -55,5 +55,5 @@ for rule, expr in test_strings_ruleIf:
     print(f"input = {expr}, rule = {rule}")
     proof = ERProof(expr)
     if proof.errLog == []:
-        errLog = proof.applyRule(rule, 0)
+        proof.applyRule(rule, 0)
     print("after rule =", str(proof.exprTree))
