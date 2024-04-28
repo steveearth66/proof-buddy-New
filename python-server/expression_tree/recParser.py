@@ -363,7 +363,7 @@ def str2Type(tstr:str)->RacType:
     domsTup = list2Tup(domsList) # makes a tuple of RacTypes
     return (domsTup,outtype)
 
-
+'''
 print(str2Type("(INT)>BOOL"))
 print(str2Type("(INT>BOOL)"))
 ans=str2Type("INT>(BOOL)")
@@ -385,9 +385,10 @@ print(str2Type("(INT>LIST)>BOOL"))
 #print(str2Type("(INT>LIST)>BOOL"))
 #print(str2Type("(INT,LIST)>BOOL"))
 #print(str2Type("(INT,LIST)>(INT>BOOL)"))
-#print(str2Type("(INT,LIST)>INT>BOOL"))
+#print(str2Type("(INT,LIST)>INT>BOOL"))'''
 
-'''do settype tests with:
+'''
+do settype tests with:
 INT>BOOL
 (INT)>BOOL
 (INT,LIST)>BOOL
