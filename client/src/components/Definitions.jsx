@@ -35,7 +35,8 @@ function CreateDefinition({ onUpdate }) {
   const initialValues = {
     label: "",
     type: "",
-    expression: ""
+    expression: "",
+    notes: ""
   };
 
   const [formValues, handleChange] = useInputState(initialValues);
@@ -48,7 +49,8 @@ function CreateDefinition({ onUpdate }) {
     const definition = {
       label: formValues.label,
       type: formValues.type,
-      expression: formValues.expression
+      expression: formValues.expression,
+      notes: formValues.notes
     };
 
     const definitions = JSON.parse(sessionStorage.getItem("definitions")) || [];
@@ -150,6 +152,21 @@ function CreateDefinition({ onUpdate }) {
             </Form.Floating>
           </Col>
         </Row>
+        <Row>
+          <Col>
+            <Form.Control
+              type="text"
+              id="definitionNotes"
+              name="notes"
+              placeholder="Enter Notes"
+              value={formValues.notes}
+              onBlur={() => handleBlur("notes")}
+              onChange={handleChange}
+              as="textarea"
+              rows={9}
+            />
+          </Col>
+        </Row>
         <div className="def-button-row">
           <Button variant="outline-danger" onClick={() => onUpdate(false)}>
             Go Back
@@ -171,7 +188,16 @@ function CreateDefinition({ onUpdate }) {
 }
 
 function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
-  const definitions = JSON.parse(sessionStorage.getItem("definitions")) || [];
+  const [definitions, setDefinitions] = useState(
+    JSON.parse(sessionStorage.getItem("definitions")) || []
+  );
+
+  const deleteDefinition = (label) => {
+    const definitions = JSON.parse(sessionStorage.getItem("definitions")) || [];
+    const updatedDefinitions = definitions.filter((def) => def.label !== label);
+    sessionStorage.setItem("definitions", JSON.stringify(updatedDefinitions));
+    setDefinitions(updatedDefinitions);
+  };
 
   return (
     <div className="definitions-container">
@@ -179,7 +205,12 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
       <div className="definitions">
         {definitions.length === 0 && <p>No definitions found.</p>}
         {definitions.map((def, index) => (
-          <Definition key={index} definition={def} eventKey={index} />
+          <Definition
+            key={index}
+            definition={def}
+            eventKey={index}
+            deleteDefinition={deleteDefinition}
+          />
         ))}
       </div>
       <div className="def-button-row">
@@ -192,7 +223,7 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
   );
 }
 
-function Definition({ definition, eventKey }) {
+function Definition({ definition, eventKey, deleteDefinition }) {
   return (
     <Accordion>
       <Accordion.Item eventKey={eventKey}>
@@ -202,6 +233,16 @@ function Definition({ definition, eventKey }) {
         <Accordion.Body>
           <p>Type: {definition.type}</p>
           <p>Expression: {definition.expression}</p>
+          {definition.notes && <p>Notes: {definition.notes}</p>}
+          <div className="def-button-row">
+            <Button variant="outline-primary">Edit</Button>
+            <Button
+              variant="outline-danger"
+              onClick={() => deleteDefinition(definition.label)}
+            >
+              Delete
+            </Button>
+          </div>
         </Accordion.Body>
       </Accordion.Item>
     </Accordion>
