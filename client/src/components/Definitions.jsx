@@ -31,11 +31,20 @@ export default function Definitions({ toggleDefinitionsWindow }) {
   );
 }
 
-function CreateDefinition({ onUpdate }) {
+function CreateDefinition({
+  onUpdate,
+  label,
+  type,
+  expression,
+  notes,
+  edit,
+  updateDefinition
+}) {
   const initialValues = {
-    label: "",
-    type: "",
-    expression: ""
+    label: label || "",
+    type: type || "",
+    expression: expression || "",
+    notes: notes || ""
   };
 
   const [formValues, handleChange] = useInputState(initialValues);
@@ -48,11 +57,25 @@ function CreateDefinition({ onUpdate }) {
     const definition = {
       label: formValues.label,
       type: formValues.type,
-      expression: formValues.expression
+      expression: formValues.expression,
+      notes: formValues.notes
     };
 
     const definitions = JSON.parse(sessionStorage.getItem("definitions")) || [];
     let exists = false;
+
+    if (edit) {
+      const response = await erService.createDefinition(definition);
+      setErrors([]);
+
+      if (response.status === 200) {
+        updateDefinition(definition);
+        alert("Definition updated successfully.");
+        return;
+      } else {
+        setErrors(["Failed to update definition."]);
+      }
+    }
 
     definitions.forEach((def) => {
       if (def.label === definition.label) {
@@ -150,12 +173,27 @@ function CreateDefinition({ onUpdate }) {
             </Form.Floating>
           </Col>
         </Row>
+        <Row>
+          <Col>
+            <Form.Control
+              type="text"
+              id="definitionNotes"
+              name="notes"
+              placeholder="Enter Notes"
+              value={formValues.notes}
+              onBlur={() => handleBlur("notes")}
+              onChange={handleChange}
+              as="textarea"
+              rows={9}
+            />
+          </Col>
+        </Row>
         <div className="def-button-row">
           <Button variant="outline-danger" onClick={() => onUpdate(false)}>
             Go Back
           </Button>
           <Button variant="outline-primary" type="submit">
-            Create Definition
+            {edit ? "Update" : "Create"} Definition
           </Button>
         </div>
       </Form>
@@ -171,28 +209,76 @@ function CreateDefinition({ onUpdate }) {
 }
 
 function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
-  const definitions = JSON.parse(sessionStorage.getItem("definitions")) || [];
-
-  return (
-    <div className="definitions-container">
-      <p className="title">User definitions</p>
-      <div className="definitions">
-        {definitions.length === 0 && <p>No definitions found.</p>}
-        {definitions.map((def, index) => (
-          <Definition key={index} definition={def} eventKey={index} />
-        ))}
-      </div>
-      <div className="def-button-row">
-        <Button variant="danger" onClick={toggleDefinitionsWindow}>
-          Close Definitions Window
-        </Button>
-        <Button onClick={() => onUpdate(true)}>Create New Definition</Button>
-      </div>
-    </div>
+  const [definitions, setDefinitions] = useState(
+    JSON.parse(sessionStorage.getItem("definitions")) || []
   );
+  const [definitionToEdit, setDefinitionToEdit] = useState({});
+  const [edit, setEdit] = useState(false);
+
+  const deleteDefinition = (label) => {
+    const definitions = JSON.parse(sessionStorage.getItem("definitions")) || [];
+    const updatedDefinitions = definitions.filter((def) => def.label !== label);
+    sessionStorage.setItem("definitions", JSON.stringify(updatedDefinitions));
+    setDefinitions(updatedDefinitions);
+  };
+
+  const updateDefinition = ({ label, type, expression, notes }) => {
+    const updatedDefinitions = definitions.map((def) => {
+      if (def.label === label) {
+        return { label, type, expression, notes };
+      } else {
+        return def;
+      }
+    });
+    sessionStorage.setItem("definitions", JSON.stringify(updatedDefinitions));
+    setDefinitions(updatedDefinitions);
+  };
+
+  const updateEdit = (definition) => {
+    setDefinitionToEdit(definition);
+    setEdit(true);
+  };
+
+  if (edit) {
+    return (
+      <CreateDefinition
+        onUpdate={() => setEdit(false)}
+        label={definitionToEdit.label}
+        type={definitionToEdit.type}
+        expression={definitionToEdit.expression}
+        notes={definitionToEdit.notes}
+        edit={edit}
+        updateDefinition={updateDefinition}
+      />
+    );
+  } else {
+    return (
+      <div className="definitions-container">
+        <p className="title">User definitions</p>
+        <div className="definitions">
+          {definitions.length === 0 && <p>No definitions found.</p>}
+          {definitions.map((def, index) => (
+            <Definition
+              key={index}
+              definition={def}
+              eventKey={index}
+              deleteDefinition={deleteDefinition}
+              updateEdit={updateEdit}
+            />
+          ))}
+        </div>
+        <div className="def-button-row">
+          <Button variant="danger" onClick={toggleDefinitionsWindow}>
+            Close Definitions Window
+          </Button>
+          <Button onClick={() => onUpdate(true)}>Create New Definition</Button>
+        </div>
+      </div>
+    );
+  }
 }
 
-function Definition({ definition, eventKey }) {
+function Definition({ definition, eventKey, deleteDefinition, updateEdit }) {
   return (
     <Accordion>
       <Accordion.Item eventKey={eventKey}>
@@ -202,6 +288,21 @@ function Definition({ definition, eventKey }) {
         <Accordion.Body>
           <p>Type: {definition.type}</p>
           <p>Expression: {definition.expression}</p>
+          {definition.notes && <p>Notes: {definition.notes}</p>}
+          <div className="def-button-row">
+            <Button
+              variant="outline-primary"
+              onClick={() => updateEdit(definition)}
+            >
+              Edit
+            </Button>
+            <Button
+              variant="outline-danger"
+              onClick={() => deleteDefinition(definition.label)}
+            >
+              Delete
+            </Button>
+          </div>
         </Accordion.Body>
       </Accordion.Item>
     </Accordion>
