@@ -107,7 +107,12 @@ function CreateDefinition({
 
   return (
     <div className="create-definition">
-      <p className="title"> Create a new definition </p>
+      {edit ? (
+        <p className="title"> Edit definition </p>
+      ) : (
+        <p className="title"> Create a new definition </p>
+      )}
+
       <Form
         className="form"
         noValidate
