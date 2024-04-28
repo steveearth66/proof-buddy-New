@@ -117,11 +117,6 @@ const ERRacket = () => {
       racketRuleFields.RHS.splice(-1);
     };
 
-    console.log("lhsValue: ", lhsValue);
-    console.log("rhsValue: ", rhsValue);
-    console.log("currentLHS: ", currentLHS);
-    console.log("currentRHS: ", currentRHS);
-
     if (lhsValue && rhsValue) {
       if (
         currentLHS === currentRHS ||
