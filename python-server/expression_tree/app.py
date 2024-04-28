@@ -14,6 +14,14 @@ app.config['JSON_SORT_KEYS'] = False
 CORS(app, resources={r'/*': {'origins': '*'}})
 
 # Racket Rule Subsitution and Evaluation
+@app.route('/api/v1/proof/er-generate', methods=['GET'])
+def  get_er_proof_data():
+    return jsonify({'name': 'test'})
+
+@app.route('/api/v1/proof/er-definitions', methods=['POST'])
+def add_definitions():
+    return jsonify(request.get_json())
+
 @app.route('/api/v1/proof/er-generate', methods=['POST'])
 def apply_rule():
     global isValid
