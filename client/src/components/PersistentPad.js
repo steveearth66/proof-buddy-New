@@ -4,30 +4,7 @@ import Col from "react-bootstrap/Col";
 
 export default function PersistentPad({ equation, onHighlightChange, side }) {
   const [highlightedText, setHighlightedText] = useState("");
-  const [lastClickTime, setLastClickTime] = useState(0);
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
-
-  const handelClick = () => {
-    const currentTime = new Date().getTime();
-    const clickDuration = currentTime - lastClickTime;
-
-    if (clickDuration < 300) {
-      handelSelection();
-    } else {
-      highlightSelection();
-    }
-
-    setLastClickTime(currentTime);
-  };
-
-  const highlightSelection = () => {
-    const selection = window.getSelection();
-    const range = selection.getRangeAt(0);
-    setSelectionRange({ start: range.startOffset, end: range.endOffset });
-    const selectedText = range.toString();
-    setHighlightedText(selectedText);
-    onHighlightChange(getStartIndex(selectedText));
-  };
 
   const handelSelection = () => {
     try {
@@ -248,7 +225,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
   return (
     <Col xs={8}>
       <p
-        onClick={handelClick}
+        onClick={handelSelection}
         onContextMenu={clearHighlight}
         dangerouslySetInnerHTML={{
           __html: highlightedText
