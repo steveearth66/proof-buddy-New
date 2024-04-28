@@ -1,6 +1,8 @@
 from typing import Union, Tuple, List
 from enum import Enum
 
+ARITHMETIC = ["+","*","-","=",">","<"] # any other math uses ascii, such as expt, quotient, remainder. Note: "/" not permitted
+
 class Type(Enum):
     TEMP = 'TEMP'
     BOOL = 'BOOL'
@@ -182,14 +184,17 @@ class Node:
         return [slist[1:ind],["("]+([")"] if ind==-1 else slist[ind+1:])]
 
 def findNode(tree:Node, target:int,errLog:list[str],found=None)->Node:
-    if found==None:
-        found =[]
+    if found ==  None:
+        found = []
+
     print(f"tree={tree.data} start={tree.startPosition}")
+    print(target)
     if tree.startPosition == target:
-        found.append(tree)    
+        found.extend([tree])
+
     for child in tree.children:
         if not found:
-            findNode(child, target, errLog,found)
+            found.extend(findNode(child, target, errLog,found))
     return found
 
     '''

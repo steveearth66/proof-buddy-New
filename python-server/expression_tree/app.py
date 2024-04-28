@@ -20,6 +20,7 @@ def  get_er_proof_data():
 
 @app.route('/api/v1/proof/er-definitions', methods=['POST'])
 def add_definitions():
+    print(request.get_json())
     return jsonify(request.get_json())
 
 @app.route('/api/v1/proof/er-generate', methods=['POST'])
@@ -30,7 +31,8 @@ def apply_rule():
     with app.app_context():
         json_data = request.get_json()
         currentProof = ERProof(json_data['currentRacket'])
-        currentProof.applyRule(json_data['startPosition'], json_data['rule'])
+        print(str(currentProof.exprTree), json_data['startPosition'])
+        currentProof.applyRule(json_data['rule'], json_data['startPosition'])
         #print(f"tree={currentProof.exprTree} errs={currentProof.errLog}")
         updateIsValid()
 

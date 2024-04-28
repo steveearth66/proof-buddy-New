@@ -1,6 +1,4 @@
-from recParser import buildTree, preProcess
-from Labeler import labelTree
-from Decorator import decorateTree, remTemps, checkFunctions
+from ERProofEngine import ERProof
 
 err_strings= [
     #expected errs
@@ -29,31 +27,35 @@ good_strgs = [
     ("(xor #t #t)", "#f")
 ]
 
-def testErrs(expr):
-    exprList,errLog = preProcess(expr,errLog=[])
-    if errLog!=[]:
-        return errLog,None
-    decTree, errLog = decorateTree(labelTree(buildTree(exprList,)[0]),errLog)
-    if errLog!=[]:
-        return errLog,None
-    errLog = remTemps(decTree, errLog)
-    if errLog!=[]:
-        return errLog,None
-    decTree, errLog = checkFunctions(decTree,errLog)
-    if errLog!=[]:
-        return errLog,None
-    errLog = decTree.applyRule("logic", errLog)
-    if errLog!=[]:
-        return errLog,None
-    return [],decTree
+#def testErrs(expr):
+#    exprList,errLog = preProcess(expr,errLog=[])
+#    if errLog!=[]:
+#        return errLog,None
+#    decTree, errLog = decorateTree(labelTree(buildTree(exprList,)[0]),errLog)
+#    if errLog!=[]:
+#        return errLog,None
+#    errLog = remTemps(decTree, errLog)
+#    if errLog!=[]:
+#        return errLog,None
+#    decTree, errLog = checkFunctions(decTree,errLog)
+#    if errLog!=[]:
+#        return errLog,None
+#    errLog = decTree.applyRule("logic", errLog)
+#    if errLog!=[]:
+#        return errLog,None
+#    return [],decTree
 
 print("\nLogic testing Errs:\n")
 fails = 0
 for trial in err_strings+good_strgs:
     expr,expected = trial
     print("input:",expr)
-    errLog,ansTree = testErrs(expr)
-    ans = str(errLog if errLog!=[] else ansTree)
+    proof = ERProof(expr)
+
+    if proof.errLog == []:
+        proof.applyRule('logic', 0)
+
+    ans = str(proof.errLog if proof.errLog!=[] else proof.exprTree)
     word = "errors" if isinstance(expected,list) else "output"
     expected=str(expected)
     if ans == expected:

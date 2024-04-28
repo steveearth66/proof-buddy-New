@@ -195,8 +195,6 @@ check types of those inputs
 
 env={} #env dictionary to keep track of params, having it out here so it stays across iterations temporarily
 
-
-#TODO: fix function with new type implementation
 def typeCheck(inputTree:Node, debug=False) -> str:
     func = inputTree.children[0]
 
