@@ -52,6 +52,7 @@ function CreateDefinition({
     useFormValidation(formValues, validateField);
   const [validated, setValidated] = useState(false);
   const [errors, setErrors] = useState([]);
+  const [successMessage, setSuccessMessage] = useState("");
 
   const handleReset = () => {
     formValues.label = "";
@@ -79,7 +80,7 @@ function CreateDefinition({
 
       if (response.status === 200) {
         updateDefinition(definition);
-        alert("Definition updated successfully.");
+        setSuccessMessage("Definition updated successfully.");
         return;
       } else {
         setErrors(["Failed to update definition."]);
@@ -101,8 +102,8 @@ function CreateDefinition({
       if (response.status === 200) {
         definitions.push(definition);
         sessionStorage.setItem("definitions", JSON.stringify(definitions));
+        setSuccessMessage("Definition created successfully.");
         handleReset();
-        alert("Definition created successfully.");
       } else {
         setErrors(["Failed to create definition."]);
       }
@@ -123,6 +124,16 @@ function CreateDefinition({
       ) : (
         <p className="title"> Create a new definition </p>
       )}
+
+      {errors.length > 0 && (
+        <Alert variant="danger">
+          {errors.map((error, index) => (
+            <p key={index}>{error}</p>
+          ))}
+        </Alert>
+      )}
+
+      {successMessage && <Alert variant="success">{successMessage}</Alert>}
 
       <Form
         className="form"
@@ -200,7 +211,7 @@ function CreateDefinition({
               onBlur={() => handleBlur("notes")}
               onChange={handleChange}
               as="textarea"
-              rows={9}
+              rows={4}
             />
           </Col>
         </Row>
@@ -213,13 +224,6 @@ function CreateDefinition({
           </Button>
         </div>
       </Form>
-      {errors.length > 0 && (
-        <Alert variant="danger">
-          {errors.map((error, index) => (
-            <p key={index}>{error}</p>
-          ))}
-        </Alert>
-      )}
     </div>
   );
 }
@@ -232,6 +236,11 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
   const [edit, setEdit] = useState(false);
 
   const deleteDefinition = (label) => {
+    const confirm = window.confirm(
+      "Are you sure you want to delete this definition?"
+    );
+    if (!confirm) return;
+
     const definitions = JSON.parse(sessionStorage.getItem("definitions")) || [];
     const updatedDefinitions = definitions.filter((def) => def.label !== label);
     sessionStorage.setItem("definitions", JSON.stringify(updatedDefinitions));
