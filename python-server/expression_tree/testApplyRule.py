@@ -1,4 +1,4 @@
-import recParser, Labeler, typeFile, Decorator
+from ERProofEngine import ERProof
 
 test_strings_ruleIf= [
     ("cons", "(cons (if #t (if #f 3 4) 5) null)"),
@@ -8,13 +8,13 @@ test_strings_ruleIf= [
     ("if", "(if #t 4 5)"), #expected 4
     ("if", "(if #f x y)"), #expected y
     ("if", "(if asd a a)"), #expected a
-    ("if", "(if #f b (c d e f g))"), #expected (c d e f g)
-    ("if", "(if x (abc) (abc) )"), #expected (abc) 
-    ("if", "(if #t (a b)(a))"), #expected (a b)
-    ("if", "(if #t (if #f x y) (z))"), #expected (if #f x y)
+    ("if", "(if #f b '(c d e f g))"), #expected (c d e f g)
+    ("if", "(if x '(abc) '(abc) )"), #expected (abc) 
+    ("if", "(if #t '(a b) '(a))"), #expected (a b)
+    ("if", "(if #t '(if #f x y) '(z))"), #expected (if #f x y)
     ("if", "(if a b c)"), #expected (if a b c) no valid change to make based on rules
-    ("if", "(if a (+ x (y (z z))) (+ x (y (z z))))"), #expected (+ x (y (z z)))
-    ("if", "(if a (+ x (y (z z))) (+ x (b (z z))))"), #expected no valid change
+    ("if", "(if a '(+ x (y (z z))) '(+ x (y (z z))))"), #expected (+ x (y (z z)))
+    ("if", "(if a '(+ x (y (z z))) '(+ x (b (z z))))"), #expected no valid change
     ("if", "(fi #t x y)"), #expected invalid
     ("if", "if #t x y"), #expected invalid
     ("if", "()"), #expected invalid
@@ -52,12 +52,8 @@ test_strings_ruleIf= [
 
 print("\napplyRule testing:\n")
 for rule, expr in test_strings_ruleIf:
-    print("input =", expr, "rule =", rule)
-    exprList,errLog = recParser.preProcess(expr,errLog=[])
-    exprTree = recParser.buildTree(exprList,)[0] # might not need to pass errLog
-    labeledTree = Labeler.labelTree(exprTree)
-    decTree, errLog = Decorator.decorateTree(labeledTree,errLog)
-    errLog = Decorator.remTemps(decTree, errLog)
-    decTree, errLog = Decorator.checkFunctions(decTree,errLog)
-    errLog = decTree.applyRule(rule, errLog)
-    print("after rule =", decTree)
+    print(f"input = {expr}, rule = {rule}")
+    proof = ERProof(expr)
+    if proof.errLog == []:
+        proof.applyRule(rule, 0)
+    print("after rule =", str(proof.exprTree))

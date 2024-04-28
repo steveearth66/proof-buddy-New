@@ -1,7 +1,6 @@
 # This file conducts an initial pass over the input AST to populate a type for each Node object
 
-from recParser import Node # import Node objects
-from typeFile import * # import RacType objects and Type Enum
+from ERCommon import Type, RacType, Node # import RacType objects and Type Enum
 from ERobj import pdict # import dictionary of ERobj objects
 import re # for regex usage
 
@@ -76,16 +75,4 @@ def labelTree(inputTree:Node) -> Node:
         labelTree(child)
 
     # return the tree
-    root = fillPositions(root)[0]
     return root
-
-def fillPositions(inputTree:Node, count:int=0) -> tuple[Node, int]:
-    inputTree.startPosition = count
-    count += len(inputTree.data)
-
-    if len(inputTree.children) > 0:
-        for childIndex, child in enumerate(inputTree.children):
-            newChild, newCount = fillPositions(child, count)
-            inputTree.children[childIndex] = newChild
-            count = newCount + 1
-    return inputTree, count

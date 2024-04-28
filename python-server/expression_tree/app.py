@@ -1,75 +1,66 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-import Decorator, Labeler, recParser
+from ERProofEngine import ERProof
 
-# as a temp measure for MVP, we are storing in a global variable a list of all the trees we pass to front end
-# in reality, frontend should be passing to the backend the entire string (or better yet, exprtree) of wherever the highlighting occurred
-# starting arbitrarily with 1+2 as the initial tree, which should get immediately followed by a LHS/RHS goal
-#  NOTE:  this kludge will FAIL if the user switches sides more than once.
-PREV_RACKETS = [Decorator.decorateTree(Labeler.labelTree(recParser.buildTree(recParser.preProcess("(+ 1 2)",errLog=[])[0], debug=False)[0]),errLog=[])[0]]
+currentProof = None
+isValid = True
 
-EXPRESSION_TREE = None
-ERROR_LOG = None
 #Instantiate the app
 app = Flask(__name__)
 app.config.from_object(__name__)
 app.config['JSON_SORT_KEYS'] = False
-#proofEngine = ProofEngine()
 
 #Enable Cors
 CORS(app, resources={r'/*': {'origins': '*'}})
 
+# Racket Rule Subsitution and Evaluation
 @app.route('/api/v1/proof/er-generate', methods=['GET'])
 def  get_er_proof_data():
     return jsonify({'name': 'test'})
 
 @app.route('/api/v1/proof/er-definitions', methods=['POST'])
 def add_definitions():
+    print(request.get_json())
     return jsonify(request.get_json())
 
 @app.route('/api/v1/proof/er-generate', methods=['POST'])
-def get_repositories():
+def apply_rule():
+    global isValid
+    global currentProof
+
     with app.app_context():
         json_data = request.get_json()
-        exprList,errLog = recParser.preProcess(json_data['currentRacket'],errLog=[],debug=False)
-        if errLog==[]:
-            exprTree = recParser.buildTree(exprList,debug=False)[0] # might not need to pass errLog
-            labeledTree = Labeler.labelTree(exprTree)
-            labeledTree, _ = Labeler.fillPositions(labeledTree)
-            decTree, errLog = Decorator.decorateTree(labeledTree,errLog)
-            decTree, errLog = Decorator.checkFunctions(decTree,errLog)
-            EXPRESSION_TREE = decTree
-        ERROR_LOG = EXPRESSION_TREE.generateRacketFromRule(json_data['startPosition'], json_data['rule'], errLog=[])
-        #ERROR_LOG = ["la de dah, this is a test of the emergency broadcast system which contains lots of words, hopefully more than the width of the screen, \
-        #             so that we can see how the text wraps around the screen","This is a test of the emergency broadcast system err2", "This is only a test.",\
-        #                "dont panic!"] # for testing
+        currentProof = ERProof(json_data['currentRacket'])
+        print(str(currentProof.exprTree), json_data['startPosition'])
+        currentProof.applyRule(json_data['rule'], json_data['startPosition'])
+        #print(f"tree={currentProof.exprTree} errs={currentProof.errLog}")
+        updateIsValid()
 
-        print(f"tree={EXPRESSION_TREE} errs={ERROR_LOG}")
-        if isValid := (ERROR_LOG==[]):
-            racketStr = str(EXPRESSION_TREE)
-            EXPRESSION_TREE=Labeler.fillPositions(EXPRESSION_TREE) [0]
+        if isValid:
+            racketStr = str(currentProof.exprTree)
         else:
             racketStr = "Error generating racket"
-        return jsonify({'isValid': isValid, 'racket': racketStr, 'errors': ERROR_LOG }), 200
 
+        return jsonify({'isValid': isValid, 'racket': racketStr, 'errors': currentProof.errLog }), 200
+
+# Proof Goal Checking
 @app.route('/api/v1/proof/check-goal', methods=['POST'])
 def check_goal():
+    global isValid
+    global currentProof
+
     with app.app_context():
         json_data = request.get_json()
-        debugStatus=False #get rid of this later
-        exprList,errLog = recParser.preProcess(json_data['goal'],errLog=[],debug=debugStatus)
-        if errLog==[]:
-            exprTree = recParser.buildTree(exprList,debug=debugStatus)[0] # might not need to pass errLog
-            labeledTree = Labeler.labelTree(exprTree)
-            labeledTree, charCount = Labeler.fillPositions(labeledTree)
-            decTree, errLog = Decorator.decorateTree(labeledTree,errLog)
-            decTree, errLog = Decorator.checkFunctions(decTree,errLog)
-            EXPRESSION_TREE = decTree
-        ERROR_LOG = errLog
-        isValid = (ERROR_LOG==[])
-        if isValid:
-            PREV_RACKETS.append(EXPRESSION_TREE) #storing most recently passed Racket
-        return jsonify({'isValid': isValid, 'errors': ERROR_LOG }), 200
+        currentProof = ERProof(json_data['goal'])
+        updateIsValid()
+            
+        return jsonify({'isValid': isValid, 'errors': currentProof.errLog }), 200
+
+# Helper function to update the global isValid variable
+def updateIsValid():
+    global isValid
+    global currentProof
+    isValid = currentProof.errLog == []
 
 if __name__ == '__main__':
     app.run(host='localhost', port=9095, debug=True)
