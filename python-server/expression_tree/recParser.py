@@ -320,84 +320,40 @@ def list2Type(slist:list[str])->RacType:
 def sepFirst(slist:list[str])->list:
     ind = findDelim(",",slist[1:-1]) #need to ignore out parens
     return [slist[1:ind],["("]+([")"] if ind==-1 else slist[ind+1:])]
-'''
-tstr2="((INT,BOOL)>LIST, BOOL)"
-tstr1="(INT,LIST,BOOL)"
-tstr3="(INT,BOOL)"
-tstr="(INT)"
-print(tstr)
-slist=tstr.upper().replace("(", " ( ").replace(">", " > ").replace(",", " , ").replace(")", " ) ").strip().split()
-setplist = sepFirst(slist)
-print(setplist)'''
 
 # takes a parenthesized list of tokens (possibly one or even empty) and turns it into a tuple of RacTypes
 def list2Tup(slist:list[str])->tuple:
     if slist==["(",")"]:
         return tuple([])
     firstTokL,restToksL=sepFirst(slist)
-    return tuple(str2Type(str(firstTokL[0])),)+list2Tup(restToksL)
+    return tuple([str2Type(firstTokL[0])])+list2Tup(restToksL)
 
 core = ["INT","LIST","BOOL","ANY"]
 #takes a string and turns it into a RacType
 def str2Type(tstr:str)->RacType:
     if tstr==None or tstr=="":
-        return RacType(Type.ERROR)
+        return RacType((None, Type.ERROR))
     #creates token list
     slist = tstr.upper().replace("(", " ( ").replace(">", " > ").replace(",", " , ").replace(")", " ) ").strip().split()
     for item in slist:
         #note: core is defined outside definition. apparently global not needed for lists, only for ints that are being modified
         if item not in core+[",","(",")",">"]: #checks to make sure all tokens are valid. 
-            return RacType(Type.ERROR)
-    if findDelim(")",slist)==len(slist):
+            return RacType((None, Type.ERROR))
+    if findDelim(")",slist)==len(slist) and slist[0]=="(": #this is a single type wrapped in parens
         slist=slist[1:-1] #stripping out unnecessary surrounding parens
     if len(slist)==1 or (len(slist)==3 and slist[0]=="(" and slist[2]==")"):
         mid = slist[0] if len(slist)==1 else slist[1] #grabbing a single item which could be int or (int)
         return RacType((None,Type.__members__.get(mid))) if mid in core else RacType(Type.ERROR)
     if (ind:=findDelim(">",slist)-1) == -1: #must exist since single types already handled, or mismatched parens
-        return RacType(Type.ERROR)
+        return RacType((None, Type.ERROR))
     outlist = slist[ind+1:] #everything after the >
     outtype = str2Type("".join(outlist)) #convert range token list back to string to do recursion
     domsList = slist[:ind] #everything before the root >, so paren balanced already
     if "," not in domsList: # the function just takes a single argument (which might be a function)
         return RacType(((str2Type("".join(domsList)),), outtype))
     domsTup = list2Tup(domsList) # makes a tuple of RacTypes
-    return (domsTup,outtype)
-
-'''
-print(str2Type("(INT)>BOOL"))
-print(str2Type("(INT>BOOL)"))
-ans=str2Type("INT>(BOOL)")
-
-dom=ans.value[0].value
-rang=ans.value[1].value
-print(type(dom), type(rang))
-
-
-
-print(str2Type("INT>LIST>BOOL"))
-print(str2Type("INT>(LIST)>BOOL"))
-ans=str2Type("INT>LIST>(BOOL)")
-#print(str2Type("INT>LIST>(BOOL)"))
-
-print(str2Type("(INT)>(LIST>BOOL)"))
-print(str2Type("(INT>LIST)>BOOL"))
-#print(str2Type("INT>(LIST>BOOL)"))
-#print(str2Type("(INT>LIST)>BOOL"))
-#print(str2Type("(INT,LIST)>BOOL"))
-#print(str2Type("(INT,LIST)>(INT>BOOL)"))
-#print(str2Type("(INT,LIST)>INT>BOOL"))'''
-
-'''
-do settype tests with:
-INT>BOOL
-(INT)>BOOL
-(INT,LIST)>BOOL
-(INT,LIST)>(INT>BOOL)
-(INT,LIST)>INT>BOOL #note: this is same as above since > associates left to right
-LIST>(INT)>BOOL
-(INT)>(LIST>BOOL)
-'''
-        
+    return RacType((domsTup,outtype))
+    
 # errLog is a list of strings of error messages that will be passed at each step of the tree-building process
 def preProcess(inputString:str, errLog:list[str]=None, debug=False) -> tuple[list[str],list[str]]: # None will generate a warning since it's not a list of strings
     if errLog == None: # values assigned at func def, not each call, so need None vs []
@@ -543,4 +499,3 @@ def findNode(tree:Node, target:int,errLog:list[str],found=None)->Node:
         if not found:
             findNode(child, target, errLog,found)
     return found
-
