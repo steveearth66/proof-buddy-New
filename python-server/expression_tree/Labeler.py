@@ -76,6 +76,7 @@ def labelTree(inputTree:Node) -> Node:
         labelTree(child)
 
     # return the tree
+    root = fillPositions(root)[0]
     return root
 
 def fillPositions(inputTree:Node, count:int=0) -> tuple[Node, int]:
