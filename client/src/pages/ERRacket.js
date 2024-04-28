@@ -109,7 +109,6 @@ const ERRacket = () => {
 
   useEffect(() => {
     sessionStorage.removeItem("highlights");
-    sessionStorage.removeItem("definitions");
   }, []);
 
   useEffect(() => {
