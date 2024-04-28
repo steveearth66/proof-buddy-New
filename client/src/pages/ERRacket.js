@@ -57,6 +57,8 @@ const ERRacket = () => {
     racketErrors
   ] = useRacketRuleFields(startPosition, currentRacket);
   const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields);
+  const [lhsValue, setLhsValue] = useState("");
+  const [rhsValue, setRhsValue] = useState("");
   const [isOffcanvasActive, toggleOffcanvas] = useOffcanvas();
   const [showDefinitionsWindow, toggleDefinitionsWindow] =
     useDefinitionsWindow();
@@ -265,7 +267,7 @@ const ERRacket = () => {
                     name="proofCurrentLHS"
                     type="text"
                     placeholder="Current LHS"
-                    value={currentLHS}
+                    value={currentLHS === "" ? lhsValue : currentLHS}
                     readOnly
                   />
                   <label htmlFor="eRProofCurrentLHS">Current LHS</label>
@@ -283,7 +285,7 @@ const ERRacket = () => {
                     name="proofCurrentRHS"
                     type="text"
                     placeholder="Current RHS"
-                    value={currentRHS}
+                    value={currentRHS === "" ? rhsValue : currentRHS}
                     readOnly
                   />
                   <label htmlFor="eRProofCurrentRHS">Current RHS</label>
@@ -551,7 +553,14 @@ const ERRacket = () => {
                     <Col md="4" className="rules-btn-grp">
                       <Button
                         className="orange-btn green-btn"
-                        onClick={() => addFieldWithApiCheck(showSide)}
+                        onClick={() => {
+                          addFieldWithApiCheck(showSide);
+                          if (showSide === "LHS") {
+                            setLhsValue(formValues.lHSGoal);
+                          } else {
+                            setRhsValue(formValues.rHSGoal);
+                          }
+                        }}
                       >
                         Generate & Check
                       </Button>
