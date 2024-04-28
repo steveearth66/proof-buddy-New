@@ -59,3 +59,8 @@
     display: flex;
     gap: 10px;
 }
+
+.create-definition {
+    overflow-y: auto;
+    overflow-x: hidden;
+}
