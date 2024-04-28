@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import Confetti from "react-confetti";
 import "../scss/_racket-complete.scss";
 
-export default function RacketComplete() {
+export default function ProofComplete() {
   const [width, setWidth] = useState(window.innerWidth);
   const [height, setHeight] = useState(window.innerHeight);
 
@@ -19,7 +19,7 @@ export default function RacketComplete() {
 
   return (
     <div className="confetti-overlay">
-      <h1>Racket Complete!!!!!!!!</h1>
+      <h1>Proof Complete!!!!!!!!</h1>
       <Confetti width={width} height={height} />
     </div>
   );
