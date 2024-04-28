@@ -117,8 +117,18 @@ const ERRacket = () => {
       racketRuleFields.RHS.splice(-1);
     };
 
-    if (currentLHS !== "" && currentRHS !== "") {
-      if (currentLHS === currentRHS) {
+    console.log("lhsValue: ", lhsValue);
+    console.log("rhsValue: ", rhsValue);
+    console.log("currentLHS: ", currentLHS);
+    console.log("currentRHS: ", currentRHS);
+
+    if (lhsValue && rhsValue) {
+      if (
+        currentLHS === currentRHS ||
+        currentLHS === rhsValue ||
+        lhsValue === currentRHS ||
+        lhsValue === rhsValue
+      ) {
         removeBlankRackets();
         setShowRacketComplete(true);
         setTimeout(() => {
@@ -126,7 +136,7 @@ const ERRacket = () => {
         }, 5000);
       }
     }
-  }, [currentLHS, currentRHS, racketRuleFields]);
+  }, [currentLHS, currentRHS, racketRuleFields, lhsValue, rhsValue]);
 
   return (
     <MainLayout>
