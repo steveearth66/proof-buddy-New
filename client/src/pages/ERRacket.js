@@ -20,7 +20,7 @@ import { useFormSubmit } from "../hooks/useFormSubmit";
 import "../scss/_forms.scss";
 import "../scss/_er-racket.scss";
 import { useExportToLocalMachine } from "../hooks/useExportToLocalMachine";
-import { Definitions, RacketComplete, PersistentPad } from "../components";
+import { Definitions, ProofComplete, PersistentPad } from "../components";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 
 /**
@@ -62,7 +62,8 @@ const ERRacket = () => {
   const [isOffcanvasActive, toggleOffcanvas] = useOffcanvas();
   const [showDefinitionsWindow, toggleDefinitionsWindow] =
     useDefinitionsWindow();
-  const [showRacketComplete, setShowRacketComplete] = useState(false);
+  const [showProofComplete, setShowProofComplete] = useState(false);
+  const [proofComplete, setProofComplete] = useState(false);
 
   const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
@@ -117,16 +118,22 @@ const ERRacket = () => {
       racketRuleFields.RHS.splice(-1);
     };
 
-    if (currentLHS !== "" && currentRHS !== "") {
-      if (currentLHS === currentRHS) {
+    console.log("lhsValue: ", lhsValue);
+    console.log("rhsValue: ", rhsValue);
+    console.log("currentLHS: ", currentLHS);
+    console.log("currentRHS: ", currentRHS);
+
+    if (lhsValue !== "" && rhsValue !== "" && currentLHS !== "") {
+      if (currentLHS === currentRHS || currentLHS === rhsValue) {
         removeBlankRackets();
-        setShowRacketComplete(true);
+        setShowProofComplete(true);
+        setProofComplete(true);
         setTimeout(() => {
-          setShowRacketComplete(false);
+          setShowProofComplete(false);
         }, 5000);
       }
     }
-  }, [currentLHS, currentRHS, racketRuleFields]);
+  }, [currentLHS, currentRHS, racketRuleFields, lhsValue, rhsValue]);
 
   return (
     <MainLayout>
@@ -139,7 +146,7 @@ const ERRacket = () => {
           <Definitions toggleDefinitionsWindow={toggleDefinitionsWindow} />
         )}
 
-        {showRacketComplete && <RacketComplete />}
+        {showProofComplete && <ProofComplete />}
 
         <Form
           noValidate
@@ -345,6 +352,10 @@ const ERRacket = () => {
                         <span key={`racket-error-${index}`}>{error}</span>
                       ))}
                     </Alert>
+                  )}
+
+                  {proofComplete && (
+                    <Alert variant={"success"}>Proof Complete!</Alert>
                   )}
 
                   {showSide === "LHS" && (
