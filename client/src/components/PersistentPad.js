@@ -1,10 +1,33 @@
 import "../scss/_persistent-pad.scss";
 import { useState, useEffect } from "react";
 import Col from "react-bootstrap/Col";
-import logger from "../utils/logger";
 
 export default function PersistentPad({ equation, onHighlightChange, side }) {
   const [highlightedText, setHighlightedText] = useState("");
+  const [lastClickTime, setLastClickTime] = useState(0);
+  const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
+
+  const handelClick = () => {
+    const currentTime = new Date().getTime();
+    const clickDuration = currentTime - lastClickTime;
+
+    if (clickDuration < 300) {
+      handelSelection();
+    } else {
+      highlightSelection();
+    }
+
+    setLastClickTime(currentTime);
+  };
+
+  const highlightSelection = () => {
+    const selection = window.getSelection();
+    const range = selection.getRangeAt(0);
+    setSelectionRange({ start: range.startOffset, end: range.endOffset });
+    const selectedText = range.toString();
+    setHighlightedText(selectedText);
+    onHighlightChange(getStartIndex(selectedText));
+  };
 
   const handelSelection = () => {
     try {
@@ -16,24 +39,49 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
       const selectionRange = { start: startOffset, end: endOffset };
       handelHighlight(selectionRange);
     } catch (error) {
-      logger.log("Error in handelSelection: ", error);
+      console.error("Error while highlighting selection: ", error);
     }
   };
 
   const handelHighlight = (selectionRange) => {
     const selectedPart = findSelectionParenthesis(selectionRange);
     if (!checkParenthesesConsistency(selectedPart)) {
-      const highlighted = balanceParentheses(selectedPart);
+      const highlighted = checkAndGetQuotient(balanceParentheses(selectedPart));
       setHighlightedText(highlighted);
       onHighlightChange(getStartIndex(highlighted));
+      setSelectionRange({
+        start: getStartIndex(highlighted),
+        end: getEndIndex(highlighted)
+      });
     } else {
-      setHighlightedText(selectedPart);
-      onHighlightChange(getStartIndex(selectedPart));
+      const highlighted = checkAndGetQuotient(selectedPart);
+      setHighlightedText(highlighted);
+      onHighlightChange(getStartIndex(highlighted));
+      setSelectionRange({
+        start: getStartIndex(highlighted),
+        end: getEndIndex(highlighted)
+      });
     }
   };
 
   const getStartIndex = (selectedText) => {
     return equation.indexOf(selectedText);
+  };
+
+  const getEndIndex = (selectedText) => {
+    return getStartIndex(selectedText) + selectedText.length;
+  };
+
+  const checkAndGetQuotient = (selectedText) => {
+    const start = equation.indexOf(selectedText);
+    const end = start + selectedText.length;
+
+    if (equation[start - 1] === "'") {
+      const quotient = equation.substring(start - 1, end);
+      return quotient;
+    } else {
+      return selectedText;
+    }
   };
 
   const findSelectionParenthesis = (selectionRange) => {
@@ -139,6 +187,30 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     return expression;
   };
 
+  const clearHighlight = (e) => {
+    e.preventDefault();
+    setHighlightedText("");
+
+    const savedHighlights = JSON.parse(sessionStorage.getItem("highlights"));
+    const newHighlights = savedHighlights.filter(
+      (highlight) =>
+        !(highlight.equation === equation && highlight.side === side)
+    );
+    sessionStorage.setItem("highlights", JSON.stringify(newHighlights));
+  };
+
+  const replaceSelection = (selectionRange, replacement) => {
+    const start = selectionRange.start;
+    const end = selectionRange.end;
+    const beforeSelection = equation.substring(0, start);
+    const afterSelection = equation.substring(end);
+    return (
+      beforeSelection +
+      `<span class="highlight">${replacement}</span>` +
+      afterSelection
+    );
+  };
+
   useEffect(() => {
     const saveHighlightToSession = (highlightedText) => {
       const savedHighlights = JSON.parse(
@@ -151,14 +223,14 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
         }
       });
 
-      savedHighlights.push({ equation, highlightedText, side });
+      savedHighlights.push({ equation, highlightedText, side, selectionRange });
       sessionStorage.setItem("highlights", JSON.stringify(savedHighlights));
     };
 
     if (highlightedText) {
       saveHighlightToSession(highlightedText);
     }
-  }, [highlightedText, equation, side]);
+  }, [highlightedText, equation, side, selectionRange]);
 
   useEffect(() => {
     const savedHighlights = JSON.parse(
@@ -168,6 +240,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     savedHighlights.forEach((highlight) => {
       if (highlight.equation === equation && highlight.side === side) {
         setHighlightedText(highlight.highlightedText);
+        setSelectionRange(highlight.selectionRange);
       }
     });
   }, [equation, side]);
@@ -175,13 +248,11 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
   return (
     <Col xs={8}>
       <p
-        onMouseUp={handelSelection}
+        onClick={handelClick}
+        onContextMenu={clearHighlight}
         dangerouslySetInnerHTML={{
           __html: highlightedText
-            ? equation.replace(
-                highlightedText,
-                `<span class="highlight">${highlightedText}</span>`
-              )
+            ? replaceSelection(selectionRange, highlightedText)
             : equation
         }}
         className="pad"
