@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
 from ERCommon import *
 import copy
+from Parser import buildTree, preProcess
+from Labeler import labelTree#, fillPositions
+from Decorator import decorateTree, remTemps, checkFunctions
 
 def isMatch(xNode:Node, yNode:Node)->bool: #recursively check if two nodes are identical #TODO: replace elif chain with something prettier
     if xNode.data != yNode.data or \
@@ -346,3 +349,24 @@ def recursiveReplaceNodes(node: Node, params: list, values: list) -> None:
         node.replaceWith(values[index])
     for child in node.children:
         recursiveReplaceNodes(child, params, values)
+
+#Placeholder function to fake UDF for demo
+class DoubleFront(Rule):
+    def __init__(self):
+        super().__init__('doubleFront')
+
+    # since this isn't built-in, buildtree might not do the type checking, so doing it here
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]: 
+        if ruleNode.data != "(" or len(ruleNode.children) != 3 or ruleNode.children[0].data != "doubleFront":
+            return False, f'must apply the doubleFront definition to a doubleFront function call of 2 arguments'
+        if not (ruleNode.children[1].type.isType("INT") and ruleNode.children[2].type.isType("LIST")):
+            return False, f'doubleFront takes [INT,LIST] but received {[str(ruleNode.children[1].type),str(ruleNode.children[2].type)]}'
+        return True, "DoubleFront.isApplicable() PASS"
+    
+    def insertSubstitution(self, ruleNode: Node) -> Node: 
+        defStr="(if (or (zero? n) (null? L)) L (cons (* 2 (first L)) (doubleFront (- n 1) (rest L))))" 
+        decTree = decorateTree(labelTree(buildTree(preProcess(defStr,[])[0],)[0]),[])[0]
+        errLog = remTemps(decTree, []) #this might crash if it hasn't been updated
+        newNode = checkFunctions(decTree,errLog)[0]
+        recursiveReplaceNodes(newNode, ["n","L"], [ruleNode.children[1],ruleNode.children[2]])
+        return newNode #could have just returned in place by removing first element

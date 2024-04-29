@@ -63,16 +63,19 @@ test_strings_ruleIf= [
     ('firstList', "(rest '(1 2)"), #expected invalid
     ('firstList', "(first '( (2 3) 4))"), #expected '(2 3)
     ('firstList', "(first '(2 3 4))"), #expected 2
-    
-    
-    
-    
+    ('firstList', "(first '())"), #invalid
+    ('firstList', "(first null)"), #invalid
+    ('doubleFront', "(doubleFront #t '(1 2 3 4))"), #invalid
+    ('doubleFront', "(doubleFront 2 #t)"), #invalid
+    ('doubleFront', "(cons 2 null)"), #invalid
+    ('doubleFront', "(doubleFront 2)"), #invalid
+    ('doubleFront', "(doubleFront 2 '(1 2 3 4))"), #expected '(1 1 2 3)
+    #put future tests here    
 ]
 
 print("\napplyRule testing:\n")
 for rule, expr in test_strings_ruleIf:
     print(f"input = {expr}, rule = {rule}")
-    
     proof = ERProof()
     proof.addProofLine(expr, rule)
     print("after rule =", proof.getPrevRacket() if proof.errLog == [] else proof.errLog)

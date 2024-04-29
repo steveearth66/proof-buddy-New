@@ -1,13 +1,9 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-from ERProofEngine import ERProof
+from ERProofEngine import ERProof, ERProofLine
 
-proofOne = ERProof()
-proofTwo = ERProof()
-currentProof = proofOne
-
+currentProof = None
 isValid = True
-pOneIsActive = True
 
 #Instantiate the app
 app = Flask(__name__)
@@ -24,54 +20,26 @@ def  get_er_proof_data():
 
 @app.route('/api/v1/proof/er-definitions', methods=['POST'])
 def add_definitions():
-    global proofOne
-    global proofTwo
-    global currentProof
-    global isValid
-
-    json_data = request.get_json()
-
-    if json_data['label'] not in proofOne.ruleSet.keys():
-        proofOne.addUDF(json_data['label'], json_data['type'], json_data['expression'])
-    if proofTwo != None:
-        if json_data['label'] not in proofTwo.ruleSet.keys():
-            proofTwo.addUDF(json_data['label'], json_data['type'], json_data['expression'])
-    
-    updateCurrentProof()
-    updateIsValid()
-    print(currentProof.errLog)
-    print(currentProof.ruleSet)
-    
-    return jsonify({'isValid': isValid, 'errors': currentProof.errLog}), 200
+    print(request.get_json())
+    return jsonify(request.get_json())
 
 @app.route('/api/v1/proof/er-generate', methods=['POST'])
 def apply_rule():
-    global isValid
-    global proofOne
-    global proofTwo
-    global pOneIsActive
+    global isValid #this should be in larger ProofOjb, not this lineObj
     global currentProof
 
     with app.app_context():
         json_data = request.get_json()
-        if pOneIsActive:
-            if proofOne.getPrevRacket() != json_data['currentRacket']:
-                pOneIsActive = False
-                proofTwo.addProofLine(json_data['currentRacket'], json_data['rule'], json_data['startPosition'])
-            else:
-                proofOne.addProofLine(json_data['currentRacket'], json_data['rule'], json_data['startPosition'])
-        elif proofTwo.getPrevRacket() != json_data['currentRacket']:
-                pOneIsActive = True
-                proofOne.addProofLine(json_data['currentRacket'], json_data['rule'], json_data['startPosition'])
-        else:
-            proofTwo.addProofLine(json_data['currentRacket'], json_data['rule'], json_data['startPosition'])
-
+        currentProof = ERProofLine(json_data['currentRacket'])
+        print(str(currentProof.exprTree), json_data['startPosition'])
+        currentProof.applyRule(rule=json_data['rule'], startPos=json_data['startPosition'])
         #print(f"tree={currentProof.exprTree} errs={currentProof.errLog}")
-
-        updateCurrentProof()
         updateIsValid()
 
-        racketStr = currentProof.getPrevRacket() if isValid else "Error generating racket"
+        if isValid:
+            racketStr = str(currentProof.exprTree)
+        else:
+            racketStr = "Error generating racket"
 
         return jsonify({'isValid': isValid, 'racket': racketStr, 'errors': currentProof.errLog }), 200
 
@@ -79,44 +47,20 @@ def apply_rule():
 @app.route('/api/v1/proof/check-goal', methods=['POST'])
 def check_goal():
     global isValid
-    global proofOne
-    global proofTwo
-    global pOneIsActive
     global currentProof
 
     with app.app_context():
         json_data = request.get_json()
-        
-        if currentProof.proofLines == []:
-            currentProof.addProofLine(json_data['goal'])
-        else:
-            pOneIsActive = not pOneIsActive
-            updateCurrentProof()
-            currentProof.addProofLine(json_data['goal'])
-
+        currentProof = ERProofLine(json_data['goal'])
         updateIsValid()
-
-        return jsonify({'isValid': isValid, 'errors': currentProof.errLog}), 200
-
-def updateCurrentProof():
-    global proofOne
-    global proofTwo
-    global pOneIsActive
-    global currentProof
-
-    currentProof = proofOne if pOneIsActive else proofTwo
+            
+        return jsonify({'isValid': isValid, 'errors': currentProof.errLog }), 200
 
 # Helper function to update the global isValid variable
 def updateIsValid():
     global isValid
-    global proofOne
-    global proofTwo
-    global pOneIsActive
-
-    if pOneIsActive:
-        isValid = proofOne.errLog == []
-    else:
-        isValid = proofTwo.errLog == []
+    global currentProof
+    isValid = currentProof.errLog == []
 
 if __name__ == '__main__':
     app.run(host='localhost', port=9095, debug=True)

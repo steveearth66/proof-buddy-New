@@ -19,6 +19,7 @@ class ERProof:
             'logic': Logic(),
             'restList': RestList(),
             'firstList': FirstList(),
+            'doubleFront': DoubleFront(), #this is fake for demo. remove when UDF working
         }
         self.proofLines = []
         self.errLog = []
