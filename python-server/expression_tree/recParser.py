@@ -1,5 +1,5 @@
 # This file parses an input Racket string and converts it to an equivalent expression tree representation (called an AST)
-
+# DEPRECATED
 import string # for string helper functions
 from typeFile import * # import RacType for type hints
 from ERobj import *  # for accessing pdict and ERObj declarations in applyRule

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from ERCommon import *
+import copy
 
 def isMatch(xNode:Node, yNode:Node)->bool: #recursively check if two nodes are identical #TODO: replace elif chain with something prettier
     if xNode.data != yNode.data or \
@@ -271,3 +272,32 @@ class Logic(Rule):
         newdata = "#t" if newname else "#f" #convert to racket bool
         newtype = RacType((None, Type.BOOL))
         return Node(data=newdata, tokenType=newtype, name=newname) #converting node
+    
+class UDF(Rule):
+    def __init__(self, label, filledBodyNode, racTypeObj, paramsList):
+        super().__init__(label)
+        self.body = filledBodyNode
+        self.racType = racTypeObj
+        self.params = paramsList
+
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        if ruleNode.children[0].data != self.label:
+            return False, f'Cannot apply {self.label} definition to {ruleNode.children[0].data}'
+        if len(ruleNode.children[1:]) != len(self.racType.getDomain()):
+            return False, f"{self.label} must take {len(self.racType.getDomain())} inputs"
+        ruleNodeRange = [c.type.getRange() for c in ruleNode.children[1:]]
+        if not all(x == y for x, y in zip(ruleNodeRange, self.racType.getDomain())):
+            return False, f'Cannot match argument out typeList {ruleNodeRange} with expected typeList {self.racType.getDomain()}'
+        return True, f"{self.label.capitalize()}.isApplicable() PASS" # string should not print out if debug=False
+    
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        expCopy = copy.deepcopy(self.body)
+        recursiveReplaceNodes(expCopy, self.params, ruleNode.children[1:])   
+        return expCopy
+
+def recursiveReplaceNodes(node: Node, params: list, values: list) -> None:
+    if node.data in params:
+        index = params.index(node.data)
+        node.replaceWith(values[index])
+    for child in node.children:
+        recursiveReplaceNodes(child, params, values)
