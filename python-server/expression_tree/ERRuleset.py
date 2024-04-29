@@ -289,7 +289,7 @@ class UDF(Rule):
             return False, f"{self.label} must take {len(self.racType.getDomain())} inputs"
         ruleNodeRange = [c.type.getRange() for c in ruleNode.children[1:]]
         if not all(x == y for x, y in zip(ruleNodeRange, self.racType.getDomain())):
-            return False, f'Cannot match argument out typeList {ruleNodeRange} with expected typeList {self.racType.getDomain()}'
+            return False, f'Cannot match argument out typeList {[str(x) for x in ruleNodeRange]} with expected typeList {[str(x) for x in self.racType.getDomain()]}'
         return True, f"{self.label.capitalize()}.isApplicable() PASS" # string should not print out if debug=False
     
     def insertSubstitution(self, ruleNode: Node) -> Node:
