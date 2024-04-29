@@ -91,10 +91,10 @@ def check_goal():
             currentProof.addProofLine(json_data['goal'])
         else:
             pOneIsActive = not pOneIsActive
-        
-        updateCurrentProof()
-        updateIsValid()
+            updateCurrentProof()
+            currentProof.addProofLine(json_data['goal'])
 
+        updateIsValid()
 
         return jsonify({'isValid': isValid, 'errors': currentProof.errLog}), 200
 
