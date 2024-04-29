@@ -126,7 +126,7 @@ function CreateDefinition({
       )}
 
       {errors.length > 0 && (
-        <Alert variant="danger">
+        <Alert variant="danger" className="scroll-error">
           {errors.map((error, index) => (
             <p key={index}>{error}</p>
           ))}
