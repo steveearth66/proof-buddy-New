@@ -18,6 +18,7 @@ class ERProof:
             'math': Math(),
             'logic': Logic(),
             'restList': RestList(),
+            'firstList': FirstList(),
         }
         self.proofLines = []
         self.errLog = []

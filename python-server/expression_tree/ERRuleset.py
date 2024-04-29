@@ -321,6 +321,25 @@ class RestList(Rule):
             newNode.children.append(origList.children[ind]) 
         return newNode #could have just returned in place by removing first element
     
+class FirstList(Rule):
+    def __init__(self):
+        super().__init__('firstList')
+
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]: #presumes buildtree checked types/qty already
+        if ruleNode.data != "(" or len(ruleNode.children) != 2 or ruleNode.children[0].data != "first":
+            return False, f'firstList rule requires calling rest function'
+        if len(ruleNode.children[1].children)==0: #this handles (rest null), (rest '()) :
+            return False, f'firstList rule requires nonempty list'
+        if ruleNode.children[1].data != "'(":
+            return False, f'firstList rule requires explicit list' #null case already handled. e.g. (rest L)
+        return True, "RestList.isApplicable() PASS"
+    
+    def insertSubstitution(self, ruleNode: Node) -> Node: 
+        origList = copy.deepcopy(ruleNode.children[1])
+        if origList.children[0].data == "(":
+            origList.children[0].data = "'("
+        return origList.children[0]
+    
 def recursiveReplaceNodes(node: Node, params: list, values: list) -> None:
     if node.data in params:
         index = params.index(node.data)

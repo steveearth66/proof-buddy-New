@@ -52,6 +52,17 @@ test_strings_ruleIf= [
     ('restList', "(rest '(1) '(2))"), #expected invalid
     ('restList', "(rest 5)"), #expected invalid
     ('restList', "(first '(1 2)"), #expected invalid
+    ('firstList', "(first '(1 2))"), #expected 1
+    ('firstList', "(first '(3 1 8 7 2))"), #expected 3
+    ('firstList', "(first '((3) 1 8 7 2))"), #expected '(3)
+    ('firstList', "(first '(5))"), #expected 5
+    ('firstList', "(first null"), #expected invalid
+    ('firstList', "(first '())"), #expected 'invalid
+    ('firstList', "(first '(1) '(2))"), #expected invalid
+    ('firstList', "(first 5)"), #expected invalid
+    ('firstList', "(rest '(1 2)"), #expected invalid
+    ('firstList', "(first '( (2 3) 4))"), #expected '(2 3)
+    ('firstList', "(first '(2 3 4))"), #expected 2
     
     
     
