@@ -16,7 +16,8 @@ class ERProof:
             'zero?': ZeroQ(),
             'consList': ConsList(),
             'math': Math(),
-            'logic': Logic()
+            'logic': Logic(),
+            'restList': RestList(),
         }
         self.proofLines = []
         self.errLog = []

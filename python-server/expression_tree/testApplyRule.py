@@ -45,6 +45,14 @@ test_strings_ruleIf= [
     ('consList', "(cons null '(2))"), #expected '(null)
     ('consList', "(cons '(2 3) '(4 5))"), #expected '(null)
     ('consList', "(cons x '(2))"), #expected '(x 2)
+    ('restList', "(rest '(5))"), #expected null
+    ('restList', "(rest null"), #expected invalid
+    ('restList', "(rest '())"), #expected 'invalid
+    ('restList', "(rest '(3 1 8 7 2))"), #expected '(1 8 7 2)
+    ('restList', "(rest '(1) '(2))"), #expected invalid
+    ('restList', "(rest 5)"), #expected invalid
+    ('restList', "(first '(1 2)"), #expected invalid
+    
     
     
     

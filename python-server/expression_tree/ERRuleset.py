@@ -87,7 +87,7 @@ class First(Rule):
         if ruleNode.children[0].data != 'first':
             return False, f'Cannot apply first rule to {ruleNode.children[0].data}'
         elif len(ruleNode.children[1].children) == 0 or ruleNode.children[1].children[0].data != 'cons':
-            return False, f'first can only be applied to the cons rule'
+            return False, f'first rule can only be applied with a cons'
         return True, 'First.isApplicable() PASS' # string should not print out if debug=False
     
     def insertSubstitution(self, ruleNode: Node) -> Node:
@@ -102,7 +102,7 @@ class Rest(Rule):
         if ruleNode.children[0].data != 'rest':
             return False, f'Cannot apply rest rule to {ruleNode.children[0].data}'
         elif len(ruleNode.children[1].children) == 0 or ruleNode.children[1].children[0].data != 'cons':
-            return False, f'rest can only be applied to the cons rule'
+            return False, f'rest rule can only be applied with a cons'
         return True, 'Rest.isApplicable() PASS' # string should not print out if debug=False
     
     def insertSubstitution(self, ruleNode: Node) -> Node:
@@ -117,7 +117,7 @@ class NullQ(Rule):
         if ruleNode.children[0].data != 'null?':
             return False, f'Cannot apply null rule to {ruleNode.children[0].data}'
         elif ruleNode.children[1].children[0].data != 'cons':
-            return False, f'null can only be applied to the cons rule'
+            return False, f'null rule can only be applied with a cons'
         return True, 'NullQ.isApplicable() PASS' # string should not print out if debug=False
     
     def insertSubstitution(self, ruleNode: Node) -> Node:
@@ -132,7 +132,7 @@ class ConsQ(Rule):
         if ruleNode.children[0].data != 'cons?':
             return False, f'Cannot apply cons? rule to {ruleNode.children[0].data}'
         elif ruleNode.children[1].children[0].data != 'cons':
-            return False, f'cons? can only be applied to the cons rule'
+            return False, f'cons? can only be applied with a cons'
         return True, 'ConsQ.isApplicable() PASS' # string should not print out if debug=False
     
     def insertSubstitution(self, ruleNode: Node) -> Node:
@@ -148,7 +148,7 @@ class ZeroQ(Rule):
             return False, f'Cannot apply zero rule to {ruleNode.children[0].data}'
         elif len(ruleNode.children[1].children) > 0:
             if ruleNode.children[1].children[0].data != '+':
-                return False, f'zero? can only be applied to addition rule'
+                return False, f'zero? can only be applied with a +'
             else:
                 try:
                     argOne = int(ruleNode.children[1].children[1].data)
@@ -295,6 +295,30 @@ class UDF(Rule):
         recursiveReplaceNodes(expCopy, self.params, ruleNode.children[1:])   
         return expCopy
 
+class RestList(Rule):
+    def __init__(self):
+        super().__init__('restList')
+
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]: #presumes buildtree checked types/qty already
+        if ruleNode.data != "(" or len(ruleNode.children) != 2 or ruleNode.children[0].data != "rest":
+            return False, f'restList rule requires calling rest function'
+        if len(ruleNode.children[1].children)==0: #this handles (rest null), (rest '()) :
+            return False, f'restList rule requires nonempty list'
+        if ruleNode.children[1].data != "'(":
+            return False, f'restList rule requires explicit list' #null case already handled. e.g. (rest L)
+        return True, "RestList.isApplicable() PASS"
+    
+    def insertSubstitution(self, ruleNode: Node) -> Node: 
+        origList = ruleNode.children[1]
+        if (n:=len(origList.children)) == 1:
+            return Node(data="null", tokenType=RacType((None, Type.LIST)), name=[])
+        newNode = Node(data="'(", tokenType=RacType((None, Type.LIST)),\
+                    name=origList.name[1:] if isinstance(oname:=origList.name, list) and \
+                    len(oname)>0 else None, length=n-1)
+        for ind in range(1,n): #shift all elements left
+            newNode.children.append(origList.children[ind]) 
+        return newNode #could have just returned in place by removing first element
+    
 def recursiveReplaceNodes(node: Node, params: list, values: list) -> None:
     if node.data in params:
         index = params.index(node.data)
