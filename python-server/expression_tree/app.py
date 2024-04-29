@@ -2,9 +2,9 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from ERProofEngine import ERProof
 
-proofOne = None
-proofTwo = None
-currentProof = None
+proofOne = ERProof()
+proofTwo = ERProof()
+currentProof = proofOne
 
 isValid = True
 pOneIsActive = True
@@ -24,6 +24,11 @@ def  get_er_proof_data():
 
 @app.route('/api/v1/proof/er-definitions', methods=['POST'])
 def add_definitions():
+    global proofOne
+    global proofTwo
+    global currentProof
+    global isValid
+
     json_data = request.get_json()
 
     if json_data['label'] not in proofOne.ruleSet.keys():
@@ -34,7 +39,7 @@ def add_definitions():
     
     updateCurrentProof()
     updateIsValid()
-
+    print(currentProof.errLog)
     print(currentProof.ruleSet)
     
     return jsonify({'isValid': isValid, 'errors': currentProof.errLog}), 200
@@ -77,19 +82,16 @@ def check_goal():
     global proofOne
     global proofTwo
     global pOneIsActive
+    global currentProof
 
     with app.app_context():
         json_data = request.get_json()
         
-        proof = ERProof()
-        proof.addProofLine(json_data['goal'])
-
-        if proofOne == None:
-            proofOne = proof
+        if currentProof.proofLines == []:
+            currentProof.addProofLine(json_data['goal'])
         else:
-            proofOne, proofTwo = proof, proofOne
-            pOneIsActive = False
-
+            pOneIsActive = not pOneIsActive
+        
         updateCurrentProof()
         updateIsValid()
 

@@ -150,7 +150,7 @@ def argQty(treeNode:Node) -> str:
     expectedCount = func.numArgs
     providedCount = len(treeNode.children) - 1
 
-    if expectedCount != providedCount:
+    if (expectedCount != providedCount) and (func.type.getType() not in FLEX_TYPES):
         return f"{func.name} only takes {expectedCount} arguments, but {providedCount} {'was' if providedCount==1 else 'were'} provided"
     
     # only typeCheck if everything passes
@@ -197,7 +197,8 @@ env={} #env dictionary to keep track of params, having it out here so it stays a
 
 def typeCheck(inputTree:Node, debug=False) -> str:
     func = inputTree.children[0]
-
+    if func.type.getType() in FLEX_TYPES:
+        return None
     # get the expected and provided domains
     expectedIns = func.type.getDomain()
     providedIns = [RacType((child.type.getDomain(), child.type.getRange())) for child in inputTree.children[1:]]

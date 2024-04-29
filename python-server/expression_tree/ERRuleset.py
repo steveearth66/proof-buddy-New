@@ -261,6 +261,8 @@ class Logic(Rule):
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if (len(ruleNode.children) != 0 and ruleNode.children[0].data not in self.logicDict.keys()):
             return False, f'Cannot apply logic rule to {ruleNode.children[0].data}'
+        elif len(ruleNode.children[1:]) < 2 and ruleNode.children[0].data!="not":
+            return False, f'Not enough arguments provided to {ruleNode.children[0].data}'
         elif len(ruleNode.children[1].children) != 0 or (ruleNode.children[0].data!="not" and len(ruleNode.children[2].children) != 0): #checking for (or (not #t) #t) type errors
             return False, "insufficiently resolved arguments"
         return True, "Logic.isApplicable() PASS" # string should not print out if debug=False

@@ -40,11 +40,11 @@ class ERProof:
         return str(self.proofLines[-1].exprTree)
     
     def addUDF(self, label, typeStr, body):
-        labelList = Parser.preProcess(label)
+        labelList = Parser.preProcess(label)[0]
         paramsList = labelList[2:-1]
         udfLabel = labelList[1]
         racTypeObj = str2Type(typeStr)
-        bodyNode = ERProofLine(body).exprTree
+        bodyNode = ERProofLine(body)
         if bodyNode.errLog != []:
             self.errLog.extend(bodyNode.errLog)
         if not (udfLabel not in self.ruleSet.keys() and udfLabel not in reservedLabels):
@@ -55,7 +55,7 @@ class ERProof:
             param2TypeDict = {}
             for j in range(len(paramsList)):
                 param2TypeDict[paramsList[j]] = racTypeObj.getDomain()[j]
-            filledBodyNode = fillBody(bodyNode, udfLabel, racTypeObj, param2TypeDict)
+            filledBodyNode = fillBody(bodyNode.exprTree, udfLabel, racTypeObj, param2TypeDict)
             self.ruleSet[udfLabel] = UDF(udfLabel, filledBodyNode, racTypeObj, paramsList)
 
 class ERProofLine:
