@@ -78,12 +78,12 @@ function CreateDefinition({
       const response = await erService.createDefinition(definition);
       setErrors([]);
 
-      if (response.status === 200) {
+      if (response.isValid) {
         updateDefinition(definition);
         setSuccessMessage("Definition updated successfully.");
         return;
       } else {
-        setErrors(["Failed to update definition."]);
+        setErrors(response.errors);
         return;
       }
     }
@@ -99,13 +99,13 @@ function CreateDefinition({
       const response = await erService.createDefinition(definition);
       setErrors([]);
 
-      if (response.status === 200) {
+      if (response.isValid) {
         definitions.push(definition);
         sessionStorage.setItem("definitions", JSON.stringify(definitions));
         setSuccessMessage("Definition created successfully.");
         handleReset();
       } else {
-        setErrors(["Failed to create definition."]);
+        setErrors(response.errors);
       }
     }
   };
@@ -314,7 +314,7 @@ function Definition({ definition, eventKey, deleteDefinition, updateEdit }) {
           <p>Type: {definition.type}</p>
           <p>Expression: {definition.expression}</p>
           {definition.notes && <p>Notes: {definition.notes}</p>}
-          <div className="def-button-row">
+          <div className="def-buttons">
             <Button
               variant="outline-primary"
               onClick={() => updateEdit(definition)}

@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from ERProofEngine import ERProof
-
+import copy
 proofOne = ERProof()
 proofTwo = ERProof()
 currentProof = proofOne
@@ -41,8 +41,8 @@ def add_definitions():
     updateIsValid()
     print(currentProof.errLog)
     print(currentProof.ruleSet)
-    
-    return jsonify({'isValid': isValid, 'errors': currentProof.errLog}), 200
+    prevErrors = getErrorsAndClear()
+    return jsonify({'isValid': isValid, 'errors': prevErrors}), 200
 
 @app.route('/api/v1/proof/er-generate', methods=['POST'])
 def apply_rule():
@@ -73,7 +73,8 @@ def apply_rule():
 
         racketStr = currentProof.getPrevRacket() if isValid else "Error generating racket"
 
-        return jsonify({'isValid': isValid, 'racket': racketStr, 'errors': currentProof.errLog }), 200
+        prevErrors = getErrorsAndClear()
+        return jsonify({'isValid': isValid, 'racket': racketStr, 'errors': prevErrors }), 200
 
 # Proof Goal Checking
 @app.route('/api/v1/proof/check-goal', methods=['POST'])
@@ -92,11 +93,12 @@ def check_goal():
         else:
             pOneIsActive = not pOneIsActive
             updateCurrentProof()
-            currentProof.addProofLine(json_data['goal'])
+            currentProof.addProofLine(json_data['goal']) 
 
         updateIsValid()
 
-        return jsonify({'isValid': isValid, 'errors': currentProof.errLog}), 200
+        prevErrors = getErrorsAndClear()
+        return jsonify({'isValid': isValid, 'errors': prevErrors}), 200
 
 def updateCurrentProof():
     global proofOne
@@ -106,17 +108,19 @@ def updateCurrentProof():
 
     currentProof = proofOne if pOneIsActive else proofTwo
 
+def getErrorsAndClear():
+    global currentProof
+
+    errors = copy.copy(currentProof.errLog)
+    currentProof.errLog = []
+
+    return errors
 # Helper function to update the global isValid variable
 def updateIsValid():
     global isValid
-    global proofOne
-    global proofTwo
-    global pOneIsActive
-
-    if pOneIsActive:
-        isValid = proofOne.errLog == []
-    else:
-        isValid = proofTwo.errLog == []
+    global currentProof
+    
+    isValid = currentProof.errLog == [] 
 
 if __name__ == '__main__':
     app.run(host='localhost', port=9095, debug=True)
