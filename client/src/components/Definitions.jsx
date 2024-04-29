@@ -314,7 +314,7 @@ function Definition({ definition, eventKey, deleteDefinition, updateEdit }) {
           <p>Type: {definition.type}</p>
           <p>Expression: {definition.expression}</p>
           {definition.notes && <p>Notes: {definition.notes}</p>}
-          <div className="def-button-row">
+          <div className="def-buttons">
             <Button
               variant="outline-primary"
               onClick={() => updateEdit(definition)}
