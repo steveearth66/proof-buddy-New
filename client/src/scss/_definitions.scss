@@ -57,10 +57,16 @@
 
 .def-button-row {
     display: flex;
+    justify-content: space-between;
     gap: 10px;
 }
 
 .create-definition {
     overflow-y: auto;
     overflow-x: hidden;
+}
+
+.def-buttons {
+    display: flex;
+    gap: 15px;
 }
