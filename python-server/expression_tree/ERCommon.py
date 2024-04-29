@@ -75,11 +75,8 @@ def findDelim(delim:str, tlist:list)->int:
     for i in range(len(tlist)): #must use range since index matters
         counter += 1 if tlist[i]=="(" else -1 if tlist[i]==")" else 0
         if counter == 0 and tlist[i]==delim:
-            return i+1
+            return i+1 #this is one more than the position for some reason (maybe i used it earlier) so i need to -1 to it in str2Type
     return -1 # the string had unbalanced parens or did not contain delim
-
-def list2Tup(slist:list[str])->tuple:
-    return () #TODO complete this  
 
 #given a tokenized list of a single type (i.e. NOT a list of types like potentially in a domain), returns the ractype for it. note: could be a function
 def list2Type(slist:list[str])->RacType:
@@ -91,6 +88,45 @@ def list2Type(slist:list[str])->RacType:
             strg = str[1:-1] #cutting out any surrounding parens (note that strg is not a function, so an open parens isn't needed)
         return RacType((None,Type.__members__.get(strg)))
     return RacType() # TODO: this is what needs to be done if it is a function
+
+# this takes in a list of parenthesized string tokens and splits it into ans[0]= token list of first element, ans[1]=token list of parenthesized rest
+# example: "(INT,LIST,BOOL)" would be [[INT], [(LIST,BOOL)]], all tokenized.  also [((INT,BOOL)>LIST, BOOL)] would be [[(INT,BOOL)>LIST], [(BOOL)]]
+def sepFirst(slist:list[str])->list:
+    ind = findDelim(",",slist[1:-1]) #need to ignore out parens
+    return [slist[1:ind],["("]+([")"] if ind==-1 else slist[ind+1:])]
+
+# takes a parenthesized list of tokens (possibly one or even empty) and turns it into a tuple of RacTypes
+def list2Tup(slist:list[str])->tuple:
+    if slist==["(",")"]:
+        return tuple([])
+    firstTokL,restToksL=sepFirst(slist)
+    return tuple([str2Type(firstTokL[0])])+list2Tup(restToksL)
+
+core = ["INT","LIST","BOOL","ANY"]
+#takes a string and turns it into a RacType
+def str2Type(tstr:str)->RacType:
+    if tstr==None or tstr=="":
+        return RacType((None, Type.ERROR))
+    #creates token list
+    slist = tstr.upper().replace("(", " ( ").replace(">", " > ").replace(",", " , ").replace(")", " ) ").strip().split()
+    for item in slist:
+        #note: core is defined outside definition. apparently global not needed for lists, only for ints that are being modified
+        if item not in core+[",","(",")",">"]: #checks to make sure all tokens are valid. 
+            return RacType((None, Type.ERROR))
+    if findDelim(")",slist)==len(slist) and slist[0]=="(": #this is a single type wrapped in parens
+        slist=slist[1:-1] #stripping out unnecessary surrounding parens
+    if len(slist)==1 or (len(slist)==3 and slist[0]=="(" and slist[2]==")"):
+        mid = slist[0] if len(slist)==1 else slist[1] #grabbing a single item which could be int or (int)
+        return RacType((None,Type.__members__.get(mid))) if mid in core else RacType(Type.ERROR)
+    if (ind:=findDelim(">",slist)-1) == -1: #must exist since single types already handled, or mismatched parens
+        return RacType((None, Type.ERROR))
+    outlist = slist[ind+1:] #everything after the >
+    outtype = str2Type("".join(outlist)) #convert range token list back to string to do recursion
+    domsList = slist[:ind] #everything before the root >, so paren balanced already
+    if "," not in domsList: # the function just takes a single argument (which might be a function)
+        return RacType(((str2Type("".join(domsList)),), outtype))
+    domsTup = list2Tup(domsList) # makes a tuple of RacTypes
+    return RacType((domsTup,outtype))
 
 # Node object used to compose the AST
 class Node:

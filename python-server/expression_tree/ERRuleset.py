@@ -1,5 +1,9 @@
 from abc import ABC, abstractmethod
 from ERCommon import *
+import copy
+from Parser import buildTree, preProcess
+from Labeler import labelTree#, fillPositions
+from Decorator import decorateTree, remTemps, checkFunctions
 
 def isMatch(xNode:Node, yNode:Node)->bool: #recursively check if two nodes are identical #TODO: replace elif chain with something prettier
     if xNode.data != yNode.data or \
@@ -86,7 +90,7 @@ class First(Rule):
         if ruleNode.children[0].data != 'first':
             return False, f'Cannot apply first rule to {ruleNode.children[0].data}'
         elif len(ruleNode.children[1].children) == 0 or ruleNode.children[1].children[0].data != 'cons':
-            return False, f'first can only be applied to the cons rule'
+            return False, f'first rule can only be applied with a cons'
         return True, 'First.isApplicable() PASS' # string should not print out if debug=False
     
     def insertSubstitution(self, ruleNode: Node) -> Node:
@@ -101,7 +105,7 @@ class Rest(Rule):
         if ruleNode.children[0].data != 'rest':
             return False, f'Cannot apply rest rule to {ruleNode.children[0].data}'
         elif len(ruleNode.children[1].children) == 0 or ruleNode.children[1].children[0].data != 'cons':
-            return False, f'rest can only be applied to the cons rule'
+            return False, f'rest rule can only be applied with a cons'
         return True, 'Rest.isApplicable() PASS' # string should not print out if debug=False
     
     def insertSubstitution(self, ruleNode: Node) -> Node:
@@ -116,7 +120,7 @@ class NullQ(Rule):
         if ruleNode.children[0].data != 'null?':
             return False, f'Cannot apply null rule to {ruleNode.children[0].data}'
         elif ruleNode.children[1].children[0].data != 'cons':
-            return False, f'null can only be applied to the cons rule'
+            return False, f'null rule can only be applied with a cons'
         return True, 'NullQ.isApplicable() PASS' # string should not print out if debug=False
     
     def insertSubstitution(self, ruleNode: Node) -> Node:
@@ -131,7 +135,7 @@ class ConsQ(Rule):
         if ruleNode.children[0].data != 'cons?':
             return False, f'Cannot apply cons? rule to {ruleNode.children[0].data}'
         elif ruleNode.children[1].children[0].data != 'cons':
-            return False, f'cons? can only be applied to the cons rule'
+            return False, f'cons? can only be applied with a cons'
         return True, 'ConsQ.isApplicable() PASS' # string should not print out if debug=False
     
     def insertSubstitution(self, ruleNode: Node) -> Node:
@@ -147,7 +151,7 @@ class ZeroQ(Rule):
             return False, f'Cannot apply zero rule to {ruleNode.children[0].data}'
         elif len(ruleNode.children[1].children) > 0:
             if ruleNode.children[1].children[0].data != '+':
-                return False, f'zero? can only be applied to addition rule'
+                return False, f'zero? can only be applied with a +'
             else:
                 try:
                     argOne = int(ruleNode.children[1].children[1].data)
@@ -260,6 +264,8 @@ class Logic(Rule):
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if (len(ruleNode.children) != 0 and ruleNode.children[0].data not in self.logicDict.keys()):
             return False, f'Cannot apply logic rule to {ruleNode.children[0].data}'
+        elif len(ruleNode.children[1:]) < 2 and ruleNode.children[0].data!="not":
+            return False, f'Not enough arguments provided to {ruleNode.children[0].data}'
         elif len(ruleNode.children[1].children) != 0 or (ruleNode.children[0].data!="not" and len(ruleNode.children[2].children) != 0): #checking for (or (not #t) #t) type errors
             return False, "insufficiently resolved arguments"
         return True, "Logic.isApplicable() PASS" # string should not print out if debug=False
@@ -271,3 +277,96 @@ class Logic(Rule):
         newdata = "#t" if newname else "#f" #convert to racket bool
         newtype = RacType((None, Type.BOOL))
         return Node(data=newdata, tokenType=newtype, name=newname) #converting node
+    
+class UDF(Rule):
+    def __init__(self, label, filledBodyNode, racTypeObj, paramsList):
+        super().__init__(label)
+        self.body = filledBodyNode
+        self.racType = racTypeObj
+        self.params = paramsList
+
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        if ruleNode.children[0].data != self.label:
+            return False, f'Cannot apply {self.label} definition to {ruleNode.children[0].data}'
+        if len(ruleNode.children[1:]) != len(self.racType.getDomain()):
+            return False, f"{self.label} must take {len(self.racType.getDomain())} inputs"
+        ruleNodeRange = [c.type.getRange() for c in ruleNode.children[1:]]
+        if not all(x == y for x, y in zip(ruleNodeRange, self.racType.getDomain())):
+            return False, f'Cannot match argument out typeList {[str(x) for x in ruleNodeRange]} with expected typeList {[str(x) for x in self.racType.getDomain()]}'
+        return True, f"{self.label.capitalize()}.isApplicable() PASS" # string should not print out if debug=False
+    
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        expCopy = copy.deepcopy(self.body)
+        recursiveReplaceNodes(expCopy, self.params, ruleNode.children[1:])   
+        return expCopy
+
+class RestList(Rule):
+    def __init__(self):
+        super().__init__('restList')
+
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]: #presumes buildtree checked types/qty already
+        if ruleNode.data != "(" or len(ruleNode.children) != 2 or ruleNode.children[0].data != "rest":
+            return False, f'restList rule requires calling rest function'
+        if len(ruleNode.children[1].children)==0: #this handles (rest null), (rest '()) :
+            return False, f'restList rule requires nonempty list'
+        if ruleNode.children[1].data != "'(":
+            return False, f'restList rule requires explicit list' #null case already handled. e.g. (rest L)
+        return True, "RestList.isApplicable() PASS"
+    
+    def insertSubstitution(self, ruleNode: Node) -> Node: 
+        origList = ruleNode.children[1]
+        if (n:=len(origList.children)) == 1:
+            return Node(data="null", tokenType=RacType((None, Type.LIST)), name=[])
+        newNode = Node(data="'(", tokenType=RacType((None, Type.LIST)),\
+                    name=origList.name[1:] if isinstance(oname:=origList.name, list) and \
+                    len(oname)>0 else None, length=n-1)
+        for ind in range(1,n): #shift all elements left
+            newNode.children.append(origList.children[ind]) 
+        return newNode #could have just returned in place by removing first element
+    
+class FirstList(Rule):
+    def __init__(self):
+        super().__init__('firstList')
+
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]: #presumes buildtree checked types/qty already
+        if ruleNode.data != "(" or len(ruleNode.children) != 2 or ruleNode.children[0].data != "first":
+            return False, f'firstList rule requires calling rest function'
+        if len(ruleNode.children[1].children)==0: #this handles (rest null), (rest '()) :
+            return False, f'firstList rule requires nonempty list'
+        if ruleNode.children[1].data != "'(":
+            return False, f'firstList rule requires explicit list' #null case already handled. e.g. (rest L)
+        return True, "RestList.isApplicable() PASS"
+    
+    def insertSubstitution(self, ruleNode: Node) -> Node: 
+        origList = copy.deepcopy(ruleNode.children[1])
+        if origList.children[0].data == "(":
+            origList.children[0].data = "'("
+        return origList.children[0]
+    
+def recursiveReplaceNodes(node: Node, params: list, values: list) -> None:
+    if node.data in params:
+        index = params.index(node.data)
+        node.replaceWith(values[index])
+    for child in node.children:
+        recursiveReplaceNodes(child, params, values)
+
+#Placeholder function to fake UDF for demo
+class DoubleFront(Rule):
+    def __init__(self):
+        super().__init__('doubleFront')
+
+    # since this isn't built-in, buildtree might not do the type checking, so doing it here
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]: 
+        if ruleNode.data != "(" or len(ruleNode.children) != 3 or ruleNode.children[0].data != "doubleFront":
+            return False, f'must apply the doubleFront definition to a doubleFront function call of 2 arguments'
+        if not (ruleNode.children[1].type.isType("INT") and ruleNode.children[2].type.isType("LIST")):
+            return False, f'doubleFront takes [INT,LIST] but received {[str(ruleNode.children[1].type),str(ruleNode.children[2].type)]}'
+        return True, "DoubleFront.isApplicable() PASS"
+    
+    def insertSubstitution(self, ruleNode: Node) -> Node: 
+        defStr="(if (or (zero? n) (null? L)) L (cons (* 2 (first L)) (doubleFront (- n 1) (rest L))))" 
+        decTree = decorateTree(labelTree(buildTree(preProcess(defStr,[])[0],)[0]),[])[0]
+        errLog = remTemps(decTree, []) #this might crash if it hasn't been updated
+        newNode = checkFunctions(decTree,errLog)[0]
+        recursiveReplaceNodes(newNode, ["n","L"], [ruleNode.children[1],ruleNode.children[2]])
+        return newNode #could have just returned in place by removing first element

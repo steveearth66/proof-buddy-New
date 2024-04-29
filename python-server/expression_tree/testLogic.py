@@ -50,12 +50,10 @@ fails = 0
 for trial in err_strings+good_strgs:
     expr,expected = trial
     print("input:",expr)
-    proof = ERProof(expr)
+    proof = ERProof()
+    proof.addProofLine(expr, 'logic')
 
-    if proof.errLog == []:
-        proof.applyRule('logic', 0)
-
-    ans = str(proof.errLog if proof.errLog!=[] else proof.exprTree)
+    ans = str(proof.errLog if proof.errLog!=[] else proof.getPrevRacket())
     word = "errors" if isinstance(expected,list) else "output"
     expected=str(expected)
     if ans == expected:

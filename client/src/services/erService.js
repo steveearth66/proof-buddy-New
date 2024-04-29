@@ -42,7 +42,7 @@ const createDefinition = async (definition) => {
       `${API_GATEWAY}/er-definitions`,
       definition
     );
-    return response;
+    return response.data;
   } catch (error) {
     handleServiceError(error, "Error during definition creation:");
     throw error;

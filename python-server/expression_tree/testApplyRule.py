@@ -45,15 +45,37 @@ test_strings_ruleIf= [
     ('consList', "(cons null '(2))"), #expected '(null)
     ('consList', "(cons '(2 3) '(4 5))"), #expected '(null)
     ('consList', "(cons x '(2))"), #expected '(x 2)
-    
-    
-    
+    ('restList', "(rest '(5))"), #expected null
+    ('restList', "(rest null"), #expected invalid
+    ('restList', "(rest '())"), #expected 'invalid
+    ('restList', "(rest '(3 1 8 7 2))"), #expected '(1 8 7 2)
+    ('restList', "(rest '(1) '(2))"), #expected invalid
+    ('restList', "(rest 5)"), #expected invalid
+    ('restList', "(first '(1 2)"), #expected invalid
+    ('firstList', "(first '(1 2))"), #expected 1
+    ('firstList', "(first '(3 1 8 7 2))"), #expected 3
+    ('firstList', "(first '((3) 1 8 7 2))"), #expected '(3)
+    ('firstList', "(first '(5))"), #expected 5
+    ('firstList', "(first null"), #expected invalid
+    ('firstList', "(first '())"), #expected 'invalid
+    ('firstList', "(first '(1) '(2))"), #expected invalid
+    ('firstList', "(first 5)"), #expected invalid
+    ('firstList', "(rest '(1 2)"), #expected invalid
+    ('firstList', "(first '( (2 3) 4))"), #expected '(2 3)
+    ('firstList', "(first '(2 3 4))"), #expected 2
+    ('firstList', "(first '())"), #invalid
+    ('firstList', "(first null)"), #invalid
+    ('doubleFront', "(doubleFront #t '(1 2 3 4))"), #invalid
+    ('doubleFront', "(doubleFront 2 #t)"), #invalid
+    ('doubleFront', "(cons 2 null)"), #invalid
+    ('doubleFront', "(doubleFront 2)"), #invalid
+    ('doubleFront', "(doubleFront 2 '(1 2 3 4))"), #expected '(1 1 2 3)
+    #put future tests here    
 ]
 
 print("\napplyRule testing:\n")
 for rule, expr in test_strings_ruleIf:
     print(f"input = {expr}, rule = {rule}")
-    proof = ERProof(expr)
-    if proof.errLog == []:
-        proof.applyRule(rule, 0)
-    print("after rule =", str(proof.exprTree))
+    proof = ERProof()
+    proof.addProofLine(expr, rule)
+    print("after rule =", proof.getPrevRacket() if proof.errLog == [] else proof.errLog)
