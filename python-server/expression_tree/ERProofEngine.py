@@ -2,11 +2,11 @@ from ERCommon import *
 from ERRuleset import *
 import Parser, Labeler, Decorator
 class ERProof:
-    def __init__(self, goal, debug=False):
+    def __init__(self, goal, debug=False): #goal is the racket expression string
         self.exprTree = None
         self.errLog = []
         self.debug = debug
-        self.ruleset = {
+        self.ruleset = { #this should in the whole Proof obj, not just this lineObj
             'if': If(),
             'cons': Cons(),
             'first': First(),
@@ -16,7 +16,8 @@ class ERProof:
             'zero?': ZeroQ(),
             'consList': ConsList(),
             'math': Math(),
-            'logic': Logic()
+            'logic': Logic(),
+            'restList': RestList(),
         }
         tokenList, self.errLog = Parser.preProcess(goal,errLog=self.errLog,debug=self.debug)
         if self.errLog==[]:
