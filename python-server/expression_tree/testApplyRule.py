@@ -1,8 +1,7 @@
 from ERProofEngine import ERProof
 
-test_strings_ruleIf= [
-    ("cons", "(cons (if #t (if #f 3 4) 5) null)"),
-    ("cons", "(cons (first '(1 2 3)) (rest '(1 2 3)))"),
+test_strings = [
+    ("cons", "(cons (if #t (if #f 3 4) 5) null)"),#['Can only apply the cons rule to first and rest']),
     ("first", "(first (cons 3 '(1 2)))"),
     ("rest", "(rest (cons 3 '(1 2)))"),
     ("if", "(if #t 4 5)"), #expected 4
@@ -70,11 +69,24 @@ test_strings_ruleIf= [
     ('doubleFront', "(cons 2 null)"), #invalid
     ('doubleFront', "(doubleFront 2)"), #invalid
     ('doubleFront', "(doubleFront 2 '(1 2 3 4))"), #expected '(1 1 2 3)
+    ('null?', "(null? null)"), #expected #t
+    ('null?', "(null? '())"), #expected #t
+    ('null?', "(null? '(1 2 3))"), #expected #f
+    ('null?', "(cons 0 null)"), #expected invalid
+    ('null?', "(null? 0)"), #expected #f
+    ('null?', "(null? (if #t null null))"), #expected invalid
+
+    #BUG: this test should be valid but it's saying 'Can only apply the cons rule to first and rest'
+    ("cons", "(cons (first '(1 2 3)) (rest '(1 2 3)))"), #expected '(1 2 3)
+
+    #this tests should be invalid, but it's saying #t
+    ('null?', "(null? null null)"), #expected invalid
+    
     #put future tests here    
 ]
 
 print("\napplyRule testing:\n")
-for rule, expr in test_strings_ruleIf:
+for rule, expr in test_strings:
     print(f"input = {expr}, rule = {rule}")
     proof = ERProof()
     proof.addProofLine(expr, rule)

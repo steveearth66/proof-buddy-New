@@ -119,13 +119,20 @@ class NullQ(Rule):
     def isApplicable(self, ruleNode: Node) -> tuple[bool,str]:
         if ruleNode.children[0].data != 'null?':
             return False, f'Cannot apply null rule to {ruleNode.children[0].data}'
-        elif ruleNode.children[1].children[0].data != 'cons':
-            return False, f'null rule can only be applied with a cons'
+        if str(ruleNode.children[1].type) not in ["LIST","ANY","TEMP"]:
+            return True, 'NullQ.isApplicable() PASS' #check for nonlists before checking next err condition
+        if (target := ruleNode.children[1].data)  != 'null' and target != "'(":
+            return False, f'insufficiently resolved arguments' # (null? L) or (null? (if #t null null))
         return True, 'NullQ.isApplicable() PASS' # string should not print out if debug=False
     
     def insertSubstitution(self, ruleNode: Node) -> Node:
-        falseNode = Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
-        return falseNode
+            if not ruleNode.children[1].type.isType("LIST"):
+                return Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
+            #must check nonlists first to avoid thinking no children is a null list
+            if len(ruleNode.children[1].children) == 0:
+                return Node(data='#t', tokenType=RacType((None, Type.BOOL)), name=True)
+            return Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
+        
     
 class ConsQ(Rule):
     def __init__(self):
