@@ -22,8 +22,8 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
 
   const handelHighlight = (selectionRange) => {
     const selectedPart = findSelectionParenthesis(selectionRange);
-    if (!checkParenthesesConsistency(selectedPart)) {
-      const highlighted = checkAndGetQuotient(balanceParentheses(selectedPart));
+    if (!checkParenthesisConsistency(selectedPart)) {
+      const highlighted = checkAndGetQuotient(balanceParenthesis(selectedPart));
       setHighlightedText(highlighted);
       onHighlightChange(getStartIndex(highlighted));
       setSelectionRange({
@@ -89,7 +89,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     }
   };
 
-  const checkParenthesesConsistency = (selectedText) => {
+  const checkParenthesisConsistency = (selectedText) => {
     if (!selectedText) {
       return;
     }
@@ -111,7 +111,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     return stack.length === 0; // Return true if stack is empty, false otherwise
   };
 
-  const balanceParentheses = (selectedText) => {
+  const balanceParenthesis = (selectedText) => {
     const stack = [];
 
     // Find the starting index of the selected text in the equation
@@ -136,8 +136,8 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     // Extract the entire expression containing the selected text
     let expression = equation.substring(start, end + 1);
 
-    if (!checkParenthesesConsistency(expression)) {
-      expression = balanceParentheses(expression);
+    if (!checkParenthesisConsistency(expression)) {
+      expression = balanceParenthesis(expression);
     }
 
     // Push opening parentheses onto the stack
@@ -168,7 +168,9 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     e.preventDefault();
     setHighlightedText("");
 
-    const savedHighlights = JSON.parse(sessionStorage.getItem("highlights"));
+    const savedHighlights = JSON.parse(
+      sessionStorage.getItem("highlights") || "[]"
+    );
     const newHighlights = savedHighlights.filter(
       (highlight) =>
         !(highlight.equation === equation && highlight.side === side)
