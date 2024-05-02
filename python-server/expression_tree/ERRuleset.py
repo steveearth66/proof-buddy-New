@@ -6,21 +6,24 @@ from Labeler import labelTree#, fillPositions
 from Decorator import decorateTree, remTemps, checkFunctions
 
 def isMatch(xNode:Node, yNode:Node)->bool: #recursively check if two nodes are identical #TODO: replace elif chain with something prettier
-    if xNode.data != yNode.data or \
-       xNode.name != yNode.name or \
-       xNode.numArgs != yNode.numArgs or \
-       xNode.length != yNode.length or \
-       xNode.type != yNode.type or \
-       len(xNode.children) != len(yNode.children):
+    if xNode.data != yNode.data:# or len(xNode.children) != len(yNode.children): #since BRacket has set # inputs for a function, data same is enough for #children same       #xNode.name != yNode.name or \
+       #xNode.numArgs != yNode.numArgs or \
+       #xNode.length != yNode.length or \
+       #xNode.type != yNode.type or \
         return False
-    elif len(xNode.children) != 0:
-        checker = False
-        for i in range(len(xNode.children)):
-            if isMatch(xNode.children[i], yNode.children[i]):
-                checker = True
-        return checker
-    else:
-        return True
+    # elif len(xNode.children) != 0:
+    #     checker = False
+    #     for i in range(len(xNode.children)):
+    #         if isMatch(xNode.children[i], yNode.children[i]):
+    #             checker = True
+    #     return checker
+    # else:
+    #     return True
+    sofar = True
+    for i in range(len(xNode.children)): #defaults to True if no children since no loop
+        sofar &= isMatch(xNode.children[i], yNode.children[i]) #if any are false, sofar will be false
+    return sofar
+    
 
 class Rule(ABC):
     def __init__(self, label):
@@ -50,7 +53,7 @@ class If(Rule):
         if (len(ruleNode.children) != 0 and ruleNode.children[0].data != 'if'):
             return False, f'Cannot apply if rule to {ruleNode.children[0].data}'
         elif (len(ruleNode.children) != 4):
-            return False, f'If rule expects 4 arguments, but received {len(ruleNode.children)}'
+            return False, f'If rule expects 3 arguments, but received {len(ruleNode.children)}'
         elif ruleNode.children[1].data not in ['#t', '#f']:
             return False, f'Cannot determine truth value of {ruleNode.children[1]}'
         return True, 'If.isApplicable() PASS' # string should not print out if debug=False

@@ -43,12 +43,12 @@ class ERProof:
     
     def addUDF(self, label, typeStr, body):
         labelList = Parser.preProcess(label)[0]
-        paramsList = labelList[2:-1]
+        paramsList = labelList[2:-1] #really need to count to first non (, also think about if there could ever be )) at end or just always single )
         udfLabel = labelList[1]
         racTypeObj = str2Type(typeStr)
         bodyNode = ERProofLine(body)
         if bodyNode.errLog != []:
-            self.errLog.extend(bodyNode.errLog)
+            self.errLog.extend(bodyNode.errLog) 
         if not (udfLabel not in self.ruleSet.keys() and udfLabel not in reservedLabels):
             self.errLog.append(f"'{udfLabel}' is an invalid label for your Definition")
         if len(paramsList) != len(racTypeObj.getDomain()):
@@ -109,6 +109,7 @@ def updatePositions(inputTree:Node, count:int=0) -> tuple[Node, int]:
             count = newCount + 1
     return inputTree, count
 
+#fills in the types for the params
 def fillBody(bodyNode, udfLabel, racTypeObj, param2TypeDict):
     if bodyNode.data == udfLabel:
         bodyNode.type = racTypeObj
