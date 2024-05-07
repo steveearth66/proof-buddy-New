@@ -40,7 +40,6 @@ def login(request):
 
 @api_view(['GET'])
 def get_user(request):
-    print(request.user)
     try:
         user = User.objects.get(username=request.user)
     except User.DoesNotExist:
