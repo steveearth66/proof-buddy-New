@@ -13,7 +13,10 @@ const API_ENDPOINT = '/api/v1/auth';
  */
 const registerUser = async (userData) => {
   try {
-    const response = await axiosInstance.post(`${API_ENDPOINT}/signup`, userData);
+    const response = await axiosInstance.post(
+      `${API_ENDPOINT}/signup`,
+      userData
+    ); 
     return response.data;
   } catch (error) {
     handleServiceError(error, 'Error during user registration:');
