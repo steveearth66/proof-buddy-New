@@ -80,8 +80,7 @@ def remTemps(inputTree: Node, errLog, debug=False) -> list[str]:
         # checking number of provided arguments
         argCount = len(inputTree.children) - 1
         if argCount != 3:
-            errLog.append(f"the if function requires 3 arguments but {
-                          argCount} were provided")
+            errLog.append(f"the if function requires 3 arguments but {argCount} were provided")
 
         # check the types of the arguments fulfill 'if' restrictions (cond = bool, both branches output the same type)
         else:
@@ -112,8 +111,7 @@ def remTemps(inputTree: Node, errLog, debug=False) -> list[str]:
 
             # check type of the branches
             if typ1 != typ2:
-                errLog.append(f"final arguments of an if function must match, but {
-                              typ1} and {typ2} provided")
+                errLog.append(f"final arguments of an if function must match, but {typ1} and {typ2} provided")
 
             # both branches are functions, check for matching domains and ranges
             elif typ1 == Type.FUNCTION:
@@ -229,8 +227,7 @@ def typeCheck(inputTree: Node, debug=False) -> str:
     providedIns = [RacType((child.type.getDomain(), child.type.getRange()))
                    for child in inputTree.children[1:]]
     if debug:
-        print(f"expectedIns {TypeList(expectedIns)
-                             } providedIns {TypeList(providedIns)}")
+        print(f"expectedIns {TypeList(expectedIns)} providedIns {TypeList(providedIns)}")
 
     # sanity check that number of arguments are the same
     if len(expectedIns) != len(providedIns):

@@ -58,8 +58,7 @@ class ERProof:
             self.errLog.append(
                 f"'{udfLabel}' is an invalid label for your Definition")
         if len(paramsList) != len(racTypeObj.getDomain()):
-            self.errLog.append(f"Cannot map {len(paramsList)} parameters to {
-                               len(racTypeObj.getDomain())} types")
+            self.errLog.append(f"Cannot map {len(paramsList)} parameters to {len(racTypeObj.getDomain())} types")
         if self.errLog == []:
             param2TypeDict = {}
             for j in range(len(paramsList)):
