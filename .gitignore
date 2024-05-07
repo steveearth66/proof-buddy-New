@@ -133,3 +133,6 @@ dist
 
 # Proof logic server log.
 python-server/__pycache__
+
+docker-compose.yaml
+setup.sql
