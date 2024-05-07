@@ -1,5 +1,6 @@
 import axios from 'axios';
 import apiCondig from '../config/apiConfig'
+import Cookies from "js-cookie";
 
 const axiosInstanceProof = axios.create({
   baseURL: apiCondig.proofApiBaseUrl
@@ -8,6 +9,10 @@ const axiosInstanceProof = axios.create({
 // Request interceptor for API calls.
 axiosInstanceProof.interceptors.request.use(
   (config) => {
+    const token = Cookies.get("accessToken");
+    if (token) {
+      config.headers.Authorization = `Token ${token}`;
+    }
     return config;
   },
   (error) => {
