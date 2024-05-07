@@ -137,6 +137,5 @@ python-server/__pycache__
 docker-compose.yaml
 setup.sql
 env
-migrations
 __pycache__
 db.sqlite3
