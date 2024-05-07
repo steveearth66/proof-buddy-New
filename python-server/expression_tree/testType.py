@@ -1,5 +1,5 @@
-from typeFile import *
-from recParser import *
+from ERCommon import *
+from Parser import *
 
 err_objs=[
     (RacType("tuple"),"err: expected tuple, got <class 'str'>"),
