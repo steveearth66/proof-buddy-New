@@ -41,8 +41,8 @@ def add_definitions():
 
     updateCurrentProof()
     updateIsValid()
-    print(currentProof.errLog)
-    print(currentProof.ruleSet)
+    #print(currentProof.errLog)
+    #print(currentProof.ruleSet)
     prevErrors = getErrorsAndClear()
     return jsonify({'isValid': isValid, 'errors': prevErrors}), 200
 

@@ -74,7 +74,7 @@ class Cons(Rule):
     def isApplicable(self, ruleNode: Node) -> tuple[bool,str]:
         if ruleNode.children[0].data != 'cons':
             return False, f'Cannot apply cons rule to {ruleNode.children[0].data}'
-        elif len(ruleNode.children[1].children) == 0 or len(ruleNode.children[2].children) or \
+        elif len(ruleNode.children[1].children) == 0 or len(ruleNode.children[2].children)==0 or \
              ruleNode.children[1].children[0].data != 'first' or ruleNode.children[2].children[0].data != 'rest':
             return False, f'Can only apply the cons rule to first and rest'
         elif not isMatch(ruleNode.children[1].children[1], ruleNode.children[2].children[1]):

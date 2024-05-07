@@ -1,3 +1,4 @@
+# this file has been deprecated and is no longer in use. It is kept here for reference purposes only. replaced by ERCommon.py
 from typing import Union, Tuple, List
 from enum import Enum
 class Type(Enum):
