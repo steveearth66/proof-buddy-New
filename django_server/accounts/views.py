@@ -38,17 +38,6 @@ def login(request):
     return Response({'message': 'Invalid username/password'}, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['POST'])
-def logout(request):
-    try:
-        user = User.objects.get(username=request.data['username'])
-    except User.DoesNotExist:
-        return Response({'message': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
-    token = Token.objects.get(user=user)
-    token.delete()
-    return Response({'message': 'User logged out'}, status=status.HTTP_200_OK)
-
-
 @api_view(['GET'])
 def get_user(request):
     print(request.user)
