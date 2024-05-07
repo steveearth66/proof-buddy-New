@@ -89,6 +89,15 @@ def add_definitions(request):
     user = request.user
     json_data = request.data
 
+    if user not in users_proof:
+        users_proof[user] = {
+            'proofOne': ERProof(),
+            'proofTwo': ERProof(),
+            'isValid': True,
+            'pOneIsActive': True,
+            'currentProof': None
+        }
+
     proofOne = users_proof[user]['proofOne']
     proofTwo = users_proof[user]['proofTwo']
 

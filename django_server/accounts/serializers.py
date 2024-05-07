@@ -28,6 +28,11 @@ class AccountSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Username already exists')
         return value
 
+    def validate_confirm_password(self, value):
+        if self.initial_data['password'] != value:
+            raise serializers.ValidationError('Passwords do not match')
+        return value
+
     def create(self, validated_data):
         user = Account.objects.create_user(**validated_data)
         user.save()
