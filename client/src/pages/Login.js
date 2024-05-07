@@ -47,7 +47,7 @@ const Login = () => {
     try {
       const response = await authService.login(credentials);
       if (response.accessToken) {
-        Cookies.set('accessToken', response.accessToken, { expires: 1, secure: true, sameSite: 'Strict' });
+        Cookies.set('accessToken', response.accessToken, { expires: 1, secure: false, sameSite: 'Strict' });
         await login();
         navigate('/');
       }
