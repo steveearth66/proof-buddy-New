@@ -173,57 +173,45 @@ def complete_proof(request):
     left_premise.save(proof=proof)
     right_premise.save(proof=proof)
 
-    for i in range(len(left_rackets_and_rules)):
-        left_racket = left_rackets_and_rules[i - 1]['racket']
-        left_rule = left_rackets_and_rules[i]['rule']
-        try:
-            start_position = left_rackets_and_rules[i]['startPosition']
-        except:
-            start_position = 0
-
-        left_proof_line_data = {
-            'left_side': True,
-            'racket': left_racket,
-            'rule': left_rule,
-            'start_position': start_position
-        }
-
-        left_proof_line = ProofLineSerializer(data=left_proof_line_data)
-
-        if not left_proof_line.is_valid():
-            return Response(left_proof_line.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        left_proof_line.save(proof=proof)
-
-    for i in range(len(right_rackets_and_rules)):
-        right_racket = right_rackets_and_rules[i]['racket']
-        right_rule = right_rackets_and_rules[i]['rule']
-        try:
-            start_position = right_rackets_and_rules[i]['startPosition']
-        except:
-            start_position = 0
-
-        right_proof_line_data = {
-            'left_side': False,
-            'racket': right_racket,
-            'rule': right_rule,
-            'start_position': start_position
-        }
-
-        right_proof_line = ProofLineSerializer(data=right_proof_line_data)
-
-        if not right_proof_line.is_valid():
-            return Response(right_proof_line.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        right_proof_line.save(proof=proof)
-
-
+    create_proof_lines(left_rackets_and_rules, True, proof)
+    create_proof_lines(right_rackets_and_rules, False, proof)
 
     proof.isComplete = True
     proof.save()
 
     definitions = users_proof[user]['definitions']
+    create_proof_definitions(definitions, proof, user)
 
+    clearProofs(user)
+
+    return Response(status=status.HTTP_200_OK)
+
+
+def create_proof_lines(lines, left_side, proof):
+    for line in lines:
+        racket = line['racket']
+        rule = line['rule']
+        try:
+            start_position = line['startPosition']
+        except:
+            start_position = 0
+
+        proof_line_data = {
+            'left_side': left_side,
+            'racket': racket,
+            'rule': rule,
+            'start_position': start_position
+        }
+
+        proof_line = ProofLineSerializer(data=proof_line_data)
+
+        if not proof_line.is_valid():
+            return Response(proof_line.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        proof_line.save(proof=proof)
+
+
+def create_proof_definitions(definitions, proof, user):
     for definition in definitions:
         definition_data = {
             'label': definition['label'],
@@ -238,11 +226,6 @@ def complete_proof(request):
             return Response(definition_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         definition_serializer.save(proof=proof, created_by=user)
-
-    clearProofs(user)
-
-    return Response(status=status.HTTP_200_OK)
-
 
 def updateCurrentProof(user):
     global users_proof
