@@ -1,5 +1,9 @@
 from django.db import models
-from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
+from django.contrib.auth.models import (
+    AbstractBaseUser,
+    PermissionsMixin,
+    BaseUserManager,
+)
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.core.mail import EmailMultiAlternatives
@@ -11,12 +15,13 @@ import os
 
 load_dotenv()
 
+
 class AccountManager(BaseUserManager):
     def create_user(self, email, username, password=None, **other_fields):
         if not email:
-            raise ValueError('Users must have an email address')
+            raise ValueError("Users must have an email address")
         if not username:
-            raise ValueError('Users must have a username')
+            raise ValueError("Users must have a username")
 
         user = self.model(
             email=self.normalize_email(email),
@@ -41,22 +46,20 @@ class AccountManager(BaseUserManager):
 
 
 class Account(AbstractBaseUser, PermissionsMixin):
-    email = models.EmailField(verbose_name='email',
-                              max_length=60, unique=False)
+    email = models.EmailField(verbose_name="email", max_length=60, unique=False)
     username = models.CharField(max_length=30, unique=True)
     first_name = models.CharField(max_length=30, blank=True)
     last_name = models.CharField(max_length=30, blank=True)
-    date_joined = models.DateTimeField(
-        verbose_name='date joined', auto_now_add=True)
-    last_login = models.DateTimeField(verbose_name='last login', auto_now=True)
+    date_joined = models.DateTimeField(verbose_name="date joined", auto_now_add=True)
+    last_login = models.DateTimeField(verbose_name="last login", auto_now=True)
     is_admin = models.BooleanField(default=False)
     is_active = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
     is_instructor = models.BooleanField(default=False)
 
-    USERNAME_FIELD = 'username'
-    REQUIRED_FIELDS = ['email']
+    USERNAME_FIELD = "username"
+    REQUIRED_FIELDS = ["email"]
 
     objects = AccountManager()
 
@@ -65,14 +68,13 @@ class Account(AbstractBaseUser, PermissionsMixin):
 
 
 def generate_key():
-    key = ''.join(random.choices(string.ascii_letters + string.digits, k=20))
+    key = "".join(random.choices(string.ascii_letters + string.digits, k=20))
     return key
 
 
 class ActivateAccount(models.Model):
     user = models.ForeignKey(Account, on_delete=models.CASCADE)
-    activation_key = models.CharField(
-        max_length=20, unique=True, default=generate_key)
+    activation_key = models.CharField(max_length=20, unique=True, default=generate_key)
     created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -81,8 +83,7 @@ class ActivateAccount(models.Model):
 
 class ResetPassword(models.Model):
     user = models.ForeignKey(Account, on_delete=models.CASCADE)
-    reset_key = models.CharField(
-        max_length=20, unique=True, default=generate_key)
+    reset_key = models.CharField(max_length=20, unique=True, default=generate_key)
     created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -100,16 +101,15 @@ def create_activation_key(sender, instance, created, **kwargs):
 
 
 def send_activation_email(email, username, key):
-    html_content = f'''
-<p>Hello {username}!</p>
-<p>Thank you for signing up to Proof Buddy! To get started please confirm your email address by visiting the following link:</p>
-<a href="{os.getenv('FRONTEND_URL')}/#/verify-success?token={key}" target="_blank">{os.getenv('FRONTEND_URL')}/
-#/verify-success?token={key}</a>
-<p>Thank you,<br/>Proof Buddy Team</p>
-'''
+    html_content = f"""
+        <p>Hello {username}!</p>
+        <p>Thank you for signing up to Proof Buddy! To get started please confirm your email address by visiting the following link:</p>
+        <a href="{os.getenv('FRONTEND_URL')}/#/verify-success?token={key}" target="_blank">{os.getenv('FRONTEND_URL')}/#/verify-success?token={key}</a>
+        <p>Thank you,<br/>Proof Buddy Team</p>
+    """
     text_content = ""
     subject = "Proof Buddy - Confirm Your Email"
-    from_email = os.getenv('EMAIL_HOST_USER')
+    from_email = os.getenv("EMAIL_HOST_USER")
     to = email
     msg = EmailMultiAlternatives(subject, text_content, from_email, [to])
     msg.attach_alternative(html_content, "text/html")
@@ -119,7 +119,7 @@ def send_activation_email(email, username, key):
 @receiver(post_save, sender=ResetPassword)
 def send_reset_password_email(sender, instance, created, **kwargs):
     if created:
-        print('sending email')
+        print("sending email")
         email = instance.user.email
         username = instance.user.username
         key = instance.reset_key
@@ -127,16 +127,14 @@ def send_reset_password_email(sender, instance, created, **kwargs):
 
 
 def send_reset_email(email, username, key):
-    html_content = f'''
-<p>Hello {username}!</p>
-<p>It seems you've forgotten your password. To reset your password please visit the following link:</p>
-
-<a href="{os.getenv('FRONTEND_URL')}/#/reset-password?token={key}" target="_blank">{os.getenv('FRONTEND_URL')}/
-#/reset-password?token={key}</a>
-'''
+    html_content = f"""
+        <p>Hello {username}!</p>
+        <p>It seems you've forgotten your password. To reset your password please visit the following link:</p>
+        <a href="{os.getenv('FRONTEND_URL')}/#/reset-password?token={key}" target="_blank">{os.getenv('FRONTEND_URL')}/#/reset-password?token={key}</a>
+    """
     text_content = ""
     subject = "Proof Buddy - Reset Your Password"
-    from_email = os.getenv('EMAIL_HOST_USER')
+    from_email = os.getenv("EMAIL_HOST_USER")
     to = email
     msg = EmailMultiAlternatives(subject, text_content, from_email, [to])
     msg.attach_alternative(html_content, "text/html")
