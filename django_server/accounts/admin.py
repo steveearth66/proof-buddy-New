@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Account, ActivateAccount
+from .models import Account, ActivateAccount, ResetPassword
 from django.contrib.auth.admin import UserAdmin
 
 # Register your models here.
@@ -30,3 +30,4 @@ class AccountAdmin(UserAdmin):
 
 admin.site.register(Account, AccountAdmin)
 admin.site.register(ActivateAccount)
+admin.site.register(ResetPassword)

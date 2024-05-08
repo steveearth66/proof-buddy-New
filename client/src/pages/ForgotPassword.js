@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import Cookies from 'js-cookie';
 import Button from 'react-bootstrap/Button';
 import Container from 'react-bootstrap/Container';
 import Form from 'react-bootstrap/Form';
@@ -35,8 +34,7 @@ const ForgotPassword = () => {
 
     try {
       const response = await authService.forgotPassword(email);
-      if (response.emailResendToken) {
-        Cookies.set('emailResendToken', response.emailResendToken, { expires: 1/24, secure: true, sameSite: 'Strict' });
+      if (response.message === 'Email sent') {
         navigate('/reset-password/verify');
       }
     } catch (error) {

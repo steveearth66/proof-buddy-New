@@ -65,7 +65,7 @@ const forgotPassword = async (email) => {
  */
 const resetPassword = async (resetToken, password) => {
   try {
-    const response = await axiosInstance.post(`${API_ENDPOINT}/reset-password`, { resetToken, password });
+    const response = await axiosInstance.post(`${API_ENDPOINT}/reset-password`, { reset_key: resetToken, password });
     if (response.status >= 200 && response.status < 300) {
       return { success: true, data: response.data };
     } else {

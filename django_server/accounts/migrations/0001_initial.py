@@ -42,7 +42,8 @@ class Migration(migrations.Migration):
             name='ActivateAccount',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('activation_key', models.CharField(default=accounts.models.generate_activation_key, max_length=20, unique=True)),
+                ('activation_key', models.CharField(
+                    default=accounts.models.generate_key, max_length=20, unique=True)),
                 ('created', models.DateTimeField(auto_now_add=True)),
                 ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
             ],

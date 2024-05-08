@@ -4,8 +4,7 @@ from rest_framework.decorators import api_view
 from django.contrib.auth import get_user_model
 from rest_framework.authtoken.models import Token
 from .serializers import AccountSerializer
-from .models import ActivateAccount
-import django.contrib.auth.password_validation as validators
+from .models import ActivateAccount, ResetPassword
 
 User = get_user_model()
 
@@ -59,3 +58,30 @@ def activate_account(request):
     account.user.save()
     account.delete()
     return Response({'message': 'Account activated'}, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+def forgot_password(request):
+    try:
+        user = User.objects.get(email=request.data['email'])
+    except User.DoesNotExist:
+        return Response({'message': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    try:
+        ResetPassword.objects.get(user=user).delete()
+    except ResetPassword.DoesNotExist:
+        ResetPassword.objects.create(user=user)
+
+    return Response({'message': 'Email sent'}, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+def reset_password(request):
+    try:
+        reset = ResetPassword.objects.get(reset_key=request.data['reset_key'])
+    except ResetPassword.DoesNotExist:
+        return Response({'message': 'Invalid activation key'}, status=status.HTTP_404_NOT_FOUND)
+    user = reset.user
+    user.set_password(request.data['password'])
+    user.save()
+    reset.delete()
+    return Response({'message': 'Password reset'}, status=status.HTTP_200_OK)
