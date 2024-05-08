@@ -77,6 +77,16 @@ const resetPassword = async (resetToken, password) => {
   }
 };
 
+const activateAccount = async (activationToken) => {
+  try {
+    const response = await axiosInstance.post(`${API_ENDPOINT}/activate-account`, { activation_key: activationToken });
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, 'Error during account activation:');
+    throw error;
+  }
+};
+
 /**
  * Checks if the user is currently authenticated.
  *
@@ -91,7 +101,8 @@ const authService = {
   login,
   forgotPassword,
   resetPassword,
-  isAuthenticated
+  isAuthenticated,
+  activateAccount
 };
 
 export default authService;

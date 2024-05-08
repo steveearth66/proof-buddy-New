@@ -5,7 +5,6 @@ from rest_framework.decorators import api_view
 from django.contrib.auth import get_user_model
 import copy
 from proofs.serializers import ProofSerializer, ProofLineSerializer, DefinitionSerializer
-from proofs.models import Proof
 
 User = get_user_model()
 
@@ -190,7 +189,6 @@ def create_proof(data, user):
     return serializer.save(created_by=user)
 
 
-
 def create_proof_lines(lines, left_side, proof):
     for line in lines:
         racket = line['racket']
@@ -230,6 +228,7 @@ def create_proof_definitions(definitions, proof, user):
             return Response(definition_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         definition_serializer.save(proof=proof, created_by=user)
+
 
 def updateCurrentProof(user):
     global users_proof

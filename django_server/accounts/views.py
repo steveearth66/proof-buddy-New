@@ -3,8 +3,9 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from django.contrib.auth import get_user_model
 from rest_framework.authtoken.models import Token
-import django.contrib.auth.password_validation as validators
 from .serializers import AccountSerializer
+from .models import ActivateAccount
+import django.contrib.auth.password_validation as validators
 
 User = get_user_model()
 
@@ -45,3 +46,16 @@ def get_user(request):
     except User.DoesNotExist:
         return Response({'message': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
     return Response({'username': user.username, 'email': user.email}, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+def activate_account(request):
+    activation_key = request.data['activation_key']
+    try:
+        account = ActivateAccount.objects.get(activation_key=activation_key)
+    except ActivateAccount.DoesNotExist:
+        return Response({'message': 'Invalid activation key'}, status=status.HTTP_404_NOT_FOUND)
+    account.user.is_active = True
+    account.user.save()
+    account.delete()
+    return Response({'message': 'Account activated'}, status=status.HTTP_200_OK)

@@ -1,10 +1,15 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from django.core.mail import EmailMultiAlternatives
+from dotenv import load_dotenv
 import string
 import random
+import os
 
-# Create your models here.
 
+load_dotenv()
 
 class AccountManager(BaseUserManager):
     def create_user(self, email, username, password=None, **other_fields):
@@ -44,7 +49,7 @@ class Account(AbstractBaseUser, PermissionsMixin):
         verbose_name='date joined', auto_now_add=True)
     last_login = models.DateTimeField(verbose_name='last login', auto_now=True)
     is_admin = models.BooleanField(default=False)
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
     is_instructor = models.BooleanField(default=False)
@@ -71,3 +76,29 @@ class ActivateAccount(models.Model):
 
     def __str__(self):
         return self.user.username
+
+
+@receiver(post_save, sender=Account)
+def create_activation_key(sender, instance, created, **kwargs):
+    if created:
+        activation = ActivateAccount.objects.create(user=instance)
+        email = instance.email
+        username = instance.username
+        key = activation.activation_key
+        send_activation_email(email, username, key)
+
+
+def send_activation_email(email, username, key):
+    html_content = f'''
+<p>Hello {username}!</p>
+<p>Thank you for signing up to Proof Buddy! To get started please confirm your email address by visiting the following link:</p>
+<a href="{os.getenv('FRONTEND_URL')}/verify-success?token={key}" target="_blank">{os.getenv('FRONTEND_URL')}/verify-success?token={key}</a>
+<p>Thank you,<br/>Proof Buddy Team</p>
+'''
+    text_content = ""
+    subject = "Proof Buddy - Confirm Your Email"
+    from_email = os.getenv('EMAIL_HOST_USER')
+    to = email
+    msg = EmailMultiAlternatives(subject, text_content, from_email, [to])
+    msg.attach_alternative(html_content, "text/html")
+    msg.send()
