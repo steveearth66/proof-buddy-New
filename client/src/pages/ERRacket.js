@@ -67,6 +67,8 @@ const ERRacket = () => {
     useDefinitionsWindow();
   const [showProofComplete, setShowProofComplete] = useState(false);
   const [proofComplete, setProofComplete] = useState(false);
+  const [leftPremise, setLeftPremise] = useState({});
+  const [rightPremise, setRightPremise] = useState({});
 
   const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
@@ -126,7 +128,11 @@ const ERRacket = () => {
           name: formValues.proofName,
           tag: formValues.proofTag,
           leftRacketsAndRules: racketRuleFields.LHS,
-          rightRacketsAndRules: racketRuleFields.RHS
+          rightRacketsAndRules: racketRuleFields.RHS,
+          lHSGoal: formValues.lHSGoal,
+          rHSGoal: formValues.rHSGoal,
+          leftPremise,
+          rightPremise
         });
       } catch (error) {
         console.error(error);
@@ -144,7 +150,7 @@ const ERRacket = () => {
         }, 5000);
       }
     }
-  }, [currentLHS, currentRHS, racketRuleFields, lhsValue, rhsValue, formValues.proofName, formValues.proofTag]);
+  }, [currentLHS, currentRHS, racketRuleFields, lhsValue, rhsValue, formValues.proofName, formValues.proofTag, formValues.lHSGoal, formValues.rHSGoal, leftPremise, rightPremise]);
 
   return (
     <MainLayout>
@@ -393,6 +399,7 @@ const ERRacket = () => {
                                 value: formValues.lHSGoal
                               }
                             });
+                            setLeftPremise({ racket: formValues.lHSGoal, rule: "Premise", startPosition });
                           }}
                           side={showSide}
                         />
@@ -436,7 +443,8 @@ const ERRacket = () => {
                                 showSide,
                                 index,
                                 "racket",
-                                field.racket
+                                field.racket,
+                                startPosition
                               );
                             }}
                             side={showSide}
@@ -489,6 +497,7 @@ const ERRacket = () => {
                                 value: formValues.rHSGoal
                               }
                             });
+                            setRightPremise({ racket: formValues.rHSGoal, rule: "Premise", startPosition });
                           }}
                           side={showSide}
                         />
@@ -532,7 +541,8 @@ const ERRacket = () => {
                                 showSide,
                                 index,
                                 "racket",
-                                field.racket
+                                field.racket,
+                                startPosition
                               );
                             }}
                             side={showSide}

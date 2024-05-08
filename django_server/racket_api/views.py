@@ -17,8 +17,6 @@ def apply_rule(request):
     global users_proof
     user = request.user
     json_data = request.data
-    proof = Proof.objects.get(
-        name=json_data['name'], tag=json_data['tag'], created_by=user)
 
     pOneIsActive = users_proof[user]['pOneIsActive']
     proofOne = users_proof[user]['proofOne']
@@ -49,21 +47,6 @@ def apply_rule(request):
     racketStr = currentProof.getPrevRacket() if isValid else "Error generating racket"
     errors = getErrorsAndClear(user)
 
-    proof_line_data = {
-        'left_side': json_data['side'] == 'LHS',
-        'racket': json_data['currentRacket'],
-        'rule': json_data['rule'],
-        'start_position': json_data['startPosition'],
-        'errors': errors.__str__()
-    }
-
-    proof_line = ProofLineSerializer(data=proof_line_data)
-
-    if not proof_line.is_valid():
-        return Response(proof_line.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    proof_line.save(proof=proof)
-
     return Response({'isValid': isValid, 'racket': racketStr, 'errors': errors}, status=status.HTTP_200_OK)
 
 
@@ -72,19 +55,6 @@ def check_goal(request):
     global users_proof
     user = request.user
     json_data = request.data
-
-    try:
-        proof = Proof.objects.get(
-            name=json_data['name'], tag=json_data['tag'], created_by=user)
-    except Proof.DoesNotExist:
-        proof_data = {
-            'name': json_data['name'],
-            'tag': json_data['tag']
-        }
-        serializer = ProofSerializer(data=proof_data)
-        if serializer.is_valid():
-            proof = serializer.save(created_by=user)
-
 
     if user not in users_proof:
         users_proof[user] = {
@@ -100,40 +70,12 @@ def check_goal(request):
     currentProof = proofOne
 
     if currentProof.proofLines == []:
-        proof_line_data = {
-            'left_side': True,
-            'racket': json_data['goal'],
-            'rule': 'Premise',
-        }
-
-        proof_line = ProofLineSerializer(data=proof_line_data)
-
-        if not proof_line.is_valid():
-            return Response(proof_line.errors, status=status.HTTP_400_BAD_REQUEST)
-
         currentProof.addProofLine(json_data['goal'])
-        proof.lsh = json_data['goal']
-        proof.save()
-        proof_line.save(proof=proof)
     else:
-        proof_line_data = {
-            'left_side': False,
-            'racket': json_data['goal'],
-            'rule': 'Premise',
-        }
-
-        proof_line = ProofLineSerializer(data=proof_line_data)
-
-        if not proof_line.is_valid():
-            return Response(proof_line.errors, status=status.HTTP_400_BAD_REQUEST)
-
         pOneIsActive = not pOneIsActive
         updateCurrentProof(user)
         currentProof = users_proof[user]['currentProof']
         currentProof.addProofLine(json_data['goal'])
-        proof.rsh = json_data['goal']
-        proof.save()
-        proof_line.save(proof=proof)
 
     updateIsValid(user)
     isValid = users_proof[user]['isValid']
@@ -183,37 +125,94 @@ def complete_proof(request):
     user = request.user
     json_data = request.data
 
-    proof = Proof.objects.get(
-        name=json_data['name'], tag=json_data['tag'], created_by=user)
+    proof_data = {
+        'name': json_data['name'],
+        'tag': json_data['tag'],
+        'lsh': json_data['lHSGoal'],
+        'rsh': json_data['rHSGoal'],
+    }
 
-    left_racket = json_data['leftRacketsAndRules'][-1]['racket']
-    right_racket = json_data['rightRacketsAndRules'][-1]['racket']
-    left_rule = json_data['leftRacketsAndRules'][-1]['rule']
-    right_rule = json_data['rightRacketsAndRules'][-1]['rule']
+    serializer = ProofSerializer(data=proof_data)
 
-    left_proof_line_data = {
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    proof = serializer.save(created_by=user)
+
+    left_premise_data = json_data['leftPremise']
+    left_premise_data = {
         'left_side': True,
-        'racket': left_racket,
-        'rule': left_rule,
+        'racket': left_premise_data['racket'],
+        'rule': left_premise_data['rule'],
+        'start_position': left_premise_data['startPosition']
     }
-
-    right_proof_line_data = {
+    right_premise_data = json_data['rightPremise']
+    right_premise_data = {
         'left_side': False,
-        'racket': right_racket,
-        'rule': right_rule,
+        'racket': right_premise_data['racket'],
+        'rule': right_premise_data['rule'],
+        'start_position': right_premise_data['startPosition']
     }
+    left_rackets_and_rules = json_data['leftRacketsAndRules']
+    right_rackets_and_rules = json_data['rightRacketsAndRules']
 
-    left_proof_line = ProofLineSerializer(data=left_proof_line_data)
-    right_proof_line = ProofLineSerializer(data=right_proof_line_data)
+    left_premise = ProofLineSerializer(data=left_premise_data)
+    right_premise = ProofLineSerializer(data=right_premise_data)
 
-    if not left_proof_line.is_valid():
-        return Response(left_proof_line.errors, status=status.HTTP_400_BAD_REQUEST)
+    if not left_premise.is_valid():
+        return Response(left_premise.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    if not right_proof_line.is_valid():
-        return Response(right_proof_line.errors, status=status.HTTP_400_BAD_REQUEST)
+    if not right_premise.is_valid():
+        return Response(right_premise.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    left_proof_line.save(proof=proof)
-    right_proof_line.save(proof=proof)
+    left_premise.save(proof=proof)
+    right_premise.save(proof=proof)
+
+    for i in range(len(left_rackets_and_rules)):
+        left_racket = left_rackets_and_rules[i - 1]['racket']
+        left_rule = left_rackets_and_rules[i]['rule']
+        try:
+            start_position = left_rackets_and_rules[i]['startPosition']
+        except:
+            start_position = 0
+
+        left_proof_line_data = {
+            'left_side': True,
+            'racket': left_racket,
+            'rule': left_rule,
+            'start_position': start_position
+        }
+
+        left_proof_line = ProofLineSerializer(data=left_proof_line_data)
+
+        if not left_proof_line.is_valid():
+            return Response(left_proof_line.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        left_proof_line.save(proof=proof)
+
+    for i in range(len(right_rackets_and_rules)):
+        right_racket = right_rackets_and_rules[i]['racket']
+        right_rule = right_rackets_and_rules[i]['rule']
+        try:
+            start_position = right_rackets_and_rules[i]['startPosition']
+        except:
+            start_position = 0
+
+        right_proof_line_data = {
+            'left_side': False,
+            'racket': right_racket,
+            'rule': right_rule,
+            'start_position': start_position
+        }
+
+        right_proof_line = ProofLineSerializer(data=right_proof_line_data)
+
+        if not right_proof_line.is_valid():
+            return Response(right_proof_line.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        right_proof_line.save(proof=proof)
+
+
 
     proof.isComplete = True
     proof.save()

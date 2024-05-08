@@ -126,13 +126,14 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
    * @param {string} fieldName - The name of the field property to update (e.g., 'racket' or 'rule').
    * @param {any} value - The new value to set for the field property.
    */
-  const handleFieldChange = useCallback((side, index, fieldName, value) => {
+  const handleFieldChange = useCallback((side, index, fieldName, value, startPosition) => {
     setRacketRuleFields((prevFields) => {
       const fieldsCopy = { ...prevFields };
       if (fieldsCopy[side] && fieldsCopy[side][index]) {
         fieldsCopy[side][index] = {
           ...fieldsCopy[side][index],
-          [fieldName]: value
+          [fieldName]: value,
+          startPosition
         };
       }
       return fieldsCopy;
