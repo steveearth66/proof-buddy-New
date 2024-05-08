@@ -25,18 +25,6 @@ def apply_rule(request):
     proofTwo = users_proof[user]['proofTwo']
     currentProof = proofOne
 
-    proof_line_data = {
-        'left_side': json_data['side'] == 'LHS',
-        'racket': json_data['currentRacket'],
-        'rule': json_data['rule'],
-        'start_position': json_data['startPosition']
-    }
-
-    proof_line = ProofLineSerializer(data=proof_line_data)
-
-    if not proof_line.is_valid():
-        return Response(proof_line.errors, status=status.HTTP_400_BAD_REQUEST)
-
     if pOneIsActive:
         if proofOne.getPrevRacket() != json_data['currentRacket']:
             pOneIsActive = False
@@ -55,12 +43,26 @@ def apply_rule(request):
 
     updateCurrentProof(user)
     updateIsValid(user)
-    proof_line.save(proof=proof)
 
     isValid = users_proof[user]['isValid']
 
     racketStr = currentProof.getPrevRacket() if isValid else "Error generating racket"
     errors = getErrorsAndClear(user)
+
+    proof_line_data = {
+        'left_side': json_data['side'] == 'LHS',
+        'racket': json_data['currentRacket'],
+        'rule': json_data['rule'],
+        'start_position': json_data['startPosition'],
+        'errors': errors.__str__()
+    }
+
+    proof_line = ProofLineSerializer(data=proof_line_data)
+
+    if not proof_line.is_valid():
+        return Response(proof_line.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    proof_line.save(proof=proof)
 
     return Response({'isValid': isValid, 'racket': racketStr, 'errors': errors}, status=status.HTTP_200_OK)
 

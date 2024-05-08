@@ -29,7 +29,7 @@ class ProofLineAdmin(admin.ModelAdmin):
     list_filter = ()
     fieldsets = (
         (None, {'fields': ('proof', 'left_side',
-         'racket', 'rule', 'start_position')}),
+         'racket', 'rule', 'start_position', 'errors')}),
     )
     ordering = ('proof',)
 
