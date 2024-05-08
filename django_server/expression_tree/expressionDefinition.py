@@ -4,72 +4,87 @@ from Labeler import *
 #from ERCommon import *
 import copy
 
-expression_dict = {} #dictionary of expressions, key is the label, value is a tuple of the parameters, list of types, and the expression
-
-def addExpression(label: str, type_str: str, params: list, expression: str) -> None:
-    errs, expressionNode = testErrs(expression)
-    #print(errs)
-    types = type_str.split(",")
-    reservedLabels = ["cons", "if", "first", "rest", "null?", "cons?", "zero?", "consList", "expt", "quotient", "remainder", "and", "or", "not", "implies", "nand", "iff", "nor", "xor", ">", "<", "+", "-", "*"]
-    if label not in expression_dict.keys() and label not in reservedLabels: #TODO: error log checking stopped creation of complex expression
-        expression_dict[label] = (types, params, expressionNode)
-    #print(expression_dict)
-
-#example (f x y) or (g a b c)
-#label is the name, 'f'
-#params is the list of parameters, ['x', 'y']
-#type is types of the inputs x and y and the output, 'INT, BOOL, LIST' or 'INT, INT, INT, BOOL'
-#expr is what it turns into eg '(cons x (cons y null))', put into dict only as a fully decorated node
-#check errors: no existing labels or reserved words
-#label can have a ? at the end ONLY if output type is bool
-#check parentheses and everything
+expression_dict = {}  # dictionary of expressions, key is the label, value is a tuple of the parameters, list of types, and the expression
 
 
-def checkExpression(node: Node, label: str, errLog:list[str]):
-    if label in expression_dict.keys():
-        types, params, expression = expression_dict[label]
-        #print(node.children[0].data, label)
-        if len(node.children)-1 == len(params) and (node.children[0].data == label): 
-            for i in range(1, len(node.children)):
-                if str(node.children[i].type.getType()) != types[i-1]:
-                    print(node.children[i].type.getType(), types[i])
-                    print(type(node.children[i].type.getType()), type(types[i]))
-                    return False, errLog #TODO: make throw error 'Types do not match'
-            expCopy = copy.deepcopy(expression)
-            #print(expCopy.children)
-            recursiveReplaceNodes(expCopy, params, node.children[1:])         
-            node.replaceNode(expCopy)
-            return True, errLog
-    print(expression_dict.keys(), label)
-    return False, errLog#TODO: make throw error 'Label not found in given node'
+class Label:
+    def __init__(self, regex, dataType):
+        self.regex = regex
+        self.dataType = dataType
 
-def recursiveReplaceNodes(node: Node, params: list, values: list) -> None:
-    if node.data in params:
-        index = params.index(node.data)
-        node.replaceNode(values[index])
-    for child in node.children:
-        recursiveReplaceNodes(child, params, values)
 
-def testErrs(expr):
-    exprList,errLog = preProcess(expr,errLog=[])
-    #if errLog!=[]:
-    #    print(errLog)
-    #    return errLog,None
-    decTree, errLog = decorateTree(labelTree(buildTree(exprList,)[0]),errLog)
-    #if errLog!=[]:
-    #   print(errLog)
-    #    return errLog,None
-    errLog = remTemps(decTree, errLog)
-    #if errLog!=[]:
-    #    print(errLog)
-    #    return errLog,None
-    decTree, errLog = checkFunctions(decTree,errLog)
-    #if errLog!=[]:
-    #    print(errLog)
-    #    return errLog,None
-    #errLog = decTree.applyRule("math", errLog)
-    #if errLog!=[]:
-    #    return errLog,None
-    return errLog,decTree
+# list of labels to map strings to types
+LABEL_LIBRARY = [
+    Label(r'(?:^)null(?:$)', Type.LIST),  # null values
+    Label(r'(?:^)\'\((?:$)', Type.LIST),  # quoted lists
+    # temporary type for "(" characters. final type will be given by the Decorator
+    Label(r'^\($', Type.TEMP),
+    Label(r'#t|#T', Type.BOOL),  # True boolean values
+    Label(r'#f|#F', Type.BOOL),  # False boolean values
+    Label(r'(\d+)', Type.INT),  # integers
+]
 
-#def recursiveReplaceNodes(node, )
+# list of built-in Racket functions
+BUILT_IN_FUNCTIONS = ['if', 'cons', 'first', 'rest', 'null?', '+', '-', '*', 'quotient', 'remainder', 'zero?',
+                      "expt", "=", "<=", ">=", "<", ">", "and", "or", "not", "xor", "implies", "list?", "int?"]
+
+# list of user-defined functions (non-built-ins)
+USER_DEFINED_FUNCTIONS = ['fact']
+
+# dictionary of type specification for user-defined functions, parameters will be provided externally
+UDFdict = {"fact": {"type": RacType(
+    (((None, Type.INT),), (None, Type.INT))), "numArgs": 1}}
+
+# give every Node object in the AST an initial type
+
+
+def labelTree(inputTree: Node) -> Node:
+    # if inputTree is empty, return the empty list
+    if inputTree == []:
+        return
+
+    # get the token in the Node
+    root = inputTree
+    data = root.data
+
+    # check if the token is a built-in function
+    if inputTree.data in BUILT_IN_FUNCTIONS:
+
+        # set type and numArgs attributes based on information in ERobj.py
+        erObj = pdict[inputTree.data]
+        if len(erObj.ins) == 1:
+            # converting to new type representation
+            inputTree.type = RacType(
+                (((None, erObj.ins[0]),), (None, erObj.outtype)))
+        else:
+            # converting to new type representation
+            inputTree.type = RacType(
+                (tuple([(None, inType) for inType in erObj.ins]), (None, erObj.outtype)))
+        inputTree.numArgs = erObj.numArgs
+
+    # check if the token is a user-defined function
+    elif inputTree.data in USER_DEFINED_FUNCTIONS:
+        inputTree.type = UDFdict[inputTree.data]["type"]
+        inputTree.numArgs = UDFdict[inputTree.data]["numArgs"]
+    else:
+
+        # check if the token matches a label regex
+        for label in LABEL_LIBRARY:
+            matcher = re.compile(label.regex)
+            if matcher.match(root.data) != None:
+                root.type = RacType((None, label.dataType))
+                if root.type.isType("INT"):
+                    # storing the integer value in the node to be used with arithmetic operations
+                    root.name = int(root.data)
+                break
+
+    # if the Node is still unlabeled, default its type to be Type.PARAM
+    if root.type.getType() == None:
+        root.type = RacType((None, Type.PARAM))
+
+    # label the children of the root Node
+    for child in root.children:
+        labelTree(child)
+
+    # return the tree
+    return root

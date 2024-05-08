@@ -1,7 +1,8 @@
 from typing import Union, Tuple, List
 from enum import Enum
 
-ARITHMETIC = ["+","*","-","=",">","<"] # any other math uses ascii, such as expt, quotient, remainder. Note: "/" not permitted
+# special math characters. any other math uses ascii, such as expt, quotient, remainder. Note: "/" not permitted
+ARITHMETIC = ["+", "*", "-", "=", ">", "<"]
 
 class Type(Enum):
     TEMP = 'TEMP'
@@ -28,6 +29,8 @@ class TypeList:
         else:
             return '[' + ', '.join(str(x) for x in self.value) + ']'
 
+
+''' this function is not needed since the __str__ method of RacType does the same thing
 # pretty print recursive function (commas between domain elements, with > separating out range)
 def helpPrint(items):
     if isinstance(items, RacType):
@@ -38,14 +41,33 @@ def helpPrint(items):
         domain = ', '.join(helpPrint(item) for item in items[0] if item is not None)
         range = helpPrint(items[1])
         return f"({domain}) > {range}"
-    return str(items)
+    return str(items)'''
 
 class RacType:
     def __init__(self, value):
         self.value = value
 
     def __str__(self):
-        return helpPrint(self.value)
+        if (val := self.value) == None:
+            return "err: received nothing"
+        if (tval := type(val)) != tuple:
+            return f"err: expected tuple, got {tval}"
+        if (n := len(val)) != 2:
+            return f"err: expected tuple of len 2, got len {n}"
+        if (domtup := val[0]) == None:
+            return str(val[1])  # this is a base type, so there's no function
+        if type(domtup) != tuple:
+            return f"err: expected domain to be tuple/None, got {type(domtup)}"
+        if len(domtup) == 0:
+            return f"err: domain tuple was empty"
+        outstr = str(val[1])
+        if ">" in outstr:  # adding parens around the range if it's a function
+            outstr = "("+outstr+")"
+        if len(domtup) == 1 and ">" not in (sdom := str(domtup[0])):
+            # don't need parens around domain if it's just one nonfunction
+            return f"{sdom} > {outstr}"
+        return f"({', '.join(str(x) for x in domtup)}) > {outstr}"
+        # return helpPrint(self.value)
     
     def __eq__(self,other):
         if other == None:
@@ -159,7 +181,7 @@ class Node:
         # print any unassigned type info during debugging
         if self.type == None and self.debug:
             outStr = f'{self.children}, {self.data}'
-            print(outStr)
+            # print(outStr)
 
         # print value and type of each Node object, and a whitespace character for readability
         if self.debug:
@@ -184,6 +206,15 @@ class Node:
             for c in self.children:
                 c.fullDebug(setting)
         return
+
+    def __eq__(self, other):
+        if other == None:
+            # this is just in case someone made a parameter called "None", we don't want that equating to None.
+            return False
+        return str(self) == str(other)
+
+    def __hash__(self):  # needed so that we can use sets of nodes (e.g. needed for Math rule verification)
+        return hash(self.data)
 
     # a node's setter method which takes in a string and sets the type of the node based on the string
     def setType(self, strg:str)->None:
@@ -211,13 +242,15 @@ class Node:
         self.debug = newNode.debug
         #do NOT change self.parent, to maintain place in tree
 
-    # this takes in a list of parenthesized string tokens and splits it into ans[0]= token list of first element, ans[1]=token list of parenthesized rest
-    # example: "(INT,LIST,BOOL)" would be [INT, (LIST,BOOL)], all tokenized.  also [((INT,BOOL)>LIST, BOOL)] would be [(INT,BOOL)>LIST, (BOOL)]
-    def sepFirst(slist:list[str])->list:
-        ind = findDelim(",",slist[1:-1]) #need to ignore out parens
-        #if ind == -1:
-        #   return [slist[1:-1],["(",")"]] #note this does not convert slist to a type with list2Type yet, it just removes the parens
-        return [slist[1:ind],["("]+([")"] if ind==-1 else slist[ind+1:])]
+# this takes in a list of parenthesized string tokens and splits it into ans[0]= token list of first element, ans[1]=token list of parenthesized rest
+# example: "(INT,LIST,BOOL)" would be [INT, (LIST,BOOL)], all tokenized.  also [((INT,BOOL)>LIST, BOOL)] would be [(INT,BOOL)>LIST, (BOOL)]
+
+
+def sepFirst(slist: list[str]) -> list:
+    ind = findDelim(",", slist[1:-1])  # need to ignore out parens
+    # if ind == -1:
+    #   return [slist[1:-1],["(",")"]] #note this does not convert slist to a type with list2Type yet, it just removes the parens
+    return [slist[1:ind], ["("]+([")"] if ind == -1 else slist[ind+1:])]
 
 def findNode(tree:Node, target:int,errLog:list[str],found=None)->Node:
     if found ==  None:
@@ -231,24 +264,3 @@ def findNode(tree:Node, target:int,errLog:list[str],found=None)->Node:
         if not found:
             found.extend(findNode(child, target, errLog,found))
     return found
-
-    '''
-    do settype tests with:
-    INT>BOOL
-    (INT)>BOOL
-    (INT,LIST)>BOOL
-    (INT,LIST)>(INT>BOOL)
-    (INT,LIST)>INT>BOOL #note: this is same as above since > associates left to right
-    LIST>(INT)>BOOL
-    (INT)>(LIST>BOOL)
-    '''
-
-
-'''
-# unit tests
-tests = [RacType((None, Type.INT)), RacType((((((None, Type.LIST), (None, Type.BOOL)), \
-        Type.INT), (((None, Type.INT), (None, Type.LIST)), (None, Type.BOOL))), (None, Type.LIST)))]
-
-for t in tests:
-    print(f"expr is type {t.getType()}, domainList = {TypeList(t.getDomain())}, range = {t.getRange()}")
-'''
