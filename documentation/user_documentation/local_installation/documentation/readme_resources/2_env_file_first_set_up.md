@@ -14,7 +14,8 @@
 11. EMAIL_HOST_USER should be the email address of the account.
 12. EMAIL_HOST_PASSWORD password of the email host. (If using google as email server look into adding an app password)
 13. FRONTEND_URL url proofbuddy is accessible by.
-13. Final note: Never push your .env file to Github or share it on any public forum. This will cause a security risk for yourself. Presently, the .gitignore is set up to ignore these files.
+14. BACKEND_URL url the backend will hosted on.
+15. Final note: Never push your .env file to Github or share it on any public forum. This will cause a security risk for yourself. Presently, the .gitignore is set up to ignore these files.
 
 ```
 # Database configurations.
@@ -32,5 +33,6 @@ EMAIL_PORT=587
 EMAIL_HOST_USER=email@example.com
 EMAIL_HOST_PASSWORD=django_app_password
 FRONTEND_URL=http://localhost:3000
+BACKEND_URL=http://localhost:8000
 
 ```
