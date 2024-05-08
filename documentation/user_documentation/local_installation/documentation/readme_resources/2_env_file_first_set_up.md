@@ -17,23 +17,19 @@
 
 ```
 # Database configurations.
+DB_NAME=proof_buddy_development
 DB_HOST=localhost
 DB_USER=root
-DB_PASSWORD="Your_Password_Here"
-DB_NAME=your_schema_name_here
-DB_DIALECT=mysql
-
-# JSON web token configurations.
-JWT_SECRET=mysecretkey
-JWT_EXPIRATION=86400
+DB_PASSWORD=password
+DB_PORT=3306
+DEBUG=True
+SECRET_KEY=SOME_SECRET_KEY
 
 # Email configurations.
-GMAIL_USERNAME="Current ProofBuddy E-Mail"
-GMAIL_CLIENT_ID="Your Client ID"
-GMAIL_CLIENT_SECRET="Your Client Secret Key"
-GMAIL_REFRESH_TOKEN="Current Refresh Token"
-
-# Front-end configurations.
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_HOST_USER=email@example.com
+EMAIL_HOST_PASSWORD=django_app_password
 FRONTEND_URL=http://localhost:3000
 
 ```
