@@ -7,7 +7,8 @@ services:
       - "8000"
     volumes:
       - static:/static
-      - logs:/usr/local/bin/gunicorn
+      - logs:/usr/local/bin/gunicorn/access.log
+      - logs:/usr/local/bin/gunicorn/error.log
     env_file:
       - .env
 
