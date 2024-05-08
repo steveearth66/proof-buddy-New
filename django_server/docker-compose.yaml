@@ -8,7 +8,6 @@ services:
     volumes:
       - static:/static
       - logs:/var/log
-      - logs/error.log:/var/log
     env_file:
       - .env
 
