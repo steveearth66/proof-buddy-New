@@ -7,8 +7,7 @@ services:
       - "8000"
     volumes:
       - static:/static
-      - django_error_log:/var/log/gunicorn/error.log
-      - django_access_log:/var/log/gunicorn/access.log
+      - logs/gunicorn:/var/log/gunicorn
     env_file:
       - .env
 
@@ -20,10 +19,10 @@ services:
       - "5525:5525"
     volumes:
       - static:/static
-      - access_log:/var/log/nginx/access.log
-      - error_log:/var/log/nginx/error.log
+      - logs/nginx:/var/log/nginx
     depends_on:
       - django_server
 
 volumes:
   static:
+  logs:
