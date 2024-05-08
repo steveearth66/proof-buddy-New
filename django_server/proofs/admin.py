@@ -40,7 +40,7 @@ class ProofLineAdmin(admin.ModelAdmin):
 
 class DefinitionAdmin(admin.ModelAdmin):
     list_display = ('proof', 'get_tag', 'label', 'def_type', 'expression',
-                    'notes', 'created_at')
+                    'notes', 'created_at', 'created_by')
     search_fields = ('label',)
     readonly_fields = ('created_at',)
 
