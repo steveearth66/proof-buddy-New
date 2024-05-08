@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from django.contrib.auth import get_user_model
 import copy
-from proofs.serializers import ProofSerializer, ProofLineSerializer
+from proofs.serializers import ProofSerializer, ProofLineSerializer, DefinitionSerializer
 from proofs.models import Proof
 
 User = get_user_model()
@@ -62,7 +62,8 @@ def check_goal(request):
             'proofTwo': ERProof(),
             'isValid': True,
             'pOneIsActive': True,
-            'currentProof': None
+            'currentProof': None,
+            'definitions': []
         }
 
     pOneIsActive = users_proof[user]['pOneIsActive']
@@ -96,11 +97,13 @@ def add_definitions(request):
             'proofTwo': ERProof(),
             'isValid': True,
             'pOneIsActive': True,
-            'currentProof': None
+            'currentProof': None,
+            'definitions': []
         }
 
     proofOne = users_proof[user]['proofOne']
     proofTwo = users_proof[user]['proofTwo']
+    definitions = users_proof[user]['definitions']
 
     if json_data['label'] not in proofOne.ruleSet.keys():
         proofOne.addUDF(
@@ -110,6 +113,8 @@ def add_definitions(request):
         if json_data['label'] not in proofTwo.ruleSet.keys():
             proofTwo.addUDF(
                 json_data['label'], json_data['type'], json_data['expression'])
+
+    definitions.append(json_data)
 
     updateCurrentProof(user)
     updateIsValid(user)
@@ -216,6 +221,24 @@ def complete_proof(request):
 
     proof.isComplete = True
     proof.save()
+
+    definitions = users_proof[user]['definitions']
+
+    for definition in definitions:
+        definition_data = {
+            'label': definition['label'],
+            'def_type': definition['type'],
+            'expression': definition['expression'],
+            'notes': definition['notes']
+        }
+
+        definition_serializer = DefinitionSerializer(data=definition_data)
+
+        if not definition_serializer.is_valid():
+            return Response(definition_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        definition_serializer.save(proof=proof, created_by=user)
+
     clearProofs(user)
 
     return Response(status=status.HTTP_200_OK)

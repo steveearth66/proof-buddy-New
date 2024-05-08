@@ -43,8 +43,7 @@ class ProofLine(models.Model):
 
 
 class Definition(models.Model):
-    name = models.CharField(max_length=100)
-    tag = models.CharField(max_length=100)
+    label = models.CharField(max_length=100)
     def_type = models.CharField(max_length=100)
     expression = models.CharField(max_length=255)
     notes = models.TextField(default='')
@@ -53,3 +52,6 @@ class Definition(models.Model):
     created_by = models.ForeignKey(
         'accounts.Account', related_name='definitions', on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def get_tag(self):
+        return self.proof.tag

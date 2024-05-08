@@ -5,7 +5,7 @@ from .models import Proof, Definition, ProofLine
 
 
 class ProofAdmin(admin.ModelAdmin):
-    list_display = ('name', 'tag', 'created_by', 'created_at')
+    list_display = ('name', 'tag', 'created_by', 'created_at', 'isComplete')
     search_fields = ('name', 'tag')
     readonly_fields = ('created_at',)
 
@@ -38,6 +38,25 @@ class ProofLineAdmin(admin.ModelAdmin):
     get_proof_tag.short_description = 'TAG'
 
 
+class DefinitionAdmin(admin.ModelAdmin):
+    list_display = ('proof', 'get_tag', 'label', 'def_type', 'expression',
+                    'notes', 'created_at')
+    search_fields = ('label',)
+    readonly_fields = ('created_at',)
+
+    filter_horizontal = ()
+    list_filter = ()
+    fieldsets = (
+        (None, {'fields': ('label', 'def_type', 'expression', 'notes')}),
+    )
+    ordering = ('label',)
+
+    def get_tag(self, obj):
+        return obj.proof.tag
+
+    get_tag.short_description = 'TAG'
+
+
 admin.site.register(Proof, ProofAdmin)
 admin.site.register(ProofLine, ProofLineAdmin)
-admin.site.register(Definition)
+admin.site.register(Definition, DefinitionAdmin)
