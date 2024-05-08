@@ -58,8 +58,7 @@ class ERProof:
             self.errLog.append(
                 f"'{udfLabel}' is an invalid label for your Definition")
         if len(paramsList) != len(racTypeObj.getDomain()):
-            self.errLog.append(f"Cannot map {len(paramsList)} parameters to {
-                               len(racTypeObj.getDomain())} types")
+            self.errLog.append(f"Cannot map {len(paramsList)} parameters to {len(racTypeObj.getDomain())} types")
         if self.errLog == []:
             param2TypeDict = {}
             for j in range(len(paramsList)):
@@ -79,8 +78,7 @@ class ERProofLine:
         tokenList, self.errLog = Parser.preProcess(
             goal, errLog=self.errLog, debug=self.debug)
         if self.errLog == []:
-            tree = Parser.buildTree(tokenList, debug=self.debug)[
-                0]  # might not need to pass errLog
+            tree = Parser.buildTree(tokenList, debug=self.debug)[0]  # might not need to pass errLog
             labeledTree = Labeler.labelTree(tree)
             labeledTree, _ = updatePositions(labeledTree)
         # if self.errLog == []:
