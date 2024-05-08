@@ -1,0 +1,29 @@
+services:
+  django_server:
+    build:
+      context: .
+    container_name: proof_buddy_django_server
+    ports:
+      - "8000"
+    volumes:
+      - static:/static
+      - django_error_log:/var/log/gunicorn/error.log
+      - django_access_log:/var/log/gunicorn/access.log
+    env_file:
+      - .env
+
+  nginx:
+    build:
+      context: ./nginx
+    container_name: proof_buddy_nginx
+    ports:
+      - "5525:5525"
+    volumes:
+      - static:/static
+      - access_log:/var/log/nginx/access.log
+      - error_log:/var/log/nginx/error.log
+    depends_on:
+      - django_server
+
+volumes:
+  static:
