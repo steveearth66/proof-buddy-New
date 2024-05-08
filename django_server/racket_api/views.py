@@ -129,20 +129,7 @@ def complete_proof(request):
     global users_proof
     user = request.user
     json_data = request.data
-
-    proof_data = {
-        'name': json_data['name'],
-        'tag': json_data['tag'],
-        'lsh': json_data['lHSGoal'],
-        'rsh': json_data['rHSGoal'],
-    }
-
-    serializer = ProofSerializer(data=proof_data)
-
-    if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    proof = serializer.save(created_by=user)
+    proof = create_proof(json_data, user)
 
     left_premise_data = json_data['leftPremise']
     left_premise_data = {
@@ -185,6 +172,23 @@ def complete_proof(request):
     clearProofs(user)
 
     return Response(status=status.HTTP_200_OK)
+
+
+def create_proof(data, user):
+    proof_data = {
+        'name': data['name'],
+        'tag': data['tag'],
+        'lsh': data['lHSGoal'],
+        'rsh': data['rHSGoal'],
+    }
+
+    serializer = ProofSerializer(data=proof_data)
+
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    return serializer.save(created_by=user)
+
 
 
 def create_proof_lines(lines, left_side, proof):
