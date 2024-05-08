@@ -118,6 +118,16 @@ const ERRacket = () => {
   }, []);
 
   useEffect(() => {
+    if (formValues.rHSGoal !== "") {
+      setRightPremise({ racket: formValues.rHSGoal, rule: "Premise", startPosition: 0 });
+    }
+    
+    if (formValues.lHSGoal !== "") {
+      setLeftPremise({ racket: formValues.lHSGoal, rule: "Premise", startPosition: 0 });
+    }
+  }, [formValues])
+
+  useEffect(() => {
     const removeBlankRackets = () => {
       racketRuleFields.LHS.splice(-1);
       racketRuleFields.RHS.splice(-1);
