@@ -6,11 +6,11 @@ COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
-
 RUN mkdir -p /var/log/gunicorn.access.log
 
 RUN mkdir -p /var/log/gunicorn.error.log
+
+COPY . .
 
 EXPOSE 8000
 
