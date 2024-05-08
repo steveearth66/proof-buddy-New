@@ -17,7 +17,7 @@ import logger from '../utils/logger';
  * @example
  * const { racketRuleFields, addField, handleFieldChange, serverError } = useRacketRuleFields();
  */
-const useRacketRuleFields = (startPosition, currentRacket) => {
+const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
   const [serverError, handleServerError, clearServerError] = useServerError();
   const [racketErrors, setRacketErrors] = useState([]);
   const [racketRuleFields, setRacketRuleFields] = useState({
@@ -41,7 +41,10 @@ const useRacketRuleFields = (startPosition, currentRacket) => {
       const payLoad = {
         rule: ruleValue,
         startPosition: startPosition,
-        currentRacket: currentRacket
+        currentRacket: currentRacket,
+        name,
+        tag,
+        side
       };
 
       try {
@@ -52,7 +55,7 @@ const useRacketRuleFields = (startPosition, currentRacket) => {
         handleServerError(error);
       }
     },
-    [handleServerError, startPosition, currentRacket]
+    [handleServerError, startPosition, currentRacket, name, tag, side]
   );
 
   /**

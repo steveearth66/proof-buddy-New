@@ -55,10 +55,24 @@ const createDefinition = async (definition) => {
   }
 };
 
+const completeProof = async (proof) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/er-complete`,
+      proof
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during proof completion:");
+    throw error;
+  }
+};
+
 const erService = {
   checkGoal,
   racketGeneration,
-  createDefinition
+  createDefinition,
+  completeProof
 };
 
 export default erService;

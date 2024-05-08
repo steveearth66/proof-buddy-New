@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'accounts',
     'racket_api',
+    'proofs',
 ]
 
 REST_FRAMEWORK = {
