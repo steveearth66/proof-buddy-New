@@ -22,6 +22,7 @@ import "../scss/_er-racket.scss";
 import { useExportToLocalMachine } from "../hooks/useExportToLocalMachine";
 import { Definitions, ProofComplete, PersistentPad } from "../components";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
+import erService from '../services/erService';
 
 /**
  * ERRacket component facilitates the Equational Reasoning Racket.
@@ -43,7 +44,9 @@ const ERRacket = () => {
     isGoalChecked,
     checkGoal,
     goalValidationMessage,
-    enhancedHandleChange
+    enhancedHandleChange,
+    proofValidationMessage,
+    clearProofValidationMessage
   ] = useGoalCheck(handleChange);
   const [startPosition, setStartPosition] = useState(0);
   const [currentRacket, setCurrentRacket] = useState("");
@@ -55,7 +58,7 @@ const ERRacket = () => {
     validationErrors,
     serverError,
     racketErrors
-  ] = useRacketRuleFields(startPosition, currentRacket);
+  ] = useRacketRuleFields(startPosition, currentRacket, formValues.proofName, formValues.proofTag, showSide);
   const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields);
   const [lhsValue, setLhsValue] = useState("");
   const [rhsValue, setRhsValue] = useState("");
@@ -64,6 +67,8 @@ const ERRacket = () => {
     useDefinitionsWindow();
   const [showProofComplete, setShowProofComplete] = useState(false);
   const [proofComplete, setProofComplete] = useState(false);
+  const [leftPremise, setLeftPremise] = useState({});
+  const [rightPremise, setRightPremise] = useState({});
 
   const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
@@ -109,7 +114,18 @@ const ERRacket = () => {
 
   useEffect(() => {
     sessionStorage.removeItem("highlights");
+    sessionStorage.removeItem("definitions");
   }, []);
+
+  useEffect(() => {
+    if (formValues.rHSGoal !== "") {
+      setRightPremise({ racket: formValues.rHSGoal, rule: "Premise", startPosition: 0 });
+    }
+    
+    if (formValues.lHSGoal !== "") {
+      setLeftPremise({ racket: formValues.lHSGoal, rule: "Premise", startPosition: 0 });
+    }
+  }, [formValues])
 
   useEffect(() => {
     const removeBlankRackets = () => {
@@ -117,17 +133,35 @@ const ERRacket = () => {
       racketRuleFields.RHS.splice(-1);
     };
 
+    const sendProofComplete = async () => {
+      try {
+        await erService.completeProof({
+          name: formValues.proofName,
+          tag: formValues.proofTag,
+          leftRacketsAndRules: racketRuleFields.LHS,
+          rightRacketsAndRules: racketRuleFields.RHS,
+          lHSGoal: formValues.lHSGoal,
+          rHSGoal: formValues.rHSGoal,
+          leftPremise,
+          rightPremise
+        });
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
     if (lhsValue !== "" && rhsValue !== "" && currentLHS !== "") {
       if (currentLHS === currentRHS || currentLHS === rhsValue) {
         removeBlankRackets();
         setShowProofComplete(true);
         setProofComplete(true);
+        sendProofComplete();
         setTimeout(() => {
           setShowProofComplete(false);
         }, 5000);
       }
     }
-  }, [currentLHS, currentRHS, racketRuleFields, lhsValue, rhsValue]);
+  }, [currentLHS, currentRHS, racketRuleFields, lhsValue, rhsValue, formValues.proofName, formValues.proofTag, formValues.lHSGoal, formValues.rHSGoal, leftPremise, rightPremise]);
 
   return (
     <MainLayout>
@@ -164,14 +198,14 @@ const ERRacket = () => {
                     type="text"
                     placeholder="Enter name"
                     value={formValues.proofName}
-                    onBlur={() => handleBlur("proofName")}
+                    onBlur={() => {handleBlur("proofName"); clearProofValidationMessage();}}
                     onChange={handleChange}
-                    isInvalid={!!validationMessages.proofName}
+                    isInvalid={!!validationMessages.proofName || !!proofValidationMessage.name}
                     required
                   />
                   <label htmlFor="eRProofName">Name</label>
                   <Form.Control.Feedback type="invalid" tooltip>
-                    {validationMessages.proofName}
+                    {validationMessages.proofName || proofValidationMessage.name}
                   </Form.Control.Feedback>
                 </Form.Floating>
               </Form.Group>
@@ -183,10 +217,15 @@ const ERRacket = () => {
                     type="text"
                     placeholder="Enter tag"
                     value={formValues.proofTag}
-                    onBlur={() => handleBlur("proofTag")}
+                    onBlur={() => {handleBlur("proofTag"); clearProofValidationMessage();}}
                     onChange={handleChange}
+                    isInvalid={!!proofValidationMessage.tag}
+                    required
                   />
                   <label htmlFor="eRProofTag"># Tag</label>
+                  <Form.Control.Feedback type="invalid" tooltip>
+                    {proofValidationMessage.tag}
+                  </Form.Control.Feedback>
                 </Form.Floating>
               </Form.Group>
               <Dropdown
@@ -324,7 +363,11 @@ const ERRacket = () => {
                   onClick={() =>
                     checkGoal(
                       showSide,
-                      formValues[`${showSide[0].toLowerCase()}HSGoal`]
+                      formValues[`${showSide[0].toLowerCase()}HSGoal`],
+                      formValues.proofName,
+                      formValues.proofTag,
+                      formValues.lHSGoal,
+                      formValues.rHSGoal
                     )
                   }
                 >
@@ -367,6 +410,7 @@ const ERRacket = () => {
                                 value: formValues.lHSGoal
                               }
                             });
+                            setLeftPremise({ racket: formValues.lHSGoal, rule: "Premise", startPosition });
                           }}
                           side={showSide}
                         />
@@ -410,7 +454,8 @@ const ERRacket = () => {
                                 showSide,
                                 index,
                                 "racket",
-                                field.racket
+                                field.racket,
+                                startPosition
                               );
                             }}
                             side={showSide}
@@ -463,6 +508,7 @@ const ERRacket = () => {
                                 value: formValues.rHSGoal
                               }
                             });
+                            setRightPremise({ racket: formValues.rHSGoal, rule: "Premise", startPosition });
                           }}
                           side={showSide}
                         />
@@ -506,7 +552,8 @@ const ERRacket = () => {
                                 showSide,
                                 index,
                                 "racket",
-                                field.racket
+                                field.racket,
+                                startPosition
                               );
                             }}
                             side={showSide}

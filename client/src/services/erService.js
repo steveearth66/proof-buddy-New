@@ -1,7 +1,7 @@
-import axiosInstanceProof from '../utils/axiosInstanceProof';
-import { handleServiceError } from '../utils/serviceErrorHandling';
+import axiosInstance from "../utils/axiosInstance";
+import { handleServiceError } from "../utils/serviceErrorHandling";
 
-const API_GATEWAY = '/api/v1/proof'
+const API_GATEWAY = "/api/v1/proof";
 
 /**
  * Check the proof goal.
@@ -11,10 +11,13 @@ const API_GATEWAY = '/api/v1/proof'
  */
 const checkGoal = async (goal) => {
   try {
-    const response = await axiosInstanceProof.post(`${API_GATEWAY}/check-goal`, goal);
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/check-goal`,
+      goal
+    );
     return response.data;
   } catch (error) {
-    handleServiceError(error, 'Error during goal validation:');
+    handleServiceError(error, "Error during goal validation:");
     throw error;
   }
 };
@@ -27,18 +30,21 @@ const checkGoal = async (goal) => {
  */
 const racketGeneration = async (payLoad) => {
   try {
-    const response = await axiosInstanceProof.post(`${API_GATEWAY}/er-generate`, payLoad);
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/er-generate`,
+      payLoad
+    );
     console.log(payLoad);
     return response.data;
   } catch (error) {
-    handleServiceError(error, 'Error during racket generation:');
+    handleServiceError(error, "Error during racket generation:");
     throw error;
   }
 };
 
 const createDefinition = async (definition) => {
   try {
-    const response = await axiosInstanceProof.post(
+    const response = await axiosInstance.post(
       `${API_GATEWAY}/er-definitions`,
       definition
     );
@@ -49,10 +55,24 @@ const createDefinition = async (definition) => {
   }
 };
 
+const completeProof = async (proof) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/er-complete`,
+      proof
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during proof completion:");
+    throw error;
+  }
+};
+
 const erService = {
   checkGoal,
   racketGeneration,
-  createDefinition
+  createDefinition,
+  completeProof
 };
 
 export default erService;

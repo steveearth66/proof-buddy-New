@@ -2,7 +2,7 @@
 import axiosInstance from '../utils/axiosInstance';
 import { handleServiceError } from '../utils/serviceErrorHandling';
 
-const API_ENDPOINT = '/api/v1/users';
+const API_ENDPOINT = "/api/v1/auth";
 
 /**
  * Retrieves the profile information of the currently authenticated user.

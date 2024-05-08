@@ -1,9 +1,10 @@
 import React, { useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Container from 'react-bootstrap/Container';
 import Button from 'react-bootstrap/Button';
 import MainLayout from '../layouts/MainLayout';
 import '../scss/_email-verification.scss';
+import authService from '../services/authService';
 
 /**
  * VerificationSuccess component displays a success message after a user has successfully
@@ -11,14 +12,18 @@ import '../scss/_email-verification.scss';
  */
 const VerificationSuccess = ({ context }) => {
   const navigate = useNavigate();
-  const location = useLocation();
+  const [searchParams] = useSearchParams();
 
-  // Redirects to home if the page is accessed without verification state.
   useEffect(() => {
-    if (!location.state?.verified) {
-      navigate('/');
+    const activateAccount = async (activationToken) => {
+      await authService.activateAccount(activationToken);
+    };
+    
+    if (searchParams.get('token')) {
+      activateAccount(searchParams.get('token'));
     }
-  }, [location.state?.verified, navigate]);
+
+  }, [searchParams])
 
   const handleGoHome = () => {
     navigate('/');

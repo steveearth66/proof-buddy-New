@@ -1,22 +1,21 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import Cookies from 'js-cookie';
-import Button from 'react-bootstrap/Button';
-import Container from 'react-bootstrap/Container';
-import Form from 'react-bootstrap/Form';
-import Col from 'react-bootstrap/Col';
-import Row from 'react-bootstrap/Row';
-import Alert from 'react-bootstrap/Alert';
-import MainLayout from '../layouts/MainLayout';
-import authService from '../services/authService';
-import validateField from '../utils/formValidationUtils';
-import { useInputState } from '../hooks/useInputState';
-import { usePasswordVisibility } from '../hooks/usePasswordVisibility';
-import { useFormValidation } from '../hooks/useFormValidation';
-import { useFormSubmit } from '../hooks/useFormSubmit';
-import { useServerError } from '../hooks/useServerError';
-import '../scss/_forms.scss';
-import '../scss/_signup.scss';
+import { useNavigate } from "react-router-dom";
+import Button from "react-bootstrap/Button";
+import Container from "react-bootstrap/Container";
+import Form from "react-bootstrap/Form";
+import Col from "react-bootstrap/Col";
+import Row from "react-bootstrap/Row";
+import Alert from "react-bootstrap/Alert";
+import MainLayout from "../layouts/MainLayout";
+import authService from "../services/authService";
+import validateField from "../utils/formValidationUtils";
+import { useInputState } from "../hooks/useInputState";
+import { usePasswordVisibility } from "../hooks/usePasswordVisibility";
+import { useFormValidation } from "../hooks/useFormValidation";
+import { useFormSubmit } from "../hooks/useFormSubmit";
+import { useServerError } from "../hooks/useServerError";
+import "../scss/_forms.scss";
+import "../scss/_signup.scss";
 
 /**
  * SignUpUser component facilitates the registration process for new users,
@@ -26,15 +25,16 @@ import '../scss/_signup.scss';
  */
 const SignUpUser = ({ role }) => {
   const initialValues = {
-    username: '',
-    email: '',
-    password: '',
-    confirmPassword: ''
-  }
+    username: "",
+    email: "",
+    password: "",
+    confirmPassword: ""
+  };
   const [formValues, handleChange] = useInputState(initialValues);
   const [passwordType, toggleVisibility] = usePasswordVisibility();
   const [serverError, handleServerError] = useServerError();
-  const [validationMessages, handleBlur, setAllTouched, isFormValid ] = useFormValidation(formValues, validateField);
+  const [validationMessages, handleBlur, setAllTouched, isFormValid] =
+    useFormValidation(formValues, validateField);
   const [validated, setValidated] = useState(false);
   const navigate = useNavigate();
 
@@ -43,32 +43,38 @@ const SignUpUser = ({ role }) => {
       username: formValues.username,
       email: formValues.email,
       password: formValues.password,
-      is_instructor: role === 'instructor',
-      is_student: role === 'student'
+      is_instructor: role === "instructor",
+      is_student: role === "student"
     };
 
     try {
       const response = await authService.registerUser(userData);
-      if (response.emailResendToken) {
-        Cookies.set('emailResendToken', response.emailResendToken, { expires: 1/24, secure: true, sameSite: 'Strict' });
-        navigate('/verify-email');
+      if (response.message === "Account created!") {
+        navigate("/verify-email");
       }
     } catch (error) {
       handleServerError(error);
     }
   };
 
-  const { handleSubmit } = useFormSubmit(isFormValid, setValidated, setAllTouched, handleSignUpUser);
+  const { handleSubmit } = useFormSubmit(
+    isFormValid,
+    setValidated,
+    setAllTouched,
+    handleSignUpUser
+  );
 
   return (
     <MainLayout>
-      <Container className='signup-container'>
+      <Container className="signup-container">
         <Row className="justify-content-md-center">
           <Col xs={12} md={8} lg={4}>
-            <h1>Sign up as {role === 'student' ? 'a' : 'an'} {role}</h1>
-            {serverError && <Alert variant={'danger'}>{serverError}</Alert>}
+            <h1>
+              Sign up as {role === "student" ? "a" : "an"} {role}
+            </h1>
+            {serverError && <Alert variant={"danger"}>{serverError}</Alert>}
             <Form noValidate validated={validated} onSubmit={handleSubmit}>
-              <Form.Group className='signup-username'>
+              <Form.Group className="signup-username">
                 <Form.Floating className="mb-3">
                   <Form.Control
                     id="signupUsername"
@@ -76,7 +82,7 @@ const SignUpUser = ({ role }) => {
                     type="text"
                     placeholder="Enter username"
                     value={formValues.username}
-                    onBlur={() => handleBlur('username')}
+                    onBlur={() => handleBlur("username")}
                     onChange={handleChange}
                     isInvalid={!!validationMessages.username}
                     required
@@ -88,7 +94,7 @@ const SignUpUser = ({ role }) => {
                 </Form.Floating>
               </Form.Group>
 
-              <Form.Group className='signup-email'>
+              <Form.Group className="signup-email">
                 <Form.Floating className="mb-3">
                   <Form.Control
                     id="signupEmail"
@@ -96,7 +102,7 @@ const SignUpUser = ({ role }) => {
                     type="email"
                     placeholder="Enter email"
                     value={formValues.email}
-                    onBlur={() => handleBlur('email')}
+                    onBlur={() => handleBlur("email")}
                     onChange={handleChange}
                     isInvalid={!!validationMessages.email}
                     required
@@ -108,7 +114,7 @@ const SignUpUser = ({ role }) => {
                 </Form.Floating>
               </Form.Group>
 
-              <Form.Group className='signup-password'>
+              <Form.Group className="signup-password">
                 <Form.Floating className="mb-3">
                   <Form.Control
                     id="signupPassword"
@@ -116,20 +122,23 @@ const SignUpUser = ({ role }) => {
                     type={passwordType}
                     placeholder="Enter password"
                     value={formValues.password}
-                    onBlur={() => handleBlur('password')}
+                    onBlur={() => handleBlur("password")}
                     onChange={handleChange}
                     isInvalid={!!validationMessages.password}
                     required
                   />
                   <label htmlFor="signupPassword">Password</label>
-                  <i className={`fa-solid ${passwordType === 'text' ? 'fa-eye' : 'fa-eye-slash'}`} onClick={toggleVisibility}></i>
+                  <i
+                    className={`fa-solid ${passwordType === "text" ? "fa-eye" : "fa-eye-slash"}`}
+                    onClick={toggleVisibility}
+                  ></i>
                   <Form.Control.Feedback type="invalid">
                     {validationMessages.password}
                   </Form.Control.Feedback>
                 </Form.Floating>
               </Form.Group>
 
-              <Form.Group className='signup-confirm-password'>
+              <Form.Group className="signup-confirm-password">
                 <Form.Floating className="mb-3">
                   <Form.Control
                     id="signupConfirmPassword"
@@ -137,20 +146,23 @@ const SignUpUser = ({ role }) => {
                     type="password"
                     placeholder="Enter confirm password"
                     value={formValues.confirmPassword}
-                    onBlur={() => handleBlur('confirmPassword')}
+                    onBlur={() => handleBlur("confirmPassword")}
                     onChange={handleChange}
                     isInvalid={!!validationMessages.confirmPassword}
                     required
                   />
-                  <label htmlFor="signupConfirmPassword">Confirm Password</label>
+                  <label htmlFor="signupConfirmPassword">
+                    Confirm Password
+                  </label>
                   <Form.Control.Feedback type="invalid">
-                    {validationMessages.confirmPassword || 'Please confirm your password.'}
+                    {validationMessages.confirmPassword ||
+                      "Please confirm your password."}
                   </Form.Control.Feedback>
                 </Form.Floating>
               </Form.Group>
 
               <div className="text-center">
-                <Button variant="primary" type="submit" className='form-submit'>
+                <Button variant="primary" type="submit" className="form-submit">
                   Sign up
                 </Button>
               </div>

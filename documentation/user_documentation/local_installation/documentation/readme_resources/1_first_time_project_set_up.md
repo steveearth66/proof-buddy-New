@@ -97,11 +97,11 @@ cd proof-buddy
 git checkout stage
 ```
 
-4. Install the required dependencies for the server:
+4. Install the required dependencies for the backend:
 
 ```bash
-cd server
-npm install
+cd django_server
+pip install -r ./requirements.txt  
 ```
 
 5. Install the required dependencies for the client:
@@ -110,12 +110,4 @@ npm install
 cd ..
 cd client
 npm install
-```
-
-6. Intstall the required dependencies for python-server:
-```bash
-cd ..
-cd python-server/expression_tree
-pip install flask
-pip install flask_cors
 ```

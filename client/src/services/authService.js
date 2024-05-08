@@ -13,7 +13,10 @@ const API_ENDPOINT = '/api/v1/auth';
  */
 const registerUser = async (userData) => {
   try {
-    const response = await axiosInstance.post(`${API_ENDPOINT}/signup`, userData);
+    const response = await axiosInstance.post(
+      `${API_ENDPOINT}/signup`,
+      userData
+    ); 
     return response.data;
   } catch (error) {
     handleServiceError(error, 'Error during user registration:');
@@ -62,7 +65,7 @@ const forgotPassword = async (email) => {
  */
 const resetPassword = async (resetToken, password) => {
   try {
-    const response = await axiosInstance.post(`${API_ENDPOINT}/reset-password`, { resetToken, password });
+    const response = await axiosInstance.post(`${API_ENDPOINT}/reset-password`, { reset_key: resetToken, password });
     if (response.status >= 200 && response.status < 300) {
       return { success: true, data: response.data };
     } else {
@@ -70,6 +73,16 @@ const resetPassword = async (resetToken, password) => {
     }
   } catch (error) {
     handleServiceError(error, 'Error during password reset:');
+    throw error;
+  }
+};
+
+const activateAccount = async (activationToken) => {
+  try {
+    const response = await axiosInstance.post(`${API_ENDPOINT}/activate-account`, { activation_key: activationToken });
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, 'Error during account activation:');
     throw error;
   }
 };
@@ -88,7 +101,8 @@ const authService = {
   login,
   forgotPassword,
   resetPassword,
-  isAuthenticated
+  isAuthenticated,
+  activateAccount
 };
 
 export default authService;
