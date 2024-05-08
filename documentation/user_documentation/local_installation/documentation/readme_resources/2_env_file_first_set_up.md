@@ -1,4 +1,4 @@
-1. Create and configure the environment variables in the `.env` file under /server like so:
+1. Create and configure the environment variables in the `.env` file under /django_server like so:
 
 <br>
 
