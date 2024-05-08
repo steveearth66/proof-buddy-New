@@ -68,6 +68,7 @@ def forgot_password(request):
         return Response({'message': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
     try:
         ResetPassword.objects.get(user=user).delete()
+        ResetPassword.objects.create(user=user)
     except ResetPassword.DoesNotExist:
         ResetPassword.objects.create(user=user)
 
