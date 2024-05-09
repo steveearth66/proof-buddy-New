@@ -1,0 +1,9 @@
+services:
+  client:
+    build:
+      context: .
+      args:
+        REACT_APP_BACKEND_API_BASE_URL: "http://cci-p119.cci.drexel.edu:5525"
+    container_name: proofbuddy_client
+    ports:
+      - "8080:80"
