@@ -4,7 +4,7 @@ from rest_framework.decorators import api_view
 from django.contrib.auth import get_user_model
 from rest_framework.authtoken.models import Token
 from .serializers import AccountSerializer
-from .models import ActivateAccount, ResetPassword
+from .models import ActivateAccount, ResetPassword, send_activation_email
 
 User = get_user_model()
 
@@ -86,3 +86,20 @@ def reset_password(request):
     user.save()
     reset.delete()
     return Response({'message': 'Password reset'}, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+def resend_activation_email(request):
+    try:
+        user = User.objects.get(email=request.data['email'])
+    except User.DoesNotExist:
+        return Response({'message': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    try:
+        activation = ActivateAccount.objects.get(user=user)
+        email = user.email
+        username = user.username
+        key = activation.activation_key
+        
+        send_activation_email(email, username, key)
+    except ActivateAccount.DoesNotExist:
+        ActivateAccount.objects.create(user=user)
+    return Response({'message': 'Email sent'}, status=status.HTTP_200_OK)

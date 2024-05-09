@@ -35,7 +35,7 @@ const ForgotPassword = () => {
     try {
       const response = await authService.forgotPassword(email);
       if (response.message === 'Email sent') {
-        navigate('/reset-password/verify');
+        navigate('/reset-password/verify', { state: { email } });
       }
     } catch (error) {
       handleServerError(error);

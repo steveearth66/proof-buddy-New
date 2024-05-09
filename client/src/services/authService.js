@@ -87,6 +87,16 @@ const activateAccount = async (activationToken) => {
   }
 };
 
+const resendActivationEmail = async (email) => {
+  try {
+    const response = await axiosInstance.post(`${API_ENDPOINT}/resend-activation-email`, { email });
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, 'Error during activation email resend:');
+    throw error;
+  }
+};
+
 /**
  * Checks if the user is currently authenticated.
  *
@@ -102,7 +112,8 @@ const authService = {
   forgotPassword,
   resetPassword,
   isAuthenticated,
-  activateAccount
+  activateAccount,
+  resendActivationEmail
 };
 
 export default authService;
