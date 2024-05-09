@@ -172,6 +172,14 @@ def complete_proof(request):
 
     return Response(status=status.HTTP_200_OK)
 
+@api_view(['POST'])
+def clear_proof(request):
+    global users_proof
+    user = request.user
+
+    clearProofs(user)
+
+    return Response(status=status.HTTP_200_OK)
 
 def create_proof(data, user):
     proof_data = {
@@ -269,4 +277,8 @@ def getErrorsAndClear(user):
 
 def clearProofs(user):
     global users_proof
-    del users_proof[user]
+
+    try:
+        del users_proof[user]
+    except:
+        return None

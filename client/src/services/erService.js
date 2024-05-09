@@ -68,11 +68,24 @@ const completeProof = async (proof) => {
   }
 };
 
+const clearProof = async () => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/er-clear`
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during proof clearing:");
+    throw error;
+  }
+};
+
 const erService = {
   checkGoal,
   racketGeneration,
   createDefinition,
-  completeProof
+  completeProof,
+  clearProof
 };
 
 export default erService;

@@ -115,6 +115,12 @@ const ERRacket = () => {
   useEffect(() => {
     sessionStorage.removeItem("highlights");
     sessionStorage.removeItem("definitions");
+
+    const clearProof = async () => {
+      await erService.clearProof();
+    };
+    
+    clearProof();
   }, []);
 
   useEffect(() => {
