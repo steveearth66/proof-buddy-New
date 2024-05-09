@@ -1,6 +1,6 @@
-from recParser import *
-from Decorator import *
-from Labeler import *
+from .recParser import *
+from .Decorator import *
+from .Labeler import *
 #from ERCommon import *
 import copy
 
