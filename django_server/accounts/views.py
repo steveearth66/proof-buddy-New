@@ -85,3 +85,16 @@ def reset_password(request):
     user.save()
     reset.delete()
     return Response({'message': 'Password reset'}, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+def resend_verification_email(request):
+    try:
+        user = User.objects.get(email=request.data['email'])
+    except User.DoesNotExist:
+        return Response({'message': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    try:
+        ActivateAccount.objects.get(user=user).delete()
+        ActivateAccount.objects.create(user=user)
+    except ActivateAccount.DoesNotExist:
+        ActivateAccount.objects.create(user=user)
+    return Response({'message': 'Email sent'}, status=status.HTTP_200_OK)

@@ -50,7 +50,7 @@ const SignUpUser = ({ role }) => {
     try {
       const response = await authService.registerUser(userData);
       if (response.message === "Account created!") {
-        navigate("/verify-email");
+        navigate("/verify-email", { state: { email: formValues.email } });
       }
     } catch (error) {
       handleServerError(error);
