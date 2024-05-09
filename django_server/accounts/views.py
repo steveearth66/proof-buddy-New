@@ -87,7 +87,7 @@ def reset_password(request):
     return Response({'message': 'Password reset'}, status=status.HTTP_200_OK)
 
 @api_view(['POST'])
-def resend_verification_email(request):
+def resend_activation_email(request):
     try:
         user = User.objects.get(email=request.data['email'])
     except User.DoesNotExist:
