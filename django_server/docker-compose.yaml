@@ -9,7 +9,7 @@ services:
       - ./setup.sql:/docker-entrypoint-initdb.d/setup.sql
     environment:
       MYSQL_DATABASE: proofbuddy_production
-      MYSQL_USER: admin
+      MYSQL_USER: root
       MYSQL_PASSWORD: password
       MYSQL_ROOT_PASSWORD: password
 
