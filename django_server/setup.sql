@@ -1,1 +1,1 @@
-CREATE DATABASE proof_buddy_production;
+CREATE DATABASE proofbuddy_production;
