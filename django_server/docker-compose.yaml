@@ -9,6 +9,7 @@ services:
       - ./setup.sql:/docker-entrypoint-initdb.d/setup.sql
     env_file:
       - .db.env
+    restart: unless-stopped
 
   django_server:
     build:
@@ -23,6 +24,7 @@ services:
       - .env
     depends_on:
       - mariadb
+    restart: unless-stopped
 
   nginx:
     build:
@@ -35,6 +37,7 @@ services:
       - logs:/var/log/nginx
     depends_on:
       - django_server
+    restart: unless-stopped
 
 volumes:
   static:
