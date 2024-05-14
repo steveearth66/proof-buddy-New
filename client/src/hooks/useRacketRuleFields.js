@@ -1,7 +1,7 @@
-import { useState, useCallback } from 'react';
-import erService from '../services/erService';
-import { useServerError } from '../hooks/useServerError';
-import logger from '../utils/logger';
+import { useState, useCallback } from "react";
+import erService from "../services/erService";
+import { useServerError } from "../hooks/useServerError";
+import logger from "../utils/logger";
 
 /**
  * A custom React hook designed to manage racket rule fields within a component.
@@ -68,10 +68,27 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
   const addFieldWithApiCheck = useCallback(
     async (side) => {
       const sideFields = racketRuleFields[side];
-      const lastFieldIndex = sideFields.length - 1;
+      let lastFieldIndex = sideFields.length - 1;
+
+      for (let i = sideFields.length - 1; i >= 0; i--) {
+        if (!sideFields[i]?.deleted) {
+          lastFieldIndex = i;
+          break;
+        }
+      }
 
       // Only proceed if there is at least one field and the last rule is not empty.
       if (sideFields.length > 0) {
+        if (sideFields[lastFieldIndex].deleted) {
+          setRacketRuleFields((prevFields) => ({
+            ...prevFields,
+            [side]: [
+              ...prevFields[side],
+              { racket: "", rule: "", deleted: false }
+            ]
+          }));
+        }
+
         if (sideFields[lastFieldIndex].rule.trim() === "") {
           setValidationErrors((prevErrors) => ({
             ...prevErrors,
@@ -92,8 +109,12 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
                 ...prevFields,
                 [side]: [
                   ...prevFields[side].slice(0, -1),
-                  { ...sideFields[lastFieldIndex], racket: racket.racket },
-                  { racket: "", rule: "" }
+                  {
+                    ...sideFields[lastFieldIndex],
+                    racket: racket.racket,
+                    deleted: false
+                  },
+                  { racket: "", rule: "", deleted: false }
                 ]
               }));
               setValidationErrors((prevErrors) => ({
@@ -110,7 +131,10 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
       } else {
         setRacketRuleFields((prevFields) => ({
           ...prevFields,
-          [side]: [...prevFields[side], { racket: "", rule: "" }]
+          [side]: [
+            ...prevFields[side],
+            { racket: "", rule: "", deleted: false }
+          ]
         }));
       }
     },
@@ -126,46 +150,54 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
    * @param {string} fieldName - The name of the field property to update (e.g., 'racket' or 'rule').
    * @param {any} value - The new value to set for the field property.
    */
-  const handleFieldChange = useCallback((side, index, fieldName, value, startPosition) => {
-    setRacketRuleFields((prevFields) => {
-      const fieldsCopy = { ...prevFields };
-      if (fieldsCopy[side] && fieldsCopy[side][index]) {
-        fieldsCopy[side][index] = {
-          ...fieldsCopy[side][index],
-          [fieldName]: value,
-          startPosition
-        };
-      }
-      return fieldsCopy;
-    });
+  const handleFieldChange = useCallback(
+    (side, index, fieldName, value, startPosition) => {
+      setRacketRuleFields((prevFields) => {
+        const fieldsCopy = { ...prevFields };
+        if (fieldsCopy[side] && fieldsCopy[side][index]) {
+          fieldsCopy[side][index] = {
+            ...fieldsCopy[side][index],
+            [fieldName]: value,
+            startPosition
+          };
+        }
+        return fieldsCopy;
+      });
 
-    setValidationErrors((prevErrors) => {
-      const updatedErrors = { ...prevErrors };
-      if (updatedErrors[side][index]) {
-        delete updatedErrors[side][index];
-      }
-      return updatedErrors;
-    });
-  }, []);
+      setValidationErrors((prevErrors) => {
+        const updatedErrors = { ...prevErrors };
+        if (updatedErrors[side][index]) {
+          delete updatedErrors[side][index];
+        }
+        return updatedErrors;
+      });
+    },
+    []
+  );
 
-  /**
-   * A callback function that removes all lines after and including the
-   * first empty pair of racket and rule fields for the active side.
-   *
+    /**
+   * A callback function that removes the last proof line after premise.
+   * It sets the `deleted` flag to true for the last line that is not already deleted.
+   * This so that the deleted lines are saved in the database.
    * @param {string} side - Specifies the active side ('LHS' or 'RHS') to perform the cleanup on.
    */
-  const removeEmptyLines = useCallback((side) => {
+  const deleteLastLine = useCallback((side) => {
     setRacketRuleFields((prevFields) => {
       const sideFields = prevFields[side];
-      const findFirstEmptyIndex = (sideFields) =>
-        sideFields.findIndex(
-          (field) => field.racket.trim() === "" && field.rule.trim() === ""
-        );
-      const firstEmptyIndex = findFirstEmptyIndex(sideFields);
-      const newFields =
-        firstEmptyIndex !== -1
-          ? sideFields.slice(0, firstEmptyIndex)
-          : sideFields;
+      let lastFieldIndex = sideFields.length - 1;
+
+      for (let i = sideFields.length - 1; i >= 0; i--) {
+        if (!sideFields[i].deleted) {
+          lastFieldIndex = i;
+          break;
+        }
+      }
+
+      const newFields = [...sideFields];
+      newFields[lastFieldIndex] = {
+        ...newFields[lastFieldIndex],
+        deleted: true
+      };
 
       return {
         ...prevFields,
@@ -177,11 +209,11 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
   return [
     racketRuleFields,
     addFieldWithApiCheck,
-    removeEmptyLines,
     handleFieldChange,
     validationErrors,
     serverError,
-    racketErrors
+    racketErrors,
+    deleteLastLine
   ];
 };
 

@@ -199,8 +199,6 @@ def create_proof(data, user):
 
 def create_proof_lines(lines, left_side, proof):
     for line in lines:
-        racket = line['racket']
-        rule = line['rule']
         try:
             start_position = line['startPosition']
         except:
@@ -208,9 +206,10 @@ def create_proof_lines(lines, left_side, proof):
 
         proof_line_data = {
             'left_side': left_side,
-            'racket': racket,
-            'rule': rule,
-            'start_position': start_position
+            'racket': line['racket'],
+            'rule': line['rule'],
+            'start_position': start_position,
+            'deleted': line['deleted']
         }
 
         proof_line = ProofLineSerializer(data=proof_line_data)
