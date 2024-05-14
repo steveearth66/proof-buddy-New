@@ -134,7 +134,6 @@ dist
 # Proof logic server log.
 python-server/__pycache__
 
-setup.sql
 env
 __pycache__
 db.sqlite3
