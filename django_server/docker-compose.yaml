@@ -19,6 +19,8 @@ services:
       - logs:/var/log
     env_file:
       - .env
+    depends_on:
+      - mariadb
 
   nginx:
     build:
