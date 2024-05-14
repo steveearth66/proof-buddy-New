@@ -7,11 +7,8 @@ services:
     volumes:
       - mariadb:/var/lib/mysql
       - ./setup.sql:/docker-entrypoint-initdb.d/setup.sql
-    environment:
-      MYSQL_DATABASE: proofbuddy_production
-      MYSQL_USER: root
-      MYSQL_PASSWORD: password
-      MYSQL_ROOT_PASSWORD: password
+    env_file:
+      - .db.env
 
   django_server:
     build:
