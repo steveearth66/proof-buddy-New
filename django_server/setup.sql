@@ -1,0 +1,1 @@
+CREATE DATABASE proof_buddy_production;

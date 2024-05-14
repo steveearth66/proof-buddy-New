@@ -1,4 +1,13 @@
 services:
+  mariadb:
+    image: mariadb:latest
+    container_name: proof_buddy_mariadb
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb:/var/lib/mysql
+      - ./setup.sql:/docker-entrypoint-initdb.d/setup.sql
+
   django_server:
     build:
       context: .
