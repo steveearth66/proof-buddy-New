@@ -15,12 +15,13 @@ users_proof = {}
 def apply_rule(request):
     global users_proof
     user = request.user
-    username = user.username
     json_data = request.data
 
-    pOneIsActive = users_proof[username]['pOneIsActive']
-    proofOne = users_proof[username]['proofOne']
-    proofTwo = users_proof[username]['proofTwo']
+    create_user_proof(user)
+
+    pOneIsActive = users_proof[user]['pOneIsActive']
+    proofOne = users_proof[user]['proofOne']
+    proofTwo = users_proof[user]['proofTwo']
     currentProof = proofOne
 
     if pOneIsActive:
@@ -39,13 +40,13 @@ def apply_rule(request):
         proofTwo.addProofLine(
             json_data['currentRacket'], json_data['rule'], json_data['startPosition'])
 
-    update_current_proof(username)
-    update_is_valid(username)
+    update_current_proof(user)
+    update_is_valid(user)
 
-    isValid = users_proof[username]['isValid']
+    isValid = users_proof[user]['isValid']
 
     racketStr = currentProof.getPrevRacket() if isValid else "Error generating racket"
-    errors = get_errors_and_clear(username)
+    errors = get_errors_and_clear(user)
 
     return Response({'isValid': isValid, 'racket': racketStr, 'errors': errors}, status=status.HTTP_200_OK)
 
@@ -54,26 +55,25 @@ def apply_rule(request):
 def check_goal(request):
     global users_proof
     user = request.user
-    username = user.username
     json_data = request.data
 
-    create_user_proof(username)
+    create_user_proof(user)
 
-    pOneIsActive = users_proof[username]['pOneIsActive']
-    proofOne = users_proof[username]['proofOne']
+    pOneIsActive = users_proof[user]['pOneIsActive']
+    proofOne = users_proof[user]['proofOne']
     currentProof = proofOne
 
     if currentProof.proofLines == []:
         currentProof.addProofLine(json_data['goal'])
     else:
         pOneIsActive = not pOneIsActive
-        update_current_proof(username)
-        currentProof = users_proof[username]['currentProof']
+        update_current_proof(user)
+        currentProof = users_proof[user]['currentProof']
         currentProof.addProofLine(json_data['goal'])
 
-    update_current_proof(username)
-    isValid = users_proof[username]['isValid']
-    errors = get_errors_and_clear(username)
+    update_current_proof(user)
+    isValid = users_proof[user]['isValid']
+    errors = get_errors_and_clear(user)
 
     return Response({'isValid': isValid, 'errors': errors}, status=status.HTTP_200_OK)
 
@@ -82,14 +82,13 @@ def check_goal(request):
 def add_definitions(request):
     global users_proof
     user = request.user
-    username = user.username
     json_data = request.data
 
     create_user_proof(user)
 
-    proofOne = users_proof[username]['proofOne']
-    proofTwo = users_proof[username]['proofTwo']
-    definitions = users_proof[username]['definitions']
+    proofOne = users_proof[user]['proofOne']
+    proofTwo = users_proof[user]['proofTwo']
+    definitions = users_proof[user]['definitions']
 
     if json_data['label'] not in proofOne.ruleSet.keys():
         proofOne.addUDF(
@@ -102,10 +101,10 @@ def add_definitions(request):
 
     definitions.append(json_data)
 
-    update_current_proof(username)
-    update_is_valid(username)
-    errors = get_errors_and_clear(username)
-    isValid = users_proof[username]['isValid']
+    update_current_proof(user)
+    update_is_valid(user)
+    errors = get_errors_and_clear(user)
+    isValid = users_proof[user]['isValid']
 
     return Response({'isValid': isValid, 'errors': errors}, status=status.HTTP_200_OK)
 
@@ -114,7 +113,6 @@ def add_definitions(request):
 def complete_proof(request):
     global users_proof
     user = request.user
-    username = user.username
     json_data = request.data
     proof = create_proof(json_data, user)
 
@@ -156,7 +154,7 @@ def complete_proof(request):
     definitions = users_proof[user]['definitions']
     create_proof_definitions(definitions, proof, user)
 
-    clear_user_proofs(username)
+    clear_user_proofs(user)
 
     return Response(status=status.HTTP_200_OK)
 
@@ -164,9 +162,8 @@ def complete_proof(request):
 def clear_proof(request):
     global users_proof
     user = request.user
-    username = user.username
 
-    clear_user_proofs(username)
+    clear_user_proofs(user)
 
     return Response(status=status.HTTP_200_OK)
 
