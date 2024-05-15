@@ -1,0 +1,1 @@
+CREATE DATABASE proofbuddy_production if not exists;

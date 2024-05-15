@@ -1,4 +1,16 @@
 services:
+  mariadb:
+    image: mariadb:latest
+    container_name: proof_buddy_mariadb
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb:/var/lib/mysql
+      - ./setup.sql:/docker-entrypoint-initdb.d/setup.sql
+    env_file:
+      - .db.env
+    restart: unless-stopped
+
   django_server:
     build:
       context: .
@@ -10,6 +22,9 @@ services:
       - logs:/var/log
     env_file:
       - .env
+    depends_on:
+      - mariadb
+    restart: unless-stopped
 
   nginx:
     build:
@@ -22,7 +37,9 @@ services:
       - logs:/var/log/nginx
     depends_on:
       - django_server
+    restart: unless-stopped
 
 volumes:
   static:
   logs:
+  mariadb:
