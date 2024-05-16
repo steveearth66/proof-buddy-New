@@ -17,12 +17,10 @@ def apply_rule(request):
     user = request.user
     json_data = request.data
 
-    create_user_proof(user)
-
     pOneIsActive = users_proof[user]['pOneIsActive']
     proofOne = users_proof[user]['proofOne']
     proofTwo = users_proof[user]['proofTwo']
-    currentProof = proofOne
+    currentProof = users_proof[user]['currentProof']
 
     if pOneIsActive:
         if proofOne.getPrevRacket() != json_data['currentRacket']:
