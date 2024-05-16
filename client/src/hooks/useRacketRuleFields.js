@@ -135,6 +135,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
    * @param {number} index - The index of the field within its side.
    * @param {string} fieldName - The name of the field property to update (e.g., 'racket' or 'rule').
    * @param {any} value - The new value to set for the field property.
+   * @param {string} startPosition - The start position for the highlighted keyword.
    */
   const handleFieldChange = useCallback(
     (side, index, fieldName, value, startPosition) => {
