@@ -68,38 +68,24 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
   const addFieldWithApiCheck = useCallback(
     async (side) => {
       const sideFields = racketRuleFields[side];
-      let lastFieldIndex = sideFields.length - 1;
-
-      for (let i = sideFields.length - 1; i >= 0; i--) {
-        if (!sideFields[i]?.deleted) {
-          lastFieldIndex = i;
-          break;
-        }
-      }
+      const undeletedProofLines = sideFields.filter((line) => {
+        return !line.deleted;
+      });
+      const lastUnDeletedFieldIndex = undeletedProofLines.length - 1;
 
       // Only proceed if there is at least one field and the last rule is not empty.
       if (sideFields.length > 0) {
-        if (sideFields[lastFieldIndex].deleted) {
-          setRacketRuleFields((prevFields) => ({
-            ...prevFields,
-            [side]: [
-              ...prevFields[side],
-              { racket: "", rule: "", deleted: false }
-            ]
-          }));
-        }
-
-        if (sideFields[lastFieldIndex].rule.trim() === "") {
+        if (sideFields[lastUnDeletedFieldIndex].rule.trim() === "") {
           setValidationErrors((prevErrors) => ({
             ...prevErrors,
             [side]: {
               ...prevErrors[side],
-              [lastFieldIndex]: "Rule field cannot be empty!"
+              [lastUnDeletedFieldIndex]: "Rule field cannot be empty!"
             }
           }));
         } else {
           try {
-            const ruleValue = sideFields[lastFieldIndex].rule;
+            const ruleValue = sideFields[lastUnDeletedFieldIndex].rule;
             const racket = await fetchRacketValue(ruleValue);
 
             if (racket.isValid) {
@@ -110,7 +96,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
                 [side]: [
                   ...prevFields[side].slice(0, -1),
                   {
-                    ...sideFields[lastFieldIndex],
+                    ...sideFields[lastUnDeletedFieldIndex],
                     racket: racket.racket,
                     deleted: false
                   },
