@@ -223,8 +223,7 @@ def update_current_proof(user, side):
 
     currentProof = proofOne if pOneIsActive else proofTwo
 
-    users_proof[user]['currentProof'] = currentProof
-    print(users_proof[user])
+    users_proof[user]["currentProof"] = currentProof
 
 
 def update_is_valid(user):
