@@ -17,6 +17,8 @@ def apply_rule(request):
     user = request.user
     json_data = request.data
 
+    create_user_proof(user)
+
     pOneIsActive = users_proof[user]['pOneIsActive']
     proofOne = users_proof[user]['proofOne']
     proofTwo = users_proof[user]['proofTwo']
@@ -38,13 +40,13 @@ def apply_rule(request):
         proofTwo.addProofLine(
             json_data['currentRacket'], json_data['rule'], json_data['startPosition'])
 
-    updateCurrentProof(user)
-    updateIsValid(user)
+    update_current_proof(user)
+    update_is_valid(user)
 
     isValid = users_proof[user]['isValid']
 
     racketStr = currentProof.getPrevRacket() if isValid else "Error generating racket"
-    errors = getErrorsAndClear(user)
+    errors = get_errors_and_clear(user)
 
     return Response({'isValid': isValid, 'racket': racketStr, 'errors': errors}, status=status.HTTP_200_OK)
 
@@ -55,15 +57,7 @@ def check_goal(request):
     user = request.user
     json_data = request.data
 
-    if user not in users_proof:
-        users_proof[user] = {
-            'proofOne': ERProof(),
-            'proofTwo': ERProof(),
-            'isValid': True,
-            'pOneIsActive': True,
-            'currentProof': None,
-            'definitions': []
-        }
+    create_user_proof(user)
 
     pOneIsActive = users_proof[user]['pOneIsActive']
     proofOne = users_proof[user]['proofOne']
@@ -73,13 +67,13 @@ def check_goal(request):
         currentProof.addProofLine(json_data['goal'])
     else:
         pOneIsActive = not pOneIsActive
-        updateCurrentProof(user)
+        update_current_proof(user)
         currentProof = users_proof[user]['currentProof']
         currentProof.addProofLine(json_data['goal'])
 
-    updateIsValid(user)
+    update_current_proof(user)
     isValid = users_proof[user]['isValid']
-    errors = getErrorsAndClear(user)
+    errors = get_errors_and_clear(user)
 
     return Response({'isValid': isValid, 'errors': errors}, status=status.HTTP_200_OK)
 
@@ -90,15 +84,7 @@ def add_definitions(request):
     user = request.user
     json_data = request.data
 
-    if user not in users_proof:
-        users_proof[user] = {
-            'proofOne': ERProof(),
-            'proofTwo': ERProof(),
-            'isValid': True,
-            'pOneIsActive': True,
-            'currentProof': None,
-            'definitions': []
-        }
+    create_user_proof(user)
 
     proofOne = users_proof[user]['proofOne']
     proofTwo = users_proof[user]['proofTwo']
@@ -115,9 +101,9 @@ def add_definitions(request):
 
     definitions.append(json_data)
 
-    updateCurrentProof(user)
-    updateIsValid(user)
-    errors = getErrorsAndClear(user)
+    update_current_proof(user)
+    update_is_valid(user)
+    errors = get_errors_and_clear(user)
     isValid = users_proof[user]['isValid']
 
     return Response({'isValid': isValid, 'errors': errors}, status=status.HTTP_200_OK)
@@ -168,7 +154,7 @@ def complete_proof(request):
     definitions = users_proof[user]['definitions']
     create_proof_definitions(definitions, proof, user)
 
-    clearProofs(user)
+    clear_user_proofs(user)
 
     return Response(status=status.HTTP_200_OK)
 
@@ -177,7 +163,7 @@ def clear_proof(request):
     global users_proof
     user = request.user
 
-    clearProofs(user)
+    clear_user_proofs(user)
 
     return Response(status=status.HTTP_200_OK)
 
@@ -238,7 +224,7 @@ def create_proof_definitions(definitions, proof, user):
         definition_serializer.save(proof=proof, created_by=user)
 
 
-def updateCurrentProof(user):
+def update_current_proof(user):
     global users_proof
 
     proofOne = users_proof[user]['proofOne']
@@ -250,7 +236,7 @@ def updateCurrentProof(user):
     users_proof[user]['currentProof'] = currentProof
 
 
-def updateIsValid(user):
+def update_is_valid(user):
     global users_proof
 
     currentProof = users_proof[user]['currentProof']
@@ -261,7 +247,7 @@ def updateIsValid(user):
         users_proof[user]['isValid'] = currentProof.errLog == []
 
 
-def getErrorsAndClear(user):
+def get_errors_and_clear(user):
     global users_proof
 
     currentProof = users_proof[user]['currentProof']
@@ -275,10 +261,23 @@ def getErrorsAndClear(user):
     return prevErrors
 
 
-def clearProofs(user):
+def clear_user_proofs(user):
     global users_proof
 
     try:
         del users_proof[user]
     except:
         return None
+
+def create_user_proof(user):
+    global users_proof
+
+    if user not in users_proof:
+        users_proof[user] = {
+            'proofOne': ERProof(),
+            'proofTwo': ERProof(),
+            'isValid': True,
+            'pOneIsActive': True,
+            'currentProof': None,
+            'definitions': []
+        }
