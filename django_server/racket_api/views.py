@@ -17,30 +17,28 @@ def apply_rule(request):
     user = request.user
     json_data = request.data
 
-    pOneIsActive = users_proof[user]['pOneIsActive']
+    pOneIsActive = json_data["side"] == "LHS"
     proofOne = users_proof[user]['proofOne']
-    proofTwo = users_proof[user]['proofTwo']
-    currentProof = users_proof[user]['currentProof']
+    proofTwo = users_proof[user]["proofTwo"]
 
     if pOneIsActive:
-        if proofOne.getPrevRacket() != json_data['currentRacket']:
-            pOneIsActive = False
+        if proofOne.getPrevRacket() != json_data["currentRacket"]:
             proofTwo.addProofLine(
                 json_data['currentRacket'], json_data['rule'], json_data['startPosition'])
         else:
             proofOne.addProofLine(
                 json_data['currentRacket'], json_data['rule'], json_data['startPosition'])
-    elif proofTwo.getPrevRacket() != json_data['currentRacket']:
-        pOneIsActive = True
+    elif proofTwo.getPrevRacket() != json_data["currentRacket"]:
         proofOne.addProofLine(
             json_data['currentRacket'], json_data['rule'], json_data['startPosition'])
     else:
         proofTwo.addProofLine(
             json_data['currentRacket'], json_data['rule'], json_data['startPosition'])
 
-    update_current_proof(user)
+    update_current_proof(user, json_data["side"])
     update_is_valid(user)
 
+    currentProof = users_proof[user]["currentProof"]
     isValid = users_proof[user]['isValid']
 
     racketStr = currentProof.getPrevRacket() if isValid else "Error generating racket"
@@ -57,19 +55,14 @@ def check_goal(request):
 
     create_user_proof(user)
 
-    pOneIsActive = users_proof[user]['pOneIsActive']
+    pOneIsActive = json_data["side"] == "LHS"
     proofOne = users_proof[user]['proofOne']
-    currentProof = proofOne
+    proofTwo = users_proof[user]["proofTwo"]
+    currentProof = proofOne if pOneIsActive else proofTwo
 
-    if currentProof.proofLines == []:
-        currentProof.addProofLine(json_data['goal'])
-    else:
-        pOneIsActive = not pOneIsActive
-        update_current_proof(user)
-        currentProof = users_proof[user]['currentProof']
-        currentProof.addProofLine(json_data['goal'])
+    currentProof.addProofLine(json_data["goal"])
 
-    update_current_proof(user)
+    update_current_proof(user, json_data["side"])
     isValid = users_proof[user]['isValid']
     errors = get_errors_and_clear(user)
 
@@ -99,7 +92,6 @@ def add_definitions(request):
 
     definitions.append(json_data)
 
-    update_current_proof(user)
     update_is_valid(user)
     errors = get_errors_and_clear(user)
     isValid = users_proof[user]['isValid']
@@ -222,16 +214,16 @@ def create_proof_definitions(definitions, proof, user):
         definition_serializer.save(proof=proof, created_by=user)
 
 
-def update_current_proof(user):
+def update_current_proof(user, side):
     global users_proof
 
     proofOne = users_proof[user]['proofOne']
     proofTwo = users_proof[user]['proofTwo']
-    pOneIsActive = users_proof[user]['pOneIsActive']
+    pOneIsActive = side == "LHS"
 
     currentProof = proofOne if pOneIsActive else proofTwo
 
-    users_proof[user]['currentProof'] = currentProof
+    users_proof[user]["currentProof"] = currentProof
 
 
 def update_is_valid(user):
@@ -272,10 +264,9 @@ def create_user_proof(user):
 
     if user not in users_proof:
         users_proof[user] = {
-            'proofOne': ERProof(),
-            'proofTwo': ERProof(),
-            'isValid': True,
-            'pOneIsActive': True,
-            'currentProof': None,
-            'definitions': []
+            "proofOne": ERProof(),
+            "proofTwo": ERProof(),
+            "isValid": True,
+            "currentProof": None,
+            "definitions": [],
         }

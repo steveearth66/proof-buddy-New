@@ -69,7 +69,7 @@ const useGoalCheck = (handleChange) => {
     }
 
     try {
-      const result = await erService.checkGoal({ goal: goalValue, name, tag, lHSGoal, rHSGoal });
+      const result = await erService.checkGoal({ goal: goalValue, name, tag, lHSGoal, rHSGoal, side });
       if (result.isValid) {
         setIsGoalChecked({ ...isGoalChecked, [side]: true });
         setGoalValidationMessage({ ...goalValidationMessage, [side]: '' });
