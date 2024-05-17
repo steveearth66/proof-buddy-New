@@ -55,8 +55,7 @@ def labelTree(inputTree: Node) -> Node:
         erObj = pdict[inputTree.data]
         if len(erObj.ins) == 1:
             # converting to new type representation
-            inputTree.type = RacType(
-                (((None, erObj.ins[0]),), (None, erObj.outtype)))
+            inputTree.type = RacType((((None, erObj.ins[0]),), (None, erObj.outtype)))
         else:
             # converting to new type representation
             inputTree.type = RacType(

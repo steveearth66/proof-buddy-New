@@ -23,15 +23,17 @@ class ERProof:
             'logic': Logic(),
             'restList': RestList(),
             'firstList': FirstList(),
-            'doubleFront': DoubleFront(),  # this is fake for demo. remove when UDF working
+            #'doubleFront': DoubleFront(),  # this is fake for demo. remove when UDF working
         }
         self.proofLines = []
         self.errLog = []
         self.debug = debug
 
     def addProofLine(self, lineStr, ruleStr=None, highlightPos=0):
-        proofLine = ERProofLine(lineStr, self.debug)
+        proofLine = ERProofLine(lineStr, self.debug) #this should have done checkfunctions (type and argQty)
         if proofLine.errLog == []:
+            # trying to fix Decorator and remTemps now...
+            # TODO: put new remTemps here that takes in UDF dict from proof attribute
             if ruleStr != None:
                 proofLine.applyRule(self.ruleSet, ruleStr, highlightPos)
             if proofLine.errLog != []:
@@ -75,8 +77,7 @@ class ERProofLine:
         self.errLog = []
         self.debug = debug
 
-        tokenList, self.errLog = Parser.preProcess(
-            goal, errLog=self.errLog, debug=self.debug)
+        tokenList, self.errLog = Parser.preProcess(goal, errLog=self.errLog, debug=self.debug)
         if self.errLog == []:
             tree = Parser.buildTree(tokenList, debug=self.debug)[0]  # might not need to pass errLog
             labeledTree = Labeler.labelTree(tree)
@@ -84,11 +85,9 @@ class ERProofLine:
         # if self.errLog == []:
         #    self.errLog = Decorator.remTemps(labeledTree, self.errLog)
         if self.errLog == []:
-            decTree, self.errLog = Decorator.decorateTree(
-                labeledTree, self.errLog)
+            decTree, self.errLog = Decorator.decorateTree(labeledTree, self.errLog)
         if self.errLog == []:
-            decTree, self.errLog = Decorator.checkFunctions(
-                decTree, self.errLog)
+            decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog)
         if self.errLog == []:
             self.exprTree = decTree
 
