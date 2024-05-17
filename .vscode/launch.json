@@ -1,0 +1,16 @@
+{
+    "version": "0.2.0",
+    "configurations": [  
+        {
+            "name": "Python Debugger: Current File with Arguments",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "django_server/manage.py",
+            "console": "integratedTerminal",
+            "args": "test proofs",
+            "env": {
+                "DEBUG": "True"
+            }
+        }
+    ]
+}

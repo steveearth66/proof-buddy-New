@@ -22,6 +22,7 @@ AllowedChars = list(string.ascii_letters) + list(string.digits) + \
 
 
 # None will generate a warning since it's not a list of strings
+# takes in a string and returns a list of tokens, and a list of error messages
 def preProcess(inputString: str, errLog: list[str] = None, debug=False) -> tuple[list[str], list[str]]:
     if errLog == None:  # values assigned at func def, not each call, so need None vs []
         errLog = []

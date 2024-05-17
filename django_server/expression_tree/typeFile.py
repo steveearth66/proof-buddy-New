@@ -40,7 +40,9 @@ class RacType:
     def __str__(self):
         if (val := self.value) == None:
             return "err: received nothing"
-        if (tval := type(val)) != tuple:
+        if(isinstance(val, Type)):
+            return str(val)
+        if (tval := type(val)) != tuple: #any nontuple OTHER than a core Type.foobar
             return f"err: expected tuple, got {tval}"
         if (n := len(val)) != 2:
             return f"err: expected tuple of len 2, got len {n}"
@@ -64,6 +66,7 @@ class RacType:
         else:
             return str(self) == str(other)
 
+#NOTE: it returns the raw TYPE, not RacType tuple object in the case of base types
     def getType(self) -> RacType:
         if self.value[0] == None:
             return self.value[1]

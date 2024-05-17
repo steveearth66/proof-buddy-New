@@ -5,7 +5,7 @@ from .ERCommon import Node, Type, RacType, TypeList
 from .ERobj import pdict
 
 # types to be potentially replaced
-FLEX_TYPES = [Type.FUNCTION, Type.TEMP, Type.ANY, Type.PARAM, Type.NONE]
+FLEX_TYPES = [Type.FUNCTION, Type.TEMP, Type.ANY, Type.PARAM, Type.NONE] #trying to deprecate this
 
 # decorate non-function type Nodes in the AST
 
@@ -170,7 +170,8 @@ def argQty(treeNode: Node) -> str:
     expectedCount = func.numArgs
     providedCount = len(treeNode.children) - 1
 
-    if (expectedCount != providedCount) and (func.type.getType() not in FLEX_TYPES):
+    #if (expectedCount != providedCount) and (func.type.getType() not in FLEX_TYPES):
+    if (expectedCount != providedCount):
         return f"{func.name} only takes {expectedCount} arguments, but {providedCount} {'was' if providedCount == 1 else 'were'} provided"
 
     # only typeCheck if everything passes
@@ -184,7 +185,7 @@ def checkFunctions(inputTree: Node, errLog, debug=False) -> tuple[Node, list[str
         return inputTree, errLog
 
     # only check if the function has children
-    if len(inputTree.children) > 0 and inputTree.type.getType() in FLEX_TYPES:
+    if len(inputTree.children) > 0: # and inputTree.type.getType() in FLEX_TYPES:
         errMsg = argQty(inputTree)
 
         if errMsg:
@@ -220,8 +221,9 @@ env = {}  # env dictionary to keep track of params, having it out here so it sta
 
 def typeCheck(inputTree: Node, debug=False) -> str:
     func = inputTree.children[0]
-    if func.type.getType() in FLEX_TYPES:
+    if not func.type.isType("FUNCTION"):# in FLEX_TYPES:
         return None
+    inputTree.type=func.type.getRange() 
     # get the expected and provided domains
     expectedIns = func.type.getDomain()
     providedIns = [RacType((child.type.getDomain(), child.type.getRange()))
@@ -254,7 +256,7 @@ def typeCheck(inputTree: Node, debug=False) -> str:
                     elif (env[childData] != expectedIns[childIndex-1]) and expectedIns[childIndex-1].getType() not in FLEX_TYPES:
                         return f"{func.name} at argument #{childIndex} takes a parameter '{childData}' expected to be type {expectedIns[childIndex-1].getType()} but {env[childData].getType()} was provided"
 
-                elif (childType != expectedIns[childIndex-1]) and expectedIns[childIndex-1].getType() not in FLEX_TYPES:
+                elif (childType != expectedIns[childIndex-1]) and not expectedIns[childIndex-1].isType("ANY"):
                     # handle type checking for lists
                     if childType.getType() == Type.LIST:
                         return f"{func.name}'s list at argument #{childIndex} expected to output type {expectedIns[childIndex-1].getType()} but {childType.getType()} was provided"

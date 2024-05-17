@@ -1,4 +1,4 @@
-from .ERProofEngine import ERProof
+from ERProofEngine import ERProof
 
 err_strings = [
     # expected errs

@@ -50,7 +50,9 @@ class RacType:
     def __str__(self):
         if (val := self.value) == None:
             return "err: received nothing"
-        if (tval := type(val)) != tuple:
+        if(isinstance(val, Type)):
+            return str(val)
+        if (tval:=type(val)) != tuple:
             return f"err: expected tuple, got {tval}"
         if (n := len(val)) != 2:
             return f"err: expected tuple of len 2, got len {n}"
