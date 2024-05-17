@@ -4,50 +4,67 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from django.contrib.auth import get_user_model
 import copy
-from proofs.serializers import ProofSerializer, ProofLineSerializer, DefinitionSerializer
+from proofs.serializers import (
+    ProofSerializer,
+    ProofLineSerializer,
+    DefinitionSerializer,
+)
 
 User = get_user_model()
 
 users_proof = {}
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 def apply_rule(request):
     global users_proof
     user = request.user
     json_data = request.data
 
-    pOneIsActive = json_data["side"] == "LHS"
-    proofOne = users_proof[user]['proofOne']
-    proofTwo = users_proof[user]["proofTwo"]
+    is_p_one_active = json_data["side"] == "LHS"
+    proof_one: ERProof = users_proof[user]["proofOne"]
+    proof_two: ERProof = users_proof[user]["proofTwo"]
 
-    if pOneIsActive:
-        if proofOne.getPrevRacket() != json_data["currentRacket"]:
-            proofTwo.addProofLine(
-                json_data['currentRacket'], json_data['rule'], json_data['startPosition'])
+    if is_p_one_active:
+        if proof_one.getPrevRacket() != json_data["currentRacket"]:
+            proof_two.addProofLine(
+                json_data["currentRacket"],
+                json_data["rule"],
+                json_data["startPosition"],
+            )
         else:
-            proofOne.addProofLine(
-                json_data['currentRacket'], json_data['rule'], json_data['startPosition'])
-    elif proofTwo.getPrevRacket() != json_data["currentRacket"]:
-        proofOne.addProofLine(
-            json_data['currentRacket'], json_data['rule'], json_data['startPosition'])
+            proof_one.addProofLine(
+                json_data["currentRacket"],
+                json_data["rule"],
+                json_data["startPosition"],
+            )
+    elif proof_two.getPrevRacket() != json_data["currentRacket"]:
+        proof_one.addProofLine(
+            json_data["currentRacket"], json_data["rule"], json_data["startPosition"]
+        )
     else:
-        proofTwo.addProofLine(
-            json_data['currentRacket'], json_data['rule'], json_data['startPosition'])
+        proof_two.addProofLine(
+            json_data["currentRacket"], json_data["rule"], json_data["startPosition"]
+        )
 
     update_current_proof(user, json_data["side"])
     update_is_valid(user)
 
-    currentProof = users_proof[user]["currentProof"]
-    isValid = users_proof[user]['isValid']
+    current_proof: ERProof = users_proof[user]["currentProof"]
+    is_valid = users_proof[user]["isValid"]
 
-    racketStr = currentProof.getPrevRacket() if isValid else "Error generating racket"
+    racket_str = (
+        current_proof.getPrevRacket() if is_valid else "Error generating racket"
+    )
     errors = get_errors_and_clear(user)
 
-    return Response({'isValid': isValid, 'racket': racketStr, 'errors': errors}, status=status.HTTP_200_OK)
+    return Response(
+        {"isValid": is_valid, "racket": racket_str, "errors": errors},
+        status=status.HTTP_200_OK,
+    )
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 def check_goal(request):
     global users_proof
     user = request.user
@@ -55,21 +72,21 @@ def check_goal(request):
 
     create_user_proof(user)
 
-    pOneIsActive = json_data["side"] == "LHS"
-    proofOne = users_proof[user]['proofOne']
-    proofTwo = users_proof[user]["proofTwo"]
-    currentProof = proofOne if pOneIsActive else proofTwo
+    is_p_one_active = json_data["side"] == "LHS"
+    proof_one: ERProof = users_proof[user]["proofOne"]
+    proof_two: ERProof = users_proof[user]["proofTwo"]
+    current_proof = proof_one if is_p_one_active else proof_two
 
-    currentProof.addProofLine(json_data["goal"])
+    current_proof.addProofLine(json_data["goal"])
 
     update_current_proof(user, json_data["side"])
-    isValid = users_proof[user]['isValid']
+    is_valid = users_proof[user]["isValid"]
     errors = get_errors_and_clear(user)
 
-    return Response({'isValid': isValid, 'errors': errors}, status=status.HTTP_200_OK)
+    return Response({"isValid": is_valid, "errors": errors}, status=status.HTTP_200_OK)
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 def add_definitions(request):
     global users_proof
     user = request.user
@@ -77,51 +94,48 @@ def add_definitions(request):
 
     create_user_proof(user)
 
-    proofOne = users_proof[user]['proofOne']
-    proofTwo = users_proof[user]['proofTwo']
-    definitions = users_proof[user]['definitions']
+    proof_one: ERProof = users_proof[user]["proofOne"]
+    proof_two: ERProof = users_proof[user]["proofTwo"]
+    definitions = users_proof[user]["definitions"]
 
-    if json_data['label'] not in proofOne.ruleSet.keys():
-        proofOne.addUDF(
-            json_data['label'], json_data['type'], json_data['expression'])
+    if json_data["label"] not in proof_one.ruleSet.keys():
+        proof_one.addUDF(json_data["label"], json_data["type"], json_data["expression"])
 
-    if proofTwo != None:
-        if json_data['label'] not in proofTwo.ruleSet.keys():
-            proofTwo.addUDF(
-                json_data['label'], json_data['type'], json_data['expression'])
+    if json_data["label"] not in proof_two.ruleSet.keys():
+        proof_two.addUDF(json_data["label"], json_data["type"], json_data["expression"])
 
     definitions.append(json_data)
 
     update_is_valid(user)
     errors = get_errors_and_clear(user)
-    isValid = users_proof[user]['isValid']
+    is_valid = users_proof[user]["isValid"]
 
-    return Response({'isValid': isValid, 'errors': errors}, status=status.HTTP_200_OK)
+    return Response({"isValid": is_valid, "errors": errors}, status=status.HTTP_200_OK)
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 def complete_proof(request):
     global users_proof
     user = request.user
     json_data = request.data
     proof = create_proof(json_data, user)
 
-    left_premise_data = json_data['leftPremise']
+    left_premise_data = json_data["leftPremise"]
     left_premise_data = {
-        'left_side': True,
-        'racket': left_premise_data['racket'],
-        'rule': left_premise_data['rule'],
-        'start_position': left_premise_data['startPosition']
+        "left_side": True,
+        "racket": left_premise_data["racket"],
+        "rule": left_premise_data["rule"],
+        "start_position": left_premise_data["startPosition"],
     }
-    right_premise_data = json_data['rightPremise']
+    right_premise_data = json_data["rightPremise"]
     right_premise_data = {
-        'left_side': False,
-        'racket': right_premise_data['racket'],
-        'rule': right_premise_data['rule'],
-        'start_position': right_premise_data['startPosition']
+        "left_side": False,
+        "racket": right_premise_data["racket"],
+        "rule": right_premise_data["rule"],
+        "start_position": right_premise_data["startPosition"],
     }
-    left_rackets_and_rules = json_data['leftRacketsAndRules']
-    right_rackets_and_rules = json_data['rightRacketsAndRules']
+    left_rackets_and_rules = json_data["leftRacketsAndRules"]
+    right_rackets_and_rules = json_data["rightRacketsAndRules"]
 
     left_premise = ProofLineSerializer(data=left_premise_data)
     right_premise = ProofLineSerializer(data=right_premise_data)
@@ -141,14 +155,15 @@ def complete_proof(request):
     proof.isComplete = True
     proof.save()
 
-    definitions = users_proof[user]['definitions']
+    definitions = users_proof[user]["definitions"]
     create_proof_definitions(definitions, proof, user)
 
     clear_user_proofs(user)
 
     return Response(status=status.HTTP_200_OK)
 
-@api_view(['POST'])
+
+@api_view(["POST"])
 def clear_proof(request):
     global users_proof
     user = request.user
@@ -157,12 +172,13 @@ def clear_proof(request):
 
     return Response(status=status.HTTP_200_OK)
 
+
 def create_proof(data, user):
     proof_data = {
-        'name': data['name'],
-        'tag': data['tag'],
-        'lsh': data['lHSGoal'],
-        'rsh': data['rHSGoal'],
+        "name": data["name"],
+        "tag": data["tag"],
+        "lsh": data["lHSGoal"],
+        "rsh": data["rHSGoal"],
     }
 
     serializer = ProofSerializer(data=proof_data)
@@ -175,18 +191,18 @@ def create_proof(data, user):
 
 def create_proof_lines(lines, left_side, proof):
     for line in lines:
-        racket = line['racket']
-        rule = line['rule']
+        racket = line["racket"]
+        rule = line["rule"]
         try:
-            start_position = line['startPosition']
+            start_position = line["startPosition"]
         except:
             start_position = 0
 
         proof_line_data = {
-            'left_side': left_side,
-            'racket': racket,
-            'rule': rule,
-            'start_position': start_position
+            "left_side": left_side,
+            "racket": racket,
+            "rule": rule,
+            "start_position": start_position,
         }
 
         proof_line = ProofLineSerializer(data=proof_line_data)
@@ -200,16 +216,18 @@ def create_proof_lines(lines, left_side, proof):
 def create_proof_definitions(definitions, proof, user):
     for definition in definitions:
         definition_data = {
-            'label': definition['label'],
-            'def_type': definition['type'],
-            'expression': definition['expression'],
-            'notes': definition['notes']
+            "label": definition["label"],
+            "def_type": definition["type"],
+            "expression": definition["expression"],
+            "notes": definition["notes"],
         }
 
         definition_serializer = DefinitionSerializer(data=definition_data)
 
         if not definition_serializer.is_valid():
-            return Response(definition_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                definition_serializer.errors, status=status.HTTP_400_BAD_REQUEST
+            )
 
         definition_serializer.save(proof=proof, created_by=user)
 
@@ -217,38 +235,38 @@ def create_proof_definitions(definitions, proof, user):
 def update_current_proof(user, side):
     global users_proof
 
-    proofOne = users_proof[user]['proofOne']
-    proofTwo = users_proof[user]['proofTwo']
-    pOneIsActive = side == "LHS"
+    proof_one: ERProof = users_proof[user]["proofOne"]
+    proof_two: ERProof = users_proof[user]["proofTwo"]
+    is_p_one_active = side == "LHS"
 
-    currentProof = proofOne if pOneIsActive else proofTwo
+    current_proof = proof_one if is_p_one_active else proof_two
 
-    users_proof[user]["currentProof"] = currentProof
+    users_proof[user]["currentProof"] = current_proof
 
 
 def update_is_valid(user):
     global users_proof
 
-    currentProof = users_proof[user]['currentProof']
+    current_proof: ERProof = users_proof[user]["currentProof"]
 
-    if currentProof == None:
-        users_proof[user]['isValid'] = True
+    if current_proof == None:
+        users_proof[user]["isValid"] = True
     else:
-        users_proof[user]['isValid'] = currentProof.errLog == []
+        users_proof[user]["isValid"] = current_proof.errLog == []
 
 
 def get_errors_and_clear(user):
     global users_proof
 
-    currentProof = users_proof[user]['currentProof']
+    current_proof: ERProof = users_proof[user]["currentProof"]
 
-    if currentProof == None:
+    if current_proof == None:
         return []
 
-    prevErrors = copy.deepcopy(currentProof.errLog)
-    currentProof.errLog = []
+    prev_errors = copy.deepcopy(current_proof.errLog)
+    current_proof.errLog = []
 
-    return prevErrors
+    return prev_errors
 
 
 def clear_user_proofs(user):
@@ -258,6 +276,7 @@ def clear_user_proofs(user):
         del users_proof[user]
     except:
         return None
+
 
 def create_user_proof(user):
     global users_proof
