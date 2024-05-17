@@ -74,8 +74,8 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
       const lastUnDeletedFieldIndex = undeletedProofLines.length - 1;
 
       // Only proceed if there is at least one field and the last rule is not empty.
-      if (sideFields.length > 0) {
-        if (sideFields[lastUnDeletedFieldIndex].rule.trim() === "") {
+      if (undeletedProofLines.length > 0) {
+        if (undeletedProofLines[lastUnDeletedFieldIndex].rule.trim() === "") {
           setValidationErrors((prevErrors) => ({
             ...prevErrors,
             [side]: {
@@ -85,7 +85,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
           }));
         } else {
           try {
-            const ruleValue = sideFields[lastUnDeletedFieldIndex].rule;
+            const ruleValue = undeletedProofLines[lastUnDeletedFieldIndex].rule;
             const racket = await fetchRacketValue(ruleValue);
 
             if (racket.isValid) {
@@ -96,7 +96,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
                 [side]: [
                   ...prevFields[side].slice(0, -1),
                   {
-                    ...sideFields[lastUnDeletedFieldIndex],
+                    ...undeletedProofLines[lastUnDeletedFieldIndex],
                     racket: racket.racket,
                     deleted: false
                   },
