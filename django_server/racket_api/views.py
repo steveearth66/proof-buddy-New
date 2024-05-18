@@ -80,6 +80,7 @@ def check_goal(request):
     current_proof.addProofLine(json_data["goal"])
 
     update_current_proof(user, json_data["side"])
+    update_is_valid(user)
     is_valid = users_proof[user]["isValid"]
     errors = get_errors_and_clear(user)
 
