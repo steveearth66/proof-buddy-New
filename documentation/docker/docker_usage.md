@@ -1,8 +1,8 @@
 # Docker For Deployment
 ### Client Deployment
 
-To deploy Proof Buddy client run the following commands.
-This should be done from a unix system.
+To deploy Proof Buddy client run the following commands. <br>
+This should be done from a unix system. <br>
 Before running theres commands ensure you have docker and it's dependencies installed.
 ```
 cd client
