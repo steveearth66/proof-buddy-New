@@ -13,25 +13,33 @@
 10. EMAIL_PORT should be port email server is running on.
 11. EMAIL_HOST_USER should be the email address of the account.
 12. EMAIL_HOST_PASSWORD password of the email host. (If using google as email server look into adding an app password)
-13. FRONTEND_URL url proofbuddy is accessible by.
-14. BACKEND_URL url the backend will hosted on.
-15. Final note: Never push your .env file to Github or share it on any public forum. This will cause a security risk for yourself. Presently, the .gitignore is set up to ignore these files.
+13. DJANGO_SUPERUSER_PASSWORD password for super user to access django backend
+14. DJANGO_SUPERUSER_USERNAME username for super user to access django backend
+15. DJANGO_SUPERUSER_EMAIL email for super user to access django backend
+16. FRONTEND_URL url proofbuddy is accessible by.
+17. BACKEND_URL url the backend will hosted on.
+18. Final note: Never push your .env file to Github or share it on any public forum. This will cause a security risk for yourself. Presently, the .gitignore is set up to ignore these files.
 
 ```
 # Database configurations.
-DB_NAME=proof_buddy_development
+DB_NAME=proofbuddy_development
 DB_HOST=localhost
 DB_USER=root
 DB_PASSWORD=password
 DB_PORT=3306
-DEBUG=True
-SECRET_KEY=SOME_SECRET_KEY
 
 # Email configurations.
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_HOST_USER=email@example.com
 EMAIL_HOST_PASSWORD=django_app_password
+
+# Django configurations.
+DJANGO_SUPERUSER_PASSWORD=password
+DJANGO_SUPERUSER_USERNAME=admin
+DJANGO_SUPERUSER_EMAIL=email@example.com
+DEBUG=True
+SECRET_KEY=SOME_SECRET_KEY
 FRONTEND_URL=http://localhost:3000
 BACKEND_URL=http://localhost:8000
 
