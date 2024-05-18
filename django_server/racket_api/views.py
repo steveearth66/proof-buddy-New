@@ -106,6 +106,7 @@ def add_definitions(request):
 
     definitions.append(json_data)
 
+    update_current_proof(user, "LHS")
     update_is_valid(user)
     errors = get_errors_and_clear(user)
     is_valid = users_proof[user]["isValid"]
