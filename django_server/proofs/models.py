@@ -12,8 +12,8 @@ TEMPLATE_CHOICES = [
 class Proof(models.Model):
     name = models.CharField(max_length=100)
     tag = models.CharField(max_length=100)
-    lsh = models.CharField(max_length=100, blank=True)
-    rsh = models.CharField(max_length=100, blank=True)
+    lhs = models.CharField(max_length=100, blank=True)
+    rhs = models.CharField(max_length=100, blank=True)
     created_by = models.ForeignKey(
         'accounts.Account', related_name='proofs', on_delete=models.CASCADE, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
