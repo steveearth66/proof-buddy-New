@@ -1,4 +1,4 @@
-from .recParser import buildTree, preProcess
+from .Parser import buildTree, preProcess
 from .Labeler import labelTree  # , fillPositions
 from .Decorator import decorateTree, remTemps, checkFunctions
 
