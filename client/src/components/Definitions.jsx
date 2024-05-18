@@ -78,11 +78,10 @@ function CreateDefinition({
       try {
         const response = await erService.createDefinition(definition);
         setErrors([]);
-  
+
         if (response.isValid) {
           updateDefinition(definition);
           setSuccessMessage("Definition updated successfully.");
-          return;
         } else {
           setErrors(response.errors);
           setValidated(false);
@@ -91,6 +90,7 @@ function CreateDefinition({
         setErrors(["An error occurred. Please try again."]);
         setValidated(false);
       }
+      return;
     }
 
     definitions.forEach((def) => {
@@ -104,7 +104,7 @@ function CreateDefinition({
       try {
         const response = await erService.createDefinition(definition);
         setErrors([]);
-  
+
         if (response.isValid) {
           definitions.push(definition);
           sessionStorage.setItem("definitions", JSON.stringify(definitions));
