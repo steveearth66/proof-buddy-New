@@ -2,5 +2,6 @@
 
 python manage.py migrate --no-input
 python manage.py collectstatic --no-input
+python manage.py createsuperuser --no-input
 
-gunicorn django_server.wsgi:application --bind 0.0.0.0:8000 -c gunicorn.conf.py
+gunicorn django_server.wsgi:application -c gunicorn.conf.py
