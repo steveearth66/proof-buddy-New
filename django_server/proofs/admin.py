@@ -21,7 +21,7 @@ class ProofAdmin(admin.ModelAdmin):
 
 class ProofLineAdmin(admin.ModelAdmin):
     list_display = ('proof', 'get_proof_tag', 'left_side', 'racket',
-                    'rule', 'start_position', 'created_at')
+                    'rule', 'start_position', 'deleted', 'created_at')
     search_fields = ('proof', 'racket')
     readonly_fields = ('created_at',)
 
@@ -29,7 +29,7 @@ class ProofLineAdmin(admin.ModelAdmin):
     list_filter = ()
     fieldsets = (
         (None, {'fields': ('proof', 'left_side',
-         'racket', 'rule', 'start_position', 'errors')}),
+         'racket', 'rule', 'start_position', 'errors', 'deleted',)}),
     )
     ordering = ('proof',)
 

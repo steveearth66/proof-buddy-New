@@ -53,11 +53,12 @@ const ERRacket = () => {
   const [
     racketRuleFields,
     addFieldWithApiCheck,
-    removeEmptyLines,
     handleFieldChange,
     validationErrors,
     serverError,
-    racketErrors
+    racketErrors,
+    deleteLastLine,
+    sendProofComplete
   ] = useRacketRuleFields(startPosition, currentRacket, formValues.proofName, formValues.proofTag, showSide);
   const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields);
   const [lhsValue, setLhsValue] = useState("");
@@ -167,7 +168,7 @@ const ERRacket = () => {
         }, 5000);
       }
     }
-  }, [currentLHS, currentRHS, racketRuleFields, lhsValue, rhsValue, formValues.proofName, formValues.proofTag, formValues.lHSGoal, formValues.rHSGoal, leftPremise, rightPremise]);
+  }, [currentLHS, currentRHS, racketRuleFields, lhsValue, rhsValue, formValues.proofName, formValues.proofTag, formValues.lHSGoal, formValues.rHSGoal, leftPremise, rightPremise, sendProofComplete]);
 
   return (
     <MainLayout>
@@ -445,6 +446,7 @@ const ERRacket = () => {
 
                       {/* Dynamically Added Racket and Rule Fields */}
                       {racketRuleFields.LHS.map((field, index) => (
+                        field.deleted ? null :
                         <Row
                           className="racket-rule-row"
                           key={`LHS-field-${index}`}
@@ -543,6 +545,7 @@ const ERRacket = () => {
 
                       {/* Dynamically Added Racket and Rule Fields */}
                       {racketRuleFields.RHS.map((field, index) => (
+                        field.deleted ? null :
                         <Row
                           className="racket-rule-row"
                           key={`RHS-field-${index}`}
@@ -603,7 +606,7 @@ const ERRacket = () => {
                     <Col md="8">
                       <Button
                         className="orange-btn delete-btn"
-                        onClick={() => removeEmptyLines(showSide)}
+                        onClick={() => deleteLastLine(showSide)}
                       >
                         Delete Line
                       </Button>
