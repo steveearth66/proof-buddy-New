@@ -18,7 +18,7 @@ class ProofLineSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProofLine
         fields = ['left_side', 'racket', 'rule',
-                  'start_position', 'created_at', 'errors']
+                  'start_position', 'created_at', 'errors', 'deleted']
 
     def create(self, validated_data):
         proof_line = ProofLine.objects.create(**validated_data)

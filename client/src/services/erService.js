@@ -34,7 +34,6 @@ const racketGeneration = async (payLoad) => {
       `${API_GATEWAY}/er-generate`,
       payLoad
     );
-    console.log(payLoad);
     return response.data;
   } catch (error) {
     handleServiceError(error, "Error during racket generation:");

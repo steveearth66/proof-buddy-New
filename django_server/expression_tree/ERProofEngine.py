@@ -30,10 +30,11 @@ class ERProof:
         self.debug = debug
 
     def addProofLine(self, lineStr, ruleStr=None, highlightPos=0):
-        proofLine = ERProofLine(lineStr, self.debug) #this should have done checkfunctions (type and argQty)
+        #prooflines now contain pointers to their proof's ruleset so they can refer to UDFs
+        proofLine = ERProofLine(lineStr, self.debug, self.ruleSet) 
+        if proofLine.errLog == None:
+            proofLine.errLog = []
         if proofLine.errLog == []:
-            # trying to fix Decorator and remTemps now...
-            # TODO: put new remTemps here that takes in UDF dict from proof attribute
             if ruleStr != None:
                 proofLine.applyRule(self.ruleSet, ruleStr, highlightPos)
             if proofLine.errLog != []:
@@ -65,29 +66,31 @@ class ERProof:
             param2TypeDict = {}
             for j in range(len(paramsList)):
                 param2TypeDict[paramsList[j]] = racTypeObj.getDomain()[j]
-            filledBodyNode = fillBody(
-                bodyNode.exprTree, udfLabel, racTypeObj, param2TypeDict)
-            self.ruleSet[udfLabel] = UDF(
-                udfLabel, filledBodyNode, racTypeObj, paramsList)
+            filledBodyNode = fillBody(bodyNode.exprTree, udfLabel, racTypeObj, param2TypeDict)
+            self.ruleSet[udfLabel] = UDF(udfLabel, filledBodyNode, racTypeObj, paramsList)
 
 
 class ERProofLine:
-    def __init__(self, goal, debug=False):
+    def __init__(self, goal, debug=False, ruleDict=None): #added optional pointer to parent proof's ruleset
         self.exprTree = None
         self.errLog = []
         self.debug = debug
+        if ruleDict != None:
+            self.ruleSet = ruleDict
+        else:
+            self.ruleSet=dict()
 
         tokenList, self.errLog = Parser.preProcess(goal, errLog=self.errLog, debug=self.debug)
         if self.errLog == []:
             tree = Parser.buildTree(tokenList, debug=self.debug)[0]  # might not need to pass errLog
             labeledTree = Labeler.labelTree(tree)
             labeledTree, _ = updatePositions(labeledTree)
-        # if self.errLog == []:
-        #    self.errLog = Decorator.remTemps(labeledTree, self.errLog)
         if self.errLog == []:
             decTree, self.errLog = Decorator.decorateTree(labeledTree, self.errLog)
         if self.errLog == []:
             decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog)
+        if self.errLog == []:
+            self.errLog = Decorator.remTemps(labeledTree, self.errLog)
         if self.errLog == []:
             self.exprTree = decTree
 
