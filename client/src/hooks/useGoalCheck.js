@@ -77,8 +77,10 @@ const useGoalCheck = (handleChange) => {
       } else {
         setIsGoalChecked({ ...isGoalChecked, [side]: false });
         const errorMessage = result.errors?.length ? result.errors.join('\n') : 'An unknown error occurred.';
-        setGoalValidationMessage({ ...goalValidationMessage, [side]: `The ${side} goal is not valid.\nError(s):\n${errorMessage}` });
-        setGoalValidationMessage('');
+        setGoalValidationMessage({
+          ...goalValidationMessage,
+          [side]: `The ${side} goal is not valid.\nError(s):\n${errorMessage}`
+        });
       }
     } catch (error) {
       logger.error(`Error validating the ${side} Goal: ${error}`);
