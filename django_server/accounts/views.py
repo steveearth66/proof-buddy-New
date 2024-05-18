@@ -17,13 +17,7 @@ def signup(request):
         serializer.save()
         return Response({'message': 'Account created!'}, status=status.HTTP_201_CREATED)
 
-    error_messages = [str(error)
-                      for errors in serializer.errors.values() for error in errors]
-
-    error_message_string = ', '.join(error_messages).replace(
-        '[', '').replace(']', '').replace("'", "")
-
-    return Response({'message': error_message_string}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['POST'])
@@ -44,7 +38,14 @@ def get_user(request):
         user = User.objects.get(username=request.user)
     except User.DoesNotExist:
         return Response({'message': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
-    return Response({'username': user.username, 'email': user.email}, status=status.HTTP_200_OK)
+    return Response(
+        {
+            "username": user.username,
+            "email": user.email,
+            "is_student": not user.is_instructor,
+        },
+        status=status.HTTP_200_OK,
+    )
 
 
 @api_view(['POST'])
