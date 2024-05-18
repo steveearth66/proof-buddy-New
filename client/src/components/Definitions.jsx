@@ -75,16 +75,21 @@ function CreateDefinition({
     let exists = false;
 
     if (edit) {
-      const response = await erService.createDefinition(definition);
-      setErrors([]);
-
-      if (response.isValid) {
-        updateDefinition(definition);
-        setSuccessMessage("Definition updated successfully.");
-        return;
-      } else {
-        setErrors(response.errors);
-        return;
+      try {
+        const response = await erService.createDefinition(definition);
+        setErrors([]);
+  
+        if (response.isValid) {
+          updateDefinition(definition);
+          setSuccessMessage("Definition updated successfully.");
+          return;
+        } else {
+          setErrors(response.errors);
+          setValidated(false);
+        }
+      } catch (error) {
+        setErrors(["An error occurred. Please try again."]);
+        setValidated(false);
       }
     }
 
@@ -96,16 +101,22 @@ function CreateDefinition({
     });
 
     if (!exists) {
-      const response = await erService.createDefinition(definition);
-      setErrors([]);
-
-      if (response.isValid) {
-        definitions.push(definition);
-        sessionStorage.setItem("definitions", JSON.stringify(definitions));
-        setSuccessMessage("Definition created successfully.");
-        handleReset();
-      } else {
-        setErrors(response.errors);
+      try {
+        const response = await erService.createDefinition(definition);
+        setErrors([]);
+  
+        if (response.isValid) {
+          definitions.push(definition);
+          sessionStorage.setItem("definitions", JSON.stringify(definitions));
+          setSuccessMessage("Definition created successfully.");
+          handleReset();
+        } else {
+          setErrors(response.errors);
+          setValidated(false);
+        }
+      } catch (error) {
+        setErrors(["An error occurred. Please try again."]);
+        setValidated(false);
       }
     }
   };

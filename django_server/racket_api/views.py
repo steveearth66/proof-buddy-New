@@ -99,11 +99,20 @@ def add_definitions(request):
     proof_two: ERProof = users_proof[user]["proofTwo"]
     definitions = users_proof[user]["definitions"]
 
-    if json_data["label"] not in proof_one.ruleSet.keys():
-        proof_one.addUDF(json_data["label"], json_data["type"], json_data["expression"])
+    try:
+        if json_data["label"] not in proof_one.ruleSet.keys():
+            proof_one.addUDF(
+                json_data["label"], json_data["type"], json_data["expression"]
+            )
 
-    if json_data["label"] not in proof_two.ruleSet.keys():
-        proof_two.addUDF(json_data["label"], json_data["type"], json_data["expression"])
+        if json_data["label"] not in proof_two.ruleSet.keys():
+            proof_two.addUDF(
+                json_data["label"], json_data["type"], json_data["expression"]
+            )
+    except:
+        return Response(
+            {"message": "Error adding definition"}, status=status.HTTP_400_BAD_REQUEST
+        )
 
     definitions.append(json_data)
 
