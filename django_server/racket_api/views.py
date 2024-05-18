@@ -179,8 +179,8 @@ def create_proof(data, user):
     proof_data = {
         "name": data["name"],
         "tag": data["tag"],
-        "lsh": data["lHSGoal"],
-        "rsh": data["rHSGoal"],
+        "lhs": data["lHSGoal"],
+        "rhs": data["rHSGoal"],
     }
 
     serializer = ProofSerializer(data=proof_data)

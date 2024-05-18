@@ -5,8 +5,7 @@ from rest_framework import serializers
 class ProofSerializer(serializers.ModelSerializer):
     class Meta:
         model = Proof
-        fields = ['name', 'tag', 'lsh', 'rsh',
-                  'created_at', 'isComplete']
+        fields = ["name", "tag", "lhs", "rhs", "created_at", "isComplete"]
 
     def create(self, validated_data):
         proof = Proof.objects.create(**validated_data)
