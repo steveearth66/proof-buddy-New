@@ -1,4 +1,4 @@
-from .recParser import *
+from .Parser import *
 from .Decorator import *
 from .Labeler import *
 #from ERCommon import *

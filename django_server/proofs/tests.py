@@ -2,6 +2,7 @@
 
 # Create your tests here.
 from expression_tree.ERProofEngine import ERProof
+from expression_tree.ERCommon import str2Type
 
 err_strings = [
     # expected errs
@@ -16,7 +17,7 @@ err_strings = [
     ("(expt 3 -1)", ['-1 contains illegal characters']),
     # bad type
     ("(+ 1 #t)",
-     ['+ takes in types [INT, INT], but provided inputs were [INT, BOOL]']),
+     ["Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['INT', 'INT']"]),
     # too many args
     ("(+ 1 2 3)", ['+ only takes 2 arguments, but 3 were provided']),
     # insufficiently resolved
@@ -24,7 +25,7 @@ err_strings = [
     ("(quotient 3 0)", ["denominator can't be zero"]),  # div by 0
     ("(remainder 2 0)", ["denominator can't be zero"]),  # div by 0
     # bad type
-    ("(< 2 #f)", ['< takes in types [INT, INT], but provided inputs were [INT, BOOL]'])]
+    ("(< 2 #f)", ["Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['INT', 'INT']"])]
 
 good_strgs = [
     # expected output
@@ -39,8 +40,9 @@ good_strgs = [
     ("(< 4 3)", "#f")  # greater than
 ]
 
-print("\nMath testing Errs:\n")
 fails = 0
+
+print("\nMath testing Errs:\n")
 for trial in err_strings+good_strgs:
     expr, expected = trial
     print("input:", expr)
@@ -67,9 +69,9 @@ Log_err_strings = [
     ("(implies)", ['implies only takes 2 arguments, but 0 were provided']),
     ("(and 1 #t)", [
      # bad type
-     'and takes in types [BOOL, BOOL], but provided inputs were [INT, BOOL]']),
+     "Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['BOOL', 'BOOL']"]),
     # bad type
-    ("(not 1)", ['not takes in types [BOOL], but provided inputs were [INT]']),
+    ("(not 1)", ["Cannot match argument out typeList ['INT'] with expected typeList ['BOOL']"]),
     # too many args
     ("(not #t #f)", ['not only takes 1 arguments, but 2 were provided']),
     # insufficiently resolved
@@ -107,4 +109,19 @@ for trial in Log_err_strings+Log_good_strgs:
         print(f"FAIL! expected {word}: {expected} but got: {ans}\n")
         fails += 1
 
+
+print("\nUDF testing:\n")
+proof=ERProof()
+proof.addUDF("(f x y)", "(INT,INT)>INT", "(* x y)")
+# is correct:  proof.ruleSet['f'].racType
+proof.addProofLine("(f 3 4)", "f")
+ans = str(proof.errLog if proof.errLog != [] else proof.getPrevRacket())
+expected = "(* 3 4)"
+word = "errors" if isinstance(expected, list) else "output"
+
+if ans == expected:
+    print(f"PASS: expected {word}: {ans}\n")
+else:
+    print(f"FAIL! expected {word}: {expected} but got: {ans}\n")
+    fails += 1
 print("all tests passed!\n" if fails == 0 else f"number of fails: {fails}\n")

@@ -3,7 +3,6 @@ from enum import Enum
 
 # special math characters. any other math uses ascii, such as expt, quotient, remainder. Note: "/" not permitted
 ARITHMETIC = ["+", "*", "-", "=", ">", "<"]
-
 class Type(Enum):
     TEMP = 'TEMP'
     BOOL = 'BOOL'
@@ -29,20 +28,9 @@ class TypeList:
         else:
             return '[' + ', '.join(str(x) for x in self.value) + ']'
 
-
-''' this function is not needed since the __str__ method of RacType does the same thing
-# pretty print recursive function (commas between domain elements, with > separating out range)
-def helpPrint(items):
-    if isinstance(items, RacType):
-        return helpPrint(items.value)
-    elif isinstance(items, tuple) and items[0] is None:
-        return str(items[1])
-    elif isinstance(items, tuple):
-        domain = ', '.join(helpPrint(item) for item in items[0] if item is not None)
-        range = helpPrint(items[1])
-        return f"({domain}) > {range}"
-    return str(items)'''
-
+#used in generalized equality checks for RacTypes
+FLEX_TYPES = [Type.TEMP, Type.ANY, Type.PARAM]
+FAIL_TYPES = [Type.NONE, Type.ERROR] 
 class RacType:
     def __init__(self, value):
         self.value = value
@@ -72,10 +60,12 @@ class RacType:
         # return helpPrint(self.value)
     
     def __eq__(self,other):
-        if other == None:
+        if not isinstance(other, RacType) or self.getType() in FAIL_TYPES \
+        or other.getType() in FAIL_TYPES:
             return False
-        else:
-            return str(self) == str(other)
+        if self.getType() in FLEX_TYPES or other.getType() in FLEX_TYPES:
+            return True
+        return str(self) == str(other) #checking string rather than direct type comparison to avoid potential bugs
     
     def getType(self) -> RacType:
         if self.value[0]==None:

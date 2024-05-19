@@ -52,6 +52,7 @@ class Rule(ABC):
 class If(Rule):
     def __init__(self):
         super().__init__('if')
+        self.racType = str2Type("(BOOL,ANY,ANY)>ANY")
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if (len(ruleNode.children) != 0 and ruleNode.children[0].data != 'if'):
@@ -130,6 +131,7 @@ class Rest(Rule):
 class NullQ(Rule):
     def __init__(self):
         super().__init__('null?')
+        self.racType = str2Type("ANY>BOOL")
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'null?':
@@ -155,6 +157,7 @@ class NullQ(Rule):
 class ConsQ(Rule):
     def __init__(self):
         super().__init__('cons?')
+        self.racType = str2Type("ANY>BOOL")
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'cons?':
@@ -172,6 +175,7 @@ class ConsQ(Rule):
 class ZeroQ(Rule):
     def __init__(self):
         super().__init__('zero?')
+        self.racType = str2Type("ANY>BOOL")
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'zero?':
@@ -205,6 +209,7 @@ class ZeroQ(Rule):
 class ConsList(Rule):
     def __init__(self):
         super().__init__('consList')
+        self.racType = str2Type("(ANY,LIST)>LIST")
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.data != "(":
@@ -325,9 +330,12 @@ class UDF(Rule):
             return False, f'Cannot apply {self.label} definition to {ruleNode.children[0].data}'
         if len(ruleNode.children[1:]) != len(self.racType.getDomain()):
             return False, f"{self.label} must take {len(self.racType.getDomain())} inputs"
-        ruleNodeRange = [c.type.getRange() for c in ruleNode.children[1:]]
-        if not all(x == y for x, y in zip(ruleNodeRange, self.racType.getDomain())):
-            return False, f'Cannot match argument out typeList {[str(x) for x in ruleNodeRange]} with expected typeList {[str(x) for x in self.racType.getDomain()]}'
+        
+        providedIns = [c.type for c in ruleNode.children[1:]]
+        #needs to be x.value for x in func.type.value[0] when in main rackexpr, but just func.type.value[0] for UDF checking
+        expectedIns = [x if isinstance(x,RacType) else RacType(x) for x in self.racType.value[0]] # tricky since value[1] could be tuple or could be RacType
+        if not all(x==y for x, y in zip(providedIns, expectedIns)):
+            return [False, f'Cannot match argument out typeList {[str(x) for x in providedIns]} with expected typeList {[str(x) for x in expectedIns]}']    
         return True, f"{self.label.capitalize()}.isApplicable() PASS"  # string should not print out if debug=False
 
     def insertSubstitution(self, ruleNode: Node) -> Node:

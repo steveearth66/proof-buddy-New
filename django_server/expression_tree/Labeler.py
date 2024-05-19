@@ -29,20 +29,13 @@ LABEL_LIBRARY = [
 BUILT_IN_FUNCTIONS = ['if', 'cons', 'first', 'rest', 'null?', '+', '-', '*', 'quotient', 'remainder', 'zero?',
                       "expt", "=", "<=", ">=", "<", ">", "and", "or", "not", "xor", "implies", "list?", "int?"]
 
-# list of user-defined functions (non-built-ins)
-USER_DEFINED_FUNCTIONS = ['fact']
-
-# dictionary of type specification for user-defined functions, parameters will be provided externally
-UDFdict = {"fact": {"type": RacType(
-    (((None, Type.INT),), (None, Type.INT))), "numArgs": 1}}
-
-# give every Node object in the AST an initial type
-
-
-def labelTree(inputTree: Node) -> Node:
+# give every Node object in the AST an initial type (ifs will be done later in remTemps since their range varies)
+def labelTree(inputTree: Node, ruleDict=None) -> Node:
     # if inputTree is empty, return the empty list
     if inputTree == []:
         return
+    if ruleDict == None:
+        ruleDict = dict()
 
     # get the token in the Node
     root = inputTree
@@ -63,9 +56,10 @@ def labelTree(inputTree: Node) -> Node:
         inputTree.numArgs = erObj.numArgs
 
     # check if the token is a user-defined function
-    elif inputTree.data in USER_DEFINED_FUNCTIONS:
-        inputTree.type = UDFdict[inputTree.data]["type"]
-        inputTree.numArgs = UDFdict[inputTree.data]["numArgs"]
+    elif inputTree.data in ruleDict.keys():
+        inputTree.type = ruleDict[inputTree.data].racType
+        if inputTree.type.isType("FUNCTION"):
+            inputTree.numArgs = len(inputTree.type.getDomain())
     else:
 
         # check if the token matches a label regex
@@ -84,7 +78,7 @@ def labelTree(inputTree: Node) -> Node:
 
     # label the children of the root Node
     for child in root.children:
-        labelTree(child)
+        labelTree(child, ruleDict)
 
     # return the tree
     return root

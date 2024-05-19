@@ -4,12 +4,7 @@ from .ERCommon import Node, Type, RacType, TypeList
 # brings in ERobject whose attributes will be used to decorate the tree
 from .ERobj import pdict
 
-# types to be potentially replaced
-FLEX_TYPES = [Type.FUNCTION, Type.TEMP, Type.ANY, Type.PARAM, Type.NONE] #trying to deprecate this
-
 # decorate non-function type Nodes in the AST
-
-
 def decorateTree(inputTree: Node, errLog, debug=False) -> tuple[Node, list[str]]:
     # just return if there is not AST to decorate
     if inputTree == None:
@@ -52,15 +47,41 @@ def copyDetails(fromNode: Node, toNode: Node):
     if fromNode.type.getType() == Type.FUNCTION:
         # note we cannot pass name/value e.g. (if x + *)
         toNode.numArgs = fromNode.numArgs
+    return
 
 # this function gets rid of all Type.TEMPs and does type checking for 'if' functions. can internally change the AST and update the errLog
-
+# need to also do UDFs in same recursive function. also have sep function that checks for nested quotes and stops rules if has a ' ancestor
 # this function does type checking for "if" functions as they are the only function left with an ambiguous type signature
-def remTemps(inputTree: Node, errLog, debug=False) -> list[str]:
-    if not isinstance(inputTree,Node) or inputTree.data != "(" or inputTree.children == [] or inputTree.children[0].data != "if":
+
+def remTemps(inputTree: Node, errLog=None, debug=False, theRuleDict=None) -> list[str]:
+    if errLog == None:
+        errLog = []
+    if theRuleDict == None:
+        theRuleDict = dict()
+    if not isinstance(inputTree,Node):
+        return errLog
+    if inputTree.data in (UDFs := theRuleDict.keys()): # UDF types should have already been done in labelTree, but just in case
+        inputTree.type = theRuleDict[inputTree.data].racType
+        return errLog
+    if inputTree.data != "(" or inputTree.children == []: # or inputTree.children[0].data != "if" also case of (udf...):
         return errLog
     for c in inputTree.children[1:]:
-        errLog = errLog + remTemps(c, errLog)
+        errLog = errLog + remTemps(c, errLog, debug, theRuleDict)
+    if errLog != []:
+        return errLog
+    if inputTree.data == "(":
+        chType = inputTree.children[0].type.getRange() #type filled by recursion above
+        if isinstance(chType, tuple):
+            chType = RacType(chType)
+        inputTree.type = chType
+    if (func := inputTree.children[0]).data in UDFs:
+        if not func.type.isType("FUNCTION"):
+            errLog.append(f"function {func.data} is not a function to be called")
+        else:
+            inputTree.type = func.type.getRange()
+        return errLog
+    if func.data != "if":
+        return errLog
     if (argNum := len(inputTree.children)) != 4: #these should have already been caught by checkfunctions. just double checking
         errLog.append(f"if function must have 3 arguments but {argNum-1} were provided")
         return errLog
@@ -75,83 +96,77 @@ def remTemps(inputTree: Node, errLog, debug=False) -> list[str]:
     return errLog
 
 # function to check correct number of provided arguments for functions
-def argQty(treeNode: Node, ruleDict=None) -> str:
+def argQty(treeNode: Node, ruleDict=None) -> list[bool,str]:
     if ruleDict == None:
         ruleDict = dict()
     func = treeNode.children[0]
-    if func.data in ruleDict.keys():
-        if len(treeNode.children[1:]) != len(ruleDict[func.data].racType.getDomain()):
-             return False, f"{treeNode.data} must take {len(ruleDict[treeNode.data].racType.getDomain())} inputs"
+    # this used to crash, but now with numArgs added into fillbody, it should work
+   # if func.data in ruleDict.keys():
+    #    if len(treeNode.children[1:]) != len(ruleDict[func.data].racType.getDomain()):
+     #        return False, f"{treeNode.data} must take {len(ruleDict[treeNode.data].racType.getDomain())} inputs"
     expectedCount = func.numArgs
     providedCount = len(treeNode.children) - 1
 
     #if (expectedCount != providedCount) and (func.type.getType() not in FLEX_TYPES):
     if (expectedCount != providedCount):
-        return f"{func.name} only takes {expectedCount} arguments, but {providedCount} {'was' if providedCount == 1 else 'were'} provided"
+        return [False, f"{func.name} only takes {expectedCount} arguments, but {providedCount} {'was' if providedCount == 1 else 'were'} provided"]
 
     # only typeCheck if everything passes
-    return typeCheck(treeNode)
+    daRules = ruleDict # to avoid possible bug with "ruleDict = ruleDict" to skip debug parameter default
+    return typeCheck(treeNode, ruleDict=daRules)
 
 # check functions meet number of arguments and type checking restrictions
 
 
-def checkFunctions(inputTree: Node, errLog, debug=False, ruleDict=None) -> tuple[Node, list[str]]:
+def checkFunctions(inputTree: Node, errLog, debug=False, theRuleDict=None) -> tuple[Node, list[str]]:
     if inputTree == None:
         return inputTree, errLog
-    if ruleDict == None:   # added optional pointer to parent proof's ruleset
-        ruleDict = dict()
+    if theRuleDict == None:   # added optional pointer to parent proof's ruleset
+        theRuleDict = dict()
 
 
     # only check if the function has children
     if len(inputTree.children) > 0: # and inputTree.type.getType() in FLEX_TYPES:
-        errMsg = argQty(inputTree, ruleDict)
-
-        if errMsg:
-            errLog.append(errMsg)
+        typPass = argQty(inputTree, theRuleDict)
+        if not typPass[0]:
+            errLog.append(typPass[1])
 
         # continue check for the children of the Node
         for child in inputTree.children:
-            checkFunctions(child, errLog, debug, ruleDict)
+            checkFunctions(child, errLog, debug, theRuleDict)
 
     # return any errors
     return inputTree, errLog
 
-
-'''
-two new functions in this file: argQty(inputree,errLog)->bool and typeCheck(inputTree, errLog)
-CAUTION:  (+ (+ 3 #t) 4 5) should give two errors. so do both before recursing to future nodes.
-
-only need to check in the case in which parent is ( and child[0] is a function.
-i.e. (1...) doesn't matter, and (if #t + *) doesn't matter for the + (but it does for the if)
-best way is to check the inputs/type WHEN you hit the (
-note: be sure to subtract one from the length of the children (to acct for the fact that child0=the function)
-
-check number of inputs vs what's allowable.
-(+ 4 5 6) should produce an error msg (i.e. appended to errLog) "+ only takes 2 arguments, but 3 were provided"
-
-check types of those inputs
-(+ 3 #f) should produce an error msgs "+ should have argument #2 as an int but a bool was provided"
-
-'''
-
 #env is depracated now that udfs implemented
-env = {}  # env dictionary to keep track of params, having it out here so it stays across iterations temporarily
-    
-def typeCheck(inputTree: Node, debug=False, ruleDict=None) -> str:
+#env = {}  # env dictionary to keep track of params, having it out here so it stays across iterations temporarily
+
+# checks that an expression calling a function has the correct arg types. already checked for correct number of args
+# returns True if no errors, False if there are errors. either way, also sends string msg
+def typeCheck(inputTree: Node, debug=False, ruleDict=None) -> list[bool,str]:
     if ruleDict == None:
         ruleDict = dict()
+    if not type(inputTree) == Node:
+        return [True, "inputTree is not a Node object, so no type violation"]
+    if inputTree.children == []:
+        return [True, "node has no children, so no type violation"]
+    if inputTree.data != "(":
+        return [True, "function is not being called, so no type violation"]
     func = inputTree.children[0]
-    if func.data in ruleDict.keys():
-        ruleNodeRange = [c.type.getRange() for c in inputTree.children[1:]]
-        if not all(x == y for x, y in zip(ruleNodeRange, ruleDict.racType.getDomain())):
-            return False, f'Cannot match argument out typeList {[str(x) for x in ruleNodeRange]} with expected typeList {[str(x) for x in ruleDict.racType.getDomain()]}'     
+    if not func.type.isType("FUNCTION"): #TODO: this will have to be adjusted in the future for UDFs of the form ((f x) y), where child[0] could be (
+        return [True, "function is nested deeper than one level, so no type violation"]
+    providedIns = [c.type for c in inputTree.children[1:]]
+    #needs to be x.value for x in func.type.value[0] when in main rackexpr, but just func.type.value[0] for UDF checking
+    expectedIns = [(RacType(x) if isinstance(x,tuple) else x) for x in func.type.value[0]] #for some reason, getDomain is overwrapping
+    if not all(x==y for x, y in zip(providedIns, expectedIns)):
+        return [False, f'Cannot match argument out typeList {[str(x) for x in providedIns]} with expected typeList {[str(x) for x in expectedIns]}']    
+    return [True, "no type violation discovered"]
 
-    if not func.type.isType("FUNCTION"):# in FLEX_TYPES:
-        return None
+''' #this old version of typeCheck is being replaced by the new version above
     inputTree.type=func.type.getRange() 
     # get the expected and provided domains
-    expectedIns = func.type.getDomain()
-    providedIns = [RacType((child.type.getDomain(), child.type.getRange()))
+    expectedIns = func.type.value[0] #for some reason, getDomain is overwrapping
+    providedIns = [RacType((child.type.value[0], child.type.getRange()))
                    for child in inputTree.children[1:]]
     if debug:
         print(f"expectedIns {TypeList(expectedIns)} providedIns {TypeList(providedIns)}")
@@ -181,7 +196,7 @@ def typeCheck(inputTree: Node, debug=False, ruleDict=None) -> str:
                     elif (env[childData] != expectedIns[childIndex-1]) and expectedIns[childIndex-1].getType() not in FLEX_TYPES:
                         return f"{func.name} at argument #{childIndex} takes a parameter '{childData}' expected to be type {expectedIns[childIndex-1].getType()} but {env[childData].getType()} was provided"
 
-                elif (childType != expectedIns[childIndex-1]) and not expectedIns[childIndex-1].isType("ANY"):
+                elif (childType != expectedIns[childIndex-1]) and not (expectedIns[childIndex-1].isType("ANY")):
                     # handle type checking for lists
                     if childType.getType() == Type.LIST:
                         return f"{func.name}'s list at argument #{childIndex} expected to output type {expectedIns[childIndex-1].getType()} but {childType.getType()} was provided"
@@ -191,7 +206,7 @@ def typeCheck(inputTree: Node, debug=False, ruleDict=None) -> str:
                         return f"{func.name} takes in types {TypeList(expectedIns)}, but provided inputs were {TypeList(providedIns)}"
 
     # don't return anything if the function has no errors
-    return None
+    return None'''
 
 '''this function, originally remTemps, is no longer being called since it got unwieldly and has been replaced by the new remTemps
 def remTemps0(inputTree: Node, errLog, debug=False) -> list[str]:

@@ -65,7 +65,7 @@ class ERProof:
         if self.errLog == []:
             param2TypeDict = {}
             for j in range(len(paramsList)):
-                param2TypeDict[paramsList[j]] = racTypeObj.getDomain()[j]
+                param2TypeDict[paramsList[j]] = RacType(racTypeObj.getDomain()[j]) #got rid of getDomain here and switched to value[0]
             filledBodyNode = fillBody(bodyNode.exprTree, udfLabel, racTypeObj, param2TypeDict)
             self.ruleSet[udfLabel] = UDF(udfLabel, filledBodyNode, racTypeObj, paramsList)
 
@@ -83,14 +83,15 @@ class ERProofLine:
         tokenList, self.errLog = Parser.preProcess(goal, errLog=self.errLog, debug=self.debug)
         if self.errLog == []:
             tree = Parser.buildTree(tokenList, debug=self.debug)[0]  # might not need to pass errLog
-            labeledTree = Labeler.labelTree(tree)
+            labeledTree = Labeler.labelTree(tree, ruleDict)
             labeledTree, _ = updatePositions(labeledTree)
+        
         if self.errLog == []:
             decTree, self.errLog = Decorator.decorateTree(labeledTree, self.errLog)
         if self.errLog == []:
-            decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog)
+            decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog, theRuleDict=ruleDict)
         if self.errLog == []:
-            self.errLog = Decorator.remTemps(labeledTree, self.errLog)
+            self.errLog = Decorator.remTemps(labeledTree, self.errLog, theRuleDict=ruleDict)
         if self.errLog == []:
             self.exprTree = decTree
 
@@ -126,14 +127,17 @@ def updatePositions(inputTree: Node, count: int = 0) -> tuple[Node, int]:
     return inputTree, count
 
 # fills in the types for the params
-
-
 def fillBody(bodyNode, udfLabel, racTypeObj, param2TypeDict):
     if bodyNode.data == udfLabel:
         bodyNode.type = racTypeObj
     elif bodyNode.data in param2TypeDict.keys():
         bodyNode.type = param2TypeDict[bodyNode.data]
+    try: #this seems to have issues with the both of (f x y) as (* x y)
+        if bodyNode.type.isType("FUNCTION"):
+            bodyNode.numArgs = len(bodyNode.type.getDomain())
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        bodyNode.numArgs = 0 
     for i, c in enumerate(bodyNode.children):
-        bodyNode.children[i] = fillBody(
-            c, udfLabel, racTypeObj, param2TypeDict)
+        bodyNode.children[i] = fillBody(c, udfLabel, racTypeObj, param2TypeDict)
     return bodyNode
