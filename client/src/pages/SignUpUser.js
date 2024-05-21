@@ -71,13 +71,13 @@ const SignUpUser = ({ role }) => {
             <h1>
               Sign up as {role === "student" ? "a" : "an"} {role}
             </h1>
-            {serverError?.username ||
+            {(serverError?.username ||
               serverError?.email ||
-              (serverError?.password && (
-                <Alert variant={"danger"}>
-                  There was an error creating your account
-                </Alert>
-              ))}
+              serverError?.password) && (
+              <Alert variant={"danger"}>
+                There was an error creating your account
+              </Alert>
+            )}
             <Form noValidate validated={validated} onSubmit={handleSubmit}>
               <Form.Group className="signup-username">
                 <Form.Floating className="mb-3">
