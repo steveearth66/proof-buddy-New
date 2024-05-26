@@ -2,11 +2,14 @@ import "../scss/_persistent-pad.scss";
 import { useState, useEffect, useRef } from "react";
 import useDoubleClick from "use-double-click";
 import Col from "react-bootstrap/Col";
+import { useCollapsing } from "../hooks/useCollapsing";
 
 export default function PersistentPad({ equation, onHighlightChange, side }) {
   const [highlightedText, setHighlightedText] = useState("");
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
+  const [controlPressed, setControlPressed] = useState(false);
   const padRef = useRef(null);
+  const { handleCollapsing } = useCollapsing();
 
   useDoubleClick({
     onSingleClick: (e) => {
@@ -17,11 +20,24 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     onDoubleClick: (e) => {
       e.stopPropagation();
       e.preventDefault();
-      handelSelection();
+      if (!controlPressed) {
+        handelSelection();
+      }
+      doCollapse();
+      console.log("Ctrl + Double Click");
     },
     ref: padRef,
     latency: 250
   });
+
+  const doCollapse = () => {
+    const range = window.getSelection().getRangeAt(0);
+    const startOffset = range.startOffset;
+    const endOffset = range.endOffset;
+
+    const selectionRange = { start: startOffset, end: endOffset };
+    console.log(handleCollapsing(equation, selectionRange));
+  };
 
   const handelSelection = () => {
     try {
@@ -270,6 +286,29 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
       }
     });
   }, [equation, side]);
+
+  useEffect(() => {
+    const keyEvent = (e) => {
+      if (e.key === "Control" && e.key === "m") {
+        console.log("Ctrl + m pressed");
+        setControlPressed(true);
+      }
+    };
+
+    const keyEventUp = (e) => {
+      if (e.key === "Control" && e.key === "m") {
+        setControlPressed(false);
+      }
+    };
+
+    window.addEventListener("keydown", keyEvent);
+    window.addEventListener("keyup", keyEventUp);
+
+    return () => {
+      window.removeEventListener("keydown", keyEvent);
+      window.removeEventListener("keyup", keyEventUp);
+    };
+  }, []);
 
   return (
     <Col xs={8}>
