@@ -225,21 +225,19 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
   }, []);
 
   const substituteFieldWithApiCheck = useCallback(
-    ({ substitution, rule }) => {
+    async ({ substitution, rule }) => {
       const data = {
         substitution,
         rule,
         startPosition,
         currentRacket,
-        name,
-        tag,
         side
       };
 
-      console.log(data);
-      setSubstitutionErrors(["Substitution is not implemented yet!"]);
+      const response = await erService.substitution(data);
+      console.log(response);
     },
-    [currentRacket, name, side, startPosition, tag]
+    [currentRacket, side, startPosition]
   );
 
   return [

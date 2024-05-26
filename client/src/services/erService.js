@@ -79,12 +79,26 @@ const clearProof = async () => {
   }
 };
 
+const substitution = async (data) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/er-substitution`,
+      data
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during substitution:");
+    throw error;
+  }
+};
+
 const erService = {
   checkGoal,
   racketGeneration,
   createDefinition,
   completeProof,
-  clearProof
+  clearProof,
+  substitution
 };
 
 export default erService;
