@@ -4,7 +4,7 @@ import copy
 from .Parser import buildTree, preProcess
 from .Labeler import labelTree  # , fillPositions
 from .Decorator import decorateTree, remTemps, checkFunctions
-
+import sympy as sp
 
 # recursively check if two nodes are identical #TODO: replace elif chain with something prettier
 def isMatch(xNode: Node, yNode: Node) -> bool:
@@ -388,6 +388,24 @@ class FirstList(Rule):
             origList.children[0].data = "'("
         return origList.children[0]
 
+class advMath(Rule):
+    
+    def __init__(self):
+        super().__init__('advMath')
+
+# presumes buildtree checked types/qty already for main node and the subnode
+# "subnode" is the exptree created by the user in the Substitution pane.
+    def isApplicable(self, ruleNode: Node, subNode:Node) -> tuple[bool, str]:  # presumes buildtree checked types/qty already
+        for node in [ruleNode, subNode]:
+            if not node.allMath():
+                return False, f'Math rule requires only math functions, but {"main" if node==ruleNode else "substitute"} expression had {node.funcSet()-set(["+","-","*","expt", "quotient","remainder"])}'
+        if not sp.sympify(ruleNode.mathStr()).equals(sp.sympify(subNode.mathStr())):
+            return False, f"main and substitute expressions are not equivalent"
+        return True, "advMath.isApplicable() PASS"
+
+    # note: ERproofline.applyRule will take care of proper highlight position etc
+    def insertSubstitution(self, ruleNode: Node, subNode: Node) -> Node:
+        return subNode
 
 def recursiveReplaceNodes(node: Node, params: list, values: list) -> None:
     if node.data in params:
