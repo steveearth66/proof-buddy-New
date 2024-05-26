@@ -14,6 +14,11 @@ def decorateTree(inputTree: Node, errLog, debug=False) -> tuple[Node, list[str]]
     if inputTree.type.getType() == Type.PARAM and not inputTree.data.isalpha():
         errLog.append(f"{inputTree.data} contains illegal characters")
         inputTree.type = RacType((None, Type.ERROR))
+    
+    #checking for nested quotes
+    if inputTree.data == "'(" and "'(" in inputTree.ancestors:
+        errLog.append(f"nested quotes are not allowed")
+        inputTree.type = RacType((None, Type.ERROR))
 
     # populate new Node attributes from the ERobjects, default Node.name is set to the Node.data attribute
     inputTree.name = inputTree.data
