@@ -3,6 +3,7 @@ from enum import Enum
 
 # special math characters. any other math uses ascii, such as expt, quotient, remainder. Note: "/" not permitted
 ARITHMETIC = ["+", "*", "-", "=", ">", "<"]
+MathSet = {"+","-","*","expt", "quotient","remainder"}
 class Type(Enum):
     TEMP = 'TEMP'
     BOOL = 'BOOL'
@@ -223,6 +224,48 @@ class Node:
                 domsList = slist[:ind] #everything before the >
                 domsTup = list2Tup(domsList) # 
         return
+    
+    # a node's getter method which returns a list of all its ancestors' data
+    def ancestors(self):
+        if self.parent == None:
+            return list()
+        return self.parent.ancestors()+[self.parent.data]
+    
+    #node method which returns set of all functions called in that node
+    def funcSet(self, ansSet=None):
+        if ansSet == None:
+            ansSet = set()
+        if not isinstance(self,Node) or self.data==None or \
+            self.children==[] or self.data=="'(":
+            return ansSet
+        ansSet.add(self.children[0].data)
+        for child in self.children:
+            ansSet = ansSet.union(child.funcSet(ansSet))
+        return ansSet
+    
+     #checks if node is all math functions
+    def allMath(self)->bool:
+        return self.funcSet().issubset(MathSet)
+    
+    #gives the non-racket infix string representation of a math expression
+    #note: this could include an outermost parens, but that won't effect equality check
+    def mathStr(self)->str:
+        if self.data==None or self.data=="" or not self.allMath(): #ensuring it's a node with a nonempty string
+            return "ERROR"
+        if self.data == "expt":
+            return "**"
+        if self.data == "quotient":
+            return "/"
+        if self.data == "remainder":
+            return "%"
+        if self.children==[]: #just a single int, symbol, or +,-,*
+            return self.data
+        # only case left should be a parenthesized expression, but just in case:
+        if self.data != "(" or len(self.children)!=3:
+            return "ERROR"
+        return "("+self.children[1].mathStr()+self.children[0].mathStr()+\
+            self.children[2].mathStr()+")"
+
 
     def replaceWith(self, newNode): #is there a better way to do this?
         self.data = newNode.data
