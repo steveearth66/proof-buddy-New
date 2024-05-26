@@ -267,7 +267,7 @@ class Node:
             self.children[2].mathStr()+")"
 
 
-    def replaceWith(self, newNode): #is there a better way to do this?
+    def replaceWith(self, newNode):
         self.data = newNode.data
         self.name = newNode.name
         self.type = newNode.type
@@ -276,6 +276,37 @@ class Node:
         self.children = newNode.children
         self.debug = newNode.debug
         #do NOT change self.parent, to maintain place in tree
+
+    """ #returns the set of string names of all functions within a node tree - eg (+ 3 (if (> 4 5) 6 7)) {'+', '>', 'if'}
+    def funcSet(self) -> set[str]:
+        sett = set()
+        self.funcSetHelper(sett)
+        return sett
+    
+    #recursive helper function for funcSet - searches through and adds all function names to the set
+    def funcSetHelper(self, sett:set[str]):
+        for c in self.children:
+            c.funcSetHelper(sett)
+        if self.type.isType("FUNCTION"):
+            sett.add(self.data) """
+
+    #returns the set of all params/symbols within a node tree - eg for (+ x (quotient y z)) {'x', 'y', 'z'}
+    def symbSet(self, ruleSet) -> set[str]:
+        sett = set()
+        self.symbSetHelper(sett, ruleSet)
+        return sett
+
+    #recursive helper function for symbSet - searches through and adds all symbols to set
+    def symbSetHelper(self, sett:set[str], ruleSet):
+        from .ERRuleset import UDF
+        for c in self.children:
+            c.symbSetHelper(sett, ruleSet)
+        if self.data in ruleSet.keys():
+            if isinstance(ruleSet[self.data], UDF):
+                sett.add(self.data)
+
+    def allMathNoSymbols(self, ruleSet) -> bool:
+        return self.funcSet().issubset(MathSet) and not self.symbSet(ruleSet)
 
 # this takes in a list of parenthesized string tokens and splits it into ans[0]= token list of first element, ans[1]=token list of parenthesized rest
 # example: "(INT,LIST,BOOL)" would be [INT, (LIST,BOOL)], all tokenized.  also [((INT,BOOL)>LIST, BOOL)] would be [(INT,BOOL)>LIST, (BOOL)]

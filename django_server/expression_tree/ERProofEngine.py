@@ -23,6 +23,7 @@ class ERProof:
             'logic': Logic(),
             'restList': RestList(),
             'firstList': FirstList(),
+            'advMath': advMath(),
             #'doubleFront': DoubleFront(),  # this is fake for demo. remove when UDF working
         }
         self.proofLines = []
@@ -50,9 +51,15 @@ class ERProof:
 
     def addUDF(self, label, typeStr, body):
         labelList = Parser.preProcess(label)[0]
+        index = 0
+        for i in range(len(labelList)):
+            if labelList[i] != '(':
+                break
+            index += 1
+        
         # really need to count to first non (, also think about if there could ever be )) at end or just always single )
-        paramsList = labelList[2:-1]
-        udfLabel = labelList[1]
+        paramsList = labelList[index+1:-1]
+        udfLabel = labelList[index]
         racTypeObj = str2Type(typeStr)
         bodyNode = ERProofLine(body)
         if bodyNode.errLog != []:
@@ -60,8 +67,9 @@ class ERProof:
         if not (udfLabel not in self.ruleSet.keys() and udfLabel not in reservedLabels):
             self.errLog.append(
                 f"'{udfLabel}' is an invalid label for your Definition")
-        if len(paramsList) != len(racTypeObj.getDomain()):
-            self.errLog.append(f"Cannot map {len(paramsList)} parameters to {len(racTypeObj.getDomain())} types")
+        if racTypeObj.getDomain() != None:
+            if len(paramsList) != len(racTypeObj.getDomain()):
+                self.errLog.append(f"Cannot map {len(paramsList)} parameters to {len(racTypeObj.getDomain())} types")
         if self.errLog == []:
             param2TypeDict = {}
             for j in range(len(paramsList)):
@@ -130,14 +138,10 @@ def updatePositions(inputTree: Node, count: int = 0) -> tuple[Node, int]:
 def fillBody(bodyNode, udfLabel, racTypeObj, param2TypeDict):
     if bodyNode.data == udfLabel:
         bodyNode.type = racTypeObj
+        bodyNode.numArgs = len(param2TypeDict)
     elif bodyNode.data in param2TypeDict.keys():
         bodyNode.type = param2TypeDict[bodyNode.data]
-    try: #this seems to have issues with the both of (f x y) as (* x y)
-        if bodyNode.type.isType("FUNCTION"):
-            bodyNode.numArgs = len(bodyNode.type.getDomain())
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        bodyNode.numArgs = 0 
+        bodyNode.numArgs = len(param2TypeDict)
     for i, c in enumerate(bodyNode.children):
         bodyNode.children[i] = fillBody(c, udfLabel, racTypeObj, param2TypeDict)
     return bodyNode
