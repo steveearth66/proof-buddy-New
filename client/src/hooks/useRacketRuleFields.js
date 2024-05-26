@@ -20,6 +20,7 @@ import logger from "../utils/logger";
 const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
   const [serverError, handleServerError, clearServerError] = useServerError();
   const [racketErrors, setRacketErrors] = useState([]);
+  const [showSubstitution, setShowSubstitution] = useState(false);
   const [racketRuleFields, setRacketRuleFields] = useState({
     LHS: [],
     RHS: []
@@ -28,6 +29,36 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
     LHS: [],
     RHS: []
   });
+  const [substitutionErrors, setSubstitutionErrors] = useState([]);
+
+  // Function to update the showSubstitution state
+  const updateShowSubstitution = () => {
+    setSubstitutionErrors([]);
+
+    if (startPosition < 1) {
+      alert("Please select a keyword to substitute!");
+      return;
+    }
+
+    const sideFields = racketRuleFields[side];
+    const undeletedProofLines = sideFields.filter((line) => {
+      return !line.deleted;
+    });
+    const lastUnDeletedFieldIndex = undeletedProofLines.length - 1;
+
+    if (undeletedProofLines.length > 0) {
+      const ruleValue = undeletedProofLines[lastUnDeletedFieldIndex].rule;
+      if (ruleValue.trim().length > 0) {
+        alert("Rule for Substitution entered in different window");
+      }
+    }
+
+    setShowSubstitution((prev) => !prev);
+  };
+
+  const closeSubstitution = () => {
+    setShowSubstitution(false);
+  };
 
   /**
    * A callback function to fetch a racket value for a given rule.
@@ -162,7 +193,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
     []
   );
 
-    /**
+  /**
    * A callback function that removes the last proof line after premise.
    * It sets the `deleted` flag to true for the last line that is not already deleted.
    * This so that the deleted lines are saved in the database.
@@ -193,6 +224,22 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
     });
   }, []);
 
+  const substituteFieldWithApiCheck = useCallback(
+    async ({ substitution, rule }) => {
+      const data = {
+        substitution,
+        rule,
+        startPosition,
+        currentRacket,
+        side
+      };
+
+      const response = await erService.substitution(data);
+      console.log(response);
+    },
+    [currentRacket, side, startPosition]
+  );
+
   return [
     racketRuleFields,
     addFieldWithApiCheck,
@@ -200,7 +247,12 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
     validationErrors,
     serverError,
     racketErrors,
-    deleteLastLine
+    deleteLastLine,
+    updateShowSubstitution,
+    showSubstitution,
+    closeSubstitution,
+    substituteFieldWithApiCheck,
+    substitutionErrors
   ];
 };
 

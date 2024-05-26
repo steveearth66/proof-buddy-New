@@ -1,10 +1,27 @@
 import "../scss/_persistent-pad.scss";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import useDoubleClick from "use-double-click";
 import Col from "react-bootstrap/Col";
 
 export default function PersistentPad({ equation, onHighlightChange, side }) {
   const [highlightedText, setHighlightedText] = useState("");
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
+  const padRef = useRef(null);
+
+  useDoubleClick({
+    onSingleClick: (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      highlightWordOrNumber();
+    },
+    onDoubleClick: (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      handelSelection();
+    },
+    ref: padRef,
+    latency: 250
+  });
 
   const handelSelection = () => {
     try {
@@ -18,6 +35,35 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     } catch (error) {
       console.error("Error while highlighting selection: ", error);
     }
+  };
+
+  const highlightWordOrNumber = () => {
+    setHighlightedText("");
+    const range = window.getSelection().getRangeAt(0);
+    const startOffset = range.startOffset;
+    const endOffset = range.endOffset;
+
+    const selectionRange = { start: startOffset, end: endOffset };
+    const start = selectionRange.start;
+    const end = selectionRange.end;
+
+    let startWord = start;
+    while (startWord > 0 && !equation[startWord - 1].match(/\s|\(/)) {
+      startWord--;
+    }
+
+    let endWord = end;
+    while (endWord < equation.length && !equation[endWord].match(/\s|\)/)) {
+      endWord++;
+    }
+
+    const highlightedText = equation.substring(startWord, endWord);
+    setHighlightedText(highlightedText);
+    onHighlightChange(startWord);
+    setSelectionRange({
+      start: startWord,
+      end: endWord
+    });
   };
 
   const handelHighlight = (selectionRange) => {
@@ -168,6 +214,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     e.preventDefault();
     setHighlightedText("");
 
+    onHighlightChange(-1);
     const savedHighlights = JSON.parse(
       sessionStorage.getItem("highlights") || "[]"
     );
@@ -227,7 +274,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
   return (
     <Col xs={8}>
       <p
-        onClick={handelSelection}
+        ref={padRef}
         onContextMenu={clearHighlight}
         dangerouslySetInnerHTML={{
           __html: highlightedText
