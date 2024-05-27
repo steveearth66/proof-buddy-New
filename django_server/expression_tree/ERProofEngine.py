@@ -3,6 +3,7 @@ from .ERRuleset import *
 import expression_tree.Parser as Parser
 import expression_tree.Labeler as Labeler
 import expression_tree.Decorator as Decorator
+import copy
 
 reservedLabels = ["cons", "if", "first", "rest", "null?", "cons?", "zero?", "consList", "expt", "quotient",
                   "remainder", "and", "or", "not", "implies", "nand", "iff", "nor", "xor", ">", "<", "+", "-", "*"]
@@ -30,14 +31,21 @@ class ERProof:
         self.errLog = []
         self.debug = debug
 
-    def addProofLine(self, lineStr, ruleStr=None, highlightPos=0):
+    def addProofLine(self, lineStr, ruleStr=None, highlightPos=0, substitution=None):
         #prooflines now contain pointers to their proof's ruleset so they can refer to UDFs
+        if substitution != None:
+            subLine = ERProofLine(substitution, self.debug, self.ruleSet) 
+
         proofLine = ERProofLine(lineStr, self.debug, self.ruleSet) 
+
         if proofLine.errLog == None:
             proofLine.errLog = []
         if proofLine.errLog == []:
             if ruleStr != None:
-                proofLine.applyRule(self.ruleSet, ruleStr, highlightPos)
+                if substitution!=None:
+                    proofLine.applySubsitution(self.ruleSet, ruleStr, highlightPos, subLine)
+                else:
+                    proofLine.applyRule(self.ruleSet, ruleStr, highlightPos)
             if proofLine.errLog != []:
                 self.errLog.extend(proofLine.errLog)
         else:
@@ -110,11 +118,10 @@ class ERProofLine:
                 f'Could not find Token with starting index {startPos}')
         if not (rule in ruleSet.keys()):
             self.errLog.append(f'Could not find rule associated with {rule}')
-        elif self.errLog == []:
-            #checking to see if highlighted portion is within a quote
-            if "'(" in targetNode.ancestors():
-                self.errLog.append(f"Cannot apply rules within a quoted expression")
-                return        
+        #checking to see if highlighted portion is within a quote
+        if "'(" in targetNode.ancestors():
+            self.errLog.append(f"Cannot apply rules within a quoted expression")
+        if self.errLog == []:       
             selectedRule = ruleSet[rule]
             isApplicable, error = selectedRule.isApplicable(targetNode)
             if isApplicable:
@@ -125,6 +132,28 @@ class ERProofLine:
                 updatePositions(self.exprTree)
             else:
                 self.errLog.append(error)
+    def applySubsitution(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subNode:Node):
+        targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
+        if targetNode == None:
+            self.errLog.append(
+                f'Could not find Token with starting index {startPos}')
+        if not (rule in ruleSet.keys()):
+            self.errLog.append(f'Could not find rule associated with {rule}')
+        #checking to see if highlighted portion is within a quote
+        if "'(" in targetNode.ancestors():
+            self.errLog.append(f"Cannot apply rules within a quoted expression")
+        if self.errLog == []:
+            subNode.applyRule(ruleSet, rule, 0)
+            if subNode.errLog != []:
+                self.errLog.extend(subNode.errLog)
+            elif subNode != targetNode:
+                self.errLog.append(f"substitution evaluated to {str(subNode)} but expected {str(targetNode)}")
+        if self.errLog == []:
+            targetNode.replaceWith(subNode)
+            # print(str(self.exprTree)) # should print updated tree
+            updatePositions(self.exprTree)
+        
+
 
 
 def updatePositions(inputTree: Node, count: int = 0) -> tuple[Node, int]:
