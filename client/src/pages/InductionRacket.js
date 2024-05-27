@@ -20,7 +20,12 @@ import { useFormSubmit } from "../hooks/useFormSubmit";
 import "../scss/_forms.scss";
 import "../scss/_er-racket.scss";
 import { useExportToLocalMachine } from "../hooks/useExportToLocalMachine";
-import { Definitions, ProofComplete, PersistentPad } from "../components";
+import {
+  Definitions,
+  ProofComplete,
+  PersistentPad,
+  Substitution
+} from "../components";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import erService from "../services/erService";
 
@@ -64,6 +69,11 @@ const InductionRacket = () => {
     serverError,
     racketErrors,
     deleteLastLine,
+    updateShowSubstitution,
+    showSubstitution,
+    closeSubstitution,
+    substituteFieldWithApiCheck,
+    substitutionErrors,
     sendProofComplete
   ] = useRacketRuleFields(
     startPosition,
@@ -216,6 +226,16 @@ const InductionRacket = () => {
         )}
 
         {showProofComplete && <ProofComplete />}
+
+        {showSubstitution && (
+          <Substitution
+            show={showSubstitution}
+            handleClose={() => closeSubstitution()}
+            racketRuleFields={racketRuleFields[showSide]}
+            handleSubstitution={substituteFieldWithApiCheck}
+            errors={substitutionErrors}
+          />
+        )}
 
         <Form
           noValidate
@@ -860,7 +880,10 @@ const InductionRacket = () => {
                         >
                           Generate & Check
                         </Button>
-                        <Button className="orange-btn green-btn">
+                        <Button
+                          className="orange-btn green-btn"
+                          onClick={() => updateShowSubstitution()}
+                        >
                           Substitution
                         </Button>
                       </Col>
