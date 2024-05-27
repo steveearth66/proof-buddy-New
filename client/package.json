@@ -16,6 +16,7 @@
     "react-router-dom": "^6.18.0",
     "react-scripts": "5.0.1",
     "sass": "^1.69.5",
+    "use-double-click": "^1.0.5",
     "web-vitals": "^2.1.4"
   },
   "scripts": {

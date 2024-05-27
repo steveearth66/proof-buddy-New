@@ -14,6 +14,11 @@ def decorateTree(inputTree: Node, errLog, debug=False) -> tuple[Node, list[str]]
     if inputTree.type.getType() == Type.PARAM and not inputTree.data.isalpha():
         errLog.append(f"{inputTree.data} contains illegal characters")
         inputTree.type = RacType((None, Type.ERROR))
+    
+    #checking for nested quotes
+    if inputTree.data == "'(" and "'(" in inputTree.ancestors:
+        errLog.append(f"nested quotes are not allowed")
+        inputTree.type = RacType((None, Type.ERROR))
 
     # populate new Node attributes from the ERobjects, default Node.name is set to the Node.data attribute
     inputTree.name = inputTree.data
@@ -24,7 +29,10 @@ def decorateTree(inputTree: Node, errLog, debug=False) -> tuple[Node, list[str]]
             erObj = pdict[inputTree.data]
             inputTree.length = erObj.length
         elif inputTree.type.isType("INT"):
-            inputTree.name = int(inputTree.data)
+            try:
+                inputTree.name = int(inputTree.data)
+            except:
+                inputTree.name = None # is this sufficient for error handling?
         elif inputTree.type.isType("BOOL"):
             erObj = pdict[inputTree.data.lower()]
             inputTree.name = erObj.value
