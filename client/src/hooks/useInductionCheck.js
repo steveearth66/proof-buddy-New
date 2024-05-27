@@ -72,6 +72,16 @@ const useInductionCheck = (handleChange) => {
     leapVariable,
     inductionType
   ) => {
+    if (!name) {
+      setProofValidationMessage({ name: "Please provide a name." });
+      return;
+    }
+
+    if (!tag) {
+      setProofValidationMessage({ tag: "Please provide a tag." });
+      return;
+    }
+
     if (!inductionVariable) {
       setProofValidationMessage({
         inductionVariable: "Please provide an induction variable."

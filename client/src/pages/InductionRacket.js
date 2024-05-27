@@ -43,7 +43,7 @@ const InductionRacket = () => {
     inductionVariable: "",
     inductionValue: "",
     leapVariable: "",
-    inductionType: "integers"
+    inductionType: ""
   };
 
   const [showSide, toggleSide] = useToggleSide();
@@ -310,12 +310,14 @@ const InductionRacket = () => {
                       clearProofValidationMessage();
                     }}
                     onChange={handleChange}
-                    // isInvalid={!!proofValidationMessage.tag}
+                    isInvalid={
+                      !!proofValidationMessage.tag || !!validationMessages.tag
+                    }
                     required
                   />
                   <label htmlFor="eRProofTag"># Tag</label>
                   <Form.Control.Feedback type="invalid" tooltip>
-                    {/* {proofValidationMessage.tag} */}
+                    {proofValidationMessage.tag || validationMessages.tag}
                   </Form.Control.Feedback>
                 </Form.Floating>
               </Form.Group>
