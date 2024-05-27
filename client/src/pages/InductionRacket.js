@@ -480,7 +480,7 @@ const InductionRacket = () => {
                         name="rHSLeapGoal"
                         type="text"
                         placeholder="RHS Leap Goal"
-                        value={formValues.rHSAnchor}
+                        value={formValues.rHSLeapGoal}
                         onBlur={() => handleBlur("rHSLeapGoal")}
                         onChange={enhancedHandleChange}
                         isInvalid={
