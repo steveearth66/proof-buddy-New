@@ -29,7 +29,10 @@ def decorateTree(inputTree: Node, errLog, debug=False) -> tuple[Node, list[str]]
             erObj = pdict[inputTree.data]
             inputTree.length = erObj.length
         elif inputTree.type.isType("INT"):
-            inputTree.name = int(inputTree.data)
+            try:
+                inputTree.name = int(inputTree.data)
+            except:
+                inputTree.name = None # is this sufficient for error handling?
         elif inputTree.type.isType("BOOL"):
             erObj = pdict[inputTree.data.lower()]
             inputTree.name = erObj.value

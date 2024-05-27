@@ -103,6 +103,10 @@ class ERProofLine:
         if not (rule in ruleSet.keys()):
             self.errLog.append(f'Could not find rule associated with {rule}')
         elif self.errLog == []:
+            #checking to see if highlighted portion is within a quote
+            if "'(" in targetNode.ancestors():
+                self.errLog.append(f"Cannot apply rules within a quoted expression")
+                return        
             selectedRule = ruleSet[rule]
             isApplicable, error = selectedRule.isApplicable(targetNode)
             if isApplicable:
