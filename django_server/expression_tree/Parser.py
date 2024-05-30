@@ -52,6 +52,14 @@ def preProcess(inputString: str, errLog: list[str] = None, debug=False) -> tuple
         if char not in AllowedChars:
             errLog.append(f"{char} not an allowed character")
 
+# checking to make sure that only lists get quoted
+        nospace = inputString.replace(" ", "")
+        if nospace[-1]=="'":
+            errLog.append("cannot end an expression with a single quote")
+        for i in range(len(nospace)-1):
+            if nospace[i] == "'" and nospace[i+1] != "(":
+                errLog.append("only lists can be quoted")
+
         # parenPairing should only return to 0 at the very end of the input string
         if char == '(':
             parenPairing += 1

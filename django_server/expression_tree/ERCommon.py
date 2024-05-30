@@ -3,6 +3,7 @@ from enum import Enum
 
 # special math characters. any other math uses ascii, such as expt, quotient, remainder. Note: "/" not permitted
 ARITHMETIC = ["+", "*", "-", "=", ">", "<"]
+MathSet = {"+","-","*","expt", "quotient","remainder"}
 class Type(Enum):
     TEMP = 'TEMP'
     BOOL = 'BOOL'
@@ -223,8 +224,50 @@ class Node:
                 domsList = slist[:ind] #everything before the >
                 domsTup = list2Tup(domsList) # 
         return
+    
+    # a node's getter method which returns a list of all its ancestors' data
+    def ancestors(self):
+        if self.parent == None:
+            return list()
+        return self.parent.ancestors()+[self.parent.data]
+    
+    #node method which returns set of all functions called in that node
+    def funcSet(self, ansSet=None):
+        if ansSet == None:
+            ansSet = set()
+        if not isinstance(self,Node) or self.data==None or \
+            self.children==[] or self.data=="'(":
+            return ansSet
+        ansSet.add(self.children[0].data)
+        for child in self.children:
+            ansSet = ansSet.union(child.funcSet(ansSet))
+        return ansSet
+    
+     #checks if node is all math functions
+    def allMath(self)->bool:
+        return self.funcSet().issubset(MathSet)
+    
+    #gives the non-racket infix string representation of a math expression
+    #note: this could include an outermost parens, but that won't effect equality check
+    def mathStr(self)->str:
+        if self.data==None or self.data=="" or not self.allMath(): #ensuring it's a node with a nonempty string
+            return "ERROR"
+        if self.data == "expt":
+            return "**"
+        if self.data == "quotient":
+            return "/"
+        if self.data == "remainder":
+            return "%"
+        if self.children==[]: #just a single int, symbol, or +,-,*
+            return self.data
+        # only case left should be a parenthesized expression, but just in case:
+        if self.data != "(" or len(self.children)!=3:
+            return "ERROR"
+        return "("+self.children[1].mathStr()+self.children[0].mathStr()+\
+            self.children[2].mathStr()+")"
 
-    def replaceWith(self, newNode): #is there a better way to do this?
+
+    def replaceWith(self, newNode):
         self.data = newNode.data
         self.name = newNode.name
         self.type = newNode.type
@@ -233,6 +276,37 @@ class Node:
         self.children = newNode.children
         self.debug = newNode.debug
         #do NOT change self.parent, to maintain place in tree
+
+    """ #returns the set of string names of all functions within a node tree - eg (+ 3 (if (> 4 5) 6 7)) {'+', '>', 'if'}
+    def funcSet(self) -> set[str]:
+        sett = set()
+        self.funcSetHelper(sett)
+        return sett
+    
+    #recursive helper function for funcSet - searches through and adds all function names to the set
+    def funcSetHelper(self, sett:set[str]):
+        for c in self.children:
+            c.funcSetHelper(sett)
+        if self.type.isType("FUNCTION"):
+            sett.add(self.data) """
+
+    #returns the set of all params/symbols within a node tree - eg for (+ x (quotient y z)) {'x', 'y', 'z'}
+    def symbSet(self, ruleSet) -> set[str]:
+        sett = set()
+        self.symbSetHelper(sett, ruleSet)
+        return sett
+
+    #recursive helper function for symbSet - searches through and adds all symbols to set
+    def symbSetHelper(self, sett:set[str], ruleSet):
+        from .ERRuleset import UDF
+        for c in self.children:
+            c.symbSetHelper(sett, ruleSet)
+        if self.data in ruleSet.keys():
+            if isinstance(ruleSet[self.data], UDF):
+                sett.add(self.data)
+
+    def allMathNoSymbols(self, ruleSet) -> bool:
+        return self.funcSet().issubset(MathSet) and not self.symbSet(ruleSet)
 
 # this takes in a list of parenthesized string tokens and splits it into ans[0]= token list of first element, ans[1]=token list of parenthesized rest
 # example: "(INT,LIST,BOOL)" would be [INT, (LIST,BOOL)], all tokenized.  also [((INT,BOOL)>LIST, BOOL)] would be [(INT,BOOL)>LIST, (BOOL)]

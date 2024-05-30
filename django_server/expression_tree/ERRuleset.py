@@ -4,9 +4,9 @@ import copy
 from .Parser import buildTree, preProcess
 from .Labeler import labelTree  # , fillPositions
 from .Decorator import decorateTree, remTemps, checkFunctions
+import sympy as sp
 
-
-# recursively check if two nodes are identical #TODO: replace elif chain with something prettier
+# recursively check if two nodes are identical
 def isMatch(xNode: Node, yNode: Node) -> bool:
     if xNode.data != yNode.data:  # or len(xNode.children) != len(yNode.children): #since BRacket has set # inputs for a function, data same is enough for #children same       #xNode.name != yNode.name or \
        # xNode.numArgs != yNode.numArgs or \
@@ -388,6 +388,24 @@ class FirstList(Rule):
             origList.children[0].data = "'("
         return origList.children[0]
 
+class advMath(Rule):
+    
+    def __init__(self):
+        super().__init__('advMath')
+
+# presumes buildtree checked types/qty already for main node and the subnode
+# "subnode" is the exptree created by the user in the Substitution pane.
+    def isApplicable(self, ruleNode: Node, subNode:Node) -> tuple[bool, str]:  # presumes buildtree checked types/qty already
+        for node in [ruleNode, subNode]:
+            if not node.allMath():
+                return False, f'Math rule requires only math functions, but {"main" if node==ruleNode else "substitute"} expression had {node.funcSet()-set(["+","-","*","expt", "quotient","remainder"])}'
+        if not sp.sympify(ruleNode.mathStr()).equals(sp.sympify(subNode.mathStr())):
+            return False, f"main and substitute expressions are not equivalent"
+        return True, "advMath.isApplicable() PASS"
+
+    # note: ERproofline.applyRule will take care of proper highlight position etc
+    def insertSubstitution(self, ruleNode: Node, subNode: Node) -> Node:
+        return subNode
 
 def recursiveReplaceNodes(node: Node, params: list, values: list) -> None:
     if node.data in params:
@@ -395,3 +413,20 @@ def recursiveReplaceNodes(node: Node, params: list, values: list) -> None:
         node.replaceWith(values[index])
     for child in node.children:
         recursiveReplaceNodes(child, params, values)
+
+""" #Unfinished recursive advmath for stage 1 math specification
+class AdvMath(Rule):
+    def __init__(self):
+        super().__init__('advMath')
+
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        if ruleNode.isArith():
+            return True, "AdvMath.isApplicable() PASS"
+        else:
+            return False, "Cannot apply advMath rule to non-arithmetic expression" #TODO temp
+        
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        for child in ruleNode.children:
+            if Math.isApplicable(child):
+                child = AdvMath().insertSubstitution(child)
+        ruleNode = Math().insertSubstitution(ruleNode) """

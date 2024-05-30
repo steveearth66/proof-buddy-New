@@ -1,8 +1,9 @@
 #from django.test import TestCase
 
 # Create your tests here.
-from expression_tree.ERProofEngine import ERProof
-from expression_tree.ERCommon import str2Type
+from expression_tree.ERProofEngine import ERProof, ERProofLine
+from expression_tree.ERCommon import Node
+import sympy as sp
 
 err_strings = [
     # expected errs
@@ -113,15 +114,56 @@ for trial in Log_err_strings+Log_good_strgs:
 print("\nUDF testing:\n")
 proof=ERProof()
 proof.addUDF("(f x y)", "(INT,INT)>INT", "(* x y)")
-# is correct:  proof.ruleSet['f'].racType
 proof.addProofLine("(f 3 4)", "f")
+print("(f x y) defined as (* x y)")
+print("input: (f 3 4), using rule f")
 ans = str(proof.errLog if proof.errLog != [] else proof.getPrevRacket())
 expected = "(* 3 4)"
 word = "errors" if isinstance(expected, list) else "output"
-
 if ans == expected:
     print(f"PASS: expected {word}: {ans}\n")
 else:
     print(f"FAIL! expected {word}: {expected} but got: {ans}\n")
     fails += 1
-print("all tests passed!\n" if fails == 0 else f"number of fails: {fails}\n")
+
+#node method tests for funcset, ancestor, allMath, mathstr: method, expr, expected
+methTests = [
+("funcset", "(+ (- 9 (* 2 3)) (quotient (+ 2 8) (remainder 7 3)))",\
+ {'-', 'remainder', 'quotient', '*', '+'}),
+("ancestors", "(+ (- 9 (* 2 3)) (quotient (+ 2 8) (remainder 7 3)))", ['(', '(']),
+("allMath", "(+ (- 9 (* 2 3)) (quotient (+ 2 8) (remainder 7 3)))","True"),
+("allMath", "(+ 3 (if #t 1 1))","False"),
+("mathstr", "(expt 3 (if #t 2 2))","ERROR"),
+("mathstr", "(+ 2 3)","(2+3)"),
+("mathstr", "(expt x (+ 1 y))","(x**(1+y))"),
+("mathstr", "(+ (- 9 (* 2 3))(quotient (+ 2 8)(remainder 7 3)))","((9-(2*3))+((2+8)/(7%3)))"),
+("simp", "(expt (+ x 1) 2)" , "(x + 1)**2"),
+("simp", "(+ (+ (* x x) (* 2 x)) 1)", "x**2 + 2*x + 1"),
+("sub", ["(expt (+ x 1) 2)","(+ (+ (* x x) (* 2 x)) 2)"], "False"),
+("sub", ["(expt (+ x 1) 2)","(+ (+ (* x x) (* 2 x)) 1)"], "True"),
+]
+for meth,expr, expected in methTests:
+    if meth!="sub": #substitution test takes in 2 expressions
+        expTree = ERProofLine(expr).exprTree
+    if meth == "funcset":
+        ans = expTree.funcSet()
+    elif meth == "ancestors":
+        qnode = expTree.children[2].children[1]
+        ans = qnode.ancestors()
+    elif meth == "allMath":
+        ans = str(expTree.allMath())
+    elif meth == "mathstr":
+        ans = expTree.mathStr()
+    elif meth == "simp":
+        ans = str(sp.sympify(expTree.mathStr()))
+    elif meth == "sub":
+        exp1 = ERProofLine(expr[0]).exprTree
+        exp2 = ERProofLine(expr[1]).exprTree
+        ans = str(sp.sympify(exp1.mathStr()).equals(sp.sympify(exp2.mathStr())))
+    print(f"{'PASS' if ans==expected else 'FAIL'}: for input={expTree if meth!='sub' else [str(exp1),str(exp2)]} with method {meth}, expected {expected} and got={ans}")
+    if ans!=expected:
+        fails += 1
+
+print("\nall tests passed!\n" if fails == 0 else f"number of fails: {fails}\n")
+#proof.addProofLine(expr, "math")
+#print(f"before rule = {expr}, after rule = {proof.getPrevRacket() if proof.errLog == [] else proof.errLog}")
