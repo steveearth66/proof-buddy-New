@@ -32,6 +32,17 @@ def login(request):
     return Response({'message': 'Invalid username/password'}, status=status.HTTP_400_BAD_REQUEST)
 
 
+@api_view(["POST"])
+def logout(request):
+    try:
+        user = User.objects.get(username=request.user)
+        token = Token.objects.get(user=user)
+        token.delete()
+    except Exception:
+        pass
+    return Response({"message": "Logged out"}, status=status.HTTP_200_OK)
+
+
 @api_view(['GET'])
 def get_user(request):
     try:
