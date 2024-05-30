@@ -183,14 +183,56 @@ def clear_proof(request):
 
     return Response(status=status.HTTP_200_OK)
 
-
+# called from the substitution window (generate and check), not from the main proof window
 @api_view(["POST"])
 def substitution(request):
     global users_proof
     user = request.user
     json_data = request.data
 
-    print(json_data)
+    is_p_one_active = json_data["side"] == "LHS"
+    proof_one: ERProof = users_proof[user]["proofOne"]
+    proof_two: ERProof = users_proof[user]["proofTwo"]
+
+    if is_p_one_active:
+        if proof_one.getPrevRacket() != json_data["currentRacket"]:
+            proof_two.addProofLine(
+                json_data["currentRacket"],
+                json_data["rule"],
+                json_data["startPosition"],
+                json_data["substitution"]
+            )
+        else:
+            proof_one.addProofLine(
+                json_data["currentRacket"],
+                json_data["rule"],
+                json_data["startPosition"],
+                json_data["substitution"]
+            )
+    elif proof_two.getPrevRacket() != json_data["currentRacket"]:
+        proof_one.addProofLine(
+            json_data["currentRacket"], json_data["rule"], json_data["startPosition"], json_data["substitution"]
+        )
+    else:
+        proof_two.addProofLine(
+            json_data["currentRacket"], json_data["rule"], json_data["startPosition"], json_data["substitution"]
+        )
+
+    update_current_proof(user, json_data["side"])
+    update_is_valid(user)
+
+    current_proof: ERProof = users_proof[user]["currentProof"]
+    is_valid = users_proof[user]["isValid"]
+
+    racket_str = (
+        current_proof.getPrevRacket() if is_valid else "Error generating racket"
+    )
+    errors = get_errors_and_clear(user)
+
+    return Response(
+        {"isValid": is_valid, "racket": racket_str, "errors": errors},
+        status=status.HTTP_200_OK,
+    )
 
     # {'substitution': '(+ 1 2)', 'rule': 'math', 'startPosition': 3, 'currentRacket': '(+ 3 5)', 'side': 'LHS'}
 
