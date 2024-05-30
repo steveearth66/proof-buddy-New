@@ -234,8 +234,34 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
         side
       };
 
-      const response = await erService.substitution(data);
-      console.log(response);
+      try {
+        const response = await erService.substitution(data);
+
+        if (response.isValid) {
+          setSubstitutionErrors([]);
+          setRacketRuleFields((prevFields) => ({
+            ...prevFields,
+            [side]: [
+              ...prevFields[side].slice(0, -1),
+              {
+                racket: response.racket,
+                rule: rule + "(SUB)",
+                deleted: false
+              },
+              { racket: "", rule: "", deleted: false }
+            ]
+          }));
+          closeSubstitution();
+          return true;
+        } else {
+          setSubstitutionErrors(response.errors);
+          return false;
+        }
+      } catch (error) {
+        setSubstitutionErrors(["Failed to substitute rule"]);
+        logger.error("Failed to fetch racket value:", error);
+        return false;
+      }
     },
     [currentRacket, side, startPosition]
   );
