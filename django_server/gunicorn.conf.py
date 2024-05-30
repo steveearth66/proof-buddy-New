@@ -1,6 +1,6 @@
 bind = "0.0.0.0:8000"
 backlog = 2048
-workers = 1  # 1 worker per core. In order to scale application, increase the number of workers. Todo implement saving users_poof to cache in order to access it from multiple workers
+workers = 10  # 1 worker per core. In order to scale application, increase the number of workers. Todo implement saving users_poof to cache in order to access it from multiple workers
 timeout = 120
 keepalive = 5
 
