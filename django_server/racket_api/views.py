@@ -4,26 +4,23 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from django.contrib.auth import get_user_model
 import copy
-from proofs.serializers import (
-    ProofSerializer,
-    ProofLineSerializer,
-    DefinitionSerializer,
-)
+from proofs.serializers import ProofLineSerializer
+from proofs.views import create_proof, create_proof_lines, create_proof_definitions
+from dill import dumps, loads
+from django.core.cache import cache
 
 User = get_user_model()
-
-users_proof = {}
 
 
 @api_view(["POST"])
 def apply_rule(request):
-    global users_proof
     user = request.user
     json_data = request.data
+    proof = get_or_set_proof(user)
 
     is_p_one_active = json_data["side"] == "LHS"
-    proof_one: ERProof = users_proof[user]["proofOne"]
-    proof_two: ERProof = users_proof[user]["proofTwo"]
+    proof_one: ERProof = proof["proofOne"]
+    proof_two: ERProof = proof["proofTwo"]
 
     if is_p_one_active:
         if proof_one.getPrevRacket() != json_data["currentRacket"]:
@@ -47,16 +44,18 @@ def apply_rule(request):
             json_data["currentRacket"], json_data["rule"], json_data["startPosition"]
         )
 
-    update_current_proof(user, json_data["side"])
-    update_is_valid(user)
+    proof = update_current_proof(proof, json_data["side"])
+    proof = update_is_valid(proof)
 
-    current_proof: ERProof = users_proof[user]["currentProof"]
-    is_valid = users_proof[user]["isValid"]
+    current_proof: ERProof = proof["currentProof"]
+    is_valid = proof["isValid"]
 
     racket_str = (
         current_proof.getPrevRacket() if is_valid else "Error generating racket"
     )
-    errors = get_errors_and_clear(user)
+    errors, proof = get_errors_and_clear(proof)
+
+    save_proof_to_cache(user, proof)
 
     return Response(
         {"isValid": is_valid, "racket": racket_str, "errors": errors},
@@ -66,38 +65,36 @@ def apply_rule(request):
 
 @api_view(["POST"])
 def check_goal(request):
-    global users_proof
     user = request.user
     json_data = request.data
-
-    create_user_proof(user)
+    proof = get_or_set_proof(user)
 
     is_p_one_active = json_data["side"] == "LHS"
-    proof_one: ERProof = users_proof[user]["proofOne"]
-    proof_two: ERProof = users_proof[user]["proofTwo"]
+    proof_one: ERProof = proof["proofOne"]
+    proof_two: ERProof = proof["proofTwo"]
     current_proof = proof_one if is_p_one_active else proof_two
 
     current_proof.addProofLine(json_data["goal"])
 
-    update_current_proof(user, json_data["side"])
-    update_is_valid(user)
-    is_valid = users_proof[user]["isValid"]
-    errors = get_errors_and_clear(user)
+    proof = update_current_proof(proof, json_data["side"])
+    proof = update_is_valid(proof)
+    is_valid = proof["isValid"]
+    errors, proof = get_errors_and_clear(proof)
+
+    save_proof_to_cache(user, proof)
 
     return Response({"isValid": is_valid, "errors": errors}, status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])
 def add_definitions(request):
-    global users_proof
     user = request.user
     json_data = request.data
+    proof = get_or_set_proof(user)
 
-    create_user_proof(user)
-
-    proof_one: ERProof = users_proof[user]["proofOne"]
-    proof_two: ERProof = users_proof[user]["proofTwo"]
-    definitions = users_proof[user]["definitions"]
+    proof_one: ERProof = proof["proofOne"]
+    proof_two: ERProof = proof["proofTwo"]
+    definitions = proof["definitions"]
 
     try:
         if json_data["label"] not in proof_one.ruleSet.keys():
@@ -116,19 +113,21 @@ def add_definitions(request):
 
     definitions.append(json_data)
 
-    update_current_proof(user, "LHS")
-    update_is_valid(user)
-    errors = get_errors_and_clear(user)
-    is_valid = users_proof[user]["isValid"]
+    proof = update_current_proof(proof, "LHS")
+    proof = update_is_valid(proof)
+    errors, proof = get_errors_and_clear(proof)
+    is_valid = proof["isValid"]
+
+    save_proof_to_cache(user, proof)
 
     return Response({"isValid": is_valid, "errors": errors}, status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])
 def complete_proof(request):
-    global users_proof
     user = request.user
     json_data = request.data
+    user_proof = get_or_set_proof(user)
     proof = create_proof(json_data, user)
 
     left_premise_data = json_data["leftPremise"]
@@ -166,7 +165,7 @@ def complete_proof(request):
     proof.isComplete = True
     proof.save()
 
-    definitions = users_proof[user]["definitions"]
+    definitions = user_proof["definitions"]
     create_proof_definitions(definitions, proof, user)
 
     clear_user_proofs(user)
@@ -176,23 +175,23 @@ def complete_proof(request):
 
 @api_view(["POST"])
 def clear_proof(request):
-    global users_proof
     user = request.user
 
     clear_user_proofs(user)
 
     return Response(status=status.HTTP_200_OK)
 
+
 # called from the substitution window (generate and check), not from the main proof window
 @api_view(["POST"])
 def substitution(request):
-    global users_proof
     user = request.user
     json_data = request.data
+    proof = get_or_set_proof(user)
 
     is_p_one_active = json_data["side"] == "LHS"
-    proof_one: ERProof = users_proof[user]["proofOne"]
-    proof_two: ERProof = users_proof[user]["proofTwo"]
+    proof_one: ERProof = proof["proofOne"]
+    proof_two: ERProof = proof["proofTwo"]
 
     if is_p_one_active:
         if proof_one.getPrevRacket() != json_data["currentRacket"]:
@@ -221,115 +220,47 @@ def substitution(request):
     update_current_proof(user, json_data["side"])
     update_is_valid(user)
 
-    current_proof: ERProof = users_proof[user]["currentProof"]
-    is_valid = users_proof[user]["isValid"]
+    current_proof: ERProof = proof["currentProof"]
+    is_valid = proof["isValid"]
 
     racket_str = (
         current_proof.getPrevRacket() if is_valid else "Error generating racket"
     )
     errors = get_errors_and_clear(user)
 
+    save_proof_to_cache(user, proof)
+
     return Response(
         {"isValid": is_valid, "racket": racket_str, "errors": errors},
         status=status.HTTP_200_OK,
     )
 
-    # {'substitution': '(+ 1 2)', 'rule': 'math', 'startPosition': 3, 'currentRacket': '(+ 3 5)', 'side': 'LHS'}
 
-    # return Response(
-    #     {"isValid": is_valid, "racket": racket_str, "errors": errors},
-    #     status=status.HTTP_200_OK,
-    # )
-
-    return Response(status=status.HTTP_200_OK)
-
-
-def create_proof(data, user):
-    proof_data = {
-        "name": data["name"],
-        "tag": data["tag"],
-        "lhs": data["lHSGoal"],
-        "rhs": data["rHSGoal"],
-    }
-
-    serializer = ProofSerializer(data=proof_data)
-
-    if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    return serializer.save(created_by=user)
-
-
-def create_proof_lines(lines, left_side, proof):
-    for line in lines:
-        racket = line["racket"]
-        rule = line["rule"]
-        try:
-            start_position = line["startPosition"]
-        except:
-            start_position = 0
-
-        proof_line_data = {
-            "left_side": left_side,
-            "racket": racket,
-            "rule": rule,
-            "start_position": start_position,
-        }
-
-        proof_line = ProofLineSerializer(data=proof_line_data)
-
-        if not proof_line.is_valid():
-            return Response(proof_line.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        proof_line.save(proof=proof)
-
-
-def create_proof_definitions(definitions, proof, user):
-    for definition in definitions:
-        definition_data = {
-            "label": definition["label"],
-            "def_type": definition["type"],
-            "expression": definition["expression"],
-            "notes": definition["notes"],
-        }
-
-        definition_serializer = DefinitionSerializer(data=definition_data)
-
-        if not definition_serializer.is_valid():
-            return Response(
-                definition_serializer.errors, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        definition_serializer.save(proof=proof, created_by=user)
-
-
-def update_current_proof(user, side):
-    global users_proof
-
-    proof_one: ERProof = users_proof[user]["proofOne"]
-    proof_two: ERProof = users_proof[user]["proofTwo"]
+def update_current_proof(proof, side):
+    proof_one: ERProof = proof["proofOne"]
+    proof_two: ERProof = proof["proofTwo"]
     is_p_one_active = side == "LHS"
 
     current_proof = proof_one if is_p_one_active else proof_two
 
-    users_proof[user]["currentProof"] = current_proof
+    proof["currentProof"] = current_proof
+
+    return proof
 
 
-def update_is_valid(user):
-    global users_proof
-
-    current_proof: ERProof = users_proof[user]["currentProof"]
+def update_is_valid(proof):
+    current_proof: ERProof = proof["currentProof"]
 
     if current_proof == None:
-        users_proof[user]["isValid"] = True
+        proof["isValid"] = True
     else:
-        users_proof[user]["isValid"] = current_proof.errLog == []
+        proof["isValid"] = current_proof.errLog == []
+
+    return proof
 
 
-def get_errors_and_clear(user):
-    global users_proof
-
-    current_proof: ERProof = users_proof[user]["currentProof"]
+def get_errors_and_clear(proof):
+    current_proof: ERProof = proof["currentProof"]
 
     if current_proof == None:
         return []
@@ -337,26 +268,27 @@ def get_errors_and_clear(user):
     prev_errors = copy.deepcopy(current_proof.errLog)
     current_proof.errLog = []
 
-    return prev_errors
+    return prev_errors, proof
 
 
 def clear_user_proofs(user):
-    global users_proof
-
-    try:
-        del users_proof[user]
-    except:
-        return None
+    cache.delete(f"proofs_{user.username}")
 
 
-def create_user_proof(user):
-    global users_proof
+def save_proof_to_cache(user, proof):
+    cache_proofs = dumps(proof)
+    cache.set(f"proofs_{user.username}", cache_proofs)
 
-    if user not in users_proof:
-        users_proof[user] = {
-            "proofOne": ERProof(),
-            "proofTwo": ERProof(),
-            "isValid": True,
-            "currentProof": None,
-            "definitions": [],
-        }
+
+def get_or_set_proof(user):
+    proof = {
+        "proofOne": ERProof(),
+        "proofTwo": ERProof(),
+        "isValid": True,
+        "currentProof": None,
+        "definitions": [],
+    }
+    cache_proofs = dumps(proof)
+    user_proof = cache.get_or_set(f"proofs_{user.username}", cache_proofs)
+    proof = loads(user_proof)
+    return proof
