@@ -57,18 +57,31 @@ class ERProof:
         return str(self.proofLines[-1].exprTree)
 
     def addUDF(self, label, typeStr, body):
-        labelList = Parser.preProcess(label)[0]
-        index = 0
-        for i in range(len(labelList)):
-            if labelList[i] != '(':
-                break
-            index += 1
-        
+        errLog = Parser.preProcess(label)[1]
+        if errLog != []:
+            self.errLog.extend(errLog)
+            return
+        ''' removing this since can get this a better way that deals with nested parens
+        # index = 0
+        # for i in range(len(labelList)):
+        #     if labelList[i] != '(':
+        #         break
+        #     index += 1
         # really need to count to first non (, also think about if there could ever be )) at end or just always single )
-        paramsList = labelList[index+1:-1]
-        udfLabel = labelList[index]
+        #paramsList = labelList[index+1:-1] #TODO: endpoint might not be -1 if there's nested parens!
+        #udfLabel = labelList[index]'''
+
+        noparens = label.replace("(", " ").replace(")", " ").split()
+        udfLabel = noparens[0]
+        paramsList = noparens[1:]
+
         racTypeObj = str2Type(typeStr)
-        bodyNode = ERProofLine(body)
+        if "ERROR" in str(racTypeObj): #must check type first so we can know if body is good
+            self.errLog.append(f"Error in type string: {typeStr}")
+            return #prevents bodynode from being created
+        if self.errLog != []:
+            return
+        bodyNode = ERProofLine(body, ruleDict=self.ruleSet,udfType=racTypeObj)
         if bodyNode.errLog != []:
             self.errLog.extend(bodyNode.errLog)
         if not (udfLabel not in self.ruleSet.keys() and udfLabel not in reservedLabels):
@@ -84,9 +97,8 @@ class ERProof:
             filledBodyNode = fillBody(bodyNode.exprTree, udfLabel, racTypeObj, param2TypeDict)
             self.ruleSet[udfLabel] = UDF(udfLabel, filledBodyNode, racTypeObj, paramsList)
 
-
 class ERProofLine:
-    def __init__(self, goal, debug=False, ruleDict=None): #added optional pointer to parent proof's ruleset
+    def __init__(self, goal, debug=False, ruleDict=None, udfType=None): #added optional pointer to parent proof's ruleset
         self.exprTree = None
         self.errLog = []
         self.debug = debug
@@ -103,8 +115,8 @@ class ERProofLine:
         
         if self.errLog == []:
             decTree, self.errLog = Decorator.decorateTree(labeledTree, self.errLog)
-        if self.errLog == []:
-            decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog, theRuleDict=ruleDict)
+        if self.errLog == []: #added userType in case of UDF
+            decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog, theRuleDict=ruleDict, userType=udfType)
         if self.errLog == []:
             self.errLog = Decorator.remTemps(labeledTree, self.errLog, theRuleDict=ruleDict)
         if self.errLog == []:

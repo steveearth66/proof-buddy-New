@@ -44,11 +44,6 @@ def decorateTree(inputTree: Node, errLog, debug=False) -> tuple[Node, list[str]]
     # return a decorated AST and the status of the error log
     return inputTree, errLog
 
-# TODO: write a function to scan for nested quotes and return err
-
-# helper function which moves important details from one node to another when getting rid of TEMP types
-
-
 # note that the .data is NOT copied, e.g. it can stay "("
 def copyDetails(fromNode: Node, toNode: Node):
     toNode.type = fromNode.type
@@ -104,10 +99,16 @@ def remTemps(inputTree: Node, errLog=None, debug=False, theRuleDict=None) -> lis
     return errLog
 
 # function to check correct number of provided arguments for functions
-def argQty(treeNode: Node, ruleDict=None) -> list[bool,str]:
+def argQty(treeNode: Node, ruleDict=None, userType = None) -> list[bool,str]:
     if ruleDict == None:
         ruleDict = dict()
     func = treeNode.children[0]
+    builtins = ["if", "first", "rest", "cons", "null?", "zero?", "list?", "integer?","expt", "<=",">=","quotient","remainder",\
+                "+", "-", "*", "=", ">",">=", "<", "<=","and", "or", "not", "xor","implies"]
+    if userType != None and func not in builtins: #needed now, can't wait for fillbody to do this
+        func.type = userType
+        if func.type.isType("FUNCTION"):
+            func.numArgs = len(func.type.getDomain())
     # this used to crash, but now with numArgs added into fillbody, it should work
    # if func.data in ruleDict.keys():
     #    if len(treeNode.children[1:]) != len(ruleDict[func.data].racType.getDomain()):
@@ -126,7 +127,7 @@ def argQty(treeNode: Node, ruleDict=None) -> list[bool,str]:
 # check functions meet number of arguments and type checking restrictions
 
 
-def checkFunctions(inputTree: Node, errLog, debug=False, theRuleDict=None) -> tuple[Node, list[str]]:
+def checkFunctions(inputTree: Node, errLog, debug=False, theRuleDict=None, userType = None) -> tuple[Node, list[str]]:
     if inputTree == None:
         return inputTree, errLog
     if theRuleDict == None:   # added optional pointer to parent proof's ruleset
@@ -135,13 +136,13 @@ def checkFunctions(inputTree: Node, errLog, debug=False, theRuleDict=None) -> tu
 
     # only check if the function has children
     if len(inputTree.children) > 0: # and inputTree.type.getType() in FLEX_TYPES:
-        typPass = argQty(inputTree, theRuleDict)
+        typPass = argQty(inputTree, theRuleDict, userType)
         if not typPass[0]:
             errLog.append(typPass[1])
 
         # continue check for the children of the Node
         for child in inputTree.children:
-            checkFunctions(child, errLog, debug, theRuleDict)
+            checkFunctions(child, errLog, debug, theRuleDict, userType)
 
     # return any errors
     return inputTree, errLog
