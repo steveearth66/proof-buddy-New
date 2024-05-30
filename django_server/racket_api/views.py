@@ -217,8 +217,8 @@ def substitution(request):
             json_data["currentRacket"], json_data["rule"], json_data["startPosition"], json_data["substitution"]
         )
 
-    update_current_proof(user, json_data["side"])
-    update_is_valid(user)
+    proof = update_current_proof(proof, json_data["side"])
+    proof = update_is_valid(proof)
 
     current_proof: ERProof = proof["currentProof"]
     is_valid = proof["isValid"]
@@ -226,7 +226,7 @@ def substitution(request):
     racket_str = (
         current_proof.getPrevRacket() if is_valid else "Error generating racket"
     )
-    errors = get_errors_and_clear(user)
+    errors, proof = get_errors_and_clear(proof)
 
     save_proof_to_cache(user, proof)
 
