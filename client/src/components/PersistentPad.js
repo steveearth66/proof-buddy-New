@@ -8,9 +8,13 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
   const [highlightedText, setHighlightedText] = useState("");
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
   const [controlPressed, setControlPressed] = useState(false);
-  const [displayed, setDisplayed] = useState(equation);
   const padRef = useRef(null);
-  const { handleCollapsing } = useCollapsing();
+  const {
+    handleCollapsing,
+    findSelectionParenthesis,
+    checkParenthesisConsistency,
+    balanceParenthesis
+  } = useCollapsing();
 
   useDoubleClick({
     onSingleClick: (e) => {
@@ -39,9 +43,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     const endOffset = range.endOffset;
 
     const selectionRange = { start: startOffset, end: endOffset };
-    const { result, collapse } = handleCollapsing(displayed, selectionRange);
-    // setDisplayed(result);
-    console.log(handleCollapsing(displayed, selectionRange));
+    console.log(handleCollapsing(equation, selectionRange));
   };
 
   const handelSelection = () => {
@@ -88,9 +90,11 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
   };
 
   const handelHighlight = (selectionRange) => {
-    const selectedPart = findSelectionParenthesis(selectionRange);
+    const selectedPart = findSelectionParenthesis(equation, selectionRange);
     if (!checkParenthesisConsistency(selectedPart)) {
-      const highlighted = checkAndGetQuotient(balanceParenthesis(selectedPart));
+      const highlighted = checkAndGetQuotient(
+        balanceParenthesis(equation, selectedPart)
+      );
       setHighlightedText(highlighted);
       onHighlightChange(getStartIndex(highlighted));
       setSelectionRange({
@@ -128,109 +132,6 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     }
   };
 
-  const findSelectionParenthesis = (selectionRange) => {
-    const start = selectionRange.start;
-    const end = selectionRange.end;
-    let openParenthesisIndex = -1;
-    let closeParenthesisIndex = -1;
-
-    for (let i = start; i >= 0; i--) {
-      if (equation[i] === "(") {
-        openParenthesisIndex = i;
-        break;
-      }
-    }
-
-    for (let i = end; i < equation.length; i++) {
-      if (equation[i] === ")") {
-        closeParenthesisIndex = i;
-        break;
-      }
-    }
-
-    if (openParenthesisIndex !== -1 && closeParenthesisIndex !== -1) {
-      return equation.substring(
-        openParenthesisIndex,
-        closeParenthesisIndex + 1
-      );
-    }
-  };
-
-  const checkParenthesisConsistency = (selectedText) => {
-    if (!selectedText) {
-      return;
-    }
-
-    const stack = [];
-
-    for (let i = 0; i < selectedText.length; i++) {
-      const char = selectedText[i];
-      if (char === "(") {
-        stack.push(char);
-      } else if (char === ")") {
-        if (stack.length === 0) {
-          return false; // More closing parentheses than opening ones
-        }
-        stack.pop();
-      }
-    }
-
-    return stack.length === 0; // Return true if stack is empty, false otherwise
-  };
-
-  const balanceParenthesis = (selectedText) => {
-    const stack = [];
-
-    // Find the starting index of the selected text in the equation
-    const startIndex = equation.indexOf(selectedText);
-    if (startIndex === -1) {
-      // Selected text not found in equation
-      return selectedText;
-    }
-
-    // Find the start index of the expression containing the selected text
-    let start = startIndex;
-    while (start > 0 && equation[start] !== "(") {
-      start--;
-    }
-
-    // Find the end index of the expression containing the selected text
-    let end = startIndex + selectedText.length;
-    while (end < equation.length && equation[end] !== ")") {
-      end++;
-    }
-
-    // Extract the entire expression containing the selected text
-    let expression = equation.substring(start, end + 1);
-
-    if (!checkParenthesisConsistency(expression)) {
-      expression = balanceParenthesis(expression);
-    }
-
-    // Push opening parentheses onto the stack
-    for (let i = 0; i < expression.length; i++) {
-      const char = expression[i];
-      if (char === "(") {
-        stack.push(char);
-      } else if (char === ")") {
-        if (stack.length === 0) {
-          // Add an opening parenthesis to balance
-          expression = expression.slice(0, i) + "(" + expression.slice(i);
-          stack.push("(");
-        } else {
-          stack.pop();
-        }
-      }
-    }
-
-    // Add missing closing parentheses to balance
-    while (stack.length > 0) {
-      expression += ")";
-      stack.pop();
-    }
-    return expression;
-  };
-
   const clearHighlight = (e) => {
     e.preventDefault();
     setHighlightedText("");
@@ -249,8 +150,8 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
   const replaceSelection = (selectionRange, replacement) => {
     const start = selectionRange.start;
     const end = selectionRange.end;
-    const beforeSelection = displayed.substring(0, start);
-    const afterSelection = displayed.substring(end);
+    const beforeSelection = equation.substring(0, start);
+    const afterSelection = equation.substring(end);
     return (
       beforeSelection +
       `<span class="highlight">${replacement}</span>` +
@@ -295,14 +196,12 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
   useEffect(() => {
     const keyEvent = (e) => {
       if (e.key === "Control") {
-        console.log("Ctrl + m pressed");
         setControlPressed(true);
       }
     };
 
     const keyEventUp = (e) => {
       if (e.key === "Control") {
-        console.log("Ctrl + m released");
         setControlPressed(false);
       }
     };
@@ -324,7 +223,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
         dangerouslySetInnerHTML={{
           __html: highlightedText
             ? replaceSelection(selectionRange, highlightedText)
-            : displayed
+            : equation
         }}
         className="pad"
       />

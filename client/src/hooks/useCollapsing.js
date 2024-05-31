@@ -17,26 +17,32 @@ const useCollapsing = () => {
 
     const selectedText = findSelectionParenthesis(equation, selectionRange);
     const bracketText = findSelectionBrackets(equation, selectionRange);
-    console.log(bracketText);
+    let collapsedText;
 
-    if (selectedText.charAt(0) === "(") {
-      levels.push(selectedText);
-      const startIndex = equation.indexOf(selectedText);
-      const endIndex = startIndex + selectedText.length;
+    if (!checkParenthesisConsistency(selectedText)) {
+      collapsedText = balanceParenthesis(equation, selectedText);
+    } else {
+      collapsedText = selectedText;
+    }
+
+    if (collapsedText.charAt(0) === "(") {
+      levels.push(collapsedText);
+      const startIndex = equation.indexOf(collapsedText);
+      const endIndex = startIndex + collapsedText.length;
       const beforeCollapse = equation.substring(0, startIndex);
       const afterCollapse = equation.substring(endIndex);
       let keywordPosition = 2;
-      let keyword = selectedText.substring(1, keywordPosition);
+      let keyword = collapsedText.substring(1, keywordPosition);
 
       while (!keywords.includes(keyword)) {
         keywordPosition++;
         if (keywordPosition > 20) {
           break;
         }
-        keyword = selectedText.substring(1, keywordPosition);
+        keyword = collapsedText.substring(1, keywordPosition);
       }
 
-      if (selectedText.charAt(keywordPosition) === "?") {
+      if (collapsedText.charAt(keywordPosition) === "?") {
         keyword = keyword + "?";
       }
 
@@ -54,7 +60,7 @@ const useCollapsing = () => {
       }
     }
 
-    if (bracketText.charAt(0) === "[") {
+    if (bracketText && bracketText.charAt(0) === "[") {
       const beforeBrackets = equation.substring(0, selectionRange.start);
       const afterBrackets = equation.substring(selectionRange.end);
       const restored =
@@ -95,6 +101,86 @@ const useCollapsing = () => {
         openParenthesisIndex,
         closeParenthesisIndex + 1
       );
+    }
+  };
+
+  const checkParenthesisConsistency = (selectedText) => {
+    if (!selectedText) {
+      return;
+    }
+
+    const stack = [];
+
+    for (let i = 0; i < selectedText.length; i++) {
+      const char = selectedText[i];
+      if (char === "(") {
+        stack.push(char);
+      } else if (char === ")") {
+        if (stack.length === 0) {
+          return false; // More closing parentheses than opening ones
+        }
+        stack.pop();
+      }
+    }
+
+    return stack.length === 0; // Return true if stack is empty, false otherwise
+  };
+
+  const balanceParenthesis = (equation, selectedText) => {
+    try {
+      const stack = [];
+
+      // Find the starting index of the selected text in the equation
+      const startIndex = equation.indexOf(selectedText);
+      if (startIndex === -1) {
+        // Selected text not found in equation
+        return selectedText;
+      }
+
+      // Find the start index of the expression containing the selected text
+      let start = startIndex;
+      while (start > 0 && equation[start] !== "(") {
+        start--;
+      }
+
+      // Find the end index of the expression containing the selected text
+      let end = startIndex + selectedText.length;
+      while (end < equation.length && equation[end] !== ")") {
+        end++;
+      }
+
+      // Extract the entire expression containing the selected text
+      let expression = equation.substring(start, end + 1);
+
+      if (!checkParenthesisConsistency(expression)) {
+        expression = balanceParenthesis(expression);
+      }
+
+      // Push opening parentheses onto the stack
+      for (let i = 0; i < expression.length; i++) {
+        const char = expression[i];
+        if (char === "(") {
+          stack.push(char);
+        } else if (char === ")") {
+          if (stack.length === 0) {
+            // Add an opening parenthesis to balance
+            expression = expression.slice(0, i) + "(" + expression.slice(i);
+            stack.push("(");
+          } else {
+            stack.pop();
+          }
+        }
+      }
+
+      // Add missing closing parentheses to balance
+      while (stack.length > 0) {
+        expression += ")";
+        stack.pop();
+      }
+      return expression;
+    } catch (error) {
+      console.error("Error balancing parenthesis: ", error);
+      return equation;
     }
   };
 
@@ -170,6 +256,11 @@ const useCollapsing = () => {
   //     levels.splice(length - 1, 1)
   //   }
   // }
-  return { handleCollapsing };
+  return {
+    handleCollapsing,
+    findSelectionParenthesis,
+    checkParenthesisConsistency,
+    balanceParenthesis
+  };
 };
 export { useCollapsing };
