@@ -177,7 +177,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     );
     const newHighlights = savedHighlights.filter(
       (highlight) =>
-        !(highlight.equation === returnedText && highlight.side === side)
+        !(highlight.equation === equation && highlight.side === side)
     );
     sessionStorage.setItem("highlights", JSON.stringify(newHighlights));
   };
@@ -204,24 +204,25 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
       );
 
       savedHighlights.forEach((highlight, index) => {
-        if (highlight.equation === returnedText && highlight.side === side) {
+        if (highlight.equation === equation && highlight.side === side) {
           savedHighlights.splice(index, 1);
         }
       });
 
       savedHighlights.push({
-        returnedText,
+        equation,
         highlightedText,
         side,
-        selectionRange
+        selectionRange,
+        collapsed
       });
       sessionStorage.setItem("highlights", JSON.stringify(savedHighlights));
     };
 
-    if (highlightedText) {
+    if (highlightedText || collapsed) {
       saveHighlightToSession(highlightedText);
     }
-  }, [highlightedText, side, selectionRange, returnedText]);
+  }, [highlightedText, side, selectionRange, equation, collapsed]);
 
   useEffect(() => {
     const savedHighlights = JSON.parse(
@@ -229,12 +230,13 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     );
 
     savedHighlights.forEach((highlight) => {
-      if (highlight.equation === returnedText && highlight.side === side) {
+      if (highlight.equation === equation && highlight.side === side) {
         setHighlightedText(highlight.highlightedText);
         setSelectionRange(highlight.selectionRange);
+        setCollapsed(highlight.collapsed);
       }
     });
-  }, [returnedText, side]);
+  }, [equation, side, collapsed]);
 
   useEffect(() => {
     const keyEvent = (e) => {
