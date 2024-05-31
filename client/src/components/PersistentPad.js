@@ -8,6 +8,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
   const [highlightedText, setHighlightedText] = useState("");
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
   const [controlPressed, setControlPressed] = useState(false);
+  const [displayed, setDisplayed] = useState(equation);
   const padRef = useRef(null);
   const { handleCollapsing } = useCollapsing();
 
@@ -23,8 +24,10 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
       if (!controlPressed) {
         handelSelection();
       }
-      doCollapse();
-      console.log("Ctrl + Double Click");
+      if (controlPressed) {
+        console.log("Ctrl + Double Click");
+        doCollapse();
+      }
     },
     ref: padRef,
     latency: 250
@@ -36,7 +39,9 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     const endOffset = range.endOffset;
 
     const selectionRange = { start: startOffset, end: endOffset };
-    console.log(handleCollapsing(equation, selectionRange));
+    const { result, collapse } = handleCollapsing(displayed, selectionRange);
+    // setDisplayed(result);
+    console.log(handleCollapsing(displayed, selectionRange));
   };
 
   const handelSelection = () => {
@@ -244,8 +249,8 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
   const replaceSelection = (selectionRange, replacement) => {
     const start = selectionRange.start;
     const end = selectionRange.end;
-    const beforeSelection = equation.substring(0, start);
-    const afterSelection = equation.substring(end);
+    const beforeSelection = displayed.substring(0, start);
+    const afterSelection = displayed.substring(end);
     return (
       beforeSelection +
       `<span class="highlight">${replacement}</span>` +
@@ -289,14 +294,15 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
 
   useEffect(() => {
     const keyEvent = (e) => {
-      if (e.key === "Control" && e.key === "m") {
+      if (e.key === "Control") {
         console.log("Ctrl + m pressed");
         setControlPressed(true);
       }
     };
 
     const keyEventUp = (e) => {
-      if (e.key === "Control" && e.key === "m") {
+      if (e.key === "Control") {
+        console.log("Ctrl + m released");
         setControlPressed(false);
       }
     };
@@ -318,7 +324,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
         dangerouslySetInnerHTML={{
           __html: highlightedText
             ? replaceSelection(selectionRange, highlightedText)
-            : equation
+            : displayed
         }}
         className="pad"
       />

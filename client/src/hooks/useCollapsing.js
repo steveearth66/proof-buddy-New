@@ -15,15 +15,16 @@ const useCollapsing = () => {
       "Î»"
     ];
 
-    const selectedText = equation.substring(
-      selectionRange.start,
-      selectionRange.end
-    );
+    const selectedText = findSelectionParenthesis(equation, selectionRange);
+    const bracketText = findSelectionBrackets(equation, selectionRange);
+    console.log(bracketText);
 
     if (selectedText.charAt(0) === "(") {
       levels.push(selectedText);
-      const beforeCollapse = equation.substring(0, selectionRange.start);
-      const afterCollapse = equation.substring(selectionRange.end);
+      const startIndex = equation.indexOf(selectedText);
+      const endIndex = startIndex + selectedText.length;
+      const beforeCollapse = equation.substring(0, startIndex);
+      const afterCollapse = equation.substring(endIndex);
       let keywordPosition = 2;
       let keyword = selectedText.substring(1, keywordPosition);
 
@@ -42,9 +43,10 @@ const useCollapsing = () => {
       if (keywordPosition < 20) {
         const withCollapse =
           beforeCollapse + "[" + keyword + "]" + afterCollapse;
+
         return {
-          equation: withCollapse,
-          selectionRange: {
+          result: withCollapse,
+          collapse: {
             start: beforeCollapse.length,
             end: beforeCollapse.length + keyword.length + 2
           }
@@ -52,19 +54,72 @@ const useCollapsing = () => {
       }
     }
 
-    if (selectedText.charAt(0) === "[") {
+    if (bracketText.charAt(0) === "[") {
       const beforeBrackets = equation.substring(0, selectionRange.start);
       const afterBrackets = equation.substring(selectionRange.end);
       const restored =
         beforeBrackets + levels[levels.length - 1] + afterBrackets;
-
+      console.log("Restored: ", restored);
       return {
-        equation: restored,
-        selectionRange: {
+        result: restored,
+        collapse: {
           start: beforeBrackets.length,
           end: beforeBrackets.length + levels[levels.length - 1].length
         }
       };
+    }
+  };
+
+  const findSelectionParenthesis = (equation, selectionRange) => {
+    const start = selectionRange.start;
+    const end = selectionRange.end;
+    let openParenthesisIndex = -1;
+    let closeParenthesisIndex = -1;
+
+    for (let i = start; i >= 0; i--) {
+      if (equation[i] === "(") {
+        openParenthesisIndex = i;
+        break;
+      }
+    }
+
+    for (let i = end; i < equation.length; i++) {
+      if (equation[i] === ")") {
+        closeParenthesisIndex = i;
+        break;
+      }
+    }
+
+    if (openParenthesisIndex !== -1 && closeParenthesisIndex !== -1) {
+      return equation.substring(
+        openParenthesisIndex,
+        closeParenthesisIndex + 1
+      );
+    }
+  };
+
+  const findSelectionBrackets = (equation, selectionRange) => {
+    const start = selectionRange.start;
+    const end = selectionRange.end;
+    let openBracketIndex = -1;
+    let closeBracketIndex = -1;
+
+    for (let i = start; i >= 0; i--) {
+      if (equation[i] === "[") {
+        openBracketIndex = i;
+        break;
+      }
+    }
+
+    for (let i = end; i < equation.length; i++) {
+      if (equation[i] === "]") {
+        closeBracketIndex = i;
+        break;
+      }
+    }
+
+    if (openBracketIndex !== -1 && closeBracketIndex !== -1) {
+      return equation.substring(openBracketIndex, closeBracketIndex + 1);
     }
   };
 
