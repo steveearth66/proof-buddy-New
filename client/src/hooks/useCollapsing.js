@@ -1,8 +1,9 @@
-const useCollapsing = () => {
-  const levels = [];
+import { useState } from "react";
 
-  const handleCollapsing = (equation, selectionRange) => {
-    console.log("Collapsing: ", equation, selectionRange);
+const useCollapsing = () => {
+  const [levels, setLevels] = useState([]);
+
+  const collapse = (equation, selectionRange) => {
     const keywords = [
       "length",
       "rest",
@@ -14,65 +15,77 @@ const useCollapsing = () => {
       "+",
       "Î»"
     ];
+    try {
+      const selectedText = findSelectionParenthesis(equation, selectionRange);
+      let collapsedText;
 
-    const selectedText = findSelectionParenthesis(equation, selectionRange);
-    const bracketText = findSelectionBrackets(equation, selectionRange);
-    let collapsedText;
+      if (!checkParenthesisConsistency(selectedText)) {
+        collapsedText = balanceParenthesis(equation, selectedText);
+      } else {
+        collapsedText = selectedText;
+      }
 
-    if (!checkParenthesisConsistency(selectedText)) {
-      collapsedText = balanceParenthesis(equation, selectedText);
-    } else {
-      collapsedText = selectedText;
-    }
+      if (collapsedText && collapsedText.charAt(0) === "(") {
+        setLevels([...levels, collapsedText]);
+        const startIndex = equation.indexOf(collapsedText);
+        const endIndex = startIndex + collapsedText.length;
+        const beforeCollapse = equation.substring(0, startIndex);
+        const afterCollapse = equation.substring(endIndex);
+        let keywordPosition = 2;
+        let keyword = collapsedText.substring(1, keywordPosition);
 
-    if (collapsedText.charAt(0) === "(") {
-      levels.push(collapsedText);
-      const startIndex = equation.indexOf(collapsedText);
-      const endIndex = startIndex + collapsedText.length;
-      const beforeCollapse = equation.substring(0, startIndex);
-      const afterCollapse = equation.substring(endIndex);
-      let keywordPosition = 2;
-      let keyword = collapsedText.substring(1, keywordPosition);
-
-      while (!keywords.includes(keyword)) {
-        keywordPosition++;
-        if (keywordPosition > 20) {
-          break;
+        while (!keywords.includes(keyword)) {
+          keywordPosition++;
+          if (keywordPosition > 20) {
+            break;
+          }
+          keyword = collapsedText.substring(1, keywordPosition);
         }
-        keyword = collapsedText.substring(1, keywordPosition);
-      }
 
-      if (collapsedText.charAt(keywordPosition) === "?") {
-        keyword = keyword + "?";
-      }
+        if (collapsedText.charAt(keywordPosition) === "?") {
+          keyword = keyword + "?";
+        }
 
-      if (keywordPosition < 20) {
-        const withCollapse =
-          beforeCollapse + "[" + keyword + "]" + afterCollapse;
+        if (keywordPosition < 20) {
+          const withCollapse =
+            beforeCollapse + "[" + keyword + "]" + afterCollapse;
+
+          return {
+            result: withCollapse,
+            collapseRange: {
+              start: beforeCollapse.length,
+              end: beforeCollapse.length + keyword.length + 2
+            }
+          };
+        }
+      }
+    } catch (error) {
+      console.error("Error collapsing brackets: ", error);
+      return equation;
+    }
+  };
+
+  const restore = (equation, selectionRange) => {
+    const toRestore = levels[levels.length - 1];
+
+    try {
+      const bracketText = findSelectionBrackets(equation, selectionRange);
+      const startIndex = equation.indexOf(bracketText);
+      const endIndex = startIndex + bracketText.length;
+
+      if (bracketText && bracketText.charAt(0) === "[") {
+        const beforeBrackets = equation.substring(0, startIndex);
+        const afterBrackets = equation.substring(endIndex);
+
+        const restored = beforeBrackets + toRestore + afterBrackets;
 
         return {
-          result: withCollapse,
-          collapse: {
-            start: beforeCollapse.length,
-            end: beforeCollapse.length + keyword.length + 2
-          }
+          result: restored
         };
       }
-    }
-
-    if (bracketText && bracketText.charAt(0) === "[") {
-      const beforeBrackets = equation.substring(0, selectionRange.start);
-      const afterBrackets = equation.substring(selectionRange.end);
-      const restored =
-        beforeBrackets + levels[levels.length - 1] + afterBrackets;
-      console.log("Restored: ", restored);
-      return {
-        result: restored,
-        collapse: {
-          start: beforeBrackets.length,
-          end: beforeBrackets.length + levels[levels.length - 1].length
-        }
-      };
+    } catch (error) {
+      console.error("Error restoring brackets: ", error);
+      return equation;
     }
   };
 
@@ -257,7 +270,8 @@ const useCollapsing = () => {
   //   }
   // }
   return {
-    handleCollapsing,
+    collapse,
+    restore,
     findSelectionParenthesis,
     checkParenthesisConsistency,
     balanceParenthesis
