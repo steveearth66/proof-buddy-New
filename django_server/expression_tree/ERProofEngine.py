@@ -30,14 +30,21 @@ class ERProof:
         self.errLog = []
         self.debug = debug
 
-    def addProofLine(self, lineStr, ruleStr=None, highlightPos=0):
+    def addProofLine(self, lineStr, ruleStr=None, highlightPos=0, substitution=None):
         #prooflines now contain pointers to their proof's ruleset so they can refer to UDFs
+        if substitution != None:
+            subLine = ERProofLine(substitution, self.debug, self.ruleSet) 
+
         proofLine = ERProofLine(lineStr, self.debug, self.ruleSet) 
+
         if proofLine.errLog == None:
             proofLine.errLog = []
         if proofLine.errLog == []:
             if ruleStr != None:
-                proofLine.applyRule(self.ruleSet, ruleStr, highlightPos)
+                if substitution!=None:
+                    proofLine.applySubsitution(self.ruleSet, ruleStr, highlightPos, subLine)
+                else:
+                    proofLine.applyRule(self.ruleSet, ruleStr, highlightPos)
             if proofLine.errLog != []:
                 self.errLog.extend(proofLine.errLog)
         else:
@@ -50,18 +57,31 @@ class ERProof:
         return str(self.proofLines[-1].exprTree)
 
     def addUDF(self, label, typeStr, body):
-        labelList = Parser.preProcess(label)[0]
-        index = 0
-        for i in range(len(labelList)):
-            if labelList[i] != '(':
-                break
-            index += 1
-        
+        errLog = Parser.preProcess(label)[1]
+        if errLog != []:
+            self.errLog.extend(errLog)
+            return
+        ''' removing this since can get this a better way that deals with nested parens
+        # index = 0
+        # for i in range(len(labelList)):
+        #     if labelList[i] != '(':
+        #         break
+        #     index += 1
         # really need to count to first non (, also think about if there could ever be )) at end or just always single )
-        paramsList = labelList[index+1:-1]
-        udfLabel = labelList[index]
+        #paramsList = labelList[index+1:-1] #TODO: endpoint might not be -1 if there's nested parens!
+        #udfLabel = labelList[index]'''
+
+        noparens = label.replace("(", " ").replace(")", " ").split()
+        udfLabel = noparens[0]
+        paramsList = noparens[1:]
+
         racTypeObj = str2Type(typeStr)
-        bodyNode = ERProofLine(body)
+        if "ERROR" in str(racTypeObj): #must check type first so we can know if body is good
+            self.errLog.append(f"Error in type string: {typeStr}")
+            return #prevents bodynode from being created
+        if self.errLog != []:
+            return
+        bodyNode = ERProofLine(body, ruleDict=self.ruleSet,udfType=racTypeObj)
         if bodyNode.errLog != []:
             self.errLog.extend(bodyNode.errLog)
         if not (udfLabel not in self.ruleSet.keys() and udfLabel not in reservedLabels):
@@ -77,9 +97,8 @@ class ERProof:
             filledBodyNode = fillBody(bodyNode.exprTree, udfLabel, racTypeObj, param2TypeDict)
             self.ruleSet[udfLabel] = UDF(udfLabel, filledBodyNode, racTypeObj, paramsList)
 
-
 class ERProofLine:
-    def __init__(self, goal, debug=False, ruleDict=None): #added optional pointer to parent proof's ruleset
+    def __init__(self, goal, debug=False, ruleDict=None, udfType=None): #added optional pointer to parent proof's ruleset
         self.exprTree = None
         self.errLog = []
         self.debug = debug
@@ -96,8 +115,8 @@ class ERProofLine:
         
         if self.errLog == []:
             decTree, self.errLog = Decorator.decorateTree(labeledTree, self.errLog)
-        if self.errLog == []:
-            decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog, theRuleDict=ruleDict)
+        if self.errLog == []: #added userType in case of UDF
+            decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog, theRuleDict=ruleDict, userType=udfType)
         if self.errLog == []:
             self.errLog = Decorator.remTemps(labeledTree, self.errLog, theRuleDict=ruleDict)
         if self.errLog == []:
@@ -110,11 +129,10 @@ class ERProofLine:
                 f'Could not find Token with starting index {startPos}')
         if not (rule in ruleSet.keys()):
             self.errLog.append(f'Could not find rule associated with {rule}')
-        elif self.errLog == []:
-            #checking to see if highlighted portion is within a quote
-            if "'(" in targetNode.ancestors():
-                self.errLog.append(f"Cannot apply rules within a quoted expression")
-                return        
+        #checking to see if highlighted portion is within a quote
+        if "'(" in targetNode.ancestors():
+            self.errLog.append(f"Cannot apply rules within a quoted expression")
+        if self.errLog == []:       
             selectedRule = ruleSet[rule]
             isApplicable, error = selectedRule.isApplicable(targetNode)
             if isApplicable:
@@ -125,6 +143,28 @@ class ERProofLine:
                 updatePositions(self.exprTree)
             else:
                 self.errLog.append(error)
+    def applySubsitution(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subNode:Node):
+        targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
+        if targetNode == None:
+            self.errLog.append(
+                f'Could not find Token with starting index {startPos}')
+        if not (rule in ruleSet.keys()):
+            self.errLog.append(f'Could not find rule associated with {rule}')
+        #checking to see if highlighted portion is within a quote
+        if "'(" in targetNode.ancestors():
+            self.errLog.append(f"Cannot apply rules within a quoted expression")
+        if self.errLog == []:
+            subNode.applyRule(ruleSet, rule, 0)
+            if subNode.errLog != []:
+                self.errLog.extend(subNode.errLog)
+            elif subNode != targetNode:
+                self.errLog.append(f"substitution evaluated to {str(subNode)} but expected {str(targetNode)}")
+        if self.errLog == []:
+            targetNode.replaceWith(subNode)
+            # print(str(self.exprTree)) # should print updated tree
+            updatePositions(self.exprTree)
+        
+
 
 
 def updatePositions(inputTree: Node, count: int = 0) -> tuple[Node, int]:
