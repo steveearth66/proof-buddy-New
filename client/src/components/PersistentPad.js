@@ -44,14 +44,18 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
   });
 
   const doCollapse = () => {
-    const range = window.getSelection().getRangeAt(0);
-    const startOffset = range.startOffset;
-    const endOffset = range.endOffset;
+    try {
+      const range = window.getSelection().getRangeAt(0);
+      const startOffset = range.startOffset;
+      const endOffset = range.endOffset;
 
-    const selectionRange = { start: startOffset, end: endOffset };
-    const { result, collapseRange } = collapse(returnedText, selectionRange);
-    setCollapsed(result);
-    setCollapsedSelection(collapseRange);
+      const selectionRange = { start: startOffset, end: endOffset };
+      const { result, collapseRange } = collapse(returnedText, selectionRange);
+      setCollapsed(result);
+      setCollapsedSelection(collapseRange);
+    } catch (error) {
+      console.error("Error collapsing brackets: ", error);
+    }
   };
 
   const restoreCollapse = () => {
