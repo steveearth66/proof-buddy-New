@@ -8,7 +8,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
   const [highlightedText, setHighlightedText] = useState("");
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
   const [controlPressed, setControlPressed] = useState(false);
-  const [shiftPressed, setShiftPressed] = useState(false);
+  const [restorePressed, setRestoredPress] = useState(false);
   const [collapsed, setCollapsed] = useState(null);
   const [returnedText, setReturnedText] = useState(equation);
   const [collapsedSelection, setCollapsedSelection] = useState({
@@ -28,22 +28,16 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     onSingleClick: (e) => {
       e.stopPropagation();
       e.preventDefault();
-      highlightWordOrNumber();
+      if (!controlPressed && !restorePressed) highlightWordOrNumber();
+      if (controlPressed && !restorePressed) doCollapse();
+      if (restorePressed && !controlPressed) restoreCollapse();
     },
     onDoubleClick: (e) => {
       setControlPressed(false);
-      setShiftPressed(false);
+      setRestoredPress(false);
       e.stopPropagation();
       e.preventDefault();
-      if (!controlPressed && !shiftPressed) {
-        handelSelection();
-      }
-      if (controlPressed && !shiftPressed) {
-        doCollapse();
-      }
-      if (shiftPressed && !controlPressed) {
-        restoreCollapse();
-      }
+      handelSelection();
     },
     ref: padRef,
     latency: 250
@@ -236,15 +230,15 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
         setCollapsed(highlight.collapsed);
       }
     });
-  }, [equation, side, collapsed]);
+  }, [equation, side]);
 
   useEffect(() => {
     const keyEvent = (e) => {
       if (e.key === "Control") {
         setControlPressed(true);
       }
-      if (e.key === "Shift") {
-        setShiftPressed(true);
+      if (e.key === "Alt") {
+        setRestoredPress(true);
       }
     };
 
@@ -252,8 +246,8 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
       if (e.key === "Control") {
         setControlPressed(false);
       }
-      if (e.key === "Shift") {
-        setShiftPressed(false);
+      if (e.key === "Alt") {
+        setRestoredPress(false);
       }
     };
 

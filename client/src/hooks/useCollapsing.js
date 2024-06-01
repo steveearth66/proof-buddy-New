@@ -26,7 +26,6 @@ const useCollapsing = () => {
       }
 
       if (collapsedText && collapsedText.charAt(0) === "(") {
-        setLevels([...levels, collapsedText]);
         const startIndex = equation.indexOf(collapsedText);
         const endIndex = startIndex + collapsedText.length;
         const beforeCollapse = equation.substring(0, startIndex);
@@ -50,6 +49,16 @@ const useCollapsing = () => {
           const withCollapse =
             beforeCollapse + "[" + keyword + "]" + afterCollapse;
 
+          const level = {
+            collapsedText,
+            range: {
+              start: withCollapse.indexOf("[" + keyword + "]"),
+              end:
+                withCollapse.indexOf("[" + keyword + "]") + keyword.length + 2
+            }
+          };
+          setLevels((prev) => [...prev, level]);
+
           return {
             result: withCollapse,
             collapseRange: {
@@ -66,18 +75,27 @@ const useCollapsing = () => {
   };
 
   const restore = (equation, selectionRange) => {
-    const toRestore = levels[levels.length - 1];
-
     try {
       const bracketText = findSelectionBrackets(equation, selectionRange);
       const startIndex = equation.indexOf(bracketText);
       const endIndex = startIndex + bracketText.length;
+      const toRestore = levels.filter(
+        (level) =>
+          level.range.start === startIndex && level.range.end === endIndex
+      )[0]?.collapsedText;
 
-      if (bracketText && bracketText.charAt(0) === "[") {
+      if (toRestore && bracketText && bracketText.charAt(0) === "[") {
         const beforeBrackets = equation.substring(0, startIndex);
         const afterBrackets = equation.substring(endIndex);
 
         const restored = beforeBrackets + toRestore + afterBrackets;
+
+        setLevels((prev) =>
+          prev.filter(
+            (level) =>
+              level.range.start !== startIndex && level.range.end !== endIndex
+          )
+        );
 
         return {
           result: restored
