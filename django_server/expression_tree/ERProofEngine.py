@@ -3,6 +3,7 @@ from .ERRuleset import *
 import expression_tree.Parser as Parser
 import expression_tree.Labeler as Labeler
 import expression_tree.Decorator as Decorator
+import copy
 
 reservedLabels = ["cons", "if", "first", "rest", "null?", "cons?", "zero?", "consList", "expt", "quotient",
                   "remainder", "and", "or", "not", "implies", "nand", "iff", "nor", "xor", ">", "<", "+", "-", "*"]
@@ -42,7 +43,7 @@ class ERProof:
         if proofLine.errLog == []:
             if ruleStr != None:
                 if substitution!=None:
-                    proofLine.applySubsitution(self.ruleSet, ruleStr, highlightPos, subLine)
+                    proofLine.applySubstitution(self.ruleSet, ruleStr, highlightPos, subLine)
                 else:
                     proofLine.applyRule(self.ruleSet, ruleStr, highlightPos)
             if proofLine.errLog != []:
@@ -124,14 +125,14 @@ class ERProofLine:
             selectedRule = ruleSet[rule]
             isApplicable, error = selectedRule.isApplicable(targetNode)
             if isApplicable:
-                newNode = selectedRule.insertSubstitution(
+                newNode = selectedRule.insertSubstitution( 
                     targetNode)  # copy information to targetNode
                 targetNode.replaceWith(newNode)
                 # print(str(self.exprTree)) # should print updated tree
                 updatePositions(self.exprTree)
             else:
                 self.errLog.append(error)
-    def applySubsitution(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subNode:Node):
+    def applySubstitution(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subNode: "ERProofLine"):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
         if targetNode == None:
             self.errLog.append(
@@ -142,13 +143,14 @@ class ERProofLine:
         if "'(" in targetNode.ancestors():
             self.errLog.append(f"Cannot apply rules within a quoted expression")
         if self.errLog == []:
-            subNode.applyRule(ruleSet, rule, 0)
-            if subNode.errLog != []:
+            subNodeCopy = copy.deepcopy(subNode)
+            subNodeCopy.applyRule(ruleSet, rule, 0)
+            if subNodeCopy.errLog != []:
                 self.errLog.extend(subNode.errLog)
-            elif subNode != targetNode:
-                self.errLog.append(f"substitution evaluated to {str(subNode)} but expected {str(targetNode)}")
+            elif subNodeCopy.exprTree != targetNode:
+                self.errLog.append(f"substitution evaluated to {str(subNodeCopy.exprTree)} but expected {str(targetNode)}")
         if self.errLog == []:
-            targetNode.replaceWith(subNode)
+            targetNode.replaceWith(subNode.exprTree)
             # print(str(self.exprTree)) # should print updated tree
             updatePositions(self.exprTree)
         

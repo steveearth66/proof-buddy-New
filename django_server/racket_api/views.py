@@ -217,11 +217,11 @@ def substitution(request):
         proof_two.addProofLine(
             json_data["currentRacket"], json_data["rule"], json_data["startPosition"], json_data["substitution"]
         )
-
     update_current_proof(user, json_data["side"])
     update_is_valid(user)
 
     current_proof: ERProof = users_proof[user]["currentProof"]
+    print([str(line) for line in current_proof.proofLines])
     is_valid = users_proof[user]["isValid"]
 
     racket_str = (
@@ -242,7 +242,12 @@ def substitution(request):
     # )
 
     return Response(status=status.HTTP_200_OK)
-
+@api_view(["POST"])
+def edit_udf(request):
+    pass
+@api_view(["POST"])
+def remove_udf(request):
+    pass
 
 def create_proof(data, user):
     proof_data = {
