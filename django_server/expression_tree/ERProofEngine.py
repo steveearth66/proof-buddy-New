@@ -123,7 +123,7 @@ class ERProofLine:
         if self.errLog == []:
             self.exprTree = decTree
 
-    def applyRule(self, ruleSet: dict[str, Rule], rule: str, startPos: int):
+    def applyRule(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subNode=None):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
         if targetNode == None:
             self.errLog.append(
@@ -135,7 +135,10 @@ class ERProofLine:
             self.errLog.append(f"Cannot apply rules within a quoted expression")
         if self.errLog == []:       
             selectedRule = ruleSet[rule]
-            isApplicable, error = selectedRule.isApplicable(targetNode)
+            if subNode != None:
+                isApplicable, error = selectedRule.isApplicable(targetNode,subNode)
+            else:
+                isApplicable, error = selectedRule.isApplicable(targetNode)
             if isApplicable:
                 newNode = selectedRule.insertSubstitution( 
                     targetNode)  # copy information to targetNode
@@ -157,7 +160,7 @@ class ERProofLine:
         if self.errLog == []:
             subNodeCopy = copy.deepcopy(subNode)
             subRule = 'advMath' if rule == 'math' else rule
-            subNodeCopy.applyRule(ruleSet, subRule, 0)
+            subNodeCopy.applyRule(ruleSet, subRule, 0, subNode)
             if subNodeCopy.errLog != []:
                 self.errLog.extend(subNode.errLog)
             elif subNodeCopy.exprTree != targetNode:
