@@ -156,7 +156,8 @@ class ERProofLine:
             self.errLog.append(f"Cannot apply rules within a quoted expression")
         if self.errLog == []:
             subNodeCopy = copy.deepcopy(subNode)
-            subNodeCopy.applyRule(ruleSet, rule, 0)
+            subRule = 'advMath' if rule == 'math' else rule
+            subNodeCopy.applyRule(ruleSet, subRule, 0)
             if subNodeCopy.errLog != []:
                 self.errLog.extend(subNode.errLog)
             elif subNodeCopy.exprTree != targetNode:
