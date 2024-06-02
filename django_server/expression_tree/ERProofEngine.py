@@ -32,7 +32,7 @@ class ERProof:
         self.debug = debug
 
     def addProofLine(self, lineStr, ruleStr=None, highlightPos=0, substitution=None):
-        #prooflines now contain pointers to their proof's ruleset so they can refer to UDFs
+        # prooflines now contain pointers to their proof's ruleset so they can refer to UDFs
         if substitution != None:
             subLine = ERProofLine(substitution, self.debug, self.ruleSet) 
 
@@ -166,8 +166,6 @@ class ERProofLine:
             targetNode.replaceWith(subNode.exprTree)
             # print(str(self.exprTree)) # should print updated tree
             updatePositions(self.exprTree)
-        
-
 
 
 def updatePositions(inputTree: Node, count: int = 0) -> tuple[Node, int]:
