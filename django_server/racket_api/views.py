@@ -234,14 +234,7 @@ def substitution(request):
         status=status.HTTP_200_OK,
     )
 
-    # {'substitution': '(+ 1 2)', 'rule': 'math', 'startPosition': 3, 'currentRacket': '(+ 3 5)', 'side': 'LHS'}
 
-    # return Response(
-    #     {"isValid": is_valid, "racket": racket_str, "errors": errors},
-    #     status=status.HTTP_200_OK,
-    # )
-
-    return Response(status=status.HTTP_200_OK)
 @api_view(["POST"])
 def edit_udf(request):
     pass
