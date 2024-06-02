@@ -43,7 +43,7 @@ const InductionRacket = () => {
     inductionVariable: "",
     inductionValue: "",
     leapVariable: "",
-    inductionType: ""
+    inductionType: "integers"
   };
 
   const [showSide, toggleSide] = useToggleSide();
