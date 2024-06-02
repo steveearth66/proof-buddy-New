@@ -27,7 +27,11 @@ export default function Substitution({
   const [validated, setValidated] = useState(false);
 
   const handleSubstitutionSubmit = async () => {
-    handleSubstitution(formValues);
+    const valid = await handleSubstitution(formValues);
+
+    if (!valid) {
+      setValidated(false);
+    }
   };
 
   const { handleSubmit } = useFormSubmit(

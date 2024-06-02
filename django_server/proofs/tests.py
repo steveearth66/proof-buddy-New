@@ -165,5 +165,13 @@ for meth,expr, expected in methTests:
         fails += 1
 
 print("\nall tests passed!\n" if fails == 0 else f"number of fails: {fails}\n")
+
+proof=ERProof()
+proof.addUDF("(f x)", "int>int", "(if (zero? x) 0 (+ x (f (- x 1))))")
+if proof.errLog != []:
+    print(proof.errLog)
+else:
+    print("no errors with UDF")
+proof.addProofLine("(f 3)", "f")
 #proof.addProofLine(expr, "math")
 #print(f"before rule = {expr}, after rule = {proof.getPrevRacket() if proof.errLog == [] else proof.errLog}")
