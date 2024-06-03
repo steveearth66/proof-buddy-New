@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import erService from "../services/erService";
+import inductionService from "../services/inductionService";
 
 const useInductionCheck = (handleChange) => {
   const [isGoalChecked, setIsGoalChecked] = useState({
@@ -70,7 +70,8 @@ const useInductionCheck = (handleChange) => {
     inductionVariable,
     inductionValue,
     leapVariable,
-    inductionType
+    inductionType,
+    isAnchor
   ) => {
     if (!name) {
       setProofValidationMessage({ name: "Please provide a name." });
@@ -142,10 +143,12 @@ const useInductionCheck = (handleChange) => {
       inductionVariable,
       inductionValue,
       leapVariable,
-      inductionType
+      inductionType,
+      isAnchor
     };
 
-    console.log(data);
+    const response = await inductionService.checkInduction(data);
+    console.log(response);
   };
 
   return {

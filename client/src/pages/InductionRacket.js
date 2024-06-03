@@ -27,7 +27,7 @@ import {
   Substitution
 } from "../components";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
-import erService from "../services/erService";
+import inductionService from "../services/inductionService";
 
 /**
  * InductionRacket component facilitates the Equational Reasoning Racket.
@@ -141,7 +141,7 @@ const InductionRacket = () => {
     sessionStorage.removeItem("definitions");
 
     const clearProof = async () => {
-      await erService.clearProof();
+      await inductionService.clearInduction();
     };
 
     clearProof();
@@ -171,22 +171,7 @@ const InductionRacket = () => {
       racketRuleFields.RHS.splice(-1);
     };
 
-    const sendProofComplete = async () => {
-      try {
-        await erService.completeProof({
-          name: formValues.proofName,
-          tag: formValues.proofTag,
-          leftRacketsAndRules: racketRuleFields.LHS,
-          rightRacketsAndRules: racketRuleFields.RHS,
-          lHSGoal: formValues.lHSGoal,
-          rHSGoal: formValues.rHSGoal,
-          leftPremise,
-          rightPremise
-        });
-      } catch (error) {
-        console.error(error);
-      }
-    };
+    const sendProofComplete = async () => {};
 
     if (lhsValue !== "" && rhsValue !== "" && currentLHS !== "") {
       if (currentLHS === currentRHS || currentLHS === rhsValue) {
@@ -612,7 +597,8 @@ const InductionRacket = () => {
                         formValues.inductionVariable,
                         formValues.inductionValue,
                         formValues.leapVariable,
-                        formValues.inductionType
+                        formValues.inductionType,
+                        isAnchor
                       )
                     }
                   >
