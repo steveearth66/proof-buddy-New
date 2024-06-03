@@ -113,7 +113,7 @@ class ERProofLine:
             tree = Parser.buildTree(tokenList, debug=self.debug)[0]  # might not need to pass errLog
             labeledTree = Labeler.labelTree(tree, ruleDict)
             labeledTree, _ = updatePositions(labeledTree)
-        
+
         if self.errLog == []:
             decTree, self.errLog = Decorator.decorateTree(labeledTree, self.errLog)
         if self.errLog == []: #added userType in case of UDF
@@ -130,23 +130,30 @@ class ERProofLine:
                 f'Could not find Token with starting index {startPos}')
         if not (rule in ruleSet.keys()):
             self.errLog.append(f'Could not find rule associated with {rule}')
-        #checking to see if highlighted portion is within a quote
+        # checking to see if highlighted portion is within a quote
         if "'(" in targetNode.ancestors():
             self.errLog.append(f"Cannot apply rules within a quoted expression")
         if self.errLog == []:       
             selectedRule = ruleSet[rule]
             if subNode != None:
                 isApplicable, error = selectedRule.isApplicable(targetNode,subNode)
+                if isApplicable:
+                    newNode = selectedRule.insertSubstitution(targetNode, subNode)
+                    targetNode.replaceWith(newNode)
+                    updatePositions(self.exprTree)
+                else:
+                    self.errLog.append(error)
             else:
                 isApplicable, error = selectedRule.isApplicable(targetNode)
-            if isApplicable:
-                newNode = selectedRule.insertSubstitution( 
-                    targetNode)  # copy information to targetNode
-                targetNode.replaceWith(newNode)
-                # print(str(self.exprTree)) # should print updated tree
-                updatePositions(self.exprTree)
-            else:
-                self.errLog.append(error)
+                if isApplicable:
+                    newNode = selectedRule.insertSubstitution(
+                        targetNode
+                    )  # copy information to targetNode
+                    targetNode.replaceWith(newNode)
+                    # print(str(self.exprTree)) # should print updated tree
+                    updatePositions(self.exprTree)
+                else:
+                    self.errLog.append(error)
     def applySubstitution(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subNode: "ERProofLine"):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
         if targetNode == None:
@@ -154,16 +161,19 @@ class ERProofLine:
                 f'Could not find Token with starting index {startPos}')
         if not (rule in ruleSet.keys()):
             self.errLog.append(f'Could not find rule associated with {rule}')
-        #checking to see if highlighted portion is within a quote
+        # checking to see if highlighted portion is within a quote
         if "'(" in targetNode.ancestors():
             self.errLog.append(f"Cannot apply rules within a quoted expression")
         if self.errLog == []:
             subNodeCopy = copy.deepcopy(subNode)
             subRule = 'advMath' if rule == 'math' else rule
-            subNodeCopy.applyRule(ruleSet, subRule, 0, subNode)
+            if subRule == "advMath":
+                subNodeCopy.applyRule(ruleSet, subRule, 0, subNode.exprTree)
+            else:
+                subNodeCopy.applyRule(ruleSet, subRule, 0)
             if subNodeCopy.errLog != []:
                 self.errLog.extend(subNode.errLog)
-            elif subNodeCopy.exprTree != targetNode:
+            elif subNodeCopy.exprTree != targetNode and subRule != "advMath":
                 self.errLog.append(f"substitution evaluated to {str(subNodeCopy.exprTree)} but expected {str(targetNode)}")
         if self.errLog == []:
             targetNode.replaceWith(subNode.exprTree)
