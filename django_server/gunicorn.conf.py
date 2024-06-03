@@ -1,6 +1,8 @@
+import multiprocessing
+
 bind = "0.0.0.0:8000"
 backlog = 2048
-workers = 1  # 1 worker per core. In order to scale application, increase the number of workers. Todo implement saving users_poof to cache in order to access it from multiple workers
+workers = 2 * multiprocessing.cpu_count() + 1
 timeout = 120
 keepalive = 5
 
