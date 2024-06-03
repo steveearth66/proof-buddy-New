@@ -616,7 +616,7 @@ const InductionRacket = () => {
                       )
                     }
                   >
-                    Check {showSide} Goal
+                    Start Induction Proof
                   </Button>
                 </Row>
               )}
