@@ -399,6 +399,7 @@ const InductionRacket = () => {
                   <Dropdown.Item onClick={toggleOffcanvas} href="#">
                     View Rule Set
                   </Dropdown.Item>
+                  <Dropdown.Item href="#">IH</Dropdown.Item>
                 </Dropdown.Menu>
               </Dropdown>
             </Row>
