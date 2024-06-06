@@ -1,9 +1,10 @@
 from .serializers import ProofSerializer, ProofLineSerializer, DefinitionSerializer
 from rest_framework.response import Response
 from rest_framework import status
+from .models import Proof, ProofLine, Definition
 
 
-def create_proof(data, user):
+def get_or_create_proof(data, user, definitions):
     proof_data = {
         "name": data["name"],
         "tag": data["tag"],
@@ -11,12 +12,22 @@ def create_proof(data, user):
         "rhs": data["rHSGoal"],
     }
 
-    serializer = ProofSerializer(data=proof_data)
+    proof = Proof.objects.filter(
+        name=data["name"], tag=data["tag"], created_by=user
+    ).first()
 
-    if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    if proof:
+        add_data_to_proof(data, proof, definitions, user)
+        return proof
 
-    return serializer.save(created_by=user)
+    proof = ProofSerializer(data=proof_data)
+
+    if not proof.is_valid():
+        return proof.errors
+    proof.save(created_by=user)
+    add_data_to_proof(data, proof.instance, definitions, user)
+
+    return proof.instance
 
 
 def create_proof_lines(lines, left_side, proof):
@@ -43,6 +54,41 @@ def create_proof_lines(lines, left_side, proof):
         proof_line.save(proof=proof)
 
 
+def add_data_to_proof(json_data, proof, definitions, user):
+    left_premise_data = json_data["leftPremise"]
+    left_premise_data = {
+        "left_side": True,
+        "racket": left_premise_data["racket"],
+        "rule": left_premise_data["rule"],
+        "start_position": left_premise_data["startPosition"],
+    }
+    right_premise_data = json_data["rightPremise"]
+    right_premise_data = {
+        "left_side": False,
+        "racket": right_premise_data["racket"],
+        "rule": right_premise_data["rule"],
+        "start_position": right_premise_data["startPosition"],
+    }
+    left_rackets_and_rules = json_data["leftRacketsAndRules"]
+    right_rackets_and_rules = json_data["rightRacketsAndRules"]
+
+    left_premise = ProofLineSerializer(data=left_premise_data)
+    right_premise = ProofLineSerializer(data=right_premise_data)
+
+    if not left_premise.is_valid():
+        return Response(left_premise.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    if not right_premise.is_valid():
+        return Response(right_premise.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    left_premise.save(proof=proof)
+    right_premise.save(proof=proof)
+
+    create_proof_lines(left_rackets_and_rules, True, proof)
+    create_proof_lines(right_rackets_and_rules, False, proof)
+    create_proof_definitions(definitions, proof, user)
+
+
 def create_proof_definitions(definitions, proof, user):
     for definition in definitions:
         definition_data = {
@@ -60,3 +106,48 @@ def create_proof_definitions(definitions, proof, user):
             )
 
         definition_serializer.save(proof=proof, created_by=user)
+
+
+def user_proofs(user):
+    proofs = Proof.objects.filter(created_by=user)
+    proof_data = []
+    for proof in proofs:
+        proof_lines = ProofLine.objects.filter(proof=proof)
+        definitions = Definition.objects.filter(proof=proof)
+        proof_lines_data = []
+        definitions_data = []
+
+        for proof_line in proof_lines:
+            proof_lines_data.append(
+                {
+                    "leftSide": proof_line.left_side,
+                    "racket": proof_line.racket,
+                    "rule": proof_line.rule,
+                    "startPosition": proof_line.start_position,
+                    "errors": proof_line.errors,
+                }
+            )
+
+        for definition in definitions:
+            definitions_data.append(
+                {
+                    "label": definition.label,
+                    "type": definition.def_type,
+                    "expression": definition.expression,
+                    "notes": definition.notes,
+                }
+            )
+
+        proof_data.append(
+            {
+                "name": proof.name,
+                "tag": proof.tag,
+                "lhs": proof.lhs,
+                "rhs": proof.rhs,
+                "isComplete": proof.isComplete,
+                "proofLines": proof_lines_data,
+                "definitions": definitions_data,
+            }
+        )
+
+    return proof_data

@@ -129,6 +129,25 @@ const ERRacket = () => {
     setStartPosition(startPosition);
   };
 
+  const saveProof = async () => {
+    const proof = {
+      name: formValues.proofName,
+      tag: formValues.proofTag,
+      leftRacketsAndRules: racketRuleFields.LHS,
+      rightRacketsAndRules: racketRuleFields.RHS,
+      lHSGoal: formValues.lHSGoal,
+      rHSGoal: formValues.rHSGoal,
+      leftPremise,
+      rightPremise
+    };
+
+    try {
+      await erService.saveProof(proof);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   useEffect(() => {
     sessionStorage.removeItem("highlights");
     sessionStorage.removeItem("definitions");
@@ -198,10 +217,7 @@ const ERRacket = () => {
     racketRuleFields,
     lhsValue,
     rhsValue,
-    formValues.proofName,
-    formValues.proofTag,
-    formValues.lHSGoal,
-    formValues.rHSGoal,
+    formValues,
     leftPremise,
     rightPremise,
     sendProofComplete
@@ -725,7 +741,9 @@ const ERRacket = () => {
                           Download Proof
                         </Dropdown.Item>
                         <Dropdown.Item href="#">Upload Proof</Dropdown.Item>
-                        <Dropdown.Item href="#">Save Proof</Dropdown.Item>
+                        <Dropdown.Item onClick={saveProof}>
+                          Save Proof
+                        </Dropdown.Item>
                         <Dropdown.Item href="#">Submit Proof</Dropdown.Item>
                       </Dropdown.Menu>
                     </Dropdown>
