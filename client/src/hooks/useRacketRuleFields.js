@@ -266,6 +266,28 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
     [currentRacket, side, startPosition]
   );
 
+  const loadRacketProof = useCallback((proofLines) => {
+    const leftRackets = proofLines.filter((line) => line.leftSide === true);
+    const rightRackets = proofLines.filter((line) => line.leftSide === false);
+
+    const leftFields = leftRackets.map((line) => ({
+      racket: line.racket,
+      rule: line.rule,
+      deleted: line.deleted
+    }));
+
+    const rightFields = rightRackets.map((line) => ({
+      racket: line.racket,
+      rule: line.rule,
+      deleted: line.deleted
+    }));
+
+    setRacketRuleFields({
+      LHS: leftFields,
+      RHS: rightFields
+    });
+  }, []);
+
   return [
     racketRuleFields,
     addFieldWithApiCheck,
@@ -278,7 +300,8 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
     showSubstitution,
     closeSubstitution,
     substituteFieldWithApiCheck,
-    substitutionErrors
+    substitutionErrors,
+    loadRacketProof
   ];
 };
 

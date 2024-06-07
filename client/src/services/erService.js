@@ -104,10 +104,20 @@ const saveProof = async (proof) => {
 
 const getRacketProofs = async () => {
   try {
-    const response = await axiosInstance.get(`${API_GATEWAY}/er-load`);
+    const response = await axiosInstance.get(`${API_GATEWAY}/proofs`);
     return response.data;
   } catch (error) {
     handleServiceError(error, "Error during getting racket proofs:");
+    throw error;
+  }
+};
+
+const getRacketProof = async (id) => {
+  try {
+    const response = await axiosInstance.get(`${API_GATEWAY}/proofs/${id}`);
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during getting racket proof:");
     throw error;
   }
 };
@@ -120,7 +130,8 @@ const erService = {
   clearProof,
   substitution,
   saveProof,
-  getRacketProofs
+  getRacketProofs,
+  getRacketProof
 };
 
 export default erService;

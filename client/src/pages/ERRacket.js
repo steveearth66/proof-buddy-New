@@ -28,6 +28,7 @@ import {
 } from "../components";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import erService from "../services/erService";
+import { useLocation } from "react-router-dom";
 
 /**
  * ERRacket component facilitates the Equational Reasoning Racket.
@@ -51,7 +52,8 @@ const ERRacket = () => {
     goalValidationMessage,
     enhancedHandleChange,
     proofValidationMessage,
-    clearProofValidationMessage
+    clearProofValidationMessage,
+    loadRacket
   ] = useGoalCheck(handleChange);
   const [startPosition, setStartPosition] = useState(0);
   const [currentRacket, setCurrentRacket] = useState("");
@@ -68,6 +70,7 @@ const ERRacket = () => {
     closeSubstitution,
     substituteFieldWithApiCheck,
     substitutionErrors,
+    loadRacketProof,
     sendProofComplete
   ] = useRacketRuleFields(
     startPosition,
@@ -86,6 +89,8 @@ const ERRacket = () => {
   const [proofComplete, setProofComplete] = useState(false);
   const [leftPremise, setLeftPremise] = useState({});
   const [rightPremise, setRightPremise] = useState({});
+  const [loadedProof, setLoadedProof] = useState(null);
+  const location = useLocation();
 
   const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
@@ -222,6 +227,30 @@ const ERRacket = () => {
     rightPremise,
     sendProofComplete
   ]);
+
+  useEffect(() => {
+    const fetchProof = async (id) => {
+      const proof = await erService.getRacketProof(id);
+      setLoadedProof(proof);
+    };
+
+    if (location?.state?.id) {
+      fetchProof(location.state.id);
+    }
+  }, [location]);
+
+  useEffect(() => {
+    if (loadedProof) {
+      formValues.proofName = loadedProof.name;
+      formValues.proofTag = loadedProof.tag;
+      formValues.lHSGoal = loadedProof.lhs;
+      formValues.rHSGoal = loadedProof.rhs;
+
+      loadRacketProof(loadedProof.proofLines);
+      loadRacket();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadedProof, loadRacketProof, formValues]);
 
   return (
     <MainLayout>

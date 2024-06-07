@@ -9,5 +9,6 @@ urlpatterns = [
     path("er-clear", views.clear_proof),
     path("er-substitution", views.substitution),
     path("er-save", views.save_proof),
-    path("er-load", views.get_user_proofs),
+    path("proofs", views.get_user_proofs),
+    path("proofs/<int:proof_id>", views.get_proof),
 ]

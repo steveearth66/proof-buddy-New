@@ -110,7 +110,7 @@ def create_proof_definitions(definitions, proof, user):
 
 
 def user_proofs(user):
-    proofs = Proof.objects.filter(created_by=user)
+    proofs = Proof.objects.filter(created_by=user, isComplete=False)
     proof_data = []
     for proof in proofs:
         proof_lines = ProofLine.objects.filter(proof=proof)
@@ -141,6 +141,7 @@ def user_proofs(user):
 
         proof_data.append(
             {
+                "id": proof.id,
                 "name": proof.name,
                 "tag": proof.tag,
                 "lhs": proof.lhs,
@@ -154,7 +155,51 @@ def user_proofs(user):
     return proof_data
 
 
+def user_proof(user, proof_id):
+    proof = Proof.objects.filter(created_by=user, id=proof_id).first()
+    proof_lines = ProofLine.objects.filter(proof=proof)
+    definitions = Definition.objects.filter(proof=proof)
+    proof_lines_data = []
+    definitions_data = []
+
+    for proof_line in proof_lines:
+        proof_lines_data.append(
+            {
+                "leftSide": proof_line.left_side,
+                "racket": proof_line.racket,
+                "rule": proof_line.rule,
+                "startPosition": proof_line.start_position,
+                "errors": proof_line.errors,
+                "deleted": proof_line.deleted,
+            }
+        )
+
+    for definition in definitions:
+        definitions_data.append(
+            {
+                "label": definition.label,
+                "type": definition.def_type,
+                "expression": definition.expression,
+                "notes": definition.notes,
+            }
+        )
+
+    proof_data = {
+        "id": proof.id,
+        "name": proof.name,
+        "tag": proof.tag,
+        "lhs": proof.lhs,
+        "rhs": proof.rhs,
+        "isComplete": proof.isComplete,
+        "proofLines": proof_lines_data,
+        "definitions": definitions_data,
+    }
+
+    return proof_data
+
+
 def load_proof(proof_data):
+    # print(proof_data)
     proof = {
         "proofOne": ERProof(),
         "proofTwo": ERProof(),
@@ -172,10 +217,18 @@ def load_proof(proof_data):
     right_proof_lines = [line for line in proof_lines if not line["leftSide"]]
 
     for line in left_proof_lines:
-        left_proof.addProofLine(line["racket"], line["rule"], line["startPosition"])
+        if line["rule"] == "Premise":
+            left_proof.addProofLine(line["racket"])
+        else:
+            left_proof.addProofLine(line["racket"], line["rule"], line["startPosition"])
 
     for line in right_proof_lines:
-        right_proof.addProofLine(line["racket"], line["rule"], line["startPosition"])
+        if line["rule"] == "Premise":
+            right_proof.addProofLine(line["racket"])
+        else:
+            right_proof.addProofLine(
+                line["racket"], line["rule"], line["startPosition"]
+            )
 
     for definition in definitions:
         label = definition["label"]

@@ -6,6 +6,7 @@ import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import Container from "react-bootstrap/Container";
 import Button from "react-bootstrap/esm/Button";
+import { Link } from "react-router-dom";
 
 export default function Proofs() {
   const [proofs, setProofs] = useState([]);
@@ -59,7 +60,9 @@ function ProofCard(proof) {
             <p>Is Complete: {proof.isComplete}</p>
           </Col>
           <Col>
-            <Button variant="primary">Open Proof</Button>
+            <Link to={`/er-racket`} state={{ id: proof.id }}>
+              <Button variant="primary">View Proof</Button>
+            </Link>
           </Col>
         </Row>
       </Card.Body>
