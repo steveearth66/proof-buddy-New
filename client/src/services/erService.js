@@ -102,6 +102,16 @@ const saveProof = async (proof) => {
   }
 };
 
+const getRacketProofs = async () => {
+  try {
+    const response = await axiosInstance.get(`${API_GATEWAY}/er-load`);
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during getting racket proofs:");
+    throw error;
+  }
+};
+
 const erService = {
   checkGoal,
   racketGeneration,
@@ -109,7 +119,8 @@ const erService = {
   completeProof,
   clearProof,
   substitution,
-  saveProof
+  saveProof,
+  getRacketProofs
 };
 
 export default erService;

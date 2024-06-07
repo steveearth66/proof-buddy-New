@@ -2,6 +2,7 @@ from .serializers import ProofSerializer, ProofLineSerializer, DefinitionSeriali
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Proof, ProofLine, Definition
+from expression_tree.ERProofEngine import ERProof
 
 
 def get_or_create_proof(data, user, definitions):
@@ -151,3 +152,37 @@ def user_proofs(user):
         )
 
     return proof_data
+
+
+def load_proof(proof_data):
+    proof = {
+        "proofOne": ERProof(),
+        "proofTwo": ERProof(),
+        "isValid": True,
+        "currentProof": None,
+        "definitions": [],
+    }
+
+    left_proof: ERProof = proof["proofOne"]
+    right_proof: ERProof = proof["proofTwo"]
+    definitions = proof_data["definitions"]
+
+    proof_lines = proof_data["proofLines"]
+    left_proof_lines = [line for line in proof_lines if line["leftSide"]]
+    right_proof_lines = [line for line in proof_lines if not line["leftSide"]]
+
+    for line in left_proof_lines:
+        left_proof.addProofLine(line["racket"], line["rule"], line["startPosition"])
+
+    for line in right_proof_lines:
+        right_proof.addProofLine(line["racket"], line["rule"], line["startPosition"])
+
+    for definition in definitions:
+        label = definition["label"]
+        def_type = definition["type"]
+        expression = definition["expression"]
+
+        left_proof.addUDF(label, def_type, expression)
+        right_proof.addUDF(label, def_type, expression)
+
+    return proof
