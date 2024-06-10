@@ -4,11 +4,10 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from django.contrib.auth import get_user_model
 from proofs.models import Proof
-import copy
 from proofs.views import get_or_create_proof, user_proofs, user_proof, load_proof
-from proofs.models import Proof
 from dill import dumps, loads
 from django.core.cache import cache
+import copy
 
 User = get_user_model()
 
@@ -219,7 +218,6 @@ def substitution(request):
 def save_proof(request):
     data = request.data
     user = request.user
-    print(data)
     user_proof = get_or_set_proof(user)
     definitions = user_proof["definitions"]
     proof = get_or_create_proof(data, user, definitions)

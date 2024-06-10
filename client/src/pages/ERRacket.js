@@ -507,6 +507,7 @@ const ERRacket = () => {
                   {showSide === "LHS" && (
                     <div className="racket-rule-lhs" id="racket-rule-lhs">
                       {/* Static Row Always Present */}
+                      {/* When a saved proof is loaded a static premise should not be rendered. I suggest having a checker and only call this code if it returns true. */}
                       <Row className="racket-rule-row">
                         <PersistentPad
                           equation={formValues.lHSGoal}
@@ -615,6 +616,7 @@ const ERRacket = () => {
                   {showSide === "RHS" && (
                     <div className="racket-rule-rhs" id="racket-rule-rhs">
                       {/* Static Row Always Present */}
+                      {/* When a saved proof is loaded a static premise should not be rendered. I suggest having a checker and only call this code if it returns true. */}
                       <Row className="racket-rule-row">
                         <PersistentPad
                           equation={formValues.rHSGoal}

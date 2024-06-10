@@ -102,16 +102,19 @@ def create_proof_definitions(definitions, proof, user):
         definition_serializer = DefinitionSerializer(data=definition_data)
 
         if not definition_serializer.is_valid():
-            return Response(
-                definition_serializer.errors, status=status.HTTP_400_BAD_REQUEST
-            )
+            return definition_serializer.errors
 
         definition_serializer.save(proof=proof, created_by=user)
 
 
+# Return all incomplete proofs for a user. Can be change to return all but if a use click on a proof marked as complete the backend crashes because the proof is already complete.
+# This can be fixed by adding a checker to see if the proof is complete, if the proof is complete don't call load_proof method.
 def user_proofs(user):
-    proofs = Proof.objects.filter(created_by=user, isComplete=False)
+    proofs = Proof.objects.filter(
+        created_by=user, isComplete=False
+    )  # Proof.objects.filter(created_by=user) to return all proofs by user
     proof_data = []
+
     for proof in proofs:
         proof_lines = ProofLine.objects.filter(proof=proof)
         definitions = Definition.objects.filter(proof=proof)
