@@ -26,9 +26,23 @@ const clearInduction = async () => {
   }
 };
 
+const createDefinition = async (definition) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/add-definitions`,
+      definition
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during definition creation:");
+    throw error;
+  }
+};
+
 const inductionService = {
   checkInduction,
-  clearInduction
+  clearInduction,
+  createDefinition
 };
 
 export default inductionService;

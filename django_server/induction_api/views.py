@@ -24,6 +24,14 @@ def clear_induction(request):
     return Response(status=status.HTTP_200_OK)
 
 
+@api_view(["POST"])
+def add_definitions(request):
+    user = request.user
+    json_data = request.data
+    print(json_data)
+    return Response(json_data, status=status.HTTP_200_OK)
+
+
 def clear_induction_proof(user):
     cache.delete(f"induction_proof_{user.username}")
 

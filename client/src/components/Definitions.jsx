@@ -11,19 +11,24 @@ import { useFormValidation } from "../hooks/useFormValidation";
 import { useFormSubmit } from "../hooks/useFormSubmit";
 import { useState } from "react";
 import erService from "../services/erService";
+import inductionService from "../services/inductionService";
 
-export default function Definitions({ toggleDefinitionsWindow }) {
+export default function Definitions({ toggleDefinitionsWindow, induction }) {
   const [showCreateDefinition, setShowCreateDefinition] = useState(false);
 
   return (
     <div className="overlay">
       <div className="card">
         {showCreateDefinition ? (
-          <CreateDefinition onUpdate={setShowCreateDefinition} />
+          <CreateDefinition
+            onUpdate={setShowCreateDefinition}
+            induction={induction}
+          />
         ) : (
           <ShowDefinitions
             onUpdate={setShowCreateDefinition}
             toggleDefinitionsWindow={toggleDefinitionsWindow}
+            induction={induction}
           />
         )}
       </div>
@@ -33,6 +38,7 @@ export default function Definitions({ toggleDefinitionsWindow }) {
 
 function CreateDefinition({
   onUpdate,
+  induction,
   label,
   type,
   expression,
@@ -102,7 +108,10 @@ function CreateDefinition({
 
     if (!exists) {
       try {
-        const response = await erService.createDefinition(definition);
+        let response;
+        if (induction)
+          response = await inductionService.createDefinition(definition);
+        else response = await erService.createDefinition(definition);
         setErrors([]);
 
         if (response.isValid) {
@@ -239,7 +248,7 @@ function CreateDefinition({
   );
 }
 
-function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
+function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, induction }) {
   const [definitions, setDefinitions] = useState(
     JSON.parse(sessionStorage.getItem("definitions")) || []
   );
@@ -279,6 +288,7 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
     return (
       <CreateDefinition
         onUpdate={() => setEdit(false)}
+        induction={induction}
         label={definitionToEdit.label}
         type={definitionToEdit.type}
         expression={definitionToEdit.expression}

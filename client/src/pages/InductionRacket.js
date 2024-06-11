@@ -207,7 +207,10 @@ const InductionRacket = () => {
           toggleFunction={toggleOffcanvas}
         ></OffcanvasRuleSet>
         {showDefinitionsWindow && (
-          <Definitions toggleDefinitionsWindow={toggleDefinitionsWindow} />
+          <Definitions
+            toggleDefinitionsWindow={toggleDefinitionsWindow}
+            induction
+          />
         )}
 
         {showProofComplete && <ProofComplete />}
