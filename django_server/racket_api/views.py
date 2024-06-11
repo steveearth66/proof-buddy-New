@@ -216,21 +216,12 @@ def substitution(request):
         proof_two.addProofLine(
             json_data["currentRacket"], json_data["rule"], json_data["startPosition"], json_data["substitution"]
         )
-<<<<<<< HEAD
-    update_current_proof(user, json_data["side"])
-    update_is_valid(user)
-
-    current_proof: ERProof = users_proof[user]["currentProof"]
-    print([str(line) for line in current_proof.proofLines])
-    is_valid = users_proof[user]["isValid"]
-=======
-
+        
     proof = update_current_proof(proof, json_data["side"])
     proof = update_is_valid(proof)
 
     current_proof: ERProof = proof["currentProof"]
     is_valid = proof["isValid"]
->>>>>>> origin/stage
 
     racket_str = (
         current_proof.getPrevRacket() if is_valid else "Error generating racket"
