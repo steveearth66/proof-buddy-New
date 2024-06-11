@@ -148,7 +148,32 @@ const useInductionCheck = (handleChange) => {
     };
 
     const response = await inductionService.checkInduction(data);
-    console.log(response);
+    if (response.isValid) {
+      setIsGoalChecked((prev) => ({
+        ...prev,
+        [side]: { ...prev[side], LeapGoal: true, AnchorGoal: true }
+      }));
+      setGoalValidationMessage((prev) => ({
+        ...prev,
+        [side]: { LeapGoal: "", AnchorGoal: "" }
+      }));
+      setProofValidationMessage("");
+    } else {
+      setIsGoalChecked((prev) => ({
+        ...prev,
+        [side]: { ...prev[side], LeapGoal: false, AnchorGoal: false }
+      }));
+      const errorMessage = response.errors?.length
+        ? response.errors.join("\n")
+        : "An unknown error occurred.";
+      setGoalValidationMessage((prev) => ({
+        ...prev,
+        [side]: {
+          LeapGoal: `The LHS goal is not valid.\nError(s):\n${errorMessage}`,
+          AnchorGoal: `The RHS goal is not valid.\nError(s):\n${errorMessage}`
+        }
+      }));
+    }
   };
 
   return {
