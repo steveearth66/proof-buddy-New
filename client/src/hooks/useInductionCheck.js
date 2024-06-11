@@ -65,8 +65,8 @@ const useInductionCheck = (handleChange) => {
     side,
     name,
     tag,
-    leapGoal,
-    anchorGoal,
+    lhsGoal,
+    rhsGoal,
     inductionVariable,
     inductionValue,
     leapVariable,
@@ -104,12 +104,12 @@ const useInductionCheck = (handleChange) => {
       return;
     }
 
-    if (!leapGoal) {
+    if (!lhsGoal) {
       setGoalValidationMessage((prev) => ({
         ...prev,
         [side]: {
           ...prev[side],
-          LeapGoal: `Please provide a ${side} leap goal.`
+          LeapGoal: `Please provide a LHS goal.`
         }
       }));
       setIsGoalChecked((prev) => ({
@@ -119,12 +119,12 @@ const useInductionCheck = (handleChange) => {
       return;
     }
 
-    if (!anchorGoal) {
+    if (!rhsGoal) {
       setGoalValidationMessage((prev) => ({
         ...prev,
         [side]: {
           ...prev[side],
-          AnchorGoal: `Please provide a ${side} anchor goal.`
+          AnchorGoal: `Please provide a RHS goal.`
         }
       }));
       setIsGoalChecked((prev) => ({
@@ -138,8 +138,8 @@ const useInductionCheck = (handleChange) => {
       name,
       tag,
       side,
-      leapGoal,
-      anchorGoal,
+      lhsGoal,
+      rhsGoal,
       inductionVariable,
       inductionValue,
       leapVariable,

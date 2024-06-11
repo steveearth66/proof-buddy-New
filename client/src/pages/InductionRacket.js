@@ -592,12 +592,12 @@ const InductionRacket = () => {
                         showSide,
                         formValues.proofName,
                         formValues.proofTag,
-                        showSide === "LHS"
-                          ? formValues.lHSLeapGoal
+                        isAnchor ?
+                          formValues.lHSAnchorGoal
+                          : formValues.lHSLeapGoal,
+                        isAnchor ? 
+                          formValues.rHSAnchorGoal
                           : formValues.rHSLeapGoal,
-                        showSide === "LHS"
-                          ? formValues.lHSAnchorGoal
-                          : formValues.rHSAnchorGoal,
                         formValues.inductionVariable,
                         formValues.inductionValue,
                         formValues.leapVariable,
