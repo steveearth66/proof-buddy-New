@@ -29,25 +29,26 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG') == 'True'
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
     "django_extensions",
-    'rest_framework',
-    'rest_framework.authtoken',
-    'corsheaders',
-    'accounts',
-    'racket_api',
-    'proofs',
+    "rest_framework",
+    "rest_framework.authtoken",
+    "corsheaders",
+    "accounts",
+    "racket_api",
+    "proofs",
+    "induction_api",
 ]
 
 REST_FRAMEWORK = {
