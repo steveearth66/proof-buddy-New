@@ -19,8 +19,18 @@ const getUserProfile = async () => {
   }
 };
 
+const logout = async () => {
+  try {
+    await axiosInstance.post(`${API_ENDPOINT}/logout`);
+  } catch (error) {
+    handleServiceError(error, "Error logging out:");
+    throw error;
+  }
+};
+
 const userService = {
-  getUserProfile
+  getUserProfile,
+  logout
 };
 
 export default userService;

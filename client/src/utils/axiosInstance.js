@@ -36,7 +36,8 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // TODO: Handle 401 error globally, e.g., redirecting to login or refreshing the token.
+      Cookies.remove("accessToken");
+      location.reload();
     }
     return Promise.reject(error);
   }

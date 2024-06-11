@@ -1,20 +1,40 @@
 import "../scss/_persistent-pad.scss";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import useDoubleClick from "use-double-click";
 import Col from "react-bootstrap/Col";
+import { useCollapsing } from "../hooks/useCollapsing";
 
 export default function PersistentPad({ equation, onHighlightChange, side }) {
   const [highlightedText, setHighlightedText] = useState("");
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
+  const [controlPressed, setControlPressed] = useState(false);
+  const [restorePressed, setRestoredPress] = useState(false);
+  const [collapsed, setCollapsed] = useState(null);
+  const [returnedText, setReturnedText] = useState(equation);
+  const [collapsedSelection, setCollapsedSelection] = useState({
+    start: 0,
+    end: 0
+  });
   const padRef = useRef(null);
+  const {
+    collapse,
+    restore,
+    findSelectionParenthesis,
+    checkParenthesisConsistency,
+    balanceParenthesis
+  } = useCollapsing();
 
   useDoubleClick({
     onSingleClick: (e) => {
       e.stopPropagation();
       e.preventDefault();
-      highlightWordOrNumber();
+      if (!controlPressed && !restorePressed) highlightWordOrNumber();
+      if (controlPressed && !restorePressed) doCollapse();
+      if (restorePressed && !controlPressed) restoreCollapse();
     },
     onDoubleClick: (e) => {
+      setControlPressed(false);
+      setRestoredPress(false);
       e.stopPropagation();
       e.preventDefault();
       handelSelection();
@@ -22,6 +42,35 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     ref: padRef,
     latency: 250
   });
+
+  const doCollapse = () => {
+    try {
+      const range = window.getSelection().getRangeAt(0);
+      const startOffset = range.startOffset;
+      const endOffset = range.endOffset;
+
+      const selectionRange = { start: startOffset, end: endOffset };
+      const { result, collapseRange } = collapse(returnedText, selectionRange);
+      setCollapsed(result);
+      setCollapsedSelection(collapseRange);
+    } catch (error) {
+      console.error("Error collapsing brackets: ", error);
+    }
+  };
+
+  const restoreCollapse = () => {
+    try {
+      const range = window.getSelection().getRangeAt(0);
+      const startOffset = range.startOffset;
+      const endOffset = range.endOffset;
+
+      const selectionRange = { start: startOffset, end: endOffset };
+      const { result } = restore(collapsed, selectionRange);
+      setCollapsed(result);
+    } catch (error) {
+      console.error("Error restoring brackets: ", error);
+    }
+  };
 
   const handelSelection = () => {
     try {
@@ -38,38 +87,47 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
   };
 
   const highlightWordOrNumber = () => {
-    setHighlightedText("");
-    const range = window.getSelection().getRangeAt(0);
-    const startOffset = range.startOffset;
-    const endOffset = range.endOffset;
+    try {
+      setHighlightedText("");
+      const range = window.getSelection().getRangeAt(0);
+      const startOffset = range.startOffset;
+      const endOffset = range.endOffset;
 
-    const selectionRange = { start: startOffset, end: endOffset };
-    const start = selectionRange.start;
-    const end = selectionRange.end;
+      const selectionRange = { start: startOffset, end: endOffset };
+      const start = selectionRange.start;
+      const end = selectionRange.end;
 
-    let startWord = start;
-    while (startWord > 0 && !equation[startWord - 1].match(/\s|\(/)) {
-      startWord--;
+      let startWord = start;
+      while (startWord > 0 && !returnedText[startWord - 1].match(/\s|\(/)) {
+        startWord--;
+      }
+
+      let endWord = end;
+      while (
+        endWord < returnedText.length &&
+        !returnedText[endWord].match(/\s|\)/)
+      ) {
+        endWord++;
+      }
+
+      const highlightedText = returnedText.substring(startWord, endWord);
+      setHighlightedText(highlightedText);
+      onHighlightChange(startWord);
+      setSelectionRange({
+        start: startWord,
+        end: endWord
+      });
+    } catch (error) {
+      console.error("Error while highlighting word: ", error);
     }
-
-    let endWord = end;
-    while (endWord < equation.length && !equation[endWord].match(/\s|\)/)) {
-      endWord++;
-    }
-
-    const highlightedText = equation.substring(startWord, endWord);
-    setHighlightedText(highlightedText);
-    onHighlightChange(startWord);
-    setSelectionRange({
-      start: startWord,
-      end: endWord
-    });
   };
 
   const handelHighlight = (selectionRange) => {
-    const selectedPart = findSelectionParenthesis(selectionRange);
+    const selectedPart = findSelectionParenthesis(returnedText, selectionRange);
     if (!checkParenthesisConsistency(selectedPart)) {
-      const highlighted = checkAndGetQuotient(balanceParenthesis(selectedPart));
+      const highlighted = checkAndGetQuotient(
+        balanceParenthesis(returnedText, selectedPart)
+      );
       setHighlightedText(highlighted);
       onHighlightChange(getStartIndex(highlighted));
       setSelectionRange({
@@ -88,7 +146,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
   };
 
   const getStartIndex = (selectedText) => {
-    return equation.indexOf(selectedText);
+    return returnedText.indexOf(selectedText);
   };
 
   const getEndIndex = (selectedText) => {
@@ -96,118 +154,15 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
   };
 
   const checkAndGetQuotient = (selectedText) => {
-    const start = equation.indexOf(selectedText);
+    const start = returnedText.indexOf(selectedText);
     const end = start + selectedText.length;
 
-    if (equation[start - 1] === "'") {
-      const quotient = equation.substring(start - 1, end);
+    if (returnedText[start - 1] === "'") {
+      const quotient = returnedText.substring(start - 1, end);
       return quotient;
     } else {
       return selectedText;
     }
-  };
-
-  const findSelectionParenthesis = (selectionRange) => {
-    const start = selectionRange.start;
-    const end = selectionRange.end;
-    let openParenthesisIndex = -1;
-    let closeParenthesisIndex = -1;
-
-    for (let i = start; i >= 0; i--) {
-      if (equation[i] === "(") {
-        openParenthesisIndex = i;
-        break;
-      }
-    }
-
-    for (let i = end; i < equation.length; i++) {
-      if (equation[i] === ")") {
-        closeParenthesisIndex = i;
-        break;
-      }
-    }
-
-    if (openParenthesisIndex !== -1 && closeParenthesisIndex !== -1) {
-      return equation.substring(
-        openParenthesisIndex,
-        closeParenthesisIndex + 1
-      );
-    }
-  };
-
-  const checkParenthesisConsistency = (selectedText) => {
-    if (!selectedText) {
-      return;
-    }
-
-    const stack = [];
-
-    for (let i = 0; i < selectedText.length; i++) {
-      const char = selectedText[i];
-      if (char === "(") {
-        stack.push(char);
-      } else if (char === ")") {
-        if (stack.length === 0) {
-          return false; // More closing parentheses than opening ones
-        }
-        stack.pop();
-      }
-    }
-
-    return stack.length === 0; // Return true if stack is empty, false otherwise
-  };
-
-  const balanceParenthesis = (selectedText) => {
-    const stack = [];
-
-    // Find the starting index of the selected text in the equation
-    const startIndex = equation.indexOf(selectedText);
-    if (startIndex === -1) {
-      // Selected text not found in equation
-      return selectedText;
-    }
-
-    // Find the start index of the expression containing the selected text
-    let start = startIndex;
-    while (start > 0 && equation[start] !== "(") {
-      start--;
-    }
-
-    // Find the end index of the expression containing the selected text
-    let end = startIndex + selectedText.length;
-    while (end < equation.length && equation[end] !== ")") {
-      end++;
-    }
-
-    // Extract the entire expression containing the selected text
-    let expression = equation.substring(start, end + 1);
-
-    if (!checkParenthesisConsistency(expression)) {
-      expression = balanceParenthesis(expression);
-    }
-
-    // Push opening parentheses onto the stack
-    for (let i = 0; i < expression.length; i++) {
-      const char = expression[i];
-      if (char === "(") {
-        stack.push(char);
-      } else if (char === ")") {
-        if (stack.length === 0) {
-          // Add an opening parenthesis to balance
-          expression = expression.slice(0, i) + "(" + expression.slice(i);
-          stack.push("(");
-        } else {
-          stack.pop();
-        }
-      }
-    }
-
-    // Add missing closing parentheses to balance
-    while (stack.length > 0) {
-      expression += ")";
-      stack.pop();
-    }
-    return expression;
   };
 
   const clearHighlight = (e) => {
@@ -225,17 +180,20 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     sessionStorage.setItem("highlights", JSON.stringify(newHighlights));
   };
 
-  const replaceSelection = (selectionRange, replacement) => {
-    const start = selectionRange.start;
-    const end = selectionRange.end;
-    const beforeSelection = equation.substring(0, start);
-    const afterSelection = equation.substring(end);
-    return (
-      beforeSelection +
-      `<span class="highlight">${replacement}</span>` +
-      afterSelection
-    );
-  };
+  const replaceSelection = useCallback(
+    (equation, selectionRange, replacement) => {
+      const start = selectionRange.start;
+      const end = selectionRange.end;
+      const beforeSelection = equation.substring(0, start);
+      const afterSelection = equation.substring(end);
+      return (
+        beforeSelection +
+        `<span class="highlight">${replacement}</span>` +
+        afterSelection
+      );
+    },
+    []
+  );
 
   useEffect(() => {
     const saveHighlightToSession = (highlightedText) => {
@@ -249,14 +207,20 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
         }
       });
 
-      savedHighlights.push({ equation, highlightedText, side, selectionRange });
+      savedHighlights.push({
+        equation,
+        highlightedText,
+        side,
+        selectionRange,
+        collapsed
+      });
       sessionStorage.setItem("highlights", JSON.stringify(savedHighlights));
     };
 
-    if (highlightedText) {
+    if (highlightedText || collapsed) {
       saveHighlightToSession(highlightedText);
     }
-  }, [highlightedText, equation, side, selectionRange]);
+  }, [highlightedText, side, selectionRange, equation, collapsed]);
 
   useEffect(() => {
     const savedHighlights = JSON.parse(
@@ -267,9 +231,70 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
       if (highlight.equation === equation && highlight.side === side) {
         setHighlightedText(highlight.highlightedText);
         setSelectionRange(highlight.selectionRange);
+        setCollapsed(highlight.collapsed);
       }
     });
   }, [equation, side]);
+
+  useEffect(() => {
+    const keyEvent = (e) => {
+      if (e.key === "Control") {
+        setControlPressed(true);
+      }
+      if (e.key === "Alt") {
+        setRestoredPress(true);
+      }
+    };
+
+    const keyEventUp = (e) => {
+      if (e.key === "Control") {
+        setControlPressed(false);
+      }
+      if (e.key === "Alt") {
+        setRestoredPress(false);
+      }
+    };
+
+    window.addEventListener("keydown", keyEvent);
+    window.addEventListener("keyup", keyEventUp);
+
+    return () => {
+      window.removeEventListener("keydown", keyEvent);
+      window.removeEventListener("keyup", keyEventUp);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (collapsed === equation) {
+      setCollapsed(null);
+    }
+  }, [collapsed, equation]);
+
+  useEffect(() => {
+    if (collapsed) {
+      setReturnedText(collapsed);
+    } else {
+      setReturnedText(equation);
+    }
+    if (highlightedText) {
+      if (collapsed) {
+        setReturnedText(
+          replaceSelection(collapsed, selectionRange, highlightedText)
+        );
+      } else {
+        setReturnedText(
+          replaceSelection(equation, selectionRange, highlightedText)
+        );
+      }
+    }
+  }, [
+    collapsed,
+    highlightedText,
+    equation,
+    replaceSelection,
+    selectionRange,
+    collapsedSelection
+  ]);
 
   return (
     <Col xs={8}>
@@ -277,9 +302,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
         ref={padRef}
         onContextMenu={clearHighlight}
         dangerouslySetInnerHTML={{
-          __html: highlightedText
-            ? replaceSelection(selectionRange, highlightedText)
-            : equation
+          __html: returnedText
         }}
         className="pad"
       />

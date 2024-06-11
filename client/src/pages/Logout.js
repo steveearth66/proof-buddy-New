@@ -1,11 +1,10 @@
 import React, { useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import Cookies from 'js-cookie';
-import Container from 'react-bootstrap/Container';
-import Button from 'react-bootstrap/Button';
-import MainLayout from '../layouts/MainLayout';
-import '../scss/_email-verification.scss';
+import { useNavigate } from "react-router-dom";
+import Container from "react-bootstrap/Container";
+import Button from "react-bootstrap/Button";
+import MainLayout from "../layouts/MainLayout";
+import "../scss/_email-verification.scss";
 
 /**
  * The Logout component handles the user logout process by invoking the logout function
@@ -18,11 +17,11 @@ const Logout = () => {
 
   useEffect(() => {
     logout();
-    Cookies.remove('accessToken');
-  }, [logout, navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleGoLogin = () => {
-    navigate('/login');
+    navigate("/login");
   };
 
   return (
@@ -31,8 +30,10 @@ const Logout = () => {
         <div className="logout-container">
           <h1>Logged Out Successfully!</h1>
           <p>Thank you for using Proof Buddy.</p>
-          <div className='button-wrap'>
-            <Button className='orange-btn' onClick={handleGoLogin}>Sign in Again</Button>
+          <div className="button-wrap">
+            <Button className="orange-btn" onClick={handleGoLogin}>
+              Sign in Again
+            </Button>
           </div>
         </div>
       </Container>
