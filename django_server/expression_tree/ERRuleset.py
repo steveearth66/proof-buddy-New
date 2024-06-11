@@ -1,9 +1,6 @@
 from abc import ABC, abstractmethod
 from .ERCommon import *
 import copy
-from .Parser import buildTree, preProcess
-from .Labeler import labelTree  # , fillPositions
-from .Decorator import decorateTree, remTemps, checkFunctions
 import sympy as sp
 
 # recursively check if two nodes are identical

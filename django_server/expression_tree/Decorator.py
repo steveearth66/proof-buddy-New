@@ -16,7 +16,7 @@ def decorateTree(inputTree: Node, errLog, debug=False) -> tuple[Node, list[str]]
         inputTree.type = RacType((None, Type.ERROR))
     
     #checking for nested quotes
-    if inputTree.data == "'(" and "'(" in inputTree.ancestors:
+    if inputTree.data == "'(" and "'(" in inputTree.ancestors():
         errLog.append(f"nested quotes are not allowed")
         inputTree.type = RacType((None, Type.ERROR))
 
@@ -135,7 +135,7 @@ def checkFunctions(inputTree: Node, errLog, debug=False, theRuleDict=None, userT
 
 
     # only check if the function has children
-    if len(inputTree.children) > 0: # and inputTree.type.getType() in FLEX_TYPES:
+    if len(inputTree.children) > 0 and inputTree.type.isType("FUNCTION"):
         typPass = argQty(inputTree, theRuleDict, userType)
         if not typPass[0]:
             errLog.append(typPass[1])

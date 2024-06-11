@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from django.contrib.auth import get_user_model
 import copy
-from proofs.serializers import ProofLineSerializer
+from proofs.serializers import ProofSerializer, ProofLineSerializer, DefinitionSerializer
 from proofs.views import create_proof, create_proof_lines, create_proof_definitions
 from dill import dumps, loads
 from django.core.cache import cache
@@ -19,39 +19,18 @@ def apply_rule(request):
     proof = get_or_set_proof(user)
 
     is_p_one_active = json_data["side"] == "LHS"
-    proof_one: ERProof = proof["proofOne"]
-    proof_two: ERProof = proof["proofTwo"]
+    p = proof["proofOne"] if is_p_one_active else proof['proofTwo']
 
-    if is_p_one_active:
-        if proof_one.getPrevRacket() != json_data["currentRacket"]:
-            proof_two.addProofLine(
-                json_data["currentRacket"],
-                json_data["rule"],
-                json_data["startPosition"],
-            )
-        else:
-            proof_one.addProofLine(
-                json_data["currentRacket"],
-                json_data["rule"],
-                json_data["startPosition"],
-            )
-    elif proof_two.getPrevRacket() != json_data["currentRacket"]:
-        proof_one.addProofLine(
+    p.addProofLine(
             json_data["currentRacket"], json_data["rule"], json_data["startPosition"]
         )
-    else:
-        proof_two.addProofLine(
-            json_data["currentRacket"], json_data["rule"], json_data["startPosition"]
-        )
-
-    proof = update_current_proof(proof, json_data["side"])
+    
+    proof['currentProof'] = p
     proof = update_is_valid(proof)
-
-    current_proof: ERProof = proof["currentProof"]
     is_valid = proof["isValid"]
 
     racket_str = (
-        current_proof.getPrevRacket() if is_valid else "Error generating racket"
+        p.getPrevRacket() if is_valid else "Error generating racket"
     )
     errors, proof = get_errors_and_clear(proof)
 
@@ -70,14 +49,14 @@ def check_goal(request):
     proof = get_or_set_proof(user)
 
     is_p_one_active = json_data["side"] == "LHS"
-    proof_one: ERProof = proof["proofOne"]
-    proof_two: ERProof = proof["proofTwo"]
-    current_proof = proof_one if is_p_one_active else proof_two
 
-    current_proof.addProofLine(json_data["goal"])
+    p = proof["proofOne"] if is_p_one_active else proof['proofTwo']
 
-    proof = update_current_proof(proof, json_data["side"])
+    p.addProofLine(json_data["goal"])
+
+    proof['currentProof'] = p
     proof = update_is_valid(proof)
+
     is_valid = proof["isValid"]
     errors, proof = get_errors_and_clear(proof)
 
@@ -92,18 +71,14 @@ def add_definitions(request):
     json_data = request.data
     proof = get_or_set_proof(user)
 
-    proof_one: ERProof = proof["proofOne"]
-    proof_two: ERProof = proof["proofTwo"]
-    definitions = proof["definitions"]
-
     try:
-        if json_data["label"] not in proof_one.ruleSet.keys():
-            proof_one.addUDF(
+        if json_data["label"] not in proof["proofOne"].ruleSet.keys():
+            proof["proofOne"].addUDF(
                 json_data["label"], json_data["type"], json_data["expression"]
             )
 
-        if json_data["label"] not in proof_two.ruleSet.keys():
-            proof_two.addUDF(
+        if json_data["label"] not in proof["proofTwo"].ruleSet.keys():
+            proof["proofTwo"].addUDF(
                 json_data["label"], json_data["type"], json_data["expression"]
             )
     except:
@@ -111,9 +86,8 @@ def add_definitions(request):
             {"message": "Error adding definition"}, status=status.HTTP_400_BAD_REQUEST
         )
 
-    definitions.append(json_data)
-
-    proof = update_current_proof(proof, "LHS")
+    proof["definitions"].append(json_data)
+    
     proof = update_is_valid(proof)
     errors, proof = get_errors_and_clear(proof)
     is_valid = proof["isValid"]
@@ -190,41 +164,18 @@ def substitution(request):
     proof = get_or_set_proof(user)
 
     is_p_one_active = json_data["side"] == "LHS"
-    proof_one: ERProof = proof["proofOne"]
-    proof_two: ERProof = proof["proofTwo"]
+    p = proof["proofOne"] if is_p_one_active else proof['proofTwo']
 
-    if is_p_one_active:
-        if proof_one.getPrevRacket() != json_data["currentRacket"]:
-            proof_two.addProofLine(
-                json_data["currentRacket"],
-                json_data["rule"],
-                json_data["startPosition"],
-                json_data["substitution"]
-            )
-        else:
-            proof_one.addProofLine(
-                json_data["currentRacket"],
-                json_data["rule"],
-                json_data["startPosition"],
-                json_data["substitution"]
-            )
-    elif proof_two.getPrevRacket() != json_data["currentRacket"]:
-        proof_one.addProofLine(
+    p.addProofLine(
             json_data["currentRacket"], json_data["rule"], json_data["startPosition"], json_data["substitution"]
         )
-    else:
-        proof_two.addProofLine(
-            json_data["currentRacket"], json_data["rule"], json_data["startPosition"], json_data["substitution"]
-        )
-        
-    proof = update_current_proof(proof, json_data["side"])
+
+    proof['currentProof'] = p
     proof = update_is_valid(proof)
-
-    current_proof: ERProof = proof["currentProof"]
     is_valid = proof["isValid"]
 
     racket_str = (
-        current_proof.getPrevRacket() if is_valid else "Error generating racket"
+        p.getPrevRacket() if is_valid else "Error generating racket"
     )
     errors, proof = get_errors_and_clear(proof)
 
@@ -302,14 +253,14 @@ def create_proof_definitions(definitions, proof, user):
         definition_serializer.save(proof=proof, created_by=user)
 
 
-def update_current_proof(user, side):
-    global users_proof
+def update_current_proof(user, newProofObj, side):
 
-    proof_one: ERProof = users_proof[user]["proofOne"]
-    proof_two: ERProof = users_proof[user]["proofTwo"]
+    proof = get_or_set_proof(user)
+
     is_p_one_active = side == "LHS"
 
-    current_proof = proof_one if is_p_one_active else proof_two
+    current_proof = proof['proofOne'] if is_p_one_active else proof["proofTwo"]
+    print('DEBUG: ',[str(l) for l in current_proof.proofLines])
 
     proof["currentProof"] = current_proof
 
@@ -331,7 +282,7 @@ def get_errors_and_clear(proof):
     current_proof: ERProof = proof["currentProof"]
 
     if current_proof == None:
-        return []
+        return [], proof
 
     prev_errors = copy.deepcopy(current_proof.errLog)
     current_proof.errLog = []

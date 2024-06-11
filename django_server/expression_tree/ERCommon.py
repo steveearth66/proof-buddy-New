@@ -228,7 +228,7 @@ class Node:
     # a node's getter method which returns a list of all its ancestors' data
     def ancestors(self):
         if self.parent == None:
-            return list()
+            return []
         return self.parent.ancestors()+[self.parent.data]
     
     #node method which returns set of all functions called in that node
