@@ -62,16 +62,6 @@ class ERProof:
         if errLog != []:
             self.errLog.extend(errLog)
             return
-        ''' removing this since can get this a better way that deals with nested parens
-        # index = 0
-        # for i in range(len(labelList)):
-        #     if labelList[i] != '(':
-        #         break
-        #     index += 1
-        # really need to count to first non (, also think about if there could ever be )) at end or just always single )
-        #paramsList = labelList[index+1:-1] #TODO: endpoint might not be -1 if there's nested parens!
-        #udfLabel = labelList[index]'''
-
         noparens = label.replace("(", " ").replace(")", " ").split()
         udfLabel = noparens[0]
         paramsList = noparens[1:]

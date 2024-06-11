@@ -103,7 +103,7 @@ def add_definitions(request):
     return Response({"isValid": is_valid, "errors": errors}, status=status.HTTP_200_OK)
 
 @api_view(["POST"])
-def substitution(request):
+def apply_rule(request):
     user = request.user
     json_data = request.data
     proof = get_or_set_induction_proof(user)
@@ -112,7 +112,42 @@ def substitution(request):
     pSide = 'lhs_' if json_data['side'] == 'LHS' else 'rhs_'
     currentProof = proof[pSide+anchor_or_leap]
 
+    currentProof.addProofLine(
+            json_data["currentRacket"], json_data["rule"], json_data["startPosition"]
+        )
     
+    proof['currentProof'] = currentProof
+    proof = update_is_valid(proof)
+    is_valid = proof["isValid"]
+
+    racket_str = (
+        currentProof.getPrevRacket() if is_valid else "Error generating racket"
+    )
+    proof['current_proof'] = currentProof
+    proof = update_is_valid(proof)
+    is_valid = proof["isValid"]
+
+    racket_str = (
+        currentProof.getPrevRacket() if is_valid else "Error generating racket"
+    )
+    errors, proof = get_errors_and_clear(proof)
+
+    save_induction_proof_to_cache(user, proof)
+
+    return Response(
+        {"isValid": is_valid, "racket": racket_str, "errors": errors},
+        status=status.HTTP_200_OK,
+    )
+
+@api_view(["POST"])
+def substitution(request):
+    user = request.user
+    json_data = request.data
+    proof = get_or_set_induction_proof(user)
+
+    anchor_or_leap = 'anchor' if json_data['isAnchor'] else 'leap'
+    pSide = 'lhs_' if json_data['side'] == 'LHS' else 'rhs_'
+    currentProof = proof[pSide+anchor_or_leap]
 
     currentProof.addProofLine(
             json_data["currentRacket"], json_data["rule"], json_data["startPosition"], json_data["substitution"]
