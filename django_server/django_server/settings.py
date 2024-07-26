@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
+    "django.contrib.staticfiles",
     "django_extensions",
     "rest_framework",
     "rest_framework.authtoken",
@@ -117,7 +118,7 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 EMAIL_USE_TLS = True
 
 CORS_ORIGIN_ALLOW_ALL = True
-CSRF_TRUSTED_ORIGINS = [f"{os.getenv('BACKEND_URL')}"]
+CSRF_TRUSTED_ORIGINS = [f"{os.getenv('PUBLIC_URL')}"]
 
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
@@ -148,6 +149,12 @@ TIME_ZONE = 'America/New_York'
 USE_I18N = True
 
 USE_TZ = True
+
+# Static files (CSS, JavaScript, Images)
+# https://docs.djangoproject.com/en/5.0/howto/static-files/
+
+STATIC_ROOT = '../dist/django_static/'
+STATIC_URL = 'django_static/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
