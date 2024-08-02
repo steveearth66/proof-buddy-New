@@ -94,7 +94,7 @@ class ResetPassword(models.Model):
 
 @receiver(post_save, sender=Account)
 def create_activation_key(sender, instance, created, **kwargs):
-    if created:
+    if created and not instance.is_superuser:
         activation = ActivateAccount.objects.create(user=instance)
         email = instance.email
         username = instance.username
@@ -106,7 +106,7 @@ def send_activation_email(email, username, key):
     html_content = f"""
         <p>Hello {username}!</p>
         <p>Thank you for signing up to Proof Buddy! To get started please confirm your email address by visiting the following link:</p>
-        <a href="{os.getenv('FRONTEND_URL')}/#/verify-success?token={key}" target="_blank">{os.getenv('FRONTEND_URL')}/#/verify-success?token={key}</a>
+        <a href="{os.getenv('PUBLIC_URL')}/#/verify-success?token={key}" target="_blank">{os.getenv('PUBLIC_URL')}/#/verify-success?token={key}</a>
         <p>Thank you,<br/>Proof Buddy Team</p>
     """
     text_content = ""
@@ -132,7 +132,7 @@ def send_reset_email(email, username, key):
     html_content = f"""
         <p>Hello {username}!</p>
         <p>It seems you've forgotten your password. To reset your password please visit the following link:</p>
-        <a href="{os.getenv('FRONTEND_URL')}/#/reset-password?token={key}" target="_blank">{os.getenv('FRONTEND_URL')}/#/reset-password?token={key}</a>
+        <a href="{os.getenv('PUBLIC_URL')}/#/reset-password?token={key}" target="_blank">{os.getenv('PUBLIC_URL')}/#/reset-password?token={key}</a>
     """
     text_content = ""
     subject = "Proof Buddy - Reset Your Password"

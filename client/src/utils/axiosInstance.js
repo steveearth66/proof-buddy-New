@@ -1,13 +1,10 @@
 import axios from 'axios';
-import apiConfig from '../config/apiConfig'
 import Cookies from 'js-cookie';
 
 /**
- * Creates an Axios instance with a pre-configured base URL.
+ * Creates an Axios instance.
  */
-const axiosInstance = axios.create({
-  baseURL: apiConfig.apiBaseUrl
-});
+const axiosInstance = axios.create();
 
 /**
  * Request Interceptor
