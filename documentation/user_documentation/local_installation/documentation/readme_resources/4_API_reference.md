@@ -1,5 +1,3 @@
-# API
-
 A list of the User API endpoints and their functions.
 
 ### `/api/v1/auth/signup`
