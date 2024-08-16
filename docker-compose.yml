@@ -12,10 +12,10 @@ services:
     networks:
       - proof_buddy_network
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -hlocalhost -uroot -p${MARIADB_ROOT_PASSWORD} || exit 1"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 30s
-      retries: 5
-      start_period: 60s
+      retries: 3
+      start_period: 30s
       timeout: 10s
     restart: unless-stopped
 
@@ -32,7 +32,7 @@ services:
       - .env
     depends_on:
       mariadb:
-        condition: service_healthy
+        condition: service_started
     networks:
       - proof_buddy_network
     restart: unless-stopped
