@@ -11,6 +11,11 @@ services:
       - .env
     networks:
       - proof_buddy_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   django_server:
@@ -18,14 +23,15 @@ services:
       context: ./django_server
     container_name: proofbuddy_django_server
     ports:
-      - "8000"
+      - "8000:8000"
     volumes:
       - static:/static
       - logs:/var/log
     env_file:
       - .env
     depends_on:
-      - mariadb
+      mariadb:
+        condition: service_healthy
     networks:
       - proof_buddy_network
     restart: unless-stopped
@@ -34,13 +40,14 @@ services:
     image: nginx:latest
     container_name: proofbuddy_nginx
     ports:
-      - "5525:5525"
+      - "5525:80"
     volumes:
       - static:/static
       - logs:/var/log/nginx
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
     depends_on:
-      - django_server
+      django_server:
+        condition: service_started
     networks:
       - proof_buddy_network
     restart: unless-stopped
@@ -54,7 +61,8 @@ services:
     ports:
       - "9090:80"
     depends_on:
-      - nginx
+      nginx:
+        condition: service_started
     networks:
       - proof_buddy_network
     restart: unless-stopped
