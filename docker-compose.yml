@@ -7,16 +7,17 @@ services:
     volumes:
       - mariadb:/var/lib/mysql
       - ./init.sh:/docker-entrypoint-initdb.d/init.sh
+      - ./check_health.sh:/check_health.sh
     env_file:
       - .env
     networks:
       - proof_buddy_network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$MARIADB_ROOT_PASSWORD"]
+      test: ["CMD-SHELL", "/check_health.sh"]
       interval: 10s
       retries: 3
       start_period: 30s
-      timeout: 5s
+      timeout: 10s
     restart: unless-stopped
 
   django_server:
