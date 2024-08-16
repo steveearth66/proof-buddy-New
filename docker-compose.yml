@@ -53,8 +53,6 @@ services:
     container_name: proofbuddy_client
     ports:
       - "9090:80"
-    depends_on:
-      - nginx
     networks:
       - proof_buddy_network
     restart: unless-stopped
