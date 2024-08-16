@@ -32,7 +32,7 @@ services:
       - .env
     depends_on:
       mariadb:
-        condition: service_started
+        condition: service_healthy
     networks:
       - proof_buddy_network
     restart: unless-stopped
