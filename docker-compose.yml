@@ -12,11 +12,11 @@ services:
     networks:
       - proof_buddy_network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-hlocalhost", "-uroot", "-p${MARIADB_ROOT_PASSWORD}"]
+      test: ["CMD-SHELL", "mysqladmin ping -hlocalhost -uroot -p${MARIADB_ROOT_PASSWORD} || exit 1"]
       interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
+      retries: 5
+      start_period: 60s
+      timeout: 10s
     restart: unless-stopped
 
   django_server:
