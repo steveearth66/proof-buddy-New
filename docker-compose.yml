@@ -8,12 +8,14 @@ services:
       - mariadb:/var/lib/mysql
       - ./setup.sql:/docker-entrypoint-initdb.d/setup.sql
     env_file:
-      - .db.env
+      - .env
+    networks:
+      - proof_buddy_network
     restart: unless-stopped
 
   django_server:
     build:
-      context: .
+      context: ./django_server
     container_name: proof_buddy_django_server
     ports:
       - "8000"
@@ -24,20 +26,43 @@ services:
       - .env
     depends_on:
       - mariadb
+    networks:
+      - proof_buddy_network
     restart: unless-stopped
 
   nginx:
-    build:
-      context: ./nginx
+    image: nginx:latest
     container_name: proof_buddy_nginx
     ports:
       - "5525:5525"
     volumes:
       - static:/static
       - logs:/var/log/nginx
+      - ./nginx/nginx.conf:/etc/nginx/default.conf
     depends_on:
       - django_server
+    networks:
+      - proof_buddy_network
     restart: unless-stopped
+
+  client:
+    build:
+      context: ./client
+      args:
+        REACT_APP_BACKEND_API_BASE_URL: "http://cci-p119.cci.drexel.edu:5525" # Change this to your backend URL
+    container_name: proofbuddy_client
+    ports:
+      - "8080:80"
+    depends_on:
+      - nginx
+    networks:
+      - proof_buddy_network
+    restart: unless-stopped
+
+
+networks:
+  proof_buddy_network:
+    driver: bridge
 
 volumes:
   static:
