@@ -5,7 +5,7 @@ WORKDIR /client
 
 COPY package.json .
 
-RUN npm install -f
+RUN npm install
 
 
 COPY . .
