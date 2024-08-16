@@ -12,7 +12,7 @@ services:
     networks:
       - proof_buddy_network
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$MARIADB_ROOT_PASSWORD"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$MARIADB_ROOT_PASSWORD"]
       interval: 10s
       retries: 3
       start_period: 30s
