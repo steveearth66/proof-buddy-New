@@ -16,9 +16,9 @@ def decorateTree(inputTree: Node, errLog, debug=False) -> tuple[Node, list[str]]
         inputTree.type = RacType((None, Type.ERROR))
     
     #checking for nested quotes
-    if inputTree.data == "'(" and "'(" in inputTree.ancestors:
-        errLog.append(f"nested quotes are not allowed")
-        inputTree.type = RacType((None, Type.ERROR))
+#    if inputTree.data == "'(" and "'(" in inputTree.ancestors:
+#        errLog.append(f"nested quotes are not allowed")
+#        inputTree.type = RacType((None, Type.ERROR))
 
     # populate new Node attributes from the ERobjects, default Node.name is set to the Node.data attribute
     inputTree.name = inputTree.data
@@ -117,7 +117,7 @@ def argQty(treeNode: Node, ruleDict=None, userType = None) -> list[bool,str]:
     providedCount = len(treeNode.children) - 1
 
     #if (expectedCount != providedCount) and (func.type.getType() not in FLEX_TYPES):
-    if (expectedCount != providedCount):
+    if (expectedCount != None) and (expectedCount != providedCount): #note: nonfunction have "None" for numArgs
         return [False, f"{func.name} only takes {expectedCount} arguments, but {providedCount} {'was' if providedCount == 1 else 'were'} provided"]
 
     # only typeCheck if everything passes
