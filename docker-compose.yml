@@ -34,7 +34,7 @@ services:
     build:
       context: ./client
       args:
-        REACT_APP_BACKEND_API_BASE_URL: "http://api-proofbuddy.home" # Change this to your backend URL
+        REACT_APP_BACKEND_API_BASE_URL: "https://api.proofbuddy.net" # Change this to your backend URL
     container_name: proofbuddy_client
     ports:
       - "9090:80"
