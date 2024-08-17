@@ -18,7 +18,7 @@ services:
     image: nginx:latest
     container_name: proofbuddy_nginx
     ports:
-      - "5525:80"
+      - "9091:80"
     volumes:
       - static:/static
       - logs:/var/log/nginx
