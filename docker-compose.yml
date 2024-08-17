@@ -13,7 +13,7 @@ services:
     networks:
       - proof_buddy_network
     healthcheck:
-      test: ["CMD-SHELL", "/check_health.sh"]
+      test: ["CMD", "/check_health.sh"]
       interval: 10s
       retries: 3
       start_period: 30s
