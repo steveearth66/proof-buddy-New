@@ -94,7 +94,7 @@ class ResetPassword(models.Model):
 
 @receiver(post_save, sender=Account)
 def create_activation_key(sender, instance, created, **kwargs):
-    if created:
+    if created and not instance.is_superuser:
         activation = ActivateAccount.objects.create(user=instance)
         email = instance.email
         username = instance.username
