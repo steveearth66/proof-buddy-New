@@ -103,6 +103,7 @@ def argQty(treeNode: Node, ruleDict=None, userType = None) -> list[bool,str]:
     if ruleDict == None:
         ruleDict = dict()
     func = treeNode.children[0]
+    print("checking", func.data)
     builtins = ["if", "first", "rest", "cons", "null?", "zero?", "list?", "integer?","expt", "<=",">=","quotient","remainder",\
                 "+", "-", "*", "=", ">",">=", "<", "<=","and", "or", "not", "xor","implies"]
     if userType != None and func not in builtins: #needed now, can't wait for fillbody to do this
