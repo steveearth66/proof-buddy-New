@@ -57,7 +57,7 @@ class ERProof:
         return str(self.proofLines[-1].exprTree)
 
     def addUDF(self, label, typeStr, body):
-        errLog = Parser.preProcess(label)[1]
+        errLog = Parser.preProcess(label,udf=True)[1] #added udf=True so that preprocessing will bypass empty string check
         if errLog != []:
             self.errLog.extend(errLog)
             return
@@ -81,7 +81,7 @@ class ERProof:
             return #prevents bodynode from being created
         if self.errLog != []:
             return
-        bodyNode = ERProofLine(body, ruleDict=self.ruleSet,udfType=racTypeObj)
+        bodyNode = ERProofLine(body, ruleDict=self.ruleSet,udfType=racTypeObj,isUdf=True)
         if bodyNode.errLog != []:
             self.errLog.extend(bodyNode.errLog)
         if not (udfLabel not in self.ruleSet.keys() and udfLabel not in reservedLabels):
@@ -98,7 +98,7 @@ class ERProof:
             self.ruleSet[udfLabel] = UDF(udfLabel, filledBodyNode, racTypeObj, paramsList)
 
 class ERProofLine:
-    def __init__(self, goal, debug=False, ruleDict=None, udfType=None): #added optional pointer to parent proof's ruleset
+    def __init__(self, goal, debug=False, ruleDict=None, udfType=None,isUdf=False): #added optional pointer to parent proof's ruleset
         self.exprTree = None
         self.errLog = []
         self.debug = debug
@@ -107,7 +107,7 @@ class ERProofLine:
         else:
             self.ruleSet=dict()
 
-        tokenList, self.errLog = Parser.preProcess(goal, errLog=self.errLog, debug=self.debug)
+        tokenList, self.errLog = Parser.preProcess(goal, errLog=self.errLog, debug=self.debug,udf=isUdf)
         if self.errLog == []:
             tree = Parser.buildTree(tokenList, debug=self.debug)[0]  # might not need to pass errLog
             labeledTree = Labeler.labelTree(tree, ruleDict)

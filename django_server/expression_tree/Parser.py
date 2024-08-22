@@ -23,7 +23,7 @@ AllowedChars = list(string.ascii_letters) + list(string.digits) + \
 
 # None will generate a warning since it's not a list of strings
 # takes in a string and returns a list of tokens, and a list of error messages
-def preProcess(inputString: str, errLog: list[str] = None, debug=False) -> tuple[list[str], list[str]]:
+def preProcess(inputString: str, errLog: list[str] = None, debug=False,udf=False) -> tuple[list[str], list[str]]:
     if errLog == None:  # values assigned at func def, not each call, so need None vs []
         errLog = []
 
@@ -36,7 +36,7 @@ def preProcess(inputString: str, errLog: list[str] = None, debug=False) -> tuple
     # remove consecutive spaces, strip whitespace from front & back of inputString
     inputString = " ".join(inputString.split())
 
-    if inputString == "":  # needed to avoid an issue in checking first character as (
+    if inputString == "" and not udf:  # needed to avoid an issue in checking first character as (, udf's can be blank to be arbitrary
         # can't return the append directly since append changes in place and doesn't return a value!!
         errLog.append("no input detected")
         return [], errLog
