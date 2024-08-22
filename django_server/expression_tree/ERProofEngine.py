@@ -143,7 +143,8 @@ class ERProofLine:
                 updatePositions(self.exprTree)
             else:
                 self.errLog.append(error)
-    def applySubstitution(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subLine:'ERProofLine'):
+                
+    def applySubstitution(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subLine: 'ERProofLine'):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
         if targetNode == None:
             self.errLog.append(
