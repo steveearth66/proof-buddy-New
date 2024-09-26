@@ -1,0 +1,57 @@
+services:
+  mariadb:
+    image: mariadb:latest
+    container_name: proofbuddy_mariadb_local
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb:/var/lib/mysql
+      - ./database/setup.sql:/docker-entrypoint-initdb.d/setup.sql
+    env_file:
+      - .env.local
+    networks:
+      - proof_buddy_network
+    restart: unless-stopped
+
+  django_server:
+    build:
+      context: ./django_server
+    container_name: proofbuddy_django_server_local
+    ports:
+      - "8000:8000"
+    volumes:
+      - static:/static
+      - logs:/var/log
+    depends_on:
+      mariadb:
+        condition: service_started
+    env_file:
+      - .env.local
+    networks:
+      - proof_buddy_network
+    restart: unless-stopped
+
+  client:
+    build:
+      context: ./client
+      args:
+        REACT_APP_BACKEND_API_BASE_URL: "http://localhost:8000" # Change this to your backend URL
+    container_name: proofbuddy_client_local
+    ports:
+      - "9090:80"
+    depends_on:
+      django_server:
+        condition: service_started
+    networks:
+      - proof_buddy_network
+    restart: unless-stopped
+
+
+networks:
+  proof_buddy_network:
+    driver: bridge
+
+volumes:
+  static:
+  logs:
+  mariadb:
