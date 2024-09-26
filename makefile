@@ -4,7 +4,7 @@
 
 # Build and start containers
 init:
-	docker compose up -d
+	docker compose up -f ./docker-compose-local.yml -d
 
 # Stop and remove containers
 down:
