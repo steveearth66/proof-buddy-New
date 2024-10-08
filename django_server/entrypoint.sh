@@ -22,11 +22,6 @@ else
     echo "Superuser credentials not provided. Skipping superuser creation."
 fi
 
-# Check if the environment is local
-if [ "$DJANGO_ENV" = "dev" ]; then
-    echo "Running in local environment. Starting Django development server..."
-    exec python manage.py runserver 0.0.0.0:8000
-else
-    echo "Starting Gunicorn server..."
-    exec gunicorn django_server.wsgi:application -c gunicorn.conf.py
-fi
+
+echo "Starting Gunicorn server..."
+exec gunicorn django_server.wsgi:application -c gunicorn.conf.py
