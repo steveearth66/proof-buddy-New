@@ -5,7 +5,7 @@ services:
     ports:
       - "3306:3306"
     volumes:
-      - mariadb:/var/lib/mysql
+      - .data/mysql:/var/lib/mysql
       - ./database/setup.sql:/docker-entrypoint-initdb.d/setup.sql
     env_file:
       - .env
@@ -20,8 +20,8 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - static:/static
-      - logs:/var/log
+      - .data/django_app:/static
+      - .data/logs:/var/log
     depends_on:
       mariadb:
         condition: service_started
@@ -50,8 +50,3 @@ services:
 networks:
   proof_buddy_network:
     driver: bridge
-
-volumes:
-  static:
-  logs:
-  mariadb:
