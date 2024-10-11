@@ -193,28 +193,40 @@ def substitution(request):
     proof_one: ERProof = proof["proofOne"]
     proof_two: ERProof = proof["proofTwo"]
 
+    rule = json_data["rule"]
+
+    if rule.lower() == "math":
+        print("math", json_data["substitution"])
+        rule = "advMath"
+
     if is_p_one_active:
         if proof_one.getPrevRacket() != json_data["currentRacket"]:
             proof_two.addProofLine(
                 json_data["currentRacket"],
-                json_data["rule"],
+                rule,
                 json_data["startPosition"],
-                json_data["substitution"]
+                json_data["substitution"],
             )
         else:
             proof_one.addProofLine(
                 json_data["currentRacket"],
-                json_data["rule"],
+                rule,
                 json_data["startPosition"],
-                json_data["substitution"]
+                json_data["substitution"],
             )
     elif proof_two.getPrevRacket() != json_data["currentRacket"]:
         proof_one.addProofLine(
-            json_data["currentRacket"], json_data["rule"], json_data["startPosition"], json_data["substitution"]
+            json_data["currentRacket"],
+            rule,
+            json_data["startPosition"],
+            json_data["substitution"],
         )
     else:
         proof_two.addProofLine(
-            json_data["currentRacket"], json_data["rule"], json_data["startPosition"], json_data["substitution"]
+            json_data["currentRacket"],
+            rule,
+            json_data["startPosition"],
+            json_data["substitution"],
         )
 
     proof = update_current_proof(proof, json_data["side"])
