@@ -165,6 +165,7 @@ class ERProofLine:
             # print(str(self.exprTree))  # should print updated tree
             updatePositions(self.exprTree)
 
+# bob was here
 
 def updatePositions(inputTree: Node, count: int = 0) -> tuple[Node, int]:
     inputTree.startPosition = count
