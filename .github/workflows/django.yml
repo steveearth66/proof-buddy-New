@@ -27,6 +27,7 @@ jobs:
         pip install -r django_server/requirements.txt
     - name: Run migrations
       run: |
+        cd django_server
         python manage.py migrate
     - name: Run Tests
       run: |
