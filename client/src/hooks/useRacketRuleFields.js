@@ -284,6 +284,9 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
       startPosition: line.startPosition
     }));
 
+    leftFields.push({ racket: "", rule: "", deleted: false });
+    rightFields.push({ racket: "", rule: "", deleted: false });
+
     setRacketRuleFields({
       LHS: leftFields,
       RHS: rightFields
