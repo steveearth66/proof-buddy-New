@@ -180,7 +180,7 @@ const ERRacket = () => {
         startPosition: 0
       });
     }
-  }, [formValues]);
+  }, [formValues.lHSGoal, formValues.rHSGoal]);
 
   useEffect(() => {
     const removeBlankRackets = () => {

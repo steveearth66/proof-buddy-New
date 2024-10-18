@@ -219,20 +219,6 @@ def load_proof(proof_data):
     left_proof_lines = [line for line in proof_lines if line["leftSide"]]
     right_proof_lines = [line for line in proof_lines if not line["leftSide"]]
 
-    for line in left_proof_lines:
-        if line["rule"] == "Premise":
-            left_proof.addProofLine(line["racket"])
-        else:
-            left_proof.addProofLine(line["racket"], line["rule"], line["startPosition"])
-
-    for line in right_proof_lines:
-        if line["rule"] == "Premise":
-            right_proof.addProofLine(line["racket"])
-        else:
-            right_proof.addProofLine(
-                line["racket"], line["rule"], line["startPosition"]
-            )
-
     for definition in definitions:
         label = definition["label"]
         def_type = definition["type"]
@@ -240,5 +226,27 @@ def load_proof(proof_data):
 
         left_proof.addUDF(label, def_type, expression)
         right_proof.addUDF(label, def_type, expression)
+
+    for index, line in enumerate(left_proof_lines, start=0):
+        if index == 0:
+            left_proof.addProofLine(line["racket"])
+        else:
+            left_proof.addProofLine(
+                left_proof_lines[index - 1]["racket"],
+                line["rule"],
+                left_proof_lines[index - 1]["startPosition"],
+            )
+
+    for index, line in enumerate(right_proof_lines, start=0):
+        if index == 0:
+            right_proof.addProofLine(line["racket"])
+        else:
+            right_proof.addProofLine(
+                right_proof_lines[index - 1]["racket"],
+                line["rule"],
+                right_proof_lines[index - 1]["startPosition"],
+            )
+
+    proof["currentProof"] = left_proof
 
     return proof

@@ -246,6 +246,9 @@ def get_proof(request, proof_id):
     proof_data = user_proof(user, proof_id)
 
     proof = load_proof(proof_data)
+    proof_data["proofLines"] = [
+        line for line in proof_data["proofLines"] if line["rule"] != "Premise"
+    ]
     save_proof_to_cache(user, proof)
 
     return Response(proof_data, status=status.HTTP_200_OK)

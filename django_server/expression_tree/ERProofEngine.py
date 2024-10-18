@@ -112,7 +112,7 @@ class ERProofLine:
             tree = Parser.buildTree(tokenList, debug=self.debug)[0]  # might not need to pass errLog
             labeledTree = Labeler.labelTree(tree, ruleDict)
             labeledTree, _ = updatePositions(labeledTree)
-        
+
         if self.errLog == []:
             decTree, self.errLog = Decorator.decorateTree(labeledTree, self.errLog)
         if self.errLog == []: #added userType in case of UDF
@@ -129,7 +129,7 @@ class ERProofLine:
                 f'Could not find Token with starting index {startPos}')
         if not (rule in ruleSet.keys()):
             self.errLog.append(f'Could not find rule associated with {rule}')
-        #checking to see if highlighted portion is within a quote
+        # checking to see if highlighted portion is within a quote
         if "'(" in targetNode.ancestors():
             self.errLog.append(f"Cannot apply rules within a quoted expression")
         if self.errLog == []:       
@@ -150,7 +150,7 @@ class ERProofLine:
                 f'Could not find Token with starting index {startPos}')
         if not (rule in ruleSet.keys()):
             self.errLog.append(f'Could not find rule associated with {rule}')
-        #checking to see if highlighted portion is within a quote
+        # checking to see if highlighted portion is within a quote
         if "'(" in targetNode.ancestors():
             self.errLog.append(f"Cannot apply rules within a quoted expression")
         if self.errLog == []:
@@ -163,8 +163,6 @@ class ERProofLine:
             targetNode.replaceWith(subNode)
             # print(str(self.exprTree)) # should print updated tree
             updatePositions(self.exprTree)
-        
-
 
 
 def updatePositions(inputTree: Node, count: int = 0) -> tuple[Node, int]:
