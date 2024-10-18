@@ -250,7 +250,7 @@ const ERRacket = () => {
       loadRacket();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadedProof, loadRacketProof, formValues]);
+  }, [loadedProof, loadRacketProof]);
 
   return (
     <MainLayout>

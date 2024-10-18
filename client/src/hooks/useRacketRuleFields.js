@@ -273,13 +273,15 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
     const leftFields = leftRackets.map((line) => ({
       racket: line.racket,
       rule: line.rule,
-      deleted: line.deleted
+      deleted: line.deleted,
+      startPosition: line.startPosition
     }));
 
     const rightFields = rightRackets.map((line) => ({
       racket: line.racket,
       rule: line.rule,
-      deleted: line.deleted
+      deleted: line.deleted,
+      startPosition: line.startPosition
     }));
 
     setRacketRuleFields({
