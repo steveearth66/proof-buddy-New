@@ -41,7 +41,7 @@ export default function Proofs() {
 
 function ProofCard(proof) {
   return (
-    <Card className="mb-2" style={{ height: "100px" }}>
+    <Card className="mb-2" style={{ height: '100px' }}>
       <Card.Body>
         <Row>
           <Col>
@@ -51,13 +51,7 @@ function ProofCard(proof) {
             <p>Tag: {proof.tag}</p>
           </Col>
           <Col>
-            <p>LHS Goal: {proof.lhs}</p>
-          </Col>
-          <Col>
-            <p>RHS Goal: {proof.rhs}</p>
-          </Col>
-          <Col>
-            <p>Is Complete: {proof.isComplete}</p>
+            <p>Completed: {proof.isComplete ? 'True' : 'False'}</p>
           </Col>
           <Col>
             <Link to={`/er-racket`} state={{ id: proof.id }}>
