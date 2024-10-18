@@ -111,7 +111,7 @@ def create_proof_definitions(definitions, proof, user):
 # This can be fixed by adding a checker to see if the proof is complete, if the proof is complete don't call load_proof method.
 def user_proofs(user):
     proofs = Proof.objects.filter(
-        created_by=user, isComplete=False
+        created_by=user
     )  # Proof.objects.filter(created_by=user) to return all proofs by user
     proof_data = []
 
