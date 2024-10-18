@@ -246,7 +246,7 @@ const ERRacket = () => {
       formValues.lHSGoal = loadedProof.lhs;
       formValues.rHSGoal = loadedProof.rhs;
 
-      loadRacketProof(loadedProof.proofLines);
+      loadRacketProof(loadedProof.proofLines, loadedProof.isComplete);
       loadRacket();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
