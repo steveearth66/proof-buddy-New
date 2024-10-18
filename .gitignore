@@ -137,3 +137,5 @@ python-server/__pycache__
 env
 __pycache__
 db.sqlite3
+
+.data

@@ -46,7 +46,7 @@ class ProofLine(models.Model):
 class Definition(models.Model):
     label = models.CharField(max_length=100)
     def_type = models.CharField(max_length=100)
-    expression = models.CharField(max_length=255)
+    expression = models.CharField(max_length=255, blank=True)
     notes = models.TextField(default='', blank=True)
     proof = models.ForeignKey(
         Proof, related_name='definitions', on_delete=models.CASCADE, null=True)

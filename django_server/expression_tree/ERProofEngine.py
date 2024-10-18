@@ -42,7 +42,7 @@ class ERProof:
         if proofLine.errLog == []:
             if ruleStr != None:
                 if substitution!=None:
-                    proofLine.applySubsitution(self.ruleSet, ruleStr, highlightPos, subLine)
+                    proofLine.applySubstitution(self.ruleSet, ruleStr, highlightPos, subLine)
                 else:
                     proofLine.applyRule(self.ruleSet, ruleStr, highlightPos)
             if proofLine.errLog != []:
@@ -57,7 +57,7 @@ class ERProof:
         return str(self.proofLines[-1].exprTree)
 
     def addUDF(self, label, typeStr, body):
-        errLog = Parser.preProcess(label)[1]
+        errLog = Parser.preProcess(label,udf=True)[1] #added udf=True so that preprocessing will bypass empty string check
         if errLog != []:
             self.errLog.extend(errLog)
             return
@@ -81,7 +81,7 @@ class ERProof:
             return #prevents bodynode from being created
         if self.errLog != []:
             return
-        bodyNode = ERProofLine(body, ruleDict=self.ruleSet,udfType=racTypeObj)
+        bodyNode = ERProofLine(body, ruleDict=self.ruleSet,udfType=racTypeObj,isUdf=True)
         if bodyNode.errLog != []:
             self.errLog.extend(bodyNode.errLog)
         if not (udfLabel not in self.ruleSet.keys() and udfLabel not in reservedLabels):
@@ -98,7 +98,7 @@ class ERProof:
             self.ruleSet[udfLabel] = UDF(udfLabel, filledBodyNode, racTypeObj, paramsList)
 
 class ERProofLine:
-    def __init__(self, goal, debug=False, ruleDict=None, udfType=None): #added optional pointer to parent proof's ruleset
+    def __init__(self, goal, debug=False, ruleDict=None, udfType=None,isUdf=False): #added optional pointer to parent proof's ruleset
         self.exprTree = None
         self.errLog = []
         self.debug = debug
@@ -107,7 +107,7 @@ class ERProofLine:
         else:
             self.ruleSet=dict()
 
-        tokenList, self.errLog = Parser.preProcess(goal, errLog=self.errLog, debug=self.debug)
+        tokenList, self.errLog = Parser.preProcess(goal, errLog=self.errLog, debug=self.debug,udf=isUdf)
         if self.errLog == []:
             tree = Parser.buildTree(tokenList, debug=self.debug)[0]  # might not need to pass errLog
             labeledTree = Labeler.labelTree(tree, ruleDict)
@@ -143,7 +143,8 @@ class ERProofLine:
                 updatePositions(self.exprTree)
             else:
                 self.errLog.append(error)
-    def applySubsitution(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subNode:Node):
+                
+    def applySubstitution(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subLine: 'ERProofLine'):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
         if targetNode == None:
             self.errLog.append(
@@ -154,14 +155,14 @@ class ERProofLine:
         if "'(" in targetNode.ancestors():
             self.errLog.append(f"Cannot apply rules within a quoted expression")
         if self.errLog == []:
-            subNode.applyRule(ruleSet, rule, 0)
-            if subNode.errLog != []:
-                self.errLog.extend(subNode.errLog)
-            elif subNode != targetNode:
-                self.errLog.append(f"substitution evaluated to {str(subNode)} but expected {str(targetNode)}")
+            subLine.applyRule(ruleSet, rule, 0)
+            if subLine.errLog != []:
+                self.errLog.extend(subLine.errLog)
+            elif subLine.exprTree != targetNode:
+                self.errLog.append(f"substitution evaluated to {str(subLine)} but expected {str(targetNode)}")
         if self.errLog == []:
-            targetNode.replaceWith(subNode)
-            # print(str(self.exprTree)) # should print updated tree
+            targetNode.replaceWith(subLine.exprTree)
+            # print(str(self.exprTree))  # should print updated tree
             updatePositions(self.exprTree)
 
 
