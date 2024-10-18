@@ -81,14 +81,12 @@ class ERProof:
             return #prevents bodynode from being created
         if self.errLog != []:
             return
-        if body:
-            bodyNode = ERProofLine(
-                body, ruleDict=self.ruleSet, udfType=racTypeObj, isUdf=True
-            )
-        else:
-            bodyNode = ERProofLine(
-                label, ruleDict=self.ruleSet, udfType=racTypeObj, isUdf=True
-            )
+        bodyNode = ERProofLine(
+            f"{body if body else label}",
+            ruleDict=self.ruleSet,
+            udfType=racTypeObj,
+            isUdf=True,
+        )
         if bodyNode.errLog != []:
             self.errLog.extend(bodyNode.errLog)
         if not (udfLabel not in self.ruleSet.keys() and udfLabel not in reservedLabels):
