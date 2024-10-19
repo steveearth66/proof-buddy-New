@@ -33,6 +33,7 @@ export default function Definitions({ toggleDefinitionsWindow }) {
 
 function CreateDefinition({
   onUpdate,
+  id,
   label,
   type,
   expression,
@@ -65,6 +66,7 @@ function CreateDefinition({
 
   const handleCreateDefinition = async () => {
     const definition = {
+      id,
       label: formValues.label,
       type: formValues.type,
       expression: formValues.expression,
@@ -76,16 +78,16 @@ function CreateDefinition({
 
     if (edit) {
       try {
-        const response = await erService.createDefinition(definition);
+        const newDefinition = await erService.editDefinition(definition);
         setErrors([]);
 
-        if (response.isValid) {
-          updateDefinition(definition);
-          setSuccessMessage('Definition updated successfully.');
-        } else {
-          setErrors(response.errors);
-          setValidated(false);
-        }
+        updateDefinition({
+          id: newDefinition.id,
+          label: newDefinition.label,
+          type: newDefinition.def_type,
+          expression: newDefinition.expression,
+          notes: newDefinition.notes
+        });
       } catch (error) {
         setErrors(['An error occurred. Please try again.']);
         setValidated(false);
@@ -246,22 +248,29 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
   const [definitionToEdit, setDefinitionToEdit] = useState({});
   const [edit, setEdit] = useState(false);
 
-  const deleteDefinition = (label) => {
+  const deleteDefinition = async (id) => {
     const confirm = window.confirm(
       'Are you sure you want to delete this definition?'
     );
     if (!confirm) return;
 
+    const deleted = await erService.deleteDefinition(id);
+
+    if (!deleted) {
+      alert('Error deleting definition.');
+      return;
+    }
+
     const definitions = JSON.parse(sessionStorage.getItem('definitions')) || [];
-    const updatedDefinitions = definitions.filter((def) => def.label !== label);
+    const updatedDefinitions = definitions.filter((def) => def.id !== id);
     sessionStorage.setItem('definitions', JSON.stringify(updatedDefinitions));
     setDefinitions(updatedDefinitions);
   };
 
-  const updateDefinition = ({ label, type, expression, notes }) => {
+  const updateDefinition = async ({ id, label, type, expression, notes }) => {
     const updatedDefinitions = definitions.map((def) => {
-      if (def.label === label) {
-        return { label, type, expression, notes };
+      if (def.id === id) {
+        return { id, label, type, expression, notes };
       } else {
         return def;
       }
@@ -296,6 +305,7 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
     return (
       <CreateDefinition
         onUpdate={() => setEdit(false)}
+        id={definitionToEdit.id}
         label={definitionToEdit.label}
         type={definitionToEdit.type}
         expression={definitionToEdit.expression}
@@ -364,7 +374,7 @@ function Definition({
             </Button>
             <Button
               variant="outline-danger"
-              onClick={() => deleteDefinition(definition.label)}
+              onClick={() => deleteDefinition(definition.id)}
             >
               Delete
             </Button>

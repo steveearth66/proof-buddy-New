@@ -12,6 +12,8 @@ from proofs.views import (
     get_user_definitions,
     create_user_definition,
     get_definition,
+    edit_definition,
+    delete_definition,
 )
 from dill import dumps, loads
 from django.core.cache import cache
@@ -309,6 +311,29 @@ def use_definition(request, id):
         return Response(status=status.HTTP_200_OK)
     except:
         return Response(status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"])
+def update_definition(request):
+    user = request.user
+    json_data = request.data
+    definition = edit_definition(user, json_data["id"], json_data)
+
+    if not definition:
+        return Response(status=status.HTTP_400_BAD_REQUEST)
+
+    return Response(definition, status=status.HTTP_200_OK)
+
+
+@api_view(["DELETE"])
+def delete_definition_api(request, id):
+    user = request.user
+    delete_definition(user, id)
+
+    if not delete_definition:
+        return Response(status=status.HTTP_400_BAD_REQUEST)
+
+    return Response(status=status.HTTP_200_OK)
 
 
 def update_current_proof(proof, side):

@@ -293,3 +293,31 @@ def get_definition(id):
     }
 
     return definition_data
+
+
+def edit_definition(user, id, data):
+    definition = Definition.objects.filter(id=id, created_by=user).first()
+
+    if not definition:
+        return False
+
+    definition.label = data["label"]
+    definition.def_type = data["type"]
+    definition.expression = data["expression"]
+    definition.notes = data["notes"]
+    definition.save()
+
+    definition_data = DefinitionSerializer(definition).data
+
+    return definition_data
+
+
+def delete_definition(user, id):
+    definition = Definition.objects.filter(id=id, created_by=user).first()
+
+    if not definition:
+        return False
+
+    definition.delete()
+
+    return True
