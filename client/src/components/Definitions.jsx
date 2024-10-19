@@ -275,6 +275,15 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
     setEdit(true);
   };
 
+  const applyDefinition = (id) => {
+    erService.useDefinition(id).then((created) => {
+      if (!created) {
+        alert('Error using definition.');
+      }
+      alert('Definition applied successfully.');
+    });
+  };
+
   useEffect(() => {
     erService.getUserDefinitions().then((definitions) => {
       setDefinitions(definitions);
@@ -307,6 +316,7 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
               eventKey={index}
               deleteDefinition={deleteDefinition}
               updateEdit={updateEdit}
+              applyDefinition={applyDefinition}
             />
           ))}
         </div>
@@ -321,7 +331,13 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
   }
 }
 
-function Definition({ definition, eventKey, deleteDefinition, updateEdit }) {
+function Definition({
+  definition,
+  eventKey,
+  deleteDefinition,
+  updateEdit,
+  applyDefinition
+}) {
   return (
     <Accordion>
       <Accordion.Item eventKey={eventKey}>
@@ -333,6 +349,12 @@ function Definition({ definition, eventKey, deleteDefinition, updateEdit }) {
           <p>Expression: {definition.expression}</p>
           {definition.notes && <p>Notes: {definition.notes}</p>}
           <div className="def-buttons">
+            <Button
+              variant="outline-success"
+              onClick={() => applyDefinition(definition.id)}
+            >
+              Apply Definition
+            </Button>
             <Button
               variant="outline-primary"
               onClick={() => updateEdit(definition)}

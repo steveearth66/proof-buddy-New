@@ -87,24 +87,12 @@ def add_data_to_proof(json_data, proof, definitions, user):
 
     create_proof_lines(left_rackets_and_rules, True, proof)
     create_proof_lines(right_rackets_and_rules, False, proof)
-    create_proof_definitions(definitions, proof, user)
+    add_definitions(definitions, proof, user)
 
 
-def create_proof_definitions(definitions, proof, user):
+def add_definitions(definitions, proof: Proof, user):
     for definition in definitions:
-        definition_data = {
-            "label": definition["label"],
-            "def_type": definition["type"],
-            "expression": definition["expression"],
-            "notes": definition["notes"],
-        }
-
-        definition_serializer = DefinitionSerializer(data=definition_data)
-
-        if not definition_serializer.is_valid():
-            return definition_serializer.errors
-
-        definition_serializer.save(proof=proof, created_by=user)
+        proof.definitions.add(definition["id"])
 
 
 # Return all incomplete proofs for a user. Can be change to return all but if a use click on a proof marked as complete the backend crashes because the proof is already complete.
@@ -117,7 +105,7 @@ def user_proofs(user):
 
     for proof in proofs:
         proof_lines = ProofLine.objects.filter(proof=proof)
-        definitions = Definition.objects.filter(proof=proof)
+        definitions = Definition.objects.filter(created_by=user)
         proof_lines_data = []
         definitions_data = []
 
@@ -161,7 +149,7 @@ def user_proofs(user):
 def user_proof(user, proof_id):
     proof = Proof.objects.filter(created_by=user, id=proof_id).first()
     proof_lines = ProofLine.objects.filter(proof=proof)
-    definitions = Definition.objects.filter(proof=proof)
+    definitions = Definition.objects.filter(created_by=user)
     proof_lines_data = []
     definitions_data = []
 
@@ -259,6 +247,7 @@ def get_user_definitions(user):
     for definition in definitions:
         definitions_data.append(
             {
+                "id": definition.id,
                 "label": definition.label,
                 "type": definition.def_type,
                 "expression": definition.expression,
@@ -282,6 +271,18 @@ def create_user_definition(user, data):
     if not definition_serializer.is_valid():
         return False
 
-    definition_serializer.save(proof=None, created_by=user)
+    definition_serializer.save(created_by=user)
 
-    return True
+    return definition_serializer.data
+
+
+def get_definition(id):
+    definition = Definition.objects.filter(id=id).first()
+    definition_data = {
+        "id": definition.id,
+        "label": definition.label,
+        "type": definition.def_type,
+        "expression": definition.expression,
+    }
+
+    return definition_data

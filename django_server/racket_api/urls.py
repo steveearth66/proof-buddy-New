@@ -12,4 +12,5 @@ urlpatterns = [
     path("proofs", views.get_user_proofs),
     path("proofs/<int:proof_id>", views.get_proof),
     path("get-definitions", views.get_definitions),
+    path("use-definition/<int:id>", views.use_definition),
 ]

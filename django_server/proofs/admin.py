@@ -19,6 +19,7 @@ class ProofAdmin(admin.ModelAdmin):
                 "fields": (
                     "lhs",
                     "rhs",
+                    "definitions",
                     "isComplete",
                 )
             },
@@ -70,8 +71,6 @@ class ProofLineAdmin(admin.ModelAdmin):
 
 class DefinitionAdmin(admin.ModelAdmin):
     list_display = (
-        "proof",
-        "get_tag",
         "label",
         "def_type",
         "expression",
@@ -86,13 +85,6 @@ class DefinitionAdmin(admin.ModelAdmin):
     list_filter = ()
     fieldsets = ((None, {"fields": ("label", "def_type", "expression", "notes")}),)
     ordering = ("label",)
-
-    def get_tag(self, obj):
-        if obj.proof:
-            return obj.proof.tag
-        return "No Tag"
-
-    get_tag.short_description = "TAG"
 
 
 admin.site.register(Proof, ProofAdmin)

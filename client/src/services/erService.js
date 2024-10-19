@@ -132,6 +132,17 @@ const getUserDefinitions = async () => {
   }
 };
 
+const useDefinition = async (id) => {
+  try {
+    await axiosInstance.get(
+      `${API_GATEWAY}/use-definition/${id}`
+    );
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
 const erService = {
   checkGoal,
   racketGeneration,
@@ -142,7 +153,8 @@ const erService = {
   saveProof,
   getRacketProofs,
   getRacketProof,
-  getUserDefinitions
+  getUserDefinitions,
+  useDefinition
 };
 
 export default erService;
