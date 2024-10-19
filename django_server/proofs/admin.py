@@ -88,7 +88,9 @@ class DefinitionAdmin(admin.ModelAdmin):
     ordering = ("label",)
 
     def get_tag(self, obj):
-        return obj.proof.tag
+        if obj.proof:
+            return obj.proof.tag
+        return "No Tag"
 
     get_tag.short_description = "TAG"
 

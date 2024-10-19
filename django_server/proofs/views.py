@@ -267,3 +267,21 @@ def get_user_definitions(user):
         )
 
     return definitions_data
+
+
+def create_user_definition(user, data):
+    definition_data = {
+        "label": data["label"],
+        "def_type": data["type"],
+        "expression": data["expression"],
+        "notes": data["notes"],
+    }
+
+    definition_serializer = DefinitionSerializer(data=definition_data)
+
+    if not definition_serializer.is_valid():
+        return False
+
+    definition_serializer.save(proof=None, created_by=user)
+
+    return True

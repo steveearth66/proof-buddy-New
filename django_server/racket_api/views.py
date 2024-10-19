@@ -10,6 +10,7 @@ from proofs.views import (
     user_proof,
     load_proof,
     get_user_definitions,
+    create_user_definition,
 )
 from dill import dumps, loads
 from django.core.cache import cache
@@ -136,9 +137,15 @@ def add_definitions(request):
     errors, proof = get_errors_and_clear(proof)
     is_valid = proof["isValid"]
 
-    save_proof_to_cache(user, proof)
+    if create_user_definition(user, json_data):
+        save_proof_to_cache(user, proof)
+        return Response(
+            {"isValid": is_valid, "errors": errors}, status=status.HTTP_201_CREATED
+        )
 
-    return Response({"isValid": is_valid, "errors": errors}, status=status.HTTP_200_OK)
+    return Response(
+        {"message": "Error adding definition"}, status=status.HTTP_400_BAD_REQUEST
+    )
 
 
 @api_view(["POST"])
