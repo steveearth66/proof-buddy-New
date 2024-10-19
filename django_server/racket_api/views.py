@@ -288,8 +288,8 @@ def use_definition(request, id):
         proof_two: ERProof = proof["proofTwo"]
         definitions = proof["definitions"]
 
-        for defi in definitions:
-            if defi["label"] == definition["label"]:
+        for proof_definition in definitions:
+            if proof_definition["label"] == definition["label"]:
                 return Response(status=status.HTTP_400_BAD_REQUEST)
 
         proof_one.addUDF(
