@@ -31,7 +31,7 @@ class ERProof:
         self.debug = debug
 
     def addProofLine(self, lineStr, ruleStr=None, highlightPos=0, substitution=None):
-        #prooflines now contain pointers to their proof's ruleset so they can refer to UDFs
+        # prooflines now contain pointers to their proof's ruleset so they can refer to UDFs
         if substitution != None:
             subLine = ERProofLine(substitution, self.debug, self.ruleSet) 
 
@@ -81,7 +81,12 @@ class ERProof:
             return #prevents bodynode from being created
         if self.errLog != []:
             return
-        bodyNode = ERProofLine(body, ruleDict=self.ruleSet,udfType=racTypeObj,isUdf=True)
+        bodyNode = ERProofLine(
+            f"{body if body else label}",
+            ruleDict=self.ruleSet,
+            udfType=racTypeObj,
+            isUdf=True,
+        )
         if bodyNode.errLog != []:
             self.errLog.extend(bodyNode.errLog)
         if not (udfLabel not in self.ruleSet.keys() and udfLabel not in reservedLabels):
