@@ -4,7 +4,13 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from django.contrib.auth import get_user_model
 from proofs.models import Proof
-from proofs.views import get_or_create_proof, user_proofs, user_proof, load_proof
+from proofs.views import (
+    get_or_create_proof,
+    user_proofs,
+    user_proof,
+    load_proof,
+    get_user_definitions,
+)
 from dill import dumps, loads
 from django.core.cache import cache
 import copy
@@ -252,6 +258,28 @@ def get_proof(request, proof_id):
     save_proof_to_cache(user, proof)
 
     return Response(proof_data, status=status.HTTP_200_OK)
+
+
+@api_view(["GET"])
+def get_definitions(request):
+    user = request.user
+    definitions = get_user_definitions(user)
+    proof = get_or_set_proof(user)
+
+    proof_one: ERProof = proof["proofOne"]
+    proof_two: ERProof = proof["proofTwo"]
+
+    for definition in definitions:
+        proof_one.addUDF(
+            definition["label"], definition["type"], definition["expression"]
+        )
+        proof_two.addUDF(
+            definition["label"], definition["type"], definition["expression"]
+        )
+
+    save_proof_to_cache(user, proof)
+
+    return Response(definitions, status=status.HTTP_200_OK)
 
 
 def update_current_proof(proof, side):

@@ -9,8 +9,8 @@ import validateField from "../utils/definitionsFormValidation";
 import { useInputState } from "../hooks/useInputState";
 import { useFormValidation } from "../hooks/useFormValidation";
 import { useFormSubmit } from "../hooks/useFormSubmit";
-import { useState } from "react";
-import erService from "../services/erService";
+import { useEffect, useState } from 'react';
+import erService from '../services/erService';
 
 export default function Definitions({ toggleDefinitionsWindow }) {
   const [showCreateDefinition, setShowCreateDefinition] = useState(false);
@@ -41,10 +41,10 @@ function CreateDefinition({
   updateDefinition
 }) {
   const initialValues = {
-    label: label || "",
-    type: type || "",
-    expression: expression || "",
-    notes: notes || ""
+    label: label || '',
+    type: type || '',
+    expression: expression || '',
+    notes: notes || ''
   };
 
   const [formValues, handleChange] = useInputState(initialValues);
@@ -52,13 +52,13 @@ function CreateDefinition({
     useFormValidation(formValues, validateField);
   const [validated, setValidated] = useState(false);
   const [errors, setErrors] = useState([]);
-  const [successMessage, setSuccessMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState('');
 
   const handleReset = () => {
-    formValues.label = "";
-    formValues.type = "";
-    formValues.expression = "";
-    formValues.notes = "";
+    formValues.label = '';
+    formValues.type = '';
+    formValues.expression = '';
+    formValues.notes = '';
     setValidated(false);
     setErrors([]);
   };
@@ -71,7 +71,7 @@ function CreateDefinition({
       notes: formValues.notes
     };
 
-    const definitions = JSON.parse(sessionStorage.getItem("definitions")) || [];
+    const definitions = JSON.parse(sessionStorage.getItem('definitions')) || [];
     let exists = false;
 
     if (edit) {
@@ -81,13 +81,13 @@ function CreateDefinition({
 
         if (response.isValid) {
           updateDefinition(definition);
-          setSuccessMessage("Definition updated successfully.");
+          setSuccessMessage('Definition updated successfully.');
         } else {
           setErrors(response.errors);
           setValidated(false);
         }
       } catch (error) {
-        setErrors(["An error occurred. Please try again."]);
+        setErrors(['An error occurred. Please try again.']);
         setValidated(false);
       }
       return;
@@ -95,7 +95,7 @@ function CreateDefinition({
 
     definitions.forEach((def) => {
       if (def.label === definition.label) {
-        setErrors(["Definition with this label already exists."]);
+        setErrors(['Definition with this label already exists.']);
         exists = true;
       }
     });
@@ -107,15 +107,15 @@ function CreateDefinition({
 
         if (response.isValid) {
           definitions.push(definition);
-          sessionStorage.setItem("definitions", JSON.stringify(definitions));
-          setSuccessMessage("Definition created successfully.");
+          sessionStorage.setItem('definitions', JSON.stringify(definitions));
+          setSuccessMessage('Definition created successfully.');
           handleReset();
         } else {
           setErrors(response.errors);
           setValidated(false);
         }
       } catch (error) {
-        setErrors(["An error occurred. Please try again."]);
+        setErrors(['An error occurred. Please try again.']);
         setValidated(false);
       }
     }
@@ -161,7 +161,7 @@ function CreateDefinition({
                 name="label"
                 placeholder="Enter Label"
                 value={formValues.label}
-                onBlur={() => handleBlur("label")}
+                onBlur={() => handleBlur('label')}
                 onChange={handleChange}
                 isInvalid={!!validationMessages.label}
                 required
@@ -180,7 +180,7 @@ function CreateDefinition({
                 name="type"
                 placeholder="Enter Type"
                 value={formValues.type}
-                onBlur={() => handleBlur("type")}
+                onBlur={() => handleBlur('type')}
                 onChange={handleChange}
                 isInvalid={!!validationMessages.type}
                 required
@@ -201,7 +201,7 @@ function CreateDefinition({
                 name="expression"
                 placeholder="Enter Expression"
                 value={formValues.expression}
-                onBlur={() => handleBlur("expression")}
+                onBlur={() => handleBlur('expression')}
                 onChange={handleChange}
               />
               <label htmlFor="definitionExpression">Expression</label>
@@ -219,7 +219,7 @@ function CreateDefinition({
               name="notes"
               placeholder="Enter Notes"
               value={formValues.notes}
-              onBlur={() => handleBlur("notes")}
+              onBlur={() => handleBlur('notes')}
               onChange={handleChange}
               as="textarea"
               rows={4}
@@ -231,7 +231,7 @@ function CreateDefinition({
             Go Back
           </Button>
           <Button variant="outline-primary" type="submit">
-            {edit ? "Update" : "Create"} Definition
+            {edit ? 'Update' : 'Create'} Definition
           </Button>
         </div>
       </Form>
@@ -241,20 +241,20 @@ function CreateDefinition({
 
 function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
   const [definitions, setDefinitions] = useState(
-    JSON.parse(sessionStorage.getItem("definitions")) || []
+    JSON.parse(sessionStorage.getItem('definitions')) || []
   );
   const [definitionToEdit, setDefinitionToEdit] = useState({});
   const [edit, setEdit] = useState(false);
 
   const deleteDefinition = (label) => {
     const confirm = window.confirm(
-      "Are you sure you want to delete this definition?"
+      'Are you sure you want to delete this definition?'
     );
     if (!confirm) return;
 
-    const definitions = JSON.parse(sessionStorage.getItem("definitions")) || [];
+    const definitions = JSON.parse(sessionStorage.getItem('definitions')) || [];
     const updatedDefinitions = definitions.filter((def) => def.label !== label);
-    sessionStorage.setItem("definitions", JSON.stringify(updatedDefinitions));
+    sessionStorage.setItem('definitions', JSON.stringify(updatedDefinitions));
     setDefinitions(updatedDefinitions);
   };
 
@@ -266,7 +266,7 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
         return def;
       }
     });
-    sessionStorage.setItem("definitions", JSON.stringify(updatedDefinitions));
+    sessionStorage.setItem('definitions', JSON.stringify(updatedDefinitions));
     setDefinitions(updatedDefinitions);
   };
 
@@ -274,6 +274,13 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
     setDefinitionToEdit(definition);
     setEdit(true);
   };
+
+  useEffect(() => {
+    erService.getUserDefinitions().then((definitions) => {
+      setDefinitions(definitions);
+      sessionStorage.setItem('definitions', JSON.stringify(definitions));
+    });
+  }, []);
 
   if (edit) {
     return (
