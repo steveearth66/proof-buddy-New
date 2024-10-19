@@ -92,13 +92,46 @@ const substitution = async (data) => {
   }
 };
 
+const saveProof = async (proof) => {
+  try {
+    const response = await axiosInstance.post(`${API_GATEWAY}/er-save`, proof);
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during proof saving:");
+    throw error;
+  }
+};
+
+const getRacketProofs = async () => {
+  try {
+    const response = await axiosInstance.get(`${API_GATEWAY}/proofs`);
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during getting racket proofs:");
+    throw error;
+  }
+};
+
+const getRacketProof = async (id) => {
+  try {
+    const response = await axiosInstance.get(`${API_GATEWAY}/proofs/${id}`);
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during getting racket proof:");
+    throw error;
+  }
+};
+
 const erService = {
   checkGoal,
   racketGeneration,
   createDefinition,
   completeProof,
   clearProof,
-  substitution
+  substitution,
+  saveProof,
+  getRacketProofs,
+  getRacketProof
 };
 
 export default erService;

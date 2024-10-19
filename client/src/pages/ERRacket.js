@@ -28,6 +28,7 @@ import {
 } from "../components";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import erService from "../services/erService";
+import { useLocation } from "react-router-dom";
 
 /**
  * ERRacket component facilitates the Equational Reasoning Racket.
@@ -51,7 +52,8 @@ const ERRacket = () => {
     goalValidationMessage,
     enhancedHandleChange,
     proofValidationMessage,
-    clearProofValidationMessage
+    clearProofValidationMessage,
+    loadRacket
   ] = useGoalCheck(handleChange);
   const [startPosition, setStartPosition] = useState(0);
   const [currentRacket, setCurrentRacket] = useState("");
@@ -68,6 +70,7 @@ const ERRacket = () => {
     closeSubstitution,
     substituteFieldWithApiCheck,
     substitutionErrors,
+    loadRacketProof,
     sendProofComplete
   ] = useRacketRuleFields(
     startPosition,
@@ -86,6 +89,8 @@ const ERRacket = () => {
   const [proofComplete, setProofComplete] = useState(false);
   const [leftPremise, setLeftPremise] = useState({});
   const [rightPremise, setRightPremise] = useState({});
+  const [loadedProof, setLoadedProof] = useState(null);
+  const location = useLocation();
 
   const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
@@ -129,6 +134,25 @@ const ERRacket = () => {
     setStartPosition(startPosition);
   };
 
+  const saveProof = async () => {
+    const proof = {
+      name: formValues.proofName,
+      tag: formValues.proofTag,
+      leftRacketsAndRules: racketRuleFields.LHS,
+      rightRacketsAndRules: racketRuleFields.RHS,
+      lHSGoal: formValues.lHSGoal,
+      rHSGoal: formValues.rHSGoal,
+      leftPremise,
+      rightPremise
+    };
+
+    try {
+      await erService.saveProof(proof);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   useEffect(() => {
     sessionStorage.removeItem("highlights");
     sessionStorage.removeItem("definitions");
@@ -156,7 +180,7 @@ const ERRacket = () => {
         startPosition: 0
       });
     }
-  }, [formValues]);
+  }, [formValues.lHSGoal, formValues.rHSGoal]);
 
   useEffect(() => {
     const removeBlankRackets = () => {
@@ -198,14 +222,35 @@ const ERRacket = () => {
     racketRuleFields,
     lhsValue,
     rhsValue,
-    formValues.proofName,
-    formValues.proofTag,
-    formValues.lHSGoal,
-    formValues.rHSGoal,
+    formValues,
     leftPremise,
     rightPremise,
     sendProofComplete
   ]);
+
+  useEffect(() => {
+    const fetchProof = async (id) => {
+      const proof = await erService.getRacketProof(id);
+      setLoadedProof(proof);
+    };
+
+    if (location?.state?.id) {
+      fetchProof(location.state.id);
+    }
+  }, [location]);
+
+  useEffect(() => {
+    if (loadedProof) {
+      formValues.proofName = loadedProof.name;
+      formValues.proofTag = loadedProof.tag;
+      formValues.lHSGoal = loadedProof.lhs;
+      formValues.rHSGoal = loadedProof.rhs;
+
+      loadRacketProof(loadedProof.proofLines, loadedProof.isComplete);
+      loadRacket();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadedProof, loadRacketProof]);
 
   return (
     <MainLayout>
@@ -462,6 +507,7 @@ const ERRacket = () => {
                   {showSide === "LHS" && (
                     <div className="racket-rule-lhs" id="racket-rule-lhs">
                       {/* Static Row Always Present */}
+                      {/* When a saved proof is loaded a static premise should not be rendered. I suggest having a checker and only call this code if it returns true. */}
                       <Row className="racket-rule-row">
                         <PersistentPad
                           equation={formValues.lHSGoal}
@@ -570,6 +616,7 @@ const ERRacket = () => {
                   {showSide === "RHS" && (
                     <div className="racket-rule-rhs" id="racket-rule-rhs">
                       {/* Static Row Always Present */}
+                      {/* When a saved proof is loaded a static premise should not be rendered. I suggest having a checker and only call this code if it returns true. */}
                       <Row className="racket-rule-row">
                         <PersistentPad
                           equation={formValues.rHSGoal}
@@ -725,7 +772,9 @@ const ERRacket = () => {
                           Download Proof
                         </Dropdown.Item>
                         <Dropdown.Item href="#">Upload Proof</Dropdown.Item>
-                        <Dropdown.Item href="#">Save Proof</Dropdown.Item>
+                        <Dropdown.Item onClick={saveProof}>
+                          Save Proof
+                        </Dropdown.Item>
                         <Dropdown.Item href="#">Submit Proof</Dropdown.Item>
                       </Dropdown.Menu>
                     </Dropdown>

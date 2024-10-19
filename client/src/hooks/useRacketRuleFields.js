@@ -1,7 +1,7 @@
-import { useState, useCallback } from "react";
-import erService from "../services/erService";
-import { useServerError } from "../hooks/useServerError";
-import logger from "../utils/logger";
+import { useState, useCallback } from 'react';
+import erService from '../services/erService';
+import { useServerError } from '../hooks/useServerError';
+import logger from '../utils/logger';
 
 /**
  * A custom React hook designed to manage racket rule fields within a component.
@@ -36,7 +36,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
     setSubstitutionErrors([]);
 
     if (startPosition < 1) {
-      alert("Please select a keyword to substitute!");
+      alert('Please select a keyword to substitute!');
       return;
     }
 
@@ -49,7 +49,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
     if (undeletedProofLines.length > 0) {
       const ruleValue = undeletedProofLines[lastUnDeletedFieldIndex].rule;
       if (ruleValue.trim().length > 0) {
-        alert("Rule for Substitution entered in different window");
+        alert('Rule for Substitution entered in different window');
       }
     }
 
@@ -106,12 +106,12 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
 
       // Only proceed if there is at least one field and the last rule is not empty.
       if (undeletedProofLines.length > 0) {
-        if (undeletedProofLines[lastUnDeletedFieldIndex].rule.trim() === "") {
+        if (undeletedProofLines[lastUnDeletedFieldIndex].rule.trim() === '') {
           setValidationErrors((prevErrors) => ({
             ...prevErrors,
             [side]: {
               ...prevErrors[side],
-              [lastUnDeletedFieldIndex]: "Rule field cannot be empty!"
+              [lastUnDeletedFieldIndex]: 'Rule field cannot be empty!'
             }
           }));
         } else {
@@ -131,7 +131,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
                     racket: racket.racket,
                     deleted: false
                   },
-                  { racket: "", rule: "", deleted: false }
+                  { racket: '', rule: '', deleted: false }
                 ]
               }));
               setValidationErrors((prevErrors) => ({
@@ -142,7 +142,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
               setRacketErrors(racket.errors);
             }
           } catch (error) {
-            logger.error("Failed to fetch racket value:", error);
+            logger.error('Failed to fetch racket value:', error);
           }
         }
       } else {
@@ -150,7 +150,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
           ...prevFields,
           [side]: [
             ...prevFields[side],
-            { racket: "", rule: "", deleted: false }
+            { racket: '', rule: '', deleted: false }
           ]
         }));
       }
@@ -245,10 +245,10 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
               ...prevFields[side].slice(0, -1),
               {
                 racket: response.racket,
-                rule: rule + "(SUB)",
+                rule: rule + '(SUB)',
                 deleted: false
               },
-              { racket: "", rule: "", deleted: false }
+              { racket: '', rule: '', deleted: false }
             ]
           }));
           closeSubstitution();
@@ -258,13 +258,42 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
           return false;
         }
       } catch (error) {
-        setSubstitutionErrors(["Failed to substitute rule"]);
-        logger.error("Failed to fetch racket value:", error);
+        setSubstitutionErrors(['Failed to substitute rule']);
+        logger.error('Failed to fetch racket value:', error);
         return false;
       }
     },
     [currentRacket, side, startPosition]
   );
+
+  const loadRacketProof = useCallback((proofLines, isComplete) => {
+    const leftRackets = proofLines.filter((line) => line.leftSide === true);
+    const rightRackets = proofLines.filter((line) => line.leftSide === false);
+
+    const leftFields = leftRackets.map((line) => ({
+      racket: line.racket,
+      rule: line.rule,
+      deleted: line.deleted,
+      startPosition: line.startPosition
+    }));
+
+    const rightFields = rightRackets.map((line) => ({
+      racket: line.racket,
+      rule: line.rule,
+      deleted: line.deleted,
+      startPosition: line.startPosition
+    }));
+
+    if (!isComplete) {
+      leftFields.push({ racket: '', rule: '', deleted: false });
+      rightFields.push({ racket: '', rule: '', deleted: false });
+    }
+
+    setRacketRuleFields({
+      LHS: leftFields,
+      RHS: rightFields
+    });
+  }, []);
 
   return [
     racketRuleFields,
@@ -278,7 +307,8 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
     showSubstitution,
     closeSubstitution,
     substituteFieldWithApiCheck,
-    substitutionErrors
+    substitutionErrors,
+    loadRacketProof
   ];
 };
 

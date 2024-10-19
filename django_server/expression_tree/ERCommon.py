@@ -29,7 +29,7 @@ class TypeList:
         else:
             return '[' + ', '.join(str(x) for x in self.value) + ']'
 
-#used in generalized equality checks for RacTypes
+# used in generalized equality checks for RacTypes
 FLEX_TYPES = [Type.TEMP, Type.ANY, Type.PARAM]
 FAIL_TYPES = [Type.NONE, Type.ERROR] 
 class RacType:
@@ -93,7 +93,7 @@ def findDelim(delim:str, tlist:list)->int:
             return i+1 #this is one more than the position for some reason (maybe i used it earlier) so i need to -1 to it in str2Type
     return -1 # the string had unbalanced parens or did not contain delim
 
-#given a tokenized list of a single type (i.e. NOT a list of types like potentially in a domain), returns the ractype for it. note: could be a function
+# given a tokenized list of a single type (i.e. NOT a list of types like potentially in a domain), returns the ractype for it. note: could be a function
 def list2Type(slist:list[str])->RacType:
     if ">" not in slist:
         strg = "".join(slist)
@@ -118,7 +118,7 @@ def list2Tup(slist:list[str])->tuple:
     return tuple([str2Type(firstTokL[0])])+list2Tup(restToksL)
 
 core = ["INT","LIST","BOOL","ANY"]
-#takes a string and turns it into a RacType
+# takes a string and turns it into a RacType
 def str2Type(tstr:str)->RacType:
     if tstr==None or tstr=="":
         return RacType((None, Type.ERROR))
@@ -322,8 +322,7 @@ def findNode(tree:Node, target:int,errLog:list[str],found=None)->Node:
     if found ==  None:
         found = []
 
-    # print(f"tree={tree.data} start={tree.startPosition}")
-    if tree.startPosition == target:
+    if int(tree.startPosition) == int(target):
         found.extend([tree])
 
     for child in tree.children:

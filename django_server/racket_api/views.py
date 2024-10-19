@@ -3,11 +3,11 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view
 from django.contrib.auth import get_user_model
-import copy
-from proofs.serializers import ProofLineSerializer
-from proofs.views import create_proof, create_proof_lines, create_proof_definitions
+from proofs.models import Proof
+from proofs.views import get_or_create_proof, user_proofs, user_proof, load_proof
 from dill import dumps, loads
 from django.core.cache import cache
+import copy
 
 User = get_user_model()
 
@@ -68,6 +68,18 @@ def check_goal(request):
     user = request.user
     json_data = request.data
     proof = get_or_set_proof(user)
+    user_proof = Proof.objects.filter(
+        created_by=user, name=json_data["name"], tag=json_data["tag"]
+    ).first()
+
+    if user_proof:
+        return Response(
+            {
+                "isValid": False,
+                "errors": ["Proof with this name and tag already exists"],
+            },
+            status=status.HTTP_200_OK,
+        )
 
     is_p_one_active = json_data["side"] == "LHS"
     proof_one: ERProof = proof["proofOne"]
@@ -128,45 +140,11 @@ def complete_proof(request):
     user = request.user
     json_data = request.data
     user_proof = get_or_set_proof(user)
-    proof = create_proof(json_data, user)
-
-    left_premise_data = json_data["leftPremise"]
-    left_premise_data = {
-        "left_side": True,
-        "racket": left_premise_data["racket"],
-        "rule": left_premise_data["rule"],
-        "start_position": left_premise_data["startPosition"],
-    }
-    right_premise_data = json_data["rightPremise"]
-    right_premise_data = {
-        "left_side": False,
-        "racket": right_premise_data["racket"],
-        "rule": right_premise_data["rule"],
-        "start_position": right_premise_data["startPosition"],
-    }
-    left_rackets_and_rules = json_data["leftRacketsAndRules"]
-    right_rackets_and_rules = json_data["rightRacketsAndRules"]
-
-    left_premise = ProofLineSerializer(data=left_premise_data)
-    right_premise = ProofLineSerializer(data=right_premise_data)
-
-    if not left_premise.is_valid():
-        return Response(left_premise.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    if not right_premise.is_valid():
-        return Response(right_premise.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    left_premise.save(proof=proof)
-    right_premise.save(proof=proof)
-
-    create_proof_lines(left_rackets_and_rules, True, proof)
-    create_proof_lines(right_rackets_and_rules, False, proof)
+    definitions = user_proof["definitions"]
+    proof = get_or_create_proof(json_data, user, definitions)
 
     proof.isComplete = True
     proof.save()
-
-    definitions = user_proof["definitions"]
-    create_proof_definitions(definitions, proof, user)
 
     clear_user_proofs(user)
 
@@ -234,6 +212,46 @@ def substitution(request):
         {"isValid": is_valid, "racket": racket_str, "errors": errors},
         status=status.HTTP_200_OK,
     )
+
+
+@api_view(["POST"])
+def save_proof(request):
+    data = request.data
+    user = request.user
+    user_proof = get_or_set_proof(user)
+    definitions = user_proof["definitions"]
+    proof = get_or_create_proof(data, user, definitions)
+
+    if not proof:
+        return Response(
+            {"message": "Error creating proof"}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    return Response(
+        {"message": "Proof created successfully"}, status=status.HTTP_201_CREATED
+    )
+
+
+@api_view(["GET"])
+def get_user_proofs(request):
+    user = request.user
+    proof_data = user_proofs(user)
+
+    return Response(proof_data, status=status.HTTP_200_OK)
+
+
+@api_view(["GET"])
+def get_proof(request, proof_id):
+    user = request.user
+    proof_data = user_proof(user, proof_id)
+
+    proof = load_proof(proof_data)
+    proof_data["proofLines"] = [
+        line for line in proof_data["proofLines"] if line["rule"] != "Premise"
+    ]
+    save_proof_to_cache(user, proof)
+
+    return Response(proof_data, status=status.HTTP_200_OK)
 
 
 def update_current_proof(proof, side):
