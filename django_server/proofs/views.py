@@ -214,6 +214,7 @@ def load_proof(proof_data):
 
         left_proof.addUDF(label, def_type, expression)
         right_proof.addUDF(label, def_type, expression)
+        proof["definitions"].append(definition)
 
     for index, line in enumerate(left_proof_lines, start=0):
         if index == 0:

@@ -279,8 +279,9 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
     erService.useDefinition(id).then((created) => {
       if (!created) {
         alert('Error using definition.');
+      } else {
+        alert('Definition applied successfully.');
       }
-      alert('Definition applied successfully.');
     });
   };
 

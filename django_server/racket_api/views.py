@@ -289,13 +289,16 @@ def use_definition(request, id):
         proof_two: ERProof = proof["proofTwo"]
         definitions = proof["definitions"]
 
+        for defi in definitions:
+            if defi["label"] == definition["label"]:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+
         proof_one.addUDF(
             definition["label"], definition["type"], definition["expression"]
         )
         proof_two.addUDF(
             definition["label"], definition["type"], definition["expression"]
         )
-
         definitions.append(definition)
         save_proof_to_cache(user, proof)
 
