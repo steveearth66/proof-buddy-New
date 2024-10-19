@@ -231,20 +231,25 @@ def substitution(request):
 
 @api_view(["POST"])
 def save_proof(request):
-    data = request.data
-    user = request.user
-    user_proof = get_or_set_proof(user)
-    definitions = user_proof["definitions"]
-    proof = get_or_create_proof(data, user, definitions)
+    try:
+        data = request.data
+        user = request.user
+        user_proof = get_or_set_proof(user)
+        definitions = user_proof["definitions"]
+        proof = get_or_create_proof(data, user, definitions)
 
-    if not proof:
+        if not proof:
+            return Response(
+                {"message": "Error saving proof"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
         return Response(
-            {"message": "Error creating proof"}, status=status.HTTP_400_BAD_REQUEST
+            {"message": "Proof saved successfully"}, status=status.HTTP_201_CREATED
         )
-
-    return Response(
-        {"message": "Proof created successfully"}, status=status.HTTP_201_CREATED
-    )
+    except:
+        return Response(
+            {"message": "Error saving proof"}, status=status.HTTP_400_BAD_REQUEST
+        )
 
 
 @api_view(["GET"])
