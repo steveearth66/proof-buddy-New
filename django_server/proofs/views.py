@@ -149,7 +149,7 @@ def user_proofs(user):
 def user_proof(user, proof_id):
     proof = Proof.objects.filter(created_by=user, id=proof_id).first()
     proof_lines = ProofLine.objects.filter(proof=proof)
-    definitions = Definition.objects.filter(created_by=user)
+    definitions = proof.definitions.all()
     proof_lines_data = []
     definitions_data = []
 

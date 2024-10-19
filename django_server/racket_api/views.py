@@ -235,7 +235,6 @@ def save_proof(request):
     user = request.user
     user_proof = get_or_set_proof(user)
     definitions = user_proof["definitions"]
-    print(definitions)
     proof = get_or_create_proof(data, user, definitions)
 
     if not proof:
