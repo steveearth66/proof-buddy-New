@@ -250,3 +250,20 @@ def load_proof(proof_data):
     proof["currentProof"] = left_proof
 
     return proof
+
+
+def get_user_definitions(user):
+    definitions = Definition.objects.filter(created_by=user)
+    definitions_data = []
+
+    for definition in definitions:
+        definitions_data.append(
+            {
+                "label": definition.label,
+                "type": definition.def_type,
+                "expression": definition.expression,
+                "notes": definition.notes,
+            }
+        )
+
+    return definitions_data
