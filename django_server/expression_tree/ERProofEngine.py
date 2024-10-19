@@ -143,7 +143,7 @@ class ERProofLine:
                 updatePositions(self.exprTree)
             else:
                 self.errLog.append(error)
-                
+
     def applySubstitution(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subLine: 'ERProofLine'):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
         if targetNode == None:
@@ -155,14 +155,16 @@ class ERProofLine:
         if "'(" in targetNode.ancestors():
             self.errLog.append(f"Cannot apply rules within a quoted expression")
         if self.errLog == []:
+            replacementExprTree = copy.deepcopy(subLine.exprTree)
             subLine.applyRule(ruleSet, rule, 0)
             if subLine.errLog != []:
                 self.errLog.extend(subLine.errLog)
             elif subLine.exprTree != targetNode:
-                self.errLog.append(f"substitution evaluated to {str(subLine)} but expected {str(targetNode)}")
+                self.errLog.append(
+                    f"substitution evaluated to {str(subLine.exprTree)} but expected {str(targetNode)}"
+                )
         if self.errLog == []:
-            targetNode.replaceWith(subLine.exprTree)
-            # print(str(self.exprTree))  # should print updated tree
+            targetNode.replaceWith(replacementExprTree)
             updatePositions(self.exprTree)
 
 
