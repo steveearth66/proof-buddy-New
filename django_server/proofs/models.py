@@ -20,6 +20,9 @@ class Proof(models.Model):
     isComplete = models.BooleanField(default=False)
     template = models.CharField(
         max_length=3, choices=TEMPLATE_CHOICES, default='ER')
+    definitions = models.ManyToManyField(
+        "Definition", related_name="proof_definitions", blank=True
+    )
 
     def __str__(self):
         return self.name
@@ -47,12 +50,13 @@ class Definition(models.Model):
     label = models.CharField(max_length=100)
     def_type = models.CharField(max_length=100)
     expression = models.CharField(max_length=255, blank=True)
-    notes = models.TextField(default='', blank=True)
-    proof = models.ForeignKey(
-        Proof, related_name='definitions', on_delete=models.CASCADE, null=True)
+    notes = models.TextField(default="", blank=True)
     created_by = models.ForeignKey(
         'accounts.Account', related_name='definitions', on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def get_tag(self):
-        return self.proof.tag
+        return self.label
+
+    def __str__(self):
+        return self.label

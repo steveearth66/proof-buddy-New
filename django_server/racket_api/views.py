@@ -10,6 +10,8 @@ from proofs.views import (
     user_proof,
     load_proof,
     get_user_definitions,
+    create_user_definition,
+    get_definition,
 )
 from dill import dumps, loads
 from django.core.cache import cache
@@ -129,16 +131,23 @@ def add_definitions(request):
             {"message": "Error adding definition"}, status=status.HTTP_400_BAD_REQUEST
         )
 
-    definitions.append(json_data)
-
     proof = update_current_proof(proof, "LHS")
     proof = update_is_valid(proof)
     errors, proof = get_errors_and_clear(proof)
     is_valid = proof["isValid"]
 
-    save_proof_to_cache(user, proof)
+    definition = create_user_definition(user, json_data)
 
-    return Response({"isValid": is_valid, "errors": errors}, status=status.HTTP_200_OK)
+    if definition:
+        definitions.append(definition)
+        save_proof_to_cache(user, proof)
+        return Response(
+            {"isValid": is_valid, "errors": errors}, status=status.HTTP_201_CREATED
+        )
+
+    return Response(
+        {"message": "Error adding definition"}, status=status.HTTP_400_BAD_REQUEST
+    )
 
 
 @api_view(["POST"])
@@ -222,20 +231,25 @@ def substitution(request):
 
 @api_view(["POST"])
 def save_proof(request):
-    data = request.data
-    user = request.user
-    user_proof = get_or_set_proof(user)
-    definitions = user_proof["definitions"]
-    proof = get_or_create_proof(data, user, definitions)
+    try:
+        data = request.data
+        user = request.user
+        user_proof = get_or_set_proof(user)
+        definitions = user_proof["definitions"]
+        proof = get_or_create_proof(data, user, definitions)
 
-    if not proof:
+        if not proof:
+            return Response(
+                {"message": "Error saving proof"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
         return Response(
-            {"message": "Error creating proof"}, status=status.HTTP_400_BAD_REQUEST
+            {"message": "Proof saved successfully"}, status=status.HTTP_201_CREATED
         )
-
-    return Response(
-        {"message": "Proof created successfully"}, status=status.HTTP_201_CREATED
-    )
+    except:
+        return Response(
+            {"message": "Error saving proof"}, status=status.HTTP_400_BAD_REQUEST
+        )
 
 
 @api_view(["GET"])
@@ -264,22 +278,37 @@ def get_proof(request, proof_id):
 def get_definitions(request):
     user = request.user
     definitions = get_user_definitions(user)
+
+    return Response(definitions, status=status.HTTP_200_OK)
+
+
+@api_view(["GET"])
+def use_definition(request, id):
+    user = request.user
+    definition = get_definition(id)
     proof = get_or_set_proof(user)
 
-    proof_one: ERProof = proof["proofOne"]
-    proof_two: ERProof = proof["proofTwo"]
+    try:
+        proof_one: ERProof = proof["proofOne"]
+        proof_two: ERProof = proof["proofTwo"]
+        definitions = proof["definitions"]
 
-    for definition in definitions:
+        for proof_definition in definitions:
+            if proof_definition["label"] == definition["label"]:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+
         proof_one.addUDF(
             definition["label"], definition["type"], definition["expression"]
         )
         proof_two.addUDF(
             definition["label"], definition["type"], definition["expression"]
         )
+        definitions.append(definition)
+        save_proof_to_cache(user, proof)
 
-    save_proof_to_cache(user, proof)
-
-    return Response(definitions, status=status.HTTP_200_OK)
+        return Response(status=status.HTTP_200_OK)
+    except:
+        return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
 def update_current_proof(proof, side):

@@ -31,8 +31,7 @@ class ProofLineSerializer(serializers.ModelSerializer):
 class DefinitionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Definition
-        fields = ['label', 'def_type', 'expression',
-                  'notes', 'created_at']
+        fields = ["id", "label", "def_type", "expression", "notes", "created_at"]
 
     def create(self, validated_data):
         label = validated_data.pop("label")
