@@ -143,6 +143,28 @@ const useDefinition = async (id) => {
   }
 };
 
+const editDefinition = async (definition) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/edit-definition/`,
+      definition
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during definition update:");
+    throw error;
+  }
+};
+
+const deleteDefinition = async (id) => {
+  try {
+    await axiosInstance.delete(`${API_GATEWAY}/delete-definition/${id}/`);
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
 const erService = {
   checkGoal,
   racketGeneration,
@@ -154,7 +176,9 @@ const erService = {
   getRacketProofs,
   getRacketProof,
   getUserDefinitions,
-  useDefinition
+  useDefinition,
+  editDefinition,
+  deleteDefinition
 };
 
 export default erService;
