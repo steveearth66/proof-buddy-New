@@ -29,6 +29,10 @@
         flex-wrap: wrap;
         gap: 1.5rem;
         justify-content: space-evenly;
+
+        div:last-child {
+            margin-bottom: .7em;
+        }
     }
 
     .search {
