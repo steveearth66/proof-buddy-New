@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import MainLayout from "../layouts/MainLayout";
 import erService from "../services/erService";
-import Card from "react-bootstrap/Card";
+// import Card from "react-bootstrap/Card";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import Container from "react-bootstrap/Container";
 import Button from "react-bootstrap/esm/Button";
 import { Link } from "react-router-dom";
+import '../scss/_proof-card.scss';
 
 export default function Proofs() {
   const [proofs, setProofs] = useState([]);
@@ -17,7 +18,7 @@ export default function Proofs() {
         const proofs = await erService.getRacketProofs();
         setProofs(proofs);
       } catch (error) {
-        console.error("Error fetching proofs:", error);
+        console.error('Error fetching proofs:', error);
       }
     };
     fetchData();
@@ -31,9 +32,11 @@ export default function Proofs() {
             <h1>All Proofs</h1>
           </Col>
         </Row>
-        {proofs.map((proof) => (
-          <ProofCard key={proof.tag} {...proof} />
-        ))}
+        <div className="proof-layout">
+          {proofs.map((proof) => (
+            <ProofCard key={proof.tag} {...proof} />
+          ))}
+        </div>
       </Container>
     </MainLayout>
   );
@@ -41,25 +44,18 @@ export default function Proofs() {
 
 function ProofCard(proof) {
   return (
-    <Card className="mb-2" style={{ height: '100px' }}>
-      <Card.Body>
-        <Row>
-          <Col>
-            <p>Name: {proof.name}</p>
-          </Col>
-          <Col>
-            <p>Tag: {proof.tag}</p>
-          </Col>
-          <Col>
-            <p>Completed: {proof.isComplete ? 'True' : 'False'}</p>
-          </Col>
-          <Col>
-            <Link to={`/er-racket`} state={{ id: proof.id }}>
-              <Button variant="primary">View Proof</Button>
-            </Link>
-          </Col>
-        </Row>
-      </Card.Body>
-    </Card>
+    <div className="proof-card">
+      <p>
+        <b>Proof:</b> {proof.name} - {proof.tag}
+      </p>
+      <p>
+        <b>Completed:</b> {proof.isComplete ? 'True' : 'False'}
+      </p>
+      <Link to={`/er-racket`} state={{ id: proof.id }}>
+        <Button variant="outline-success" style={{ width: '100%' }}>
+          View Proof
+        </Button>
+      </Link>
+    </div>
   );
 }

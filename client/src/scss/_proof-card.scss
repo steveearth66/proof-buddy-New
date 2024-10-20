@@ -1,0 +1,29 @@
+.proof-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    width: 25em;
+    padding: 1rem;
+    margin-bottom: .7em;
+    border-radius: 0.5rem;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    background-color: hsla(0, 0%, 89%, 0.014);
+
+    button: {
+        width: 100%;
+    }
+}
+
+.proof-layout {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-evenly;
+    height: 100%;
+    width: 100%;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    background-color: #ececec31;
+}
