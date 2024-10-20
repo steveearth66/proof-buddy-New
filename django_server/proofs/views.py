@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import Proof, ProofLine, Definition
 from expression_tree.ERProofEngine import ERProof
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
 
 def get_or_create_proof(data, user, definitions):
@@ -101,15 +102,24 @@ def add_definitions(definitions, proof: Proof, user):
 
 # Return all incomplete proofs for a user. Can be change to return all but if a use click on a proof marked as complete the backend crashes because the proof is already complete.
 # This can be fixed by adding a checker to see if the proof is complete, if the proof is complete don't call load_proof method.
-def user_proofs(user):
-    proofs = Proof.objects.filter(
-        created_by=user
-    )  # Proof.objects.filter(created_by=user) to return all proofs by user
+def user_proofs(user, page=1, query="", proofs_per_page=10):
+    proofs = Proof.objects.filter(created_by=user, name__contains=query).order_by(
+        "created_at"
+    )
+    paginator = Paginator(proofs, proofs_per_page)
+
+    try:
+        paginated_proofs = paginator.page(int(page))
+    except PageNotAnInteger:
+        paginated_proofs = paginator.page(1)
+    except EmptyPage:
+        paginated_proofs = paginator.page(paginator.num_pages)
+
     proof_data = []
 
-    for proof in proofs:
+    for proof in paginated_proofs:
         proof_lines = ProofLine.objects.filter(proof=proof)
-        definitions = Definition.objects.filter(created_by=user)
+        definitions = proof.definitions.all()
         proof_lines_data = []
         definitions_data = []
 
@@ -148,7 +158,13 @@ def user_proofs(user):
             }
         )
 
-    return proof_data
+    return {
+        "proofs": proof_data,
+        "totalPages": paginator.num_pages,
+        "currentPage": paginated_proofs.number,
+        "hasNext": paginated_proofs.has_next(),
+        "hasPrevious": paginated_proofs.has_previous(),
+    }
 
 
 def user_proof(user, proof_id):

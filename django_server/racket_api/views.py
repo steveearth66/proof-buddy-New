@@ -257,7 +257,9 @@ def save_proof(request):
 @api_view(["GET"])
 def get_user_proofs(request):
     user = request.user
-    proof_data = user_proofs(user)
+    page = request.GET.get("page", 1)
+    query = request.GET.get("query", "")
+    proof_data = user_proofs(user, page, query)
 
     return Response(proof_data, status=status.HTTP_200_OK)
 

@@ -6,17 +6,29 @@ import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import Container from "react-bootstrap/Container";
 import Button from "react-bootstrap/esm/Button";
-import { Link } from "react-router-dom";
+import InputGroup from 'react-bootstrap/InputGroup';
+import Form from 'react-bootstrap/Form';
+import { Link } from 'react-router-dom';
 import '../scss/_proof-card.scss';
 
 export default function Proofs() {
   const [proofs, setProofs] = useState([]);
+  const [query, setQuery] = useState('');
+
+  const queryProofs = async () => {
+    try {
+      const proofsData = await erService.getRacketProofs({ query });
+      setProofs(proofsData.proofs);
+    } catch (error) {
+      console.error('Error fetching proofs:', error);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const proofs = await erService.getRacketProofs();
-        setProofs(proofs);
+        const proofsData = await erService.getRacketProofs({});
+        setProofs(proofsData.proofs);
       } catch (error) {
         console.error('Error fetching proofs:', error);
       }
@@ -33,9 +45,29 @@ export default function Proofs() {
           </Col>
         </Row>
         <div className="proof-layout">
-          {proofs.map((proof) => (
-            <ProofCard key={proof.tag} {...proof} />
-          ))}
+          <div className="search">
+            <InputGroup>
+              <Form.Control
+                placeholder="Search for a proof"
+                aria-label="Search for a proof"
+                aria-describedby="basic-addon2"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              <Button
+                variant="outline-secondary"
+                id="button-addon2"
+                onClick={queryProofs}
+              >
+                Search
+              </Button>
+            </InputGroup>
+          </div>
+          <div className="proofs">
+            {proofs.map((proof) => (
+              <ProofCard key={proof.tag} {...proof} />
+            ))}
+          </div>
         </div>
       </Container>
     </MainLayout>
@@ -52,7 +84,7 @@ function ProofCard(proof) {
         <b>Completed:</b> {proof.isComplete ? 'True' : 'False'}
       </p>
       <Link to={`/er-racket`} state={{ id: proof.id }}>
-        <Button variant="outline-success" style={{ width: '100%' }}>
+        <Button variant="outline-secondary" style={{ width: '100%' }}>
           View Proof
         </Button>
       </Link>

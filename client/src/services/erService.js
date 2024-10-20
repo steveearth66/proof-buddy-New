@@ -102,9 +102,9 @@ const saveProof = async (proof) => {
   }
 };
 
-const getRacketProofs = async () => {
+const getRacketProofs = async ({ page = 1, query = "" }) => {
   try {
-    const response = await axiosInstance.get(`${API_GATEWAY}/proofs`);
+    const response = await axiosInstance.get(`${API_GATEWAY}/proofs?page=${page}&query=${query}`);
     return response.data;
   } catch (error) {
     handleServiceError(error, "Error during getting racket proofs:");
