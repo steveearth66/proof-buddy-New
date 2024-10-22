@@ -1,24 +1,25 @@
-import { useEffect, useState } from "react";
-import MainLayout from "../layouts/MainLayout";
-import erService from "../services/erService";
-// import Card from "react-bootstrap/Card";
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-import Container from "react-bootstrap/Container";
-import Button from "react-bootstrap/esm/Button";
+import { useEffect, useState } from 'react';
+import MainLayout from '../layouts/MainLayout';
+import erService from '../services/erService';
+import Row from 'react-bootstrap/Row';
+import Col from 'react-bootstrap/Col';
+import Container from 'react-bootstrap/Container';
+import Button from 'react-bootstrap/esm/Button';
 import InputGroup from 'react-bootstrap/InputGroup';
+import Pagination from 'react-bootstrap/Pagination';
+import Spinner from 'react-bootstrap/Spinner';
 import Form from 'react-bootstrap/Form';
 import { Link } from 'react-router-dom';
 import '../scss/_proof-card.scss';
 
 export default function Proofs() {
-  const [proofs, setProofs] = useState([]);
+  const [proofObject, setProofObject] = useState({});
   const [query, setQuery] = useState('');
 
-  const queryProofs = async () => {
+  const queryProofs = async ({ page = 1 }) => {
     try {
-      const proofsData = await erService.getRacketProofs({ query });
-      setProofs(proofsData.proofs);
+      const proofsData = await erService.getRacketProofs({ query, page });
+      setProofObject(proofsData);
     } catch (error) {
       console.error('Error fetching proofs:', error);
     }
@@ -28,7 +29,7 @@ export default function Proofs() {
     const fetchData = async () => {
       try {
         const proofsData = await erService.getRacketProofs({});
-        setProofs(proofsData.proofs);
+        setProofObject(proofsData);
       } catch (error) {
         console.error('Error fetching proofs:', error);
       }
@@ -64,10 +65,38 @@ export default function Proofs() {
             </InputGroup>
           </div>
           <div className="proofs">
-            {proofs.map((proof) => (
-              <ProofCard key={proof.tag} {...proof} />
-            ))}
+            {Object.keys(proofObject).length === 0 ? (
+              <Spinner animation="border" role="status">
+                <span className="visually-hidden">Loading...</span>
+              </Spinner>
+            ) : (
+              proofObject.proofs?.map((proof) => (
+                <ProofCard key={proof.tag} {...proof} />
+              ))
+            )}
+            {proofObject.proofs?.length === 0 && <p>No proofs found</p>}
           </div>
+          <Pagination>
+            <Pagination.First onClick={() => queryProofs({ page: 1 })} />
+            <Pagination.Prev
+              onClick={() => queryProofs({ page: proofObject.currentPage - 1 })}
+            />
+            {Array.from({ length: proofObject.totalPages }, (_, i) => (
+              <Pagination.Item
+                key={i}
+                active={i === proofObject.currentPage - 1}
+                onClick={() => queryProofs({ page: i + 1 })}
+              >
+                {i + 1}
+              </Pagination.Item>
+            ))}
+            <Pagination.Next
+              onClick={() => queryProofs({ page: proofObject.currentPage + 1 })}
+            />
+            <Pagination.Last
+              onClick={() => queryProofs({ page: proofObject.totalPages })}
+            />
+          </Pagination>
         </div>
       </Container>
     </MainLayout>

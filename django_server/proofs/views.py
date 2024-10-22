@@ -102,9 +102,9 @@ def add_definitions(definitions, proof: Proof, user):
 
 # Return all incomplete proofs for a user. Can be change to return all but if a use click on a proof marked as complete the backend crashes because the proof is already complete.
 # This can be fixed by adding a checker to see if the proof is complete, if the proof is complete don't call load_proof method.
-def user_proofs(user, page=1, query="", proofs_per_page=10):
+def user_proofs(user, page=1, query="", proofs_per_page=12):
     proofs = Proof.objects.filter(created_by=user, name__contains=query).order_by(
-        "created_at"
+        "-created_at"
     )
     paginator = Paginator(proofs, proofs_per_page)
 
