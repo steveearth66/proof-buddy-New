@@ -6,11 +6,11 @@ import Col from 'react-bootstrap/Col';
 import Container from 'react-bootstrap/Container';
 import Button from 'react-bootstrap/esm/Button';
 import InputGroup from 'react-bootstrap/InputGroup';
-import Pagination from 'react-bootstrap/Pagination';
 import Spinner from 'react-bootstrap/Spinner';
 import Form from 'react-bootstrap/Form';
 import { Link } from 'react-router-dom';
 import '../scss/_proof-card.scss';
+import NumberedPagination from '../components/Pagination';
 
 export default function Proofs() {
   const [proofObject, setProofObject] = useState({});
@@ -76,27 +76,7 @@ export default function Proofs() {
             )}
             {proofObject.proofs?.length === 0 && <p className='not-found'>No proofs found</p>}
           </div>
-          <Pagination>
-            <Pagination.First onClick={() => queryProofs({ page: 1 })} />
-            <Pagination.Prev
-              onClick={() => queryProofs({ page: proofObject.currentPage - 1 })}
-            />
-            {Array.from({ length: proofObject.totalPages }, (_, i) => (
-              <Pagination.Item
-                key={i}
-                active={i === proofObject.currentPage - 1}
-                onClick={() => queryProofs({ page: i + 1 })}
-              >
-                {i + 1}
-              </Pagination.Item>
-            ))}
-            <Pagination.Next
-              onClick={() => queryProofs({ page: proofObject.currentPage + 1 })}
-            />
-            <Pagination.Last
-              onClick={() => queryProofs({ page: proofObject.totalPages })}
-            />
-          </Pagination>
+          <NumberedPagination {...proofObject} onPageChange={queryProofs} />
         </div>
       </Container>
     </MainLayout>
