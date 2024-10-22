@@ -93,13 +93,17 @@ const substitution = async (data) => {
 };
 
 const saveProof = async (proof) => {
-  try {
-    const response = await axiosInstance.post(`${API_GATEWAY}/er-save`, proof);
-    return response.data;
-  } catch (error) {
-    handleServiceError(error, "Error during proof saving:");
-    throw error;
-  }
+  return new Promise((resolve, reject) => {
+    axiosInstance
+      .post(`${API_GATEWAY}/er-save`, proof)
+      .then((response) => {
+        resolve(response.data);
+      })
+      .catch((error) => {
+        handleServiceError(error, "Error during proof saving:");
+        reject(error);
+      });
+  });
 };
 
 const getRacketProofs = async ({ page = 1, query = "" }) => {
@@ -144,16 +148,17 @@ const useDefinition = async (id) => {
 };
 
 const editDefinition = async (definition) => {
-  try {
-    const response = await axiosInstance.post(
-      `${API_GATEWAY}/edit-definition/`,
-      definition
-    );
-    return response.data;
-  } catch (error) {
-    handleServiceError(error, "Error during definition update:");
-    throw error;
-  }
+  return new Promise((resolve, reject) => {
+    axiosInstance
+      .post(`${API_GATEWAY}/edit-definition/`, definition)
+      .then((response) => {
+        resolve(response.data);
+      })
+      .catch((error) => {
+        handleServiceError(error, "Error during definition update:");
+        reject(error);
+      });
+  });
 };
 
 const deleteDefinition = async (id) => {

@@ -29,6 +29,7 @@ import {
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import erService from "../services/erService";
 import { useLocation } from "react-router-dom";
+import { toast } from "react-toastify";
 
 /**
  * ERRacket component facilitates the Equational Reasoning Racket.
@@ -147,7 +148,11 @@ const ERRacket = () => {
     };
 
     try {
-      await erService.saveProof(proof);
+      await toast.promise(erService.saveProof(proof), {
+        pending: "Saving proof...",
+        success: "Proof saved!",
+        error: "Error saving proof!"
+      });
     } catch (error) {
       console.error(error);
     }

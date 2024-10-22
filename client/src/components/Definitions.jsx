@@ -11,6 +11,7 @@ import { useFormValidation } from "../hooks/useFormValidation";
 import { useFormSubmit } from "../hooks/useFormSubmit";
 import { useEffect, useState } from 'react';
 import erService from '../services/erService';
+import { toast } from "react-toastify";
 
 export default function Definitions({ toggleDefinitionsWindow }) {
   const [showCreateDefinition, setShowCreateDefinition] = useState(false);
@@ -78,7 +79,11 @@ function CreateDefinition({
 
     if (edit) {
       try {
-        const newDefinition = await erService.editDefinition(definition);
+        const newDefinition = await toast.promise(erService.editDefinition(definition), {
+          pending: 'Updating definition...',
+          success: 'Definition updated successfully.',
+          error: 'An error occurred. Please try again.'
+        });
         setErrors([]);
 
         updateDefinition({
