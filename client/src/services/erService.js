@@ -137,14 +137,17 @@ const getUserDefinitions = async () => {
 };
 
 const useDefinition = async (id) => {
-  try {
-    await axiosInstance.get(
-      `${API_GATEWAY}/use-definition/${id}`
-    );
-    return true;
-  } catch (error) {
-    return false;
-  }
+  return new Promise((resolve, reject) => {
+    axiosInstance
+      .get(`${API_GATEWAY}/use-definition/${id}`)
+      .then((response) => {
+        resolve(response.data);
+      })
+      .catch((error) => {
+        handleServiceError(error, "Error during definition usage:");
+        reject(error);
+      });
+  });
 };
 
 const editDefinition = async (definition) => {
@@ -162,12 +165,17 @@ const editDefinition = async (definition) => {
 };
 
 const deleteDefinition = async (id) => {
-  try {
-    await axiosInstance.delete(`${API_GATEWAY}/delete-definition/${id}/`);
-    return true;
-  } catch (error) {
-    return false;
-  }
+  return new Promise((resolve, reject) => {
+    axiosInstance
+      .delete(`${API_GATEWAY}/delete-definition/${id}/`)
+      .then(() => {
+        resolve(true);
+      })
+      .catch((error) => {
+        handleServiceError(error, "Error during definition deletion:");
+        reject(error);
+      });
+  });
 };
 
 const erService = {

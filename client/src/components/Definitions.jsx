@@ -258,13 +258,13 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
       'Are you sure you want to delete this definition?'
     );
     if (!confirm) return;
+    const deleted = await toast.promise(erService.deleteDefinition(id), {
+      pending: 'Deleting definition...',
+      success: 'Definition deleted successfully.',
+      error: 'An error occurred. Please try again.'
+    });
 
-    const deleted = await erService.deleteDefinition(id);
-
-    if (!deleted) {
-      alert('Error deleting definition.');
-      return;
-    }
+    if (!deleted) return;
 
     const definitions = JSON.parse(sessionStorage.getItem('definitions')) || [];
     const updatedDefinitions = definitions.filter((def) => def.id !== id);
@@ -289,13 +289,11 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
     setEdit(true);
   };
 
-  const applyDefinition = (id) => {
-    erService.useDefinition(id).then((created) => {
-      if (!created) {
-        alert('Error using definition.');
-      } else {
-        alert('Definition applied successfully.');
-      }
+  const applyDefinition = async (id) => {
+    await toast.promise(erService.useDefinition(id), {
+      pending: 'Applying definition...',
+      success: 'Definition applied successfully.',
+      error: 'An error occurred. Please try again.'
     });
   };
 
