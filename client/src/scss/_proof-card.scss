@@ -28,10 +28,15 @@
         flex-direction: row;
         flex-wrap: wrap;
         gap: 1.5rem;
-        justify-content: space-evenly;
+        justify-content: space-between;
 
         div:last-child {
             margin-bottom: .7em;
+        }
+        .not-found {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
         }
     }
 
