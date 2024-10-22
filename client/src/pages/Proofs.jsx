@@ -71,7 +71,7 @@ export default function Proofs() {
               </Spinner>
             ) : (
               proofObject.proofs?.map((proof) => (
-                <ProofCard key={proof.tag} {...proof} />
+                <ProofCard key={`${proof.tag}-${proof.name}`} {...proof} />
               ))
             )}
             {proofObject.proofs?.length === 0 && <p className='not-found'>No proofs found</p>}
