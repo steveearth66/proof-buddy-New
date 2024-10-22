@@ -74,7 +74,7 @@ export default function Proofs() {
                 <ProofCard key={proof.tag} {...proof} />
               ))
             )}
-            {proofObject.proofs?.length === 0 && <p>No proofs found</p>}
+            {proofObject.proofs?.length === 0 && <p className='not-found'>No proofs found</p>}
           </div>
           <Pagination>
             <Pagination.First onClick={() => queryProofs({ page: 1 })} />
