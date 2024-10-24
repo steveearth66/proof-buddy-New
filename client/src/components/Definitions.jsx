@@ -1,16 +1,17 @@
-import "../scss/_definitions.scss";
-import Form from "react-bootstrap/Form";
-import Col from "react-bootstrap/Col";
-import Row from "react-bootstrap/Row";
-import Alert from "react-bootstrap/Alert";
-import Button from "react-bootstrap/esm/Button";
-import Accordion from "react-bootstrap/Accordion";
-import validateField from "../utils/definitionsFormValidation";
-import { useInputState } from "../hooks/useInputState";
-import { useFormValidation } from "../hooks/useFormValidation";
-import { useFormSubmit } from "../hooks/useFormSubmit";
+import '../scss/_definitions.scss';
+import Form from 'react-bootstrap/Form';
+import Col from 'react-bootstrap/Col';
+import Row from 'react-bootstrap/Row';
+import Alert from 'react-bootstrap/Alert';
+import Button from 'react-bootstrap/esm/Button';
+import Accordion from 'react-bootstrap/Accordion';
+import validateField from '../utils/definitionsFormValidation';
+import { useInputState } from '../hooks/useInputState';
+import { useFormValidation } from '../hooks/useFormValidation';
+import { useFormSubmit } from '../hooks/useFormSubmit';
 import { useEffect, useState } from 'react';
 import erService from '../services/erService';
+import { toast } from 'react-toastify';
 
 export default function Definitions({ toggleDefinitionsWindow }) {
   const [showCreateDefinition, setShowCreateDefinition] = useState(false);
@@ -78,7 +79,14 @@ function CreateDefinition({
 
     if (edit) {
       try {
-        const newDefinition = await erService.editDefinition(definition);
+        const newDefinition = await toast.promise(
+          erService.editDefinition(definition),
+          {
+            pending: 'Updating definition...',
+            success: 'Definition updated successfully.',
+            error: 'An error occurred. Please try again.'
+          }
+        );
         setErrors([]);
 
         updateDefinition({
@@ -253,13 +261,13 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
       'Are you sure you want to delete this definition?'
     );
     if (!confirm) return;
+    const deleted = await toast.promise(erService.deleteDefinition(id), {
+      pending: 'Deleting definition...',
+      success: 'Definition deleted successfully.',
+      error: 'An error occurred. Please try again.'
+    });
 
-    const deleted = await erService.deleteDefinition(id);
-
-    if (!deleted) {
-      alert('Error deleting definition.');
-      return;
-    }
+    if (!deleted) return;
 
     const definitions = JSON.parse(sessionStorage.getItem('definitions')) || [];
     const updatedDefinitions = definitions.filter((def) => def.id !== id);
@@ -284,14 +292,16 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
     setEdit(true);
   };
 
-  const applyDefinition = (id) => {
-    erService.useDefinition(id).then((created) => {
-      if (!created) {
-        alert('Error using definition.');
-      } else {
-        alert('Definition applied successfully.');
-      }
-    });
+  const applyDefinition = async (id) => {
+    try {
+      await toast.promise(erService.useDefinition(id), {
+        pending: 'Applying definition...',
+        success: 'Definition applied successfully.',
+        error: 'An error occurred. Please try again.'
+      });
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   useEffect(() => {

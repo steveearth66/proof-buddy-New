@@ -93,13 +93,17 @@ const substitution = async (data) => {
 };
 
 const saveProof = async (proof) => {
-  try {
-    const response = await axiosInstance.post(`${API_GATEWAY}/er-save`, proof);
-    return response.data;
-  } catch (error) {
-    handleServiceError(error, "Error during proof saving:");
-    throw error;
-  }
+  return new Promise((resolve, reject) => {
+    axiosInstance
+      .post(`${API_GATEWAY}/er-save`, proof)
+      .then((response) => {
+        resolve(response.data);
+      })
+      .catch((error) => {
+        handleServiceError(error, "Error during proof saving:");
+        reject(error);
+      });
+  });
 };
 
 const getRacketProofs = async ({ page = 1, query = "" }) => {
@@ -133,36 +137,45 @@ const getUserDefinitions = async () => {
 };
 
 const useDefinition = async (id) => {
-  try {
-    await axiosInstance.get(
-      `${API_GATEWAY}/use-definition/${id}`
-    );
-    return true;
-  } catch (error) {
-    return false;
-  }
+  return new Promise((resolve, reject) => {
+    axiosInstance
+      .get(`${API_GATEWAY}/use-definition/${id}`)
+      .then((response) => {
+        resolve(response.data);
+      })
+      .catch((error) => {
+        handleServiceError(error, "Error during definition usage:");
+        reject(error);
+      });
+  });
 };
 
 const editDefinition = async (definition) => {
-  try {
-    const response = await axiosInstance.post(
-      `${API_GATEWAY}/edit-definition/`,
-      definition
-    );
-    return response.data;
-  } catch (error) {
-    handleServiceError(error, "Error during definition update:");
-    throw error;
-  }
+  return new Promise((resolve, reject) => {
+    axiosInstance
+      .post(`${API_GATEWAY}/edit-definition/`, definition)
+      .then((response) => {
+        resolve(response.data);
+      })
+      .catch((error) => {
+        handleServiceError(error, "Error during definition update:");
+        reject(error);
+      });
+  });
 };
 
 const deleteDefinition = async (id) => {
-  try {
-    await axiosInstance.delete(`${API_GATEWAY}/delete-definition/${id}/`);
-    return true;
-  } catch (error) {
-    return false;
-  }
+  return new Promise((resolve, reject) => {
+    axiosInstance
+      .delete(`${API_GATEWAY}/delete-definition/${id}/`)
+      .then(() => {
+        resolve(true);
+      })
+      .catch((error) => {
+        handleServiceError(error, "Error during definition deletion:");
+        reject(error);
+      });
+  });
 };
 
 const erService = {
