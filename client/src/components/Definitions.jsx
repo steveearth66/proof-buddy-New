@@ -413,7 +413,7 @@ function Definition({
           {definition.notes && <p>Notes: {definition.notes}</p>}
           <div className="def-buttons">
             <Button
-              variant="outline-success"
+              variant={`${definition.applied ? "outline-danger" : "outline-success"}`}
               onClick={() => applyDefinition(definition.id, definition.applied)}
             >
               {definition.applied ? "Unapply" : "Apply"} Definition
