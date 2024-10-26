@@ -133,20 +133,13 @@ def add_definitions(request):
             {"message": "Error adding definition"}, status=status.HTTP_400_BAD_REQUEST
         )
 
-    proof = update_current_proof(proof, "LHS")
-    proof = update_is_valid(proof)
-    errors, proof = get_errors_and_clear(proof)
-    is_valid = proof["isValid"]
-
     definition = create_user_definition(user, json_data)
 
     if definition:
         definition["applied"] = True
         definitions.append(definition)
         save_proof_to_cache(user, proof)
-        return Response(
-            {"isValid": is_valid, "errors": errors}, status=status.HTTP_201_CREATED
-        )
+        return Response(definition, status=status.HTTP_201_CREATED)
 
     return Response(
         {"message": "Error adding definition"}, status=status.HTTP_400_BAD_REQUEST

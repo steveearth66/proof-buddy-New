@@ -113,16 +113,17 @@ function CreateDefinition({
 
     if (!exists) {
       try {
-        const response = await erService.createDefinition(definition);
+        const createdDefinition = await erService.createDefinition(definition);
         setErrors([]);
 
-        if (response.isValid) {
-          definitions.push(definition);
+        if (createdDefinition) {
+          createdDefinition.type = createdDefinition.def_type;
+          definitions.push(createdDefinition);
           sessionStorage.setItem('definitions', JSON.stringify(definitions));
           setSuccessMessage('Definition created successfully.');
           handleReset();
         } else {
-          setErrors(response.errors);
+          setErrors(['An error occurred. Please try again.']);
           setValidated(false);
         }
       } catch (error) {
