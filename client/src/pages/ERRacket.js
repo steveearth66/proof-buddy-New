@@ -236,6 +236,7 @@ const ERRacket = () => {
   useEffect(() => {
     const fetchProof = async (id) => {
       const proof = await erService.getRacketProof(id);
+      sessionStorage.setItem('definitions', JSON.stringify(proof.definitions));
       setLoadedProof(proof);
     };
 

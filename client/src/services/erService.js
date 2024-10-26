@@ -150,6 +150,20 @@ const useDefinition = async (id) => {
   });
 };
 
+const removeDefinition = async (id) => {
+  return new Promise((resolve, reject) => {
+    axiosInstance
+      .delete(`${API_GATEWAY}/remove-definition/${id}/`)
+      .then(() => {
+        resolve(true);
+      })
+      .catch((error) => {
+        handleServiceError(error, "Error during definition removal:");
+        reject(error);
+      });
+  });
+};
+
 const editDefinition = async (definition) => {
   return new Promise((resolve, reject) => {
     axiosInstance
@@ -191,7 +205,8 @@ const erService = {
   getUserDefinitions,
   useDefinition,
   editDefinition,
-  deleteDefinition
+  deleteDefinition,
+  removeDefinition
 };
 
 export default erService;
