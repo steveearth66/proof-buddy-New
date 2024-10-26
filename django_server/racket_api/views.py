@@ -141,6 +141,7 @@ def add_definitions(request):
     definition = create_user_definition(user, json_data)
 
     if definition:
+        definition["applied"] = True
         definitions.append(definition)
         save_proof_to_cache(user, proof)
         return Response(
@@ -150,6 +151,20 @@ def add_definitions(request):
     return Response(
         {"message": "Error adding definition"}, status=status.HTTP_400_BAD_REQUEST
     )
+
+
+@api_view(["DELETE"])
+def remove_definition(request, id):
+    user = request.user
+    proof = get_or_set_proof(user)
+
+    definitions = proof["definitions"]
+    proof["definitions"] = [
+        definition for definition in definitions if definition["id"] != id
+    ]
+
+    save_proof_to_cache(user, proof)
+    return Response(status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])

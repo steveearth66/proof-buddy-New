@@ -15,4 +15,5 @@ urlpatterns = [
     path("use-definition/<int:id>", views.use_definition),
     path("edit-definition/", views.update_definition),
     path("delete-definition/<int:id>/", views.delete_definition_api),
+    path("remove-definition/<int:id>/", views.remove_definition),
 ]

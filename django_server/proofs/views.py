@@ -96,6 +96,7 @@ def add_data_to_proof(json_data, proof, definitions, user):
 
 
 def add_definitions(definitions, proof: Proof, user):
+    proof.definitions.clear()
     for definition in definitions:
         proof.definitions.add(definition["id"])
 
@@ -142,6 +143,7 @@ def user_proofs(user, page=1, query="", proofs_per_page=12):
                     "type": definition.def_type,
                     "expression": definition.expression,
                     "notes": definition.notes,
+                    "applied": True,
                 }
             )
 
@@ -194,6 +196,7 @@ def user_proof(user, proof_id):
                 "type": definition.def_type,
                 "expression": definition.expression,
                 "notes": definition.notes,
+                "applied": True,
             }
         )
 
@@ -233,6 +236,7 @@ def load_proof(proof_data):
         label = definition["label"]
         def_type = definition["type"]
         expression = definition["expression"]
+        definition["applied"] = True
 
         left_proof.addUDF(label, def_type, expression)
         right_proof.addUDF(label, def_type, expression)
@@ -275,6 +279,7 @@ def get_user_definitions(user):
                 "type": definition.def_type,
                 "expression": definition.expression,
                 "notes": definition.notes,
+                "applied": False,
             }
         )
 

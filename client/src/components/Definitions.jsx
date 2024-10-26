@@ -71,7 +71,8 @@ function CreateDefinition({
       label: formValues.label,
       type: formValues.type,
       expression: formValues.expression,
-      notes: formValues.notes
+      notes: formValues.notes,
+      applied: true
     };
 
     const definitions = JSON.parse(sessionStorage.getItem('definitions')) || [];
@@ -292,23 +293,64 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
     setEdit(true);
   };
 
-  const applyDefinition = async (id) => {
-    try {
-      await toast.promise(erService.useDefinition(id), {
-        pending: 'Applying definition...',
-        success: 'Definition applied successfully.',
-        error: 'An error occurred. Please try again.'
-      });
-    } catch (error) {
-      console.error(error);
+  const applyDefinition = async (id, applied) => {
+    if (applied) {
+      try {
+        await toast.promise(erService.removeDefinition(id), {
+          pending: 'Removing definition...',
+          success: 'Definition removed successfully.',
+          error: 'An error occurred. Please try again.'
+        });
+        setDefinitions((prev) => {
+          return prev.map((def) => {
+            if (def.id === id) {
+              def.applied = false;
+            }
+            return def;
+          });
+        });
+        sessionStorage.setItem('definitions', JSON.stringify(definitions));
+      } catch (error) {
+        console.error(error);
+      }
+    } else {
+      try {
+        await toast.promise(erService.useDefinition(id), {
+          pending: 'Applying definition...',
+          success: 'Definition applied successfully.',
+          error: 'An error occurred. Please try again.'
+        });
+        setDefinitions((prev) => {
+          return prev.map((def) => {
+            if (def.id === id) {
+              def.applied = true;
+            }
+            return def;
+          });
+        })
+        sessionStorage.setItem('definitions', JSON.stringify(definitions));
+      } catch (error) {
+        console.error(error);
+      }
     }
   };
 
   useEffect(() => {
-    erService.getUserDefinitions().then((definitions) => {
-      setDefinitions(definitions);
-      sessionStorage.setItem('definitions', JSON.stringify(definitions));
+    erService.getUserDefinitions().then((userDefinitions) => {
+      let newDefinitions = [];
+      userDefinitions.forEach((def) => {
+        const foundDef = definitions.find((d) => d.id === def.id);
+        if (foundDef) {
+          foundDef.applied = foundDef.applied ? true : false;
+          newDefinitions.push(foundDef);
+        } else {
+          newDefinitions.push(def);
+        }
+      });
+      setDefinitions(newDefinitions);
+      sessionStorage.setItem('definitions', JSON.stringify(newDefinitions));
     });
+    // eslint-disable-next-line
   }, []);
 
   if (edit) {
@@ -371,10 +413,10 @@ function Definition({
           {definition.notes && <p>Notes: {definition.notes}</p>}
           <div className="def-buttons">
             <Button
-              variant="outline-success"
-              onClick={() => applyDefinition(definition.id)}
+              variant={`${definition.applied ? "outline-danger" : "outline-success"}`}
+              onClick={() => applyDefinition(definition.id, definition.applied)}
             >
-              Apply Definition
+              {definition.applied ? "Unapply" : "Apply"} Definition
             </Button>
             <Button
               variant="outline-primary"
