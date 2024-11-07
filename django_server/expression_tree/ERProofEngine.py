@@ -53,6 +53,16 @@ class ERProof:
         if self.errLog == []:
             self.proofLines.append(proofLine)
 
+    def deleteProofLine (self):
+        # when user delete's proof line on front end, simply pop the last proofline from the list
+        # are there any checks that should be performed prior to popping?
+
+        # one check might be... 
+        # do not allow the deletion of a "blank" line
+        # if you delete the blank line, can get stuck in a situation where 
+        # you are "stuck"
+        self.proofLines.pop()
+
     def getPrevRacket(self):
         return str(self.proofLines[-1].exprTree)
 

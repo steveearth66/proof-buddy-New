@@ -72,6 +72,49 @@ def apply_rule(request):
         status=status.HTTP_200_OK,
     )
 
+@api_view(["DELETE"])
+def delete_line(request):
+    user = request.user
+    json_data = request.data
+    proof = get_or_set_proof(user)
+
+    is_p_one_active = json_data["side"] == "LHS"
+    proof_one: ERProof = proof["proofOne"]
+    proof_two: ERProof = proof["proofTwo"]
+
+    # if LHS active, delete from LHS
+    if is_p_one_active:
+        proof_one.deleteProofLine()
+    # else delete from RHS
+    else:
+        proof_two.deleteProofLine()
+
+    # next steps is to verify if I need to use update_current_proof
+    # and update_is_valid
+    # assume no... deletions should have less checks than additions
+    # then use racket string and return response
+    # use HTTP code that Javaughn recommeneded
+
+    # not sure if this is neccessary 
+    # ----------------------------------------------------------------------------
+    proof = update_current_proof(proof, json_data["side"])
+    proof = update_is_valid(proof)
+
+    current_proof: ERProof = proof["currentProof"]
+    is_valid = proof["isValid"]
+
+    racket_str = (
+        current_proof.getPrevRacket() if is_valid else "Error deleting line"
+    )
+    errors, proof = get_errors_and_clear(proof)
+
+    save_proof_to_cache(user, proof)
+    # ----------------------------------------------------------------------------
+    return Response(
+        {"isValid": is_valid, "racket": racket_str, "errors": errors},
+        status=status.HTTP_200_OK,
+    )
+    
 
 @api_view(["POST"])
 def check_goal(request):
