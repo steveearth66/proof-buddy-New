@@ -103,6 +103,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
         return !line.deleted;
       });
       const lastUnDeletedFieldIndex = undeletedProofLines.length - 1;
+      const indexToUpdate = racketRuleFields[side].findIndex((line) => line === undeletedProofLines[lastUnDeletedFieldIndex]);
 
       // Only proceed if there is at least one field and the last rule is not empty.
       if (undeletedProofLines.length > 0) {
@@ -125,7 +126,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
               setRacketRuleFields((prevFields) => ({
                 ...prevFields,
                 [side]: prevFields[side].map((field, index) => {
-                  if (index === lastUnDeletedFieldIndex) {
+                  if (index === indexToUpdate) {
                     return {
                       ...field,
                       racket: racket.racket
@@ -159,7 +160,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
               setRacketRuleFields((prevFields) => ({
                 ...prevFields,
                 [side]: prevFields[side].map((field, index) => {
-                  if (index === lastUnDeletedFieldIndex) {
+                  if (index === indexToUpdate) {
                     return {
                       ...field,
                       errors
@@ -298,19 +299,21 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
       racket: line.racket,
       rule: line.rule,
       deleted: line.deleted,
-      startPosition: line.startPosition
+      startPosition: line.startPosition,
+      errors: line.errors
     }));
 
     const rightFields = rightRackets.map((line) => ({
       racket: line.racket,
       rule: line.rule,
       deleted: line.deleted,
-      startPosition: line.startPosition
+      startPosition: line.startPosition,
+      errors: line.errors
     }));
 
     if (!isComplete) {
-      leftFields.push({ racket: '', rule: '', deleted: false });
-      rightFields.push({ racket: '', rule: '', deleted: false });
+      leftFields.push({ racket: '', rule: '', deleted: false, errors: [] });
+      rightFields.push({ racket: '', rule: '', deleted: false, errors: [] });
     }
 
     setRacketRuleFields({
