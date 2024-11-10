@@ -124,22 +124,50 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
               clearServerError();
               setRacketRuleFields((prevFields) => ({
                 ...prevFields,
+                [side]: prevFields[side].map((field, index) => {
+                  if (index === lastUnDeletedFieldIndex) {
+                    return {
+                      ...field,
+                      racket: racket.racket
+                    };
+                  }
+                  return field;
+                })
+              }));
+              setRacketRuleFields((prevFields) => ({
+                ...prevFields,
                 [side]: [
-                  ...prevFields[side].slice(0, -1),
-                  {
-                    ...undeletedProofLines[lastUnDeletedFieldIndex],
-                    racket: racket.racket,
-                    deleted: false
-                  },
-                  { racket: '', rule: '', deleted: false }
+                  ...prevFields[side],
+                  { racket: '', rule: '', deleted: false, errors: [] }
                 ]
               }));
+
               setValidationErrors((prevErrors) => ({
                 ...prevErrors,
                 [side]: {}
               }));
             } else {
               setRacketErrors(racket.errors);
+              const errors = undeletedProofLines[lastUnDeletedFieldIndex].errors || [];
+    
+              for (const error of racket.errors) {
+                if (!errors.includes(error)) {
+                  errors.push(error);
+                }
+              }
+
+              setRacketRuleFields((prevFields) => ({
+                ...prevFields,
+                [side]: prevFields[side].map((field, index) => {
+                  if (index === lastUnDeletedFieldIndex) {
+                    return {
+                      ...field,
+                      errors
+                    };
+                  }
+                  return field;
+                })
+              }));
             }
           } catch (error) {
             logger.error('Failed to fetch racket value:', error);

@@ -36,6 +36,8 @@ def create_proof_lines(lines, left_side, proof):
     for line in lines:
         racket = line["racket"]
         rule = line["rule"]
+        errors = line["errors"]
+
         try:
             start_position = line["startPosition"]
         except:
@@ -47,6 +49,7 @@ def create_proof_lines(lines, left_side, proof):
             "rule": rule,
             "start_position": start_position,
             "deleted": line["deleted"],
+            "errors": str(errors),
         }
 
         proof_line = ProofLineSerializer(data=proof_line_data)
