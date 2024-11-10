@@ -192,6 +192,20 @@ const deleteDefinition = async (id) => {
   });
 };
 
+const deleteLine = async (side) => {
+  return new Promise((resolve, reject) => {
+    axiosInstance
+      .delete(`${API_GATEWAY}/delete-line/${side}`)
+      .then(() => {
+        resolve(true);
+      })
+      .catch((error) => {
+        handleServiceError(error, "Error during line deletion:");
+        reject(error);
+      });
+  });
+}
+
 const erService = {
   checkGoal,
   racketGeneration,
@@ -206,7 +220,8 @@ const erService = {
   useDefinition,
   editDefinition,
   deleteDefinition,
-  removeDefinition
+  removeDefinition,
+  deleteLine
 };
 
 export default erService;

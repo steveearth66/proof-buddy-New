@@ -61,7 +61,7 @@ class ERProof:
         # do not allow the deletion of a "blank" line
         # if you delete the blank line, can get stuck in a situation where 
         # you are "stuck"
-        self.proofLines.pop()
+        self.proofLines = self.proofLines[:-1]
 
     def getPrevRacket(self):
         return str(self.proofLines[-1].exprTree)
