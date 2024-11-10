@@ -48,6 +48,7 @@ def create_proof_lines(lines, left_side, proof):
             "racket": racket,
             "rule": rule,
             "start_position": start_position,
+            "deleted": line["deleted"],
             "errors": str(errors),
         }
 

@@ -227,30 +227,26 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
    * This so that the deleted lines are saved in the database.
    * @param {string} side - Specifies the active side ('LHS' or 'RHS') to perform the cleanup on.
    */
-  const deleteLastLine = useCallback((side) => {
-    setRacketRuleFields((prevFields) => {
-      const sideFields = prevFields[side];
-      let lastFieldIndex = sideFields.length - 1;
+  const deleteLastLine = useCallback(async (side) => {
+    const lastUnDeletedFieldIndex = [...racketRuleFields[side]].reverse().findIndex((line) => !line.deleted && line.racket !== '');
+    if (lastUnDeletedFieldIndex !== -1) {
+      await erService.deleteLine(side);
+      const lastFieldIndex = racketRuleFields[side].length - 1 - lastUnDeletedFieldIndex;
+      setRacketRuleFields((prevFields) => {
+        const sideFields = prevFields[side];
+        const newFields = [...sideFields];
+        newFields[lastFieldIndex] = {
+          ...newFields[lastFieldIndex],
+          deleted: true
+        };
 
-      for (let i = sideFields.length - 1; i >= 0; i--) {
-        if (!sideFields[i].deleted) {
-          lastFieldIndex = i;
-          break;
-        }
-      }
-
-      const newFields = [...sideFields];
-      newFields[lastFieldIndex] = {
-        ...newFields[lastFieldIndex],
-        deleted: true
-      };
-
-      return {
-        ...prevFields,
-        [side]: newFields
-      };
-    });
-  }, []);
+        return {
+          ...prevFields,
+          [side]: newFields
+        };
+      });
+    }
+  }, [racketRuleFields]);
 
   const substituteFieldWithApiCheck = useCallback(
     async ({ substitution, rule }) => {
