@@ -46,6 +46,7 @@ def create_proof_lines(lines, left_side, proof):
             "racket": racket,
             "rule": rule,
             "start_position": start_position,
+            "deleted": line["deleted"],
         }
 
         proof_line = ProofLineSerializer(data=proof_line_data)
