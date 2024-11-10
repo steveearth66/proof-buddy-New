@@ -88,6 +88,7 @@ def delete_line(request, side):
     else:
         proof_two.deleteProofLine()
 
+    save_proof_to_cache(user, proof)
     # next steps is to verify if I need to use update_current_proof
     # and update_is_valid
     # assume no... deletions should have less checks than additions
