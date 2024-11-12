@@ -4,7 +4,7 @@ import useDoubleClick from "use-double-click";
 import Col from "react-bootstrap/Col";
 import { useCollapsing } from "../hooks/useCollapsing";
 
-export default function PersistentPad({ equation, onHighlightChange, side }) {
+export default function PersistentPad({ equation, onHighlightChange, side, legalStartPositions }) {
   const [highlightedText, setHighlightedText] = useState("");
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
   const [controlPressed, setControlPressed] = useState(false);
@@ -15,13 +15,15 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     start: 0,
     end: 0
   });
+  const [positionTracker, setPositionTracker] = useState(null);
   const padRef = useRef(null);
   const {
     collapse,
     restore,
     findSelectionParenthesis,
     checkParenthesisConsistency,
-    balanceParenthesis
+    balanceParenthesis,
+    findSelection
   } = useCollapsing();
 
   useDoubleClick({
@@ -80,7 +82,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
       const endOffset = range.endOffset;
 
       const selectionRange = { start: startOffset, end: endOffset };
-      handelHighlight(selectionRange);
+      handelClickingHighlight(selectionRange);
     } catch (error) {
       console.error("Error while highlighting selection: ", error);
     }
@@ -122,8 +124,32 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     }
   };
 
-  const handelHighlight = (selectionRange) => {
+  const handelClickingHighlight = (selectionRange) => {
     const selectedPart = findSelectionParenthesis(returnedText, selectionRange);
+    if (!checkParenthesisConsistency(selectedPart)) {
+      const highlighted = checkAndGetQuotient(
+        balanceParenthesis(returnedText, selectedPart)
+      );
+      setHighlightedText(highlighted);
+      onHighlightChange(getStartIndex(highlighted));
+      setSelectionRange({
+        start: getStartIndex(highlighted),
+        end: getEndIndex(highlighted)
+      });
+    } else {
+      const highlighted = checkAndGetQuotient(selectedPart);
+      setHighlightedText(highlighted);
+      onHighlightChange(getStartIndex(highlighted));
+      setSelectionRange({
+        start: getStartIndex(highlighted),
+        end: getEndIndex(highlighted)
+      });
+    }
+  };
+
+  const handelHighlight = (startPosition) => {
+    const selectedPart = findSelection(returnedText, startPosition);
+
     if (!checkParenthesisConsistency(selectedPart)) {
       const highlighted = checkAndGetQuotient(
         balanceParenthesis(returnedText, selectedPart)
@@ -195,6 +221,58 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     []
   );
 
+  const initializePositionTracker = (startingIndex) => {
+    const currentIndex = startingIndex;
+    const nextIndex = (currentIndex + 1) % legalStartPositions.length;
+    const previousIndex = (currentIndex - 1 + legalStartPositions.length) % legalStartPositions.length;
+
+    return {
+      previousIndex,
+      currentIndex,
+      nextIndex
+    }
+  };
+
+  const handelRightArrowPressed = () => {
+    setPositionTracker((prev) => {
+      if (!prev) {
+        return initializePositionTracker(0);
+      }
+      
+      const currentIndex = (prev.currentIndex + 1) % legalStartPositions.length;
+      const nextIndex = (prev.nextIndex + 1) % legalStartPositions.length;
+      const previousIndex = prev.currentIndex;
+
+      handelHighlight(legalStartPositions[currentIndex]);
+
+      return {
+        previousIndex,
+        currentIndex,
+        nextIndex
+      };
+    })
+  };
+
+  const handelLeftArrowPressed = () => {
+    setPositionTracker((prev) => {
+      if (!prev) {
+        return initializePositionTracker(legalStartPositions.length - 1);
+      }
+
+      const currentIndex = (prev.currentIndex - 1 + legalStartPositions.length) % legalStartPositions.length;
+      const nextIndex = prev.currentIndex;
+      const previousIndex = (prev.previousIndex - 1 + legalStartPositions.length) % legalStartPositions.length;
+
+      handelHighlight(legalStartPositions[currentIndex]);
+
+      return {
+        previousIndex,
+        currentIndex,
+        nextIndex
+      }
+    });
+  }
+
   useEffect(() => {
     const saveHighlightToSession = (highlightedText) => {
       const savedHighlights = JSON.parse(
@@ -244,6 +322,12 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
       if (e.key === "Alt") {
         setRestoredPress(true);
       }
+      if (e.key === "ArrowRight") {
+        handelRightArrowPressed();
+      } 
+      if (e.key === "ArrowLeft") {
+        handelLeftArrowPressed();
+      }
     };
 
     const keyEventUp = (e) => {
@@ -262,6 +346,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
       window.removeEventListener("keydown", keyEvent);
       window.removeEventListener("keyup", keyEventUp);
     };
+    // eslint-disable-next-line
   }, []);
 
   useEffect(() => {

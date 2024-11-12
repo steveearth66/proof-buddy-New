@@ -110,6 +110,47 @@ const useCollapsing = () => {
     }
   };
 
+  const findSelection = (equation, startPosition) => {
+    let openParenthesisIndex = -1;
+    let closeParenthesisIndex = -1;
+
+    const startingChar = equation[startPosition];
+
+    if (startingChar !== "(") {
+      let textEnd = -1;
+
+      for (let i = startPosition; i < equation.length; i++) {
+        if (equation[i] === " " || equation[i] === ")") {
+          textEnd = i;
+          break;
+        }
+      }
+
+      if (textEnd !== -1) {
+        return equation.substring(startPosition, textEnd);
+      }
+
+    } else {
+      for (let i = startPosition; i >= 0; i--) {
+        if (equation[i] === "(") {
+          openParenthesisIndex = i;
+          break;
+        }
+      }
+
+      for (let i = startPosition; i < equation.length; i++) {
+        if (equation[i] === ")") {
+          closeParenthesisIndex = i;
+          break;
+        }
+      }
+
+      if (openParenthesisIndex !== -1 && closeParenthesisIndex !== -1) {
+        return equation.substring(openParenthesisIndex, closeParenthesisIndex + 1);
+      }
+    }
+  }
+
   const findSelectionParenthesis = (equation, selectionRange) => {
     const start = selectionRange.start;
     const end = selectionRange.end;
@@ -248,7 +289,8 @@ const useCollapsing = () => {
     restore,
     findSelectionParenthesis,
     checkParenthesisConsistency,
-    balanceParenthesis
+    balanceParenthesis,
+    findSelection
   };
 };
 export { useCollapsing };
