@@ -258,6 +258,19 @@ const ERRacket = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadedProof, loadRacketProof]);
 
+  useEffect(() => {
+    const currentSideRackets = showSide === "LHS" ? racketRuleFields.LHS : racketRuleFields.RHS;
+    if (currentSideRackets.length === 0) {
+      setCurrentRacket(formValues[`${showSide[0].toLowerCase()}HSGoal`]);
+      return;
+    }
+    const undeletedRackets = currentSideRackets.filter((line) => !line.deleted && line.racket !== '');
+    const lastUndeletedRacket = undeletedRackets[undeletedRackets.length - 1];
+    if (lastUndeletedRacket) setCurrentRacket(lastUndeletedRacket.racket);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setStartPosition, showSide, racketRuleFields, formValues.lHSGoal, formValues.rHSGoal]);
+
   return (
     <MainLayout>
       <Container className="er-racket-container">
