@@ -8,9 +8,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import subprocess
 
 # Load the GitHub secret from an environment variable
-GITHUB_SECRET = os.getenv(
-    "GITHUB_WEBHOOK_SECRET", ""
-).encode()  # Default to an empty byte string if not set
+GITHUB_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "").encode()
 
 
 class WebhookHandler(BaseHTTPRequestHandler):
@@ -32,15 +30,19 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
         # Check if push is to 'stage' branch
         if data.get("ref") == "refs/heads/stage":
-            self.run_docker_compose_up()
+            self.update_and_deploy()
 
         self.send_response(200)
         self.end_headers()
 
-    def run_docker_compose_up(self):
-        subprocess.run(
-            ["docker-compose", "-f", "/docker-compose.yml", "up", "--build", "-d"]
-        )
+    def update_and_deploy(self):
+        # Pull the latest code from the stage branch
+        subprocess.run(["git", "fetch", "origin", "stage"])
+        subprocess.run(["git", "reset", "--hard", "origin/stage"])
+
+        # Rebuild the Docker image and run the updated containers
+        subprocess.run(["docker-compose", "build"])
+        subprocess.run(["docker-compose", "up", "-d"])
 
 
 def run(server_class=HTTPServer, handler_class=WebhookHandler, port=15368):
