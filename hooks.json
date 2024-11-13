@@ -1,0 +1,22 @@
+[
+  {
+    "id": "docker-stage-update",
+    "execute-command": "/deploy.sh",
+    "command-working-directory": "/",
+    "response-message": "Stage branch updated; Docker build triggered.",
+    "trigger-rule": {
+      "and": [
+        {
+          "match": {
+            "type": "value",
+            "value": "refs/heads/stage",
+            "parameter": {
+              "source": "payload",
+              "name": "ref"
+            }
+          }
+        }
+      ]
+    }
+  }
+]
