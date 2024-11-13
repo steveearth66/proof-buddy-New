@@ -47,9 +47,9 @@ class AssignmentAdmin(admin.ModelAdmin):
     term_instructor.admin_order_field = "term__instructor"
 
 class AssignmentSubmissionAdmin(admin.ModelAdmin):
-    list_display = ('assignment', 'student', 'submission_date', 'submission', 'grade', 'created_at', 'updated_at')
+    list_display = ('assignment', 'student', 'submission_date', 'submission', 'grade')
     search_fields = ('assignment', 'student')
-    readonly_fields = ('submission_date', 'created_at', 'updated_at')
+    readonly_fields = ('submission_date',)
 
     filter_horizontal = ()
     list_filter = ()

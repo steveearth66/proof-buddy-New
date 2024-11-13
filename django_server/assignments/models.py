@@ -46,8 +46,6 @@ class AssignmentSubmission(models.Model):
     submission_date = models.DateTimeField(auto_now_add=True)
     submission = models.ForeignKey('proofs.Proof', on_delete=models.CASCADE)
     grade = models.FloatField(default=0)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = ('assignment', 'student')
