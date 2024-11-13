@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "racket_api",
     "proofs",
     "induction_api",
+    "assignments",
 ]
 
 REST_FRAMEWORK = {
