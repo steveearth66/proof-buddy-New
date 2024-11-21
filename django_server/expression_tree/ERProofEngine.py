@@ -137,7 +137,7 @@ class ERProofLine:
         if self.errLog == []:
             self.exprTree = decTree
 
-    def applyRule(self, ruleSet: dict[str, Rule], rule: str, startPos: int):
+    def applyRule(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subNode:Node=None):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
         if targetNode == None:
             self.errLog.append(
@@ -149,15 +149,24 @@ class ERProofLine:
             self.errLog.append(f"Cannot apply rules within a quoted expression")
         if self.errLog == []:       
             selectedRule = ruleSet[rule]
-            isApplicable, error = selectedRule.isApplicable(targetNode)
-            if isApplicable:
-                newNode = selectedRule.insertSubstitution(
-                    targetNode)  # copy information to targetNode
-                targetNode.replaceWith(newNode)
-                # print(str(self.exprTree)) # should print updated tree
-                updatePositions(self.exprTree)
+            if rule == 'advMath':
+                isApplicable, error = selectedRule.isApplicable(targetNode, subNode)
+                if isApplicable:
+                    newNode = selectedRule.insertSubstitution(
+                        targetNode, subNode)  # copy information to targetNode
+                    targetNode.replaceWith(newNode)
+                    updatePositions(self.exprTree)
+                else:
+                    self.errLog.append(error)
             else:
-                self.errLog.append(error)
+                isApplicable, error = selectedRule.isApplicable(targetNode)
+                if isApplicable:
+                    newNode = selectedRule.insertSubstitution(
+                        targetNode)  # copy information to targetNode
+                    targetNode.replaceWith(newNode)
+                    updatePositions(self.exprTree)
+                else:
+                    self.errLog.append(error)
 
     def applySubstitution(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subLine: 'ERProofLine'):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
@@ -171,7 +180,7 @@ class ERProofLine:
             self.errLog.append(f"Cannot apply rules within a quoted expression")
         if self.errLog == []:
             replacementExprTree = copy.deepcopy(subLine.exprTree)
-            subLine.applyRule(ruleSet, rule, 0)
+            subLine.applyRule(ruleSet, rule, 0, targetNode)
             if subLine.errLog != []:
                 self.errLog.extend(subLine.errLog)
             elif subLine.exprTree != targetNode:
