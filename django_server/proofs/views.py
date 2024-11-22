@@ -42,7 +42,7 @@ def create_proof_lines(lines, left_side, proof):
             errors = line["errors"]
         except:
             start_position = 0
-            errors = ""
+            errors = []
 
         proof_line_data = {
             "left_side": left_side,
