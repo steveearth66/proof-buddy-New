@@ -12,7 +12,7 @@
             "value": "refs/heads/stage",
             "parameter": {
               "source": "payload",
-              "name": "data.ref"
+              "name": "ref"
             }
           }
         }
