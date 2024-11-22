@@ -4,5 +4,6 @@
     "execute-command": "deploy.sh",
     "command-working-directory": "/home/proofbuddyadmin/proof-buddy-New",
     "response-message": "Stage branch updated; Docker build triggered."
+    
   }
 ]
