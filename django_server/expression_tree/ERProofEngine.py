@@ -117,6 +117,7 @@ class ERProofLine:
         self.exprTree = None
         self.errLog = []
         self.debug = debug
+        self.positions = dict() # a dict of 4-tuples of the next pos when hitting up,down,left,right. keyd by startpos
         if ruleDict != None:
             self.ruleSet = ruleDict
         else:
@@ -136,6 +137,8 @@ class ERProofLine:
             self.errLog = Decorator.remTemps(labeledTree, self.errLog, theRuleDict=ruleDict)
         if self.errLog == []:
             self.exprTree = decTree
+        if self.errLog == []:
+            self.positions = Decorator.makePosDict(self.exprTree, self.positions)
 
     def applyRule(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subNode:Node=None):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]

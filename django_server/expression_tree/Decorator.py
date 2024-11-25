@@ -172,6 +172,34 @@ def typeCheck(inputTree: Node, debug=False, ruleDict=None) -> list[bool,str]:
         return [False, f'Cannot match argument out typeList {[str(x) for x in providedIns]} with expected typeList {[str(x) for x in expectedIns]}']    
     return [True, "no type violation discovered"]
 
+# given a list of children and a potential child, returns child's pos to the left of the potential child (if any)
+def leftSib(L:list, n:Node) -> Node:
+    if (not n in L) or (ind := L.index(n))==0:
+        return n.startPosition
+    return L[ind-1].startPosition
+
+# given a list of children and a potential child, returns child's pos to the right of the potential child (if any)
+def rightSib(L:list, n:Node) -> Node:
+    if (not n in L) or (ind := L.index(n))==len(L)-1:
+        return n.startPosition
+    return L[ind+1].startPosition
+
+
+def makePosDict(inputTree: Node, currDict : dict = None) -> dict:
+    if currDict == None: #cannot do currDict={} because it will be shared across all calls
+        currDict = dict()
+    if inputTree == None: #shouldn't happen, but just in case of errors...
+        return currDict
+    down = inputTree.children[0].startPosition if inputTree.children != [] else inputTree.startPosition
+    if (pos:=inputTree.startPosition) == 0: #root case first
+       currDict[0] = [0,down,0,0]
+    else: #the node is not the root and therefore has a parent
+        currDict[pos]=[inputTree.parent.startPosition,down,leftSib(inputTree.parent.children,inputTree),
+                       rightSib(inputTree.parent.children,inputTree)]
+    for c in inputTree.children:
+        currDict = makePosDict(c, currDict)
+    return currDict
+
 ''' #this old version of typeCheck is being replaced by the new version above
     inputTree.type=func.type.getRange() 
     # get the expected and provided domains
