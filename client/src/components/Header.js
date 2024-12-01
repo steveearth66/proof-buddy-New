@@ -36,8 +36,8 @@ const Header = () => {
                     </Nav.Link>
                   </Nav.Item>
                   <Nav.Item>
-                    <Nav.Link as={Link} to="#" className="top-menu-item">
-                      Assignments
+                    <Nav.Link as={Link} to="/terms" className="top-menu-item">
+                      Terms
                     </Nav.Link>
                   </Nav.Item>
                   <Nav.Item>
