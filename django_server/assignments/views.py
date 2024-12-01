@@ -17,7 +17,7 @@ class TermViewSet(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
-        if not request.user.is_instructor or not request.user.is_superuser:
+        if not (request.user.is_instructor or request.user.is_superuser):
             return Response({"message": "You are not authorized to create a term"}, status=status.HTTP_403_FORBIDDEN)
         
         serializer = CreateTermSerializer(data=request.data, context={"request": request})
@@ -39,14 +39,14 @@ class AssignmentViewSet(APIView):
             return Response({"message": "Term not found"}, status=status.HTTP_404_NOT_FOUND)
 
         if not (user.is_instructor and term.instructor == user) and user not in term.students.all() and not user.is_superuser:
-            return Response({"message": "You are not authorized to view this assignment"}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"message": "You are not authorized to view any assignments for this term."}, status=status.HTTP_403_FORBIDDEN)
         
         assignments = Assignment.objects.filter(term=term)
         serializer = AssignmentSerializer(assignments, many=True, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
-        if not request.user.is_instructor or not request.user.is_superuser:
+        if not (request.user.is_instructor or not request.user.is_superuser):
             return Response({"message": "You are not authorized to create an assignment"}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = AssignmentSerializer(data=request.data)
