@@ -39,6 +39,7 @@ function Terms() {
             <TermCard key={term.id} term={term} isStudent={user?.is_student} />
           ))}
         </div>
+        {terms.length === 0 && <p style={{ fontSize: 36, fontWeight: 'bold' }}>No Terms found</p>}
       </Container>
     </MainLayout>
   )
