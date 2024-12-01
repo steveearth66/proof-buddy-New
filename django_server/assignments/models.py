@@ -44,7 +44,7 @@ class AssignmentSubmission(models.Model):
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE)
     student = models.ForeignKey('accounts.Account', on_delete=models.CASCADE, limit_choices_to={"is_instructor": False})
     submission_date = models.DateTimeField(auto_now_add=True)
-    submission = models.ForeignKey('proofs.Proof', on_delete=models.CASCADE)
+    proofs = models.ManyToManyField('proofs.Proof', related_name='proofs')
     grade = models.FloatField(default=0)
 
     class Meta:

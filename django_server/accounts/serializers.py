@@ -30,3 +30,8 @@ class AccountSerializer(serializers.ModelSerializer):
         user = Account.objects.create_user(**validated_data)
         user.save()
         return user
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Account
+        fields = ["id", "email", "username", "first_name", "last_name"]
