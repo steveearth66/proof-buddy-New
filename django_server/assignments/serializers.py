@@ -1,6 +1,9 @@
 from rest_framework import serializers
 from .models import Assignment, AssignmentSubmission, Term
 from accounts.serializers import UserSerializer
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 class TermSerializer(serializers.ModelSerializer):
     instructor = serializers.SerializerMethodField()
@@ -18,11 +21,25 @@ class TermSerializer(serializers.ModelSerializer):
     
     def get_students(self, obj):
         return UserSerializer(obj.students, many=True).data
-    
-    def create(self, validated_data):
+
+class CreateTermSerializer(serializers.ModelSerializer):
+    students = serializers.ListField(child=serializers.CharField())
+    class Meta:
+        model = Term
+        fields = ['name', 'instructor', 'students']
+
+    def save(self, validated_data):
         request = self.context.get('request')
         validated_data['created_by'] = request.user
-        return super().create(validated_data)
+        validated_data['instructor'] = request.user
+
+        student_identifiers = validated_data.pop('students', [])
+        students = User.objects.filter(username__in=student_identifiers) | User.objects.filter(email__in=student_identifiers)
+
+        term = super().create(validated_data)
+        term.students.set(students)
+
+        return TermSerializer(term).data
 
 class AssignmentSerializer(serializers.ModelSerializer):
     term = TermSerializer()

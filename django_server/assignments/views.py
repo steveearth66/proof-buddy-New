@@ -1,5 +1,5 @@
 from .models import Assignment, AssignmentSubmission, Term
-from .serializers import AssignmentSerializer, AssignmentSubmissionSerializer, TermSerializer
+from .serializers import AssignmentSerializer, AssignmentSubmissionSerializer, TermSerializer, CreateTermSerializer
 from rest_framework.decorators import api_view
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -17,10 +17,10 @@ class TermViewSet(APIView):
         if not request.user.is_instructor:
             return Response({"message": "You are not authorized to create a term"}, status=status.HTTP_403_FORBIDDEN)
         
-        serializer = TermSerializer(data=request.data, context={"request": request})
+        serializer = CreateTermSerializer(data=request.data, context={"request": request})
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            term = serializer.save(request.data)
+            return Response(term, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
