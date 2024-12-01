@@ -1,4 +1,11 @@
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from django.core.mail import EmailMultiAlternatives
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 
 # Create your models here.
@@ -52,3 +59,35 @@ class AssignmentSubmission(models.Model):
 
     def __str__(self):
         return f"{self.assignment.title} - {self.student.username}"
+
+
+@receiver(post_save, sender=Assignment)
+def send_assignment_email(sender, instance, created, **kwargs):
+    if created:
+        subject, from_email, to = 'New Assignment!', os.getenv('EMAIL_HOST_USER'), instance.term.students.all().values_list('email', flat=True)
+        text_content = f'New assignment: {instance.title} has been created for {instance.term.name}.'
+        html_content = f'''
+            <h1>New Assignment!</h1>
+            <p>New assignment: {instance.title} has been created for {instance.term.name}.</p>
+            <b>Assignment Description:</b>
+            <p>{instance.description}</p>
+            <p>Due Date: {instance.due_date}</p>
+        '''
+        msg = EmailMultiAlternatives(subject, text_content, from_email, to)
+        msg.attach_alternative(html_content, "text/html")
+        msg.send()
+
+
+@receiver(post_save, sender=AssignmentSubmission)
+def send_submission_email(sender, instance, created, **kwargs):
+    if created:
+        subject, from_email, to = 'Submission Received!', os.getenv('EMAIL_HOST_USER'), instance.student.email
+        text_content = f'New submission: {instance.assignment.title} has been submitted.'
+        html_content = f"""
+            <h1>Submission Received!</h1>
+            <p>{instance.assignment.title} has been submitted.</p>
+            <p><b>Submission Date:</b> {instance.submission_date}</p>
+        """
+        msg = EmailMultiAlternatives(subject, text_content, from_email, [to])
+        msg.attach_alternative(html_content, "text/html")
+        msg.send()
