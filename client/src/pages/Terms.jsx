@@ -10,6 +10,7 @@ import Form from 'react-bootstrap/Form';
 import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
 import Tooltip from 'react-bootstrap/Tooltip';
 import { toast } from 'react-toastify';
+import { Link } from 'react-router-dom';
 
 function Terms() {
   const { user } = useAuth();
@@ -54,7 +55,7 @@ function TermCard({ term, isStudent }) {
           <p><b>Class Count: </b>{term.students.length}</p>
         </>
       ) : <p><b>Student Count: </b>{term.students.length}</p>}
-      <Button variant='outline-primary'>View</Button>
+      <Link to={`/terms/${term.id}`}><Button variant='outline-primary'>View</Button></Link>
     </div>
   )
 }
