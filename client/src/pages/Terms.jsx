@@ -51,6 +51,7 @@ function TermCard({ term, isStudent }) {
         <>
           <p><b>Instructor: </b>{term.instructor.first_name} {term.instructor.last_name}</p>
           <p><b>Instructor Email: </b>{term.instructor.email}</p>
+          <p><b>Class Count: </b>{term.students.length}</p>
         </>
       ) : <p><b>Student Count: </b>{term.students.length}</p>}
       <Button variant='outline-primary'>View</Button>
