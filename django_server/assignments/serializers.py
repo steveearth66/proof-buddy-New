@@ -63,6 +63,17 @@ class AssignmentSerializer(serializers.ModelSerializer):
     
     def get_created_by(self, obj):
         return UserSerializer(obj.created_by).data
+    
+class CreateAssignmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Assignment
+        fields = ['title', 'description', 'due_date', 'term']
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        validated_data['created_by'] = request.user
+
+        return super().create(validated_data)
 
 class AssignmentSubmissionSerializer(serializers.ModelSerializer):
     student = serializers.SerializerMethodField()

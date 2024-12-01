@@ -4,5 +4,6 @@ from . import views
 urlpatterns = [
     path("terms", views.TermViewSet.as_view()),
     path("<int:term_id>", views.AssignmentViewSet.as_view()),
+    path("", views.AssignmentViewSet.as_view()),
     path("check-user", views.check_user)
 ]

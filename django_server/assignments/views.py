@@ -1,5 +1,5 @@
 from .models import Assignment, AssignmentSubmission, Term
-from .serializers import AssignmentSerializer, AssignmentSubmissionSerializer, TermSerializer, CreateTermSerializer
+from .serializers import AssignmentSerializer, AssignmentSubmissionSerializer, TermSerializer, CreateTermSerializer, CreateAssignmentSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -52,7 +52,7 @@ class AssignmentViewSet(APIView):
         if not (request.user.is_instructor or not request.user.is_superuser):
             return Response({"message": "You are not authorized to create an assignment"}, status=status.HTTP_403_FORBIDDEN)
 
-        serializer = AssignmentSerializer(data=request.data)
+        serializer = CreateAssignmentSerializer(data=request.data, context={"request": request})
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
