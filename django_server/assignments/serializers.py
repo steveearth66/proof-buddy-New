@@ -43,10 +43,11 @@ class CreateTermSerializer(serializers.ModelSerializer):
 
 class AssignmentSerializer(serializers.ModelSerializer):
     submissions = serializers.SerializerMethodField()
+    submission = serializers.SerializerMethodField()
     created_by = serializers.SerializerMethodField()
     class Meta:
         model = Assignment
-        fields = ['id', 'title', 'description', 'due_date', 'submissions', 'created_by']
+        fields = ['id', 'title', 'description', 'due_date', 'submissions', 'submission', 'created_by']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -55,10 +56,17 @@ class AssignmentSerializer(serializers.ModelSerializer):
 
         if not (user and getattr(user, 'is_instructor', False)):
             self.fields.pop('submissions', None)
+        if not (user and not getattr(user, 'is_instructor', True)):
+            self.fields.pop('submission', None)
 
     def get_submissions(self, obj):
         submissions = AssignmentSubmission.objects.filter(assignment=obj)
         return AssignmentSubmissionSerializer(submissions, many=True).data
+    
+    def get_submission(self, obj):
+        user = self.context.get('request').user
+        submission = AssignmentSubmission.objects.filter(assignment=obj, student=user).first()
+        return AssignmentSubmissionSerializer(submission).data if submission else None
     
     def get_created_by(self, obj):
         return UserSerializer(obj.created_by).data
