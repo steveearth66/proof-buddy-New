@@ -56,7 +56,7 @@ function TermCard({ term, isStudent }) {
           <p><b>Class Count: </b>{term.students.length}</p>
         </>
       ) : <p><b>Student Count: </b>{term.students.length}</p>}
-      <Link to={`/terms/${term.id}`}><Button variant='outline-primary'>View</Button></Link>
+      <Link to={`/terms/${term.id}`} state={term}><Button variant='outline-primary'>View</Button></Link>
     </div>
   )
 }

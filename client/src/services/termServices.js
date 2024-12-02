@@ -34,8 +34,26 @@ const createTerm = async (term) => {
     }
 };
 
-const termService = {
-    getTerms, checkUser, createTerm
+const getAssignments = async (termId) => {
+    try {
+        const response = await axiosInstance.get(`${API_GATEWAY}/${termId}`);
+        return response.data;
+    } catch (error) {
+        handleServiceError(error, "Error fetching assignments:");
+        throw error;
+    }
 };
+
+const getTerm = async (id) => {
+    try {
+        const response = await axiosInstance.get(`${API_GATEWAY}/terms/${id}`);
+        return response.data;
+    } catch (error) {
+        handleServiceError(error, "Error fetching term:");
+        throw error;
+    }
+};
+
+const termService = { getTerms, checkUser, createTerm, getAssignments, getTerm };
 
 export default termService;

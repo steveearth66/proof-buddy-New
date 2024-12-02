@@ -13,8 +13,21 @@ User = get_user_model()
 class TermViewSet(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
-    def get(self, request):
+    def get(self, request, *args, **kwargs):
         user = request.user
+        
+        if kwargs.get("term_id"):
+            try:
+                term = Term.objects.get(id=kwargs.get("term_id"))
+            except Term.DoesNotExist:
+                return Response({"message": "Term not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+            if not (user.is_instructor and term.instructor == user) and user not in term.students.all() and not user.is_superuser:
+                return Response({"message": "You are not authorized to view this term."}, status=status.HTTP_403_FORBIDDEN)
+            
+            serializer = TermSerializer(term, context={"request": request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        
         terms = Term.objects.filter(instructor=user) if user.is_instructor else Term.objects.filter(students=user)
         serializer = TermSerializer(terms, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
