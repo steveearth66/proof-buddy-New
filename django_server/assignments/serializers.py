@@ -42,12 +42,11 @@ class CreateTermSerializer(serializers.ModelSerializer):
         return TermSerializer(term).data
 
 class AssignmentSerializer(serializers.ModelSerializer):
-    term = TermSerializer()
     submissions = serializers.SerializerMethodField()
     created_by = serializers.SerializerMethodField()
     class Meta:
         model = Assignment
-        fields = ['id', 'title', 'description', 'due_date', 'term', 'submissions', 'created_by']
+        fields = ['id', 'title', 'description', 'due_date', 'submissions', 'created_by']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
