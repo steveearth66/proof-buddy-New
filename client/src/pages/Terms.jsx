@@ -49,13 +49,13 @@ function TermCard({ term, isStudent }) {
   return (
     <div className='term-card'>
       <h2>{term.name}</h2>
-      {isStudent ? (
+      {isStudent && (
         <>
           <p><b>Instructor: </b>{term.instructor.first_name} {term.instructor.last_name}</p>
           <p><b>Instructor Email: </b>{term.instructor.email}</p>
-          <p><b>Class Count: </b>{term.students.length}</p>
         </>
-      ) : <p><b>Student Count: </b>{term.students.length}</p>}
+      )}
+      <p><b>Student Count: </b>{term.students.length}</p>
       <Link to={`/terms/${term.id}`} state={term}><Button variant='outline-primary'>View</Button></Link>
     </div>
   )
