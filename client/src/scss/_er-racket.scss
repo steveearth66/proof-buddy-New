@@ -42,6 +42,15 @@
           margin: 20px 0;
           font-weight: $font-bold;
         }
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+
+        .check-row {
+          display: flex;
+          align-items: center;
+          gap: 30px;
+        }
       }
 
       .er-current-state {
@@ -273,4 +282,18 @@
       }
     }
   }
+}
+
+.scroll-error {
+  display: inline-flex;
+  flex-direction: column;
+  width: 100%;
+  line-height: 1.5;
+  height: 2.3lh;
+  overflow-y: auto;
+}
+
+.search-input {
+  margin: 0 0 20px 0;
+  width: 450px;
 }

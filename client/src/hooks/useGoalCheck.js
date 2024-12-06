@@ -16,6 +16,7 @@ import logger from '../utils/logger';
 const useGoalCheck = (handleChange) => {
   const [isGoalChecked, setIsGoalChecked] = useState({ LHS: false, RHS: false });
   const [goalValidationMessage, setGoalValidationMessage] = useState({ LHS: '', RHS: '' });
+  const [proofValidationMessage, setProofValidationMessage] = useState({ name: '', tag: '' });
 
   /**
    * Clears the validation message for a specific goal side (LHS or RHS).
@@ -24,6 +25,10 @@ const useGoalCheck = (handleChange) => {
    */
   const clearGoalValidationMessage = useCallback((side) => {
     setGoalValidationMessage(prev => ({ ...prev, [side]: '' }));
+  }, []);
+
+  const clearProofValidationMessage = useCallback(() => {
+    setProofValidationMessage({ name: '', tag: '' });
   }, []);
 
   /**
@@ -36,7 +41,8 @@ const useGoalCheck = (handleChange) => {
     handleChange(event);
     const side = event.target.name === 'lHSGoal' ? 'LHS' : 'RHS';
     clearGoalValidationMessage(side);
-  }, [clearGoalValidationMessage, handleChange]);
+    clearProofValidationMessage();
+  }, [clearGoalValidationMessage, handleChange, clearProofValidationMessage]);
 
   /**
    * Validates a goal value for a specific side (LHS or RHS) by making a server-side request.
@@ -45,7 +51,17 @@ const useGoalCheck = (handleChange) => {
    * @param {string} side - The side of the goal (LHS or RHS) to validate.
    * @param {string} goalValue - The value of the goal to validate.
    */
-  const checkGoal = async (side, goalValue) => {
+  const checkGoal = async (side, goalValue, name, tag, lHSGoal, rHSGoal) => {
+    if (!name) {
+      setProofValidationMessage({ name: 'Please provide a name.' });
+      return;
+    }
+
+    if (!tag) {
+      setProofValidationMessage({ tag: 'Please provide a tag.' });
+      return;
+    }
+
     if (!goalValue.trim()) {
       setGoalValidationMessage(prev => ({ ...prev, [side]: `Please provide a ${side} goal.` }));
       setIsGoalChecked(prev => ({ ...prev, [side]: false }));
@@ -53,13 +69,18 @@ const useGoalCheck = (handleChange) => {
     }
 
     try {
-      const result = await erService.checkGoal({ goal: goalValue });
+      const result = await erService.checkGoal({ goal: goalValue, name, tag, lHSGoal, rHSGoal, side });
       if (result.isValid) {
         setIsGoalChecked({ ...isGoalChecked, [side]: true });
         setGoalValidationMessage({ ...goalValidationMessage, [side]: '' });
+        setProofValidationMessage('');
       } else {
         setIsGoalChecked({ ...isGoalChecked, [side]: false });
-        setGoalValidationMessage({ ...goalValidationMessage, [side]: `The ${side} goal is not valid.` });
+        const errorMessage = result.errors?.length ? result.errors.join('\n') : 'An unknown error occurred.';
+        setGoalValidationMessage({
+          ...goalValidationMessage,
+          [side]: `The ${side} goal is not valid.\nError(s):\n${errorMessage}`
+        });
       }
     } catch (error) {
       logger.error(`Error validating the ${side} Goal: ${error}`);
@@ -67,11 +88,18 @@ const useGoalCheck = (handleChange) => {
     }
   };
 
+  const loadRacket = () => {
+    setIsGoalChecked({ LHS: true, RHS: true });
+  };
+
   return [
     isGoalChecked,
     checkGoal,
     goalValidationMessage,
-    enhancedHandleChange
+    enhancedHandleChange,
+    proofValidationMessage,
+    clearProofValidationMessage,
+    loadRacket
   ];
 };
 

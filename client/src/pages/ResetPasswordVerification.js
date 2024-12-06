@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import Container from 'react-bootstrap/Container';
 import Button from 'react-bootstrap/Button';
 import MainLayout from '../layouts/MainLayout';
-import { useCheckEmailResendToken } from '../hooks/useCheckEmailResendToken';
-import { useResendVerificationEmail } from '../hooks/useResendVerificationEmail';
+import authService from '../services/authService';
+import { useLocation } from 'react-router-dom';
 import '../scss/_email-verification.scss';
 
 /**
@@ -13,10 +13,16 @@ import '../scss/_email-verification.scss';
  */
 const ResetPasswordVerification = () => {
   const [serverMessage, setServerMessage] = useState({ message: '', type: '' });
-  const verificationType = 'forgotPassword';
-  useCheckEmailResendToken();
+  const location = useLocation();
 
-  const handleResendEmail = useResendVerificationEmail(verificationType, setServerMessage);
+  const handleResendEmail = async () => {
+    try {
+      const response = await authService.forgotPassword(location.state?.email)
+      setServerMessage({ message: response.message, type: 'success' });
+    } catch (error) {
+      setServerMessage({ message: error.message, type: 'error' });
+    }
+  }
 
   return (
     <MainLayout>

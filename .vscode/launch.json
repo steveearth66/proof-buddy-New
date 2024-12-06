@@ -1,0 +1,19 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File with Arguments",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "django_server/manage.py",
+            "console": "integratedTerminal",
+            "args": [
+                "test", "proofs" // use this to run tests.py in proofs directory
+                //"runserver"  // use this to debug live
+            ]
+        }
+    ]
+}

@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
 import Container from 'react-bootstrap/Container';
-import Button from 'react-bootstrap/Button';
 import MainLayout from '../layouts/MainLayout';
-import { useCheckEmailResendToken } from '../hooks/useCheckEmailResendToken';
-import { useEmailVerification } from '../hooks/useEmailVerification';
-import { useResendVerificationEmail } from '../hooks/useResendVerificationEmail';
 import '../scss/_email-verification.scss';
+import { useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import Button from 'react-bootstrap/esm/Button';
+import authService from '../services/authService';
 
 /**
  * The EmailVerification component renders a user interface for email verification.
@@ -13,12 +12,16 @@ import '../scss/_email-verification.scss';
  */
 const EmailVerification = () => {
   const [serverMessage, setServerMessage] = useState({ message: '', type: '' });
-  const verificationType = 'signupVerify';
-  useCheckEmailResendToken();
+  const location = useLocation();
 
-  useEmailVerification(setServerMessage);
-
-  const handleResendEmail = useResendVerificationEmail(verificationType, setServerMessage);
+  const handleResendEmail = async () => {
+    try {
+      const response = await authService.resendActivationEmail(location.state?.email)
+      setServerMessage({ message: response.message, type: 'success' });
+    } catch (error) {
+      setServerMessage({ message: error.message, type: 'error' });
+    }
+  }
 
   return (
     <MainLayout>

@@ -15,7 +15,11 @@ const useCurrentRacketValues = (racketRuleFields) => {
     const findLastNonEmptyRacket = (fields) => {
       for (let i = fields.length - 1; i >= 0; i--) {
         const field = fields[i];
-        if (field.racket.trim() !== '' && field.rule.trim() !== '') {
+        if (
+          field.racket.trim() !== "" &&
+          field.rule.trim() !== "" &&
+          !field.deleted
+        ) {
           return field.racket;
         }
       }

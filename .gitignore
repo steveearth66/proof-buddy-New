@@ -7,6 +7,8 @@ yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
 
+**/__pycache__/**
+
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
@@ -131,3 +133,9 @@ dist
 
 # Proof logic server log.
 python-server/__pycache__
+
+env
+__pycache__
+db.sqlite3
+
+.data
