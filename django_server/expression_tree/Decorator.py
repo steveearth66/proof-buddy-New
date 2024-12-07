@@ -103,7 +103,6 @@ def argQty(treeNode: Node, ruleDict=None, userType = None) -> list[bool,str]:
     if ruleDict == None:
         ruleDict = dict()
     func = treeNode.children[0]
-    print("checking", func.data)
     builtins = ["if", "first", "rest", "cons", "null?", "zero?", "list?", "integer?","expt", "<=",">=","quotient","remainder",\
                 "+", "-", "*", "=", ">",">=", "<", "<=","and", "or", "not", "xor","implies"]
     if userType != None and func not in builtins: #needed now, can't wait for fillbody to do this
@@ -111,13 +110,13 @@ def argQty(treeNode: Node, ruleDict=None, userType = None) -> list[bool,str]:
         if func.type.isType("FUNCTION"):
             func.numArgs = len(func.type.getDomain())
     # this used to crash, but now with numArgs added into fillbody, it should work
-   # if func.data in ruleDict.keys():
+    # if func.data in ruleDict.keys():
     #    if len(treeNode.children[1:]) != len(ruleDict[func.data].racType.getDomain()):
-     #        return False, f"{treeNode.data} must take {len(ruleDict[treeNode.data].racType.getDomain())} inputs"
+    #        return False, f"{treeNode.data} must take {len(ruleDict[treeNode.data].racType.getDomain())} inputs"
     expectedCount = func.numArgs
     providedCount = len(treeNode.children) - 1
 
-    #if (expectedCount != providedCount) and (func.type.getType() not in FLEX_TYPES):
+    # if (expectedCount != providedCount) and (func.type.getType() not in FLEX_TYPES):
     if (expectedCount != None) and (expectedCount != providedCount): #note: nonfunction have "None" for numArgs
         return [False, f"{func.name} only takes {expectedCount} arguments, but {providedCount} {'was' if providedCount == 1 else 'were'} provided"]
 
@@ -134,7 +133,6 @@ def checkFunctions(inputTree: Node, errLog, debug=False, theRuleDict=None, userT
     if theRuleDict == None:   # added optional pointer to parent proof's ruleset
         theRuleDict = dict()
 
-
     # only check if the function has children
     if len(inputTree.children) > 0: # and inputTree.type.getType() in FLEX_TYPES:
         typPass = argQty(inputTree, theRuleDict, userType)
@@ -148,8 +146,8 @@ def checkFunctions(inputTree: Node, errLog, debug=False, theRuleDict=None, userT
     # return any errors
     return inputTree, errLog
 
-#env is depracated now that udfs implemented
-#env = {}  # env dictionary to keep track of params, having it out here so it stays across iterations temporarily
+# env is depracated now that udfs implemented
+# env = {}  # env dictionary to keep track of params, having it out here so it stays across iterations temporarily
 
 # checks that an expression calling a function has the correct arg types. already checked for correct number of args
 # returns True if no errors, False if there are errors. either way, also sends string msg

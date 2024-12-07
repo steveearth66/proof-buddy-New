@@ -95,10 +95,10 @@ def delete_line(request, side):
     # then use racket string and return response
     # use HTTP code that Javaughn recommeneded
 
-    # not sure if this is neccessary 
+    # not sure if this is neccessary
     # ----------------------------------------------------------------------------
     return Response(status=status.HTTP_200_OK)
-    
+
 
 @api_view(["POST"])
 def check_goal(request):
@@ -315,7 +315,6 @@ def get_user_proofs(request):
 def get_proof(request, proof_id):
     user = request.user
     proof_data = user_proof(user, proof_id)
-
     proof = load_proof(proof_data)
     proof_data["proofLines"] = [
         line for line in proof_data["proofLines"] if line["rule"] != "Premise"

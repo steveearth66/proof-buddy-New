@@ -176,7 +176,7 @@ def user_proofs(user, page=1, query="", proofs_per_page=12):
 
 def user_proof(user, proof_id):
     proof = Proof.objects.filter(created_by=user, id=proof_id).first()
-    proof_lines = ProofLine.objects.filter(proof=proof)
+    proof_lines = ProofLine.objects.filter(proof=proof).order_by("id")
     definitions = proof.definitions.all()
     proof_lines_data = []
     definitions_data = []
