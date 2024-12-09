@@ -76,6 +76,17 @@ const removeStudent = async ({ student, term }) => {
     }
 };
 
-const termService = { getTerms, checkUser, createTerm, getAssignments, getTerm, createAssignment, removeStudent };
+const addStudent = async ({ student, term }) => {
+    try {
+        const data = { student, term };
+        const response = await axiosInstance.post(`${API_GATEWAY}/add-student`, data);
+        return response.data;
+    } catch (error) {
+        handleServiceError(error, "Error adding student:");
+        return false;
+    }
+};
+
+const termService = { getTerms, checkUser, createTerm, getAssignments, getTerm, createAssignment, removeStudent, addStudent };
 
 export default termService;

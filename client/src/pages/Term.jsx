@@ -15,6 +15,7 @@ function Term() {
     const [term, setTerm] = useState(location.state);
     const [assignments, setAssignments] = useState([]);
     const [showAssignmentCreate, setShowAssignmentCreate] = useState(false);
+    const [showAddStudent, setShowAddStudent] = useState(false);
     const { id } = useParams();
     const { user } = useAuth();
 
@@ -26,6 +27,23 @@ function Term() {
         } catch (error) {
             console.error('Error removing student:', error);
             toast.error('Error removing student');
+        }
+    };
+
+    const addStudent = async (student) => {
+        try {
+            const validStudent = await termService.checkUser(student);
+            if (!validStudent) {
+                toast.error('Student not found');
+                return;
+            }
+            const term = await termService.addStudent({ student, term: id });
+            setTerm(term);
+            toast.success('Student added successfully');
+            return true;
+        } catch (error) {
+            console.error('Error adding student:', error);
+            toast.error('Error adding student');
         }
     };
 
@@ -47,6 +65,7 @@ function Term() {
         <MainLayout>
             <Container>
                 {showAssignmentCreate && <CreateAssignment setAssignments={setAssignments} toggleShowCreate={setShowAssignmentCreate} />}
+                {showAddStudent && <AddStudent addStudent={addStudent} toggleShowAdd={setShowAddStudent} />}
                 <div className='term-head'>
                     <h2>{term?.name}</h2>
                     <p><b>Instructor: </b>{term?.instructor?.first_name} {term?.instructor?.last_name}</p>
@@ -63,7 +82,7 @@ function Term() {
                             ))}
                         </div>
                     </div>
-                    <StudentList students={term?.students || []} isStudent={user?.is_student} removeStudent={removeStudent} />
+                    <StudentList students={term?.students || []} isStudent={user?.is_student} removeStudent={removeStudent} toggleShowAdd={setShowAddStudent} />
                 </div>
             </Container>
         </MainLayout>
@@ -82,12 +101,12 @@ function AssignmentCard({ assignment }) {
     )
 }
 
-function StudentList({ students, isStudent, removeStudent }) {
+function StudentList({ students, isStudent, removeStudent, toggleShowAdd }) {
     return (
         <div className='student-layout'>
             <div className='headers'>
                 <h2>Students</h2>
-                {!isStudent && <Button variant='outline-secondary'>Add Student</Button>}
+                {!isStudent && <Button variant='outline-secondary' onClick={() => toggleShowAdd(true)}>Add Student</Button>}
             </div>
             <div className='student-container'>
                 {students.map((student) => (
@@ -150,6 +169,37 @@ function CreateAssignment({ setAssignments, toggleShowCreate }) {
                     <div className='button-group'>
                         <Button variant='outline-danger' type='button' onClick={() => toggleShowCreate(false)}>Cancel</Button>
                         <Button variant='outline-primary' type='submit'>Create</Button>
+                    </div>
+                </Form>
+            </div>
+        </div>
+    )
+}
+
+function AddStudent({ addStudent, toggleShowAdd }) {
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        const form = e.target;
+
+        const added = await addStudent(form[0].value);
+
+        if (added) {
+            toggleShowAdd(false);
+        }
+    }
+
+    return (
+        <div className='overlay'>
+            <div className='term-card'>
+                <h2>Add Student</h2>
+                <Form onSubmit={handleSubmit}>
+                    <Form.Group>
+                        <Form.Label>Email/Username</Form.Label>
+                        <Form.Control type='text' placeholder='Student Email or username' />
+                    </Form.Group>
+                    <div className='button-group'>
+                        <Button variant='outline-danger' type='button' onClick={() => toggleShowAdd(false)}>Cancel</Button>
+                        <Button variant='outline-primary' type='submit'>Add</Button>
                     </div>
                 </Form>
             </div>
