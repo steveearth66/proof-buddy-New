@@ -6,5 +6,6 @@ urlpatterns = [
     path("terms/<int:term_id>", views.TermViewSet.as_view()),
     path("<int:term_id>", views.AssignmentViewSet.as_view()),
     path("", views.AssignmentViewSet.as_view()),
-    path("check-user", views.check_user)
+    path("check-user", views.check_user),
+    path("remove-student", views.remove_student),
 ]

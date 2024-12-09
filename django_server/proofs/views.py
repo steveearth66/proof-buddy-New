@@ -36,13 +36,8 @@ def create_proof_lines(lines, left_side, proof):
     for line in lines:
         racket = line["racket"]
         rule = line["rule"]
-
-        try:
-            start_position = line["startPosition"]
-            errors = line["errors"]
-        except:
-            start_position = 0
-            errors = []
+        start_position = line["startPosition"] if "startPosition" in line else 0
+        errors = line["errors"] if "errors" in line else []
 
         proof_line_data = {
             "left_side": left_side,
