@@ -8,4 +8,5 @@ urlpatterns = [
     path("", views.AssignmentViewSet.as_view()),
     path("check-user", views.check_user),
     path("remove-student", views.remove_student),
+    path("add-student", views.add_student),
 ]

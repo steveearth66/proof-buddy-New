@@ -206,3 +206,38 @@ def remove_student(request):
 
     term.students.remove(student)
     return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def add_student(request):
+    data = request.data
+    term = data.get("term")
+    student = data.get("student")
+
+    try:
+        term = Term.objects.get(id=term)
+    except Term.DoesNotExist:
+        return Response({"message": "Term not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    if (
+        not (request.user.is_instructor and term.instructor == request.user)
+        and not request.user.is_superuser
+    ):
+        return Response(
+            {"message": "You are not authorized to add a student to this term."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    try:
+        student = (
+            User.objects.get(username=student)
+            if "@" not in student
+            else User.objects.get(email=student)
+        )
+    except User.DoesNotExist:
+        return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    term.students.add(student)
+    data = TermSerializer(term).data
+    return Response(data, status=status.HTTP_200_OK)
