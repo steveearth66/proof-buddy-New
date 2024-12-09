@@ -44,6 +44,16 @@ const getAssignments = async (termId) => {
     }
 };
 
+const createAssignment = async (assignment) => {
+    try {
+        const response = await axiosInstance.post(`${API_GATEWAY}/`, assignment);
+        return response.data;
+    } catch (error) {
+        handleServiceError(error, "Error creating assignment:");
+        throw error;
+    }
+};
+
 const getTerm = async (id) => {
     try {
         const response = await axiosInstance.get(`${API_GATEWAY}/terms/${id}`);
@@ -54,6 +64,18 @@ const getTerm = async (id) => {
     }
 };
 
-const termService = { getTerms, checkUser, createTerm, getAssignments, getTerm };
+const removeStudent = async ({ student, term }) => {
+    try {
+        const data = { student, term };
+        console.log(data);
+        await axiosInstance.post(`${API_GATEWAY}/remove-student`, data);
+        return true;
+    } catch (error) {
+        handleServiceError(error, "Error removing student:");
+        return false;
+    }
+};
+
+const termService = { getTerms, checkUser, createTerm, getAssignments, getTerm, createAssignment, removeStudent };
 
 export default termService;

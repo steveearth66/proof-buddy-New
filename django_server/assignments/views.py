@@ -154,7 +154,10 @@ class AssignmentViewSet(APIView):
         serializer = CreateAssignmentSerializer(data=request.data, context={"request": request})
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            assignment = AssignmentSerializer(
+                serializer.instance, context={"request": request}
+            ).data
+            return Response(assignment, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -169,3 +172,37 @@ def check_user(request):
         return Response(status=status.HTTP_200_OK)
     except User.DoesNotExist:
         return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def remove_student(request):
+    data = request.data
+    term = data.get("term")
+    student = data.get("student")
+
+    try:
+        term = Term.objects.get(id=term)
+    except Term.DoesNotExist:
+        return Response({"message": "Term not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    if (
+        not (request.user.is_instructor and term.instructor == request.user)
+        and not request.user.is_superuser
+    ):
+        return Response(
+            {"message": "You are not authorized to remove a student from this term."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    try:
+        student = (
+            User.objects.get(username=student)
+            if "@" not in student
+            else User.objects.get(email=student)
+        )
+    except User.DoesNotExist:
+        return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    term.students.remove(student)
+    return Response(status=status.HTTP_204_NO_CONTENT)

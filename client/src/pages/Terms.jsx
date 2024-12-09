@@ -103,7 +103,7 @@ function CreateTerm({ setTerms, toggleShowCreate }) {
   };
 
   return (
-    <div className='term-overlay'>
+    <div className='overlay'>
       <div className='term-card'>
         <h2>Create Term</h2>
         <Form onSubmit={handleSubmit}>
