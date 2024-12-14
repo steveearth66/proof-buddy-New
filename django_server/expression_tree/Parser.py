@@ -154,3 +154,14 @@ def buildTree(inputList: list[str], debug=False) -> list:
 
     # continue processing the rest of input
     return [node] + buildTree(inputList[matchIndex+1:len(inputList)], debug)
+
+# returns T if the tree contains nested quotes
+def checkQuotes(exprTree: Node) -> bool:
+    if exprTree==None or exprTree.data==None or exprTree.data=="":
+        return False
+    if exprTree.data == "'(" and "'(" in exprTree.ancestors():
+        return True
+    for child in exprTree.children:
+        if checkQuotes(child):
+            return True
+    return False

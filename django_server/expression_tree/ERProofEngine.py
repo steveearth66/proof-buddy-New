@@ -126,6 +126,9 @@ class ERProofLine:
         tokenList, self.errLog = Parser.preProcess(goal, errLog=self.errLog, debug=self.debug,udf=isUdf)
         if self.errLog == []:
             tree = Parser.buildTree(tokenList, debug=self.debug)[0]  # might not need to pass errLog
+            if self.errLog == []:
+                if Parser.checkQuotes(tree):
+                    self.errLog.append(f"Cannot have nested quotes")
             labeledTree = Labeler.labelTree(tree, ruleDict)
             labeledTree, _ = updatePositions(labeledTree)
 
@@ -137,8 +140,13 @@ class ERProofLine:
             self.errLog = Decorator.remTemps(labeledTree, self.errLog, theRuleDict=ruleDict)
         if self.errLog == []:
             self.exprTree = decTree
-        if self.errLog == []:
+        if self.errLog == []: #makes the positions dict for arrow key navigation
             self.positions = Decorator.makePosDict(self.exprTree, self.positions)
+        #checks to make sure that there are no nested quotes
+        
+                
+
+
 
     def applyRule(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subNode:Node=None):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]

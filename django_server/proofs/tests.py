@@ -183,3 +183,8 @@ expectDict = {0: [0, 1, 0, 0], 1: [0, 1, 1, 4], 4: [0, 5, 1, 14], 5: [4, 5, 5, 1
 34: [33, 34, 34, 36], 36: [33, 36, 34, 39], 39: [33, 39, 36, 39], 43: [30, 44, 33, 43], 44: [43, 44, 44, 46], 
 46: [43, 46, 44, 49], 49: [43, 49, 46, 49]}
 print(f"{'PASS' if check1.positions == expectDict else 'FAIL'}: for position dict of {check1.exprTree}")
+
+nestcheck1 = ERProofLine("(if (zero? 5) (+ (* 2 10) 30) (* (+ 20 11) (+ 12 13)))")
+print(nestcheck1.errLog)
+nestcheck2 = ERProofLine("(first '(3 '(4 5) 6))")
+print(nestcheck2.errLog)
