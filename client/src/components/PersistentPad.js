@@ -27,6 +27,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
   } = useCollapsing();
 
   // place holder for the hardcoded dictionary
+  // for (cons (if (= 2 3) 1 (+ (* 4 5) (* 6 7)) ) null)
   const hardcodedPositionDict = useMemo(
     () => ({ 0: [0, 1, 0, 0],1: [0, 1, 1, 4],4: [0, 5, 1, 14],5: [4, 5, 5, 11],11: [4, 11, 5, 11],
       14: [0, 15, 4, 30],15: [14, 15, 15, 17],17: [14, 18, 15, 26],18: [17, 18, 18, 20],
