@@ -5,6 +5,8 @@ import Col from "react-bootstrap/Col";
 import { useCollapsing } from "../hooks/useCollapsing";
 
 export default function PersistentPad({ equation, onHighlightChange, side }) {
+  // test to see if we can useState to get the test_dict
+  const [racketDict, setRacketDict] = useState("test_dict");
   const [highlightedText, setHighlightedText] = useState("");
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
   const [controlPressed, setControlPressed] = useState(false);

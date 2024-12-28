@@ -1,4 +1,4 @@
-from expression_tree.ERProofEngine import ERProof
+from expression_tree.ERProofEngine import ERProof, ERProofLine
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -26,6 +26,8 @@ User = get_user_model()
 def apply_rule(request):
     user = request.user
     json_data = request.data
+    # initial test to see if racket_dict can be sent to front end
+    testdict = ERProofLine(json_data["currentRacket"]).positions
     proof = get_or_set_proof(user)
 
     is_p_one_active = json_data["side"] == "LHS"
@@ -68,7 +70,7 @@ def apply_rule(request):
     save_proof_to_cache(user, proof)
 
     return Response(
-        {"isValid": is_valid, "racket": racket_str, "errors": errors},
+        {"isValid": is_valid, "racket": racket_str, "errors": errors, "test_dict": testdict},
         status=status.HTTP_200_OK,
     )
 
@@ -104,6 +106,8 @@ def delete_line(request, side):
 def check_goal(request):
     user = request.user
     json_data = request.data
+    # initial test to see if racket_dict can be sent to front end
+    testdict = ERProofLine(json_data["goal"]).positions
     proof = get_or_set_proof(user)
     user_proof = Proof.objects.filter(
         created_by=user, name=json_data["name"], tag=json_data["tag"]
@@ -132,7 +136,7 @@ def check_goal(request):
 
     save_proof_to_cache(user, proof)
 
-    return Response({"isValid": is_valid, "errors": errors}, status=status.HTTP_200_OK)
+    return Response({"isValid": is_valid, "errors": errors, "test_dict": testdict}, status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])
