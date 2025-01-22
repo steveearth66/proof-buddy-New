@@ -25,6 +25,9 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     checkParenthesisConsistency,
     balanceParenthesis
   } = useCollapsing();
+  if (window.sharedDict) {
+    const posdict = window.sharedDict;
+}
 
   useDoubleClick({
     onSingleClick: (e) => {
