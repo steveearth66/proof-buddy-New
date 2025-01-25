@@ -25,12 +25,13 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     checkParenthesisConsistency,
     balanceParenthesis
   } = useCollapsing();
-
+  const posdict = window.sharedDict || {};
+  console.log("posdict: ", posdict);
   // place holder for the hardcoded dictionary
   // for (cons (if (= 2 3) 1 (+ (* 4 5) (* 6 7)) ) null)
-  console.log("sharedDict", window.sharedDict);
-  const posdict = useMemo(
-    () => (window.sharedDict || {}),[]); // Steve's attempt to get the dictionary from useRacketRuleFields
+ // console.log("sharedDict", window.sharedDict);
+ // const posdict = useMemo(
+ //   () => (window.sharedDict || {}),[]); // Steve's attempt to get the dictionary from useRacketRuleFields
   /*
   const hardcodedPositionDict = useMemo(
     () => ({ 0: [0, 1, 0, 0],1: [0, 1, 1, 4],4: [0, 5, 1, 14],5: [4, 5, 5, 11],11: [4, 11, 5, 11],
