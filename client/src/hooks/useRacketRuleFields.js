@@ -119,7 +119,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
           try {
             const ruleValue = undeletedProofLines[lastUnDeletedFieldIndex].rule;
             const racket = await fetchRacketValue(ruleValue);
-
+            window.sharedDict = racket.test_dict; // Steve's attempt to pass position dict to persistentPad
             if (racket.isValid) {
               setRacketErrors([]);
               clearServerError();

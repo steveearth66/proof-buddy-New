@@ -28,6 +28,10 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
 
   // place holder for the hardcoded dictionary
   // for (cons (if (= 2 3) 1 (+ (* 4 5) (* 6 7)) ) null)
+  console.log("sharedDict", window.sharedDict);
+  const posdict = useMemo(
+    () => (window.sharedDict || {}),[]); // Steve's attempt to get the dictionary from useRacketRuleFields
+  /*
   const hardcodedPositionDict = useMemo(
     () => ({ 0: [0, 1, 0, 0],1: [0, 1, 1, 4],4: [0, 5, 1, 14],5: [4, 5, 5, 11],11: [4, 11, 5, 11],
       14: [0, 15, 4, 30],15: [14, 15, 15, 17],17: [14, 18, 15, 26],18: [17, 18, 18, 20],
@@ -35,9 +39,11 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
       31: [30, 31, 31, 33],33: [30, 34, 31, 43],34: [33, 34, 34, 36],36: [33, 36, 34, 39],
       39: [33, 39, 36, 39],43: [30, 44, 33, 43],44: [43, 44, 44, 46],46: [43, 46, 44, 49],
       49: [43, 49, 46, 49] }),[]);
+      */
   useEffect(() => {
-    setPositionDict(hardcodedPositionDict); // Set the hardcoded dictionary
-  }, [hardcodedPositionDict]);
+    setPositionDict(posdict);
+  }, [posdict]);
+  console.log(posdict, positionDict);
 
   useDoubleClick({
     onSingleClick: (e) => {
@@ -111,19 +117,19 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
         console.warn("No valid text selection found or empty selection.");
         return; // Exit if no valid range is found
       }
-      // Ensure the selection is within the expected element (e.g., padRef)
-      if (!padRef.current.contains(range.commonAncestorContainer)) {
-      console.warn("Selection is outside the text container.");
-      return; // Exit if selection is not in the correct element
-      }
         
       const range = window.getSelection().getRangeAt(0);
       const startOffset = range.startOffset;
       const endOffset = range.endOffset;
-
       const selectionRange = { start: startOffset, end: endOffset };
       const start = selectionRange.start;
       const end = selectionRange.end;
+
+      // Ensure the selection is within the expected element (e.g., padRef)
+      if (!padRef.current.contains(range.commonAncestorContainer)) {
+        console.warn("Selection is outside the text container.");
+        return; // Exit if selection is not in the correct element
+        }
 
       let startWord = start;
       while (startWord > 0 && !returnedText[startWord - 1].match(/\s|\(/)) {
@@ -400,7 +406,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     return () => {
       window.removeEventListener("keydown", handleArrowKey);
     };
-  }, [currentPosition, positionDict, updateHighlight]);
+  }, [currentPosition, posdict, positionDict, updateHighlight]);
 
   return (
     <Col xs={8}>
