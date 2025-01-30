@@ -11,8 +11,8 @@
             "program": "django_server/manage.py",
             "console": "integratedTerminal",
             "args": [
-                //"test", "proofs" // use this to run tests.py in proofs directory
-                "runserver"  // use this to debug live
+                "test", "proofs" // use this to run tests.py in proofs directory
+                //"runserver"  // use this to debug live
             ]
         }
     ]

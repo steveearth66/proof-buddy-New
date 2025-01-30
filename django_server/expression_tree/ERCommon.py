@@ -329,3 +329,16 @@ def findNode(tree:Node, target:int,errLog:list[str],found=None)->Node:
         if not found:
             found.extend(findNode(child, target, errLog,found))
     return found
+
+# takes in an expression tree and returns a dictionary representation of it in Json format
+def makeJson(ractree:Node)->dict:
+    if ractree == None or ractree.data == None or ractree.data == "":
+        return dict() #just in case of an error
+    resdict = dict()
+    #note: None becomes "null" when converted to json
+    #made ( and '( show up as null to be consistent with Galen's version
+    resdict["data"] = ractree.data if (ractree.data != "'(") and (ractree.data != "(") else None
+    resdict["children"]=[]
+    for child in ractree.children:
+        resdict["children"].append(makeJson(child))
+    return resdict

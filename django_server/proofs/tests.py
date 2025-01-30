@@ -4,6 +4,8 @@
 from expression_tree.ERProofEngine import ERProof, ERProofLine
 from expression_tree.ERCommon import Node
 import sympy as sp
+import json
+from expression_tree.ERCommon import makeJson
 
 err_strings = [
     # expected errs
@@ -188,3 +190,19 @@ nestcheck1 = ERProofLine("(if (zero? 5) (+ (* 2 10) 30) (* (+ 20 11) (+ 12 13)))
 print(nestcheck1.errLog)
 nestcheck2 = ERProofLine("(first '(3 '(4 5) 6))")
 print(nestcheck2.errLog)
+jsonstrgs = [
+    "(-(+ 5 7)(*(+ 6 10)2))",
+    "(cons (if (= 2 3) 1 (+ (* 4 5) (* 6 7)) ) null)",
+]
+jsonans = [
+    {'data': None, 'children': [{'data': '-', 'children': []}, {'data': None, 'children': [{'data': '+', 'children': []}, {'data': '5', 'children': []}, {'data': '7', 'children': []}]}, {'data': None, 'children': [{'data': '*', 'children': []}, {'data': None, 'children': [{'data': '+', 'children': []}, {'data': '6', 'children': []}, {'data': '10', 'children': []}]}, {'data': '2', 'children': []}]}]},
+    {'data': None, 'children': [{'data': 'cons', 'children': []}, {'data': None, 'children': [{'data': 'if', 'children': []}, {'data': None, 'children': [{'data': '=', 'children': []}, {'data': '2', 'children': []}, {'data': '3', 'children': []}]}, {'data': '1', 'children': []}, {'data': None, 'children': [{'data': '+', 'children': []}, {'data': None, 'children': [{'data': '*', 'children': []}, {'data': '4', 'children': []}, {'data': '5', 'children': []}]}, {'data': None, 'children': [{'data': '*', 'children': []}, {'data': '6', 'children': []}, {'data': '7', 'children': []}]}]}]}, {'data': 'null', 'children': []}]},
+]
+jerrs = 0
+for js,ans in zip(jsonstrgs,jsonans):
+    if (myans:=makeJson(ERProofLine(js).exprTree)) != ans:
+        print(f"FAIL: makeJson on {js} expected {ans} but got {myans}")
+        jerrs += 1
+    else:
+        print(f"PASS: makeJson on {js}")
+print(f"number of json errors: {jerrs}")
