@@ -129,9 +129,11 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
                   if (index === indexToUpdate) {
                     return {
                       ...field,
-                      racket: racket.racket
+                      racket: racket.racket,
+                      mytree: racket.jsonTree
                     };
                   }
+                  console.log('tree2',racket.jsonTree);
                   return field;
                 })
               }));
@@ -142,7 +144,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
                   { racket: '', rule: '', deleted: false, errors: [] }
                 ]
               }));
-
+              
               setValidationErrors((prevErrors) => ({
                 ...prevErrors,
                 [side]: {}
@@ -156,6 +158,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
                   errors.push(error);
                 }
               }
+              console.log('tree2',racket.jsonTree);
 
               setRacketRuleFields((prevFields) => ({
                 ...prevFields,
@@ -166,6 +169,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
                       errors
                     };
                   }
+                  console.log('tree3',racket.jsonTree);
                   return field;
                 })
               }));

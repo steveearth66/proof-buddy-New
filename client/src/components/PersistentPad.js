@@ -25,8 +25,9 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     checkParenthesisConsistency,
     balanceParenthesis
   } = useCollapsing();
-  const posdict = window.sharedDict || {};
-  console.log("posdict: ", posdict);
+  //const posdict = window.sharedDict || {};
+  //console.log("posdict: ", posdict);
+
   // place holder for the hardcoded dictionary
   // for (cons (if (= 2 3) 1 (+ (* 4 5) (* 6 7)) ) null)
  // console.log("sharedDict", window.sharedDict);
@@ -40,12 +41,12 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
       31: [30, 31, 31, 33],33: [30, 34, 31, 43],34: [33, 34, 34, 36],36: [33, 36, 34, 39],
       39: [33, 39, 36, 39],43: [30, 44, 33, 43],44: [43, 44, 44, 46],46: [43, 46, 44, 49],
       49: [43, 49, 46, 49] }),[]);
-      */
+      
   useEffect(() => {
     setPositionDict(posdict);
   }, [posdict]);
   console.log(posdict, positionDict);
-
+*/
   useDoubleClick({
     onSingleClick: (e) => {
       e.stopPropagation();
@@ -374,7 +375,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     selectionRange,
     collapsedSelection
   ]);
-
+/*
   // Arrow key navigation by GPT
   useEffect(() => {
     const handleArrowKey = (e) => {
@@ -408,7 +409,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
       window.removeEventListener("keydown", handleArrowKey);
     };
   }, [currentPosition, posdict, positionDict, updateHighlight]);
-
+*/
   return (
     <Col xs={8}>
       <p

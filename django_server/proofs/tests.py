@@ -191,7 +191,7 @@ print(nestcheck1.errLog)
 nestcheck2 = ERProofLine("(first '(3 '(4 5) 6))")
 print(nestcheck2.errLog)
 jsonstrgs = [
-    "(-(+ 5 7)(*(+ 6 10)2))",
+    "(-(+ 5 7)(*(+ 6 10) 2))",
     "(cons (if (= 2 3) 1 (+ (* 4 5) (* 6 7)) ) null)",
 ]
 jsonans = [
