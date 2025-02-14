@@ -1,4 +1,4 @@
-from expression_tree.ERProofEngine import ERProof
+from expression_tree.ERProofEngine import ERProof, ERProofLine
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -27,7 +27,8 @@ def apply_rule(request):
     user = request.user
     json_data = request.data
     proof = get_or_set_proof(user)
-
+    # initial test to see if racket_dict can be sent to front end
+    jsonTree = ERProofLine(json_data["currentRacket"]).positions
     is_p_one_active = json_data["side"] == "LHS"
     proof_one: ERProof = proof["proofOne"]
     proof_two: ERProof = proof["proofTwo"]
@@ -68,7 +69,7 @@ def apply_rule(request):
     save_proof_to_cache(user, proof)
 
     return Response(
-        {"isValid": is_valid, "racket": racket_str, "errors": errors},
+        {"isValid": is_valid, "racket": racket_str, "errors": errors, "jsonTree": jsonTree},
         status=status.HTTP_200_OK,
     )
 

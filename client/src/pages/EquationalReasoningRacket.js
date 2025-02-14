@@ -205,19 +205,21 @@ const EquationalReasoningRacket = () => {
   const handlePythonGeneration = async () => {//function wraps the logic for communicating 'Client's' 'Rule' to python-server for 'Racket' code generation
     if (isLeftHandActive) {
       if (leftHandSideProofLineList.length - 1 > 0) {
-        handlePromiseWithPythonServer(leftHandSideProofLineList);
+        console.log('sup')
+        await handlePromiseWithPythonServer(leftHandSideProofLineList);
       } else {
         addLine(); //we use else here to add a new line so that we do not communicate null for the first line of the proof
       }
     } else {
       if (rightHandSideProofLineList.length - 1 > 0) {
-        handlePromiseWithPythonServer(rightHandSideProofLineList);
+        await handlePromiseWithPythonServer(rightHandSideProofLineList);
       } else {
         addLine(); //we use else here to add a new line so that we do not communicate null for the first line of the proof
       }
     }
     // not currently working
     // print tree representation to the console
+    console.log('sup')
     console.log(jsonTree);
   }
 
