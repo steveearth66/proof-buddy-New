@@ -33,7 +33,7 @@ const EquationalReasoningRacket = () => {
   const[rightHandSideProofLineList, setRightHandSideProofLineList] = useState([{ proofLineRacket: '', proofLineRule: '' }]);
 
   // making new variable called jsonTree to save jsonTree representation
-  const [jsonTree, setJsonTree] = useState({})
+  const [jsonTree, setJsonTree] = useState({});
 
   const gradient = {
     orange_gradient: 'linear-gradient(135deg, #ffc600 0, #ff8f1c 100%)',
