@@ -32,6 +32,9 @@ const EquationalReasoningRacket = () => {
 
   const[rightHandSideProofLineList, setRightHandSideProofLineList] = useState([{ proofLineRacket: '', proofLineRule: '' }]);
 
+  //Bob's addition
+  const [arrowKeyDict, setArrowKeyDict] = useState({})
+
   const gradient = {
     orange_gradient: 'linear-gradient(135deg, #ffc600 0, #ff8f1c 100%)',
     orange_gradient_reverse: 'linear-gradient(135deg, #ff8f1c 0, #ffc600 100%)'
@@ -200,6 +203,7 @@ const EquationalReasoningRacket = () => {
   }
 
   const handlePythonGeneration = async () => {//function wraps the logic for communicating 'Client's' 'Rule' to python-server for 'Racket' code generation
+    console.log('Python Generation Button Clicked!');
     if (isLeftHandActive) {
       if (leftHandSideProofLineList.length - 1 > 0) {
         handlePromiseWithPythonServer(leftHandSideProofLineList);
@@ -213,11 +217,15 @@ const EquationalReasoningRacket = () => {
         addLine(); //we use else here to add a new line so that we do not communicate null for the first line of the proof
       }
     }
+    //Bob's test
+    console.log(arrowKeyDict);
   }
 
   const handlePromiseWithPythonServer = async (targetList) => { //sends client 'Rule' to the python-server for 'Racket' code generation
     try {
       let response = await racketGeneration({ rule: targetList[targetList.length - 1].proofLineRule }); //we await a response from the python-server
+      //Bob's tree
+      setArrowKeyDict(response.data.jsonTree);
       targetList[targetList.length - 1].proofLineRacket = response.racket;
       addLine(); //After a succesful response, we add a new line for the client to add more 'Rules' for 'Racket' code generation
     } catch (error) {
