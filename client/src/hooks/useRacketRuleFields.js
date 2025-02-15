@@ -123,18 +123,21 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
             if (racket.isValid) {
               setRacketErrors([]);
               clearServerError();
+              console.log("log1", racketRuleFields); // added console.log to check
               setRacketRuleFields((prevFields) => ({
                 ...prevFields,
                 [side]: prevFields[side].map((field, index) => {
                   if (index === indexToUpdate) {
                     return {
                       ...field,
-                      racket: racket.racket
+                      racket: racket.racket,
+                      jsonTree: racket.jsonTree // added new line to return jsonTree data
                     };
                   }
                   return field;
                 })
               }));
+              console.log("log2", racketRuleFields.LHS[0].jsonTree); // added console.log to check
               setRacketRuleFields((prevFields) => ({
                 ...prevFields,
                 [side]: [
