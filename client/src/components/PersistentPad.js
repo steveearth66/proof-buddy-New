@@ -4,7 +4,9 @@ import useDoubleClick from "use-double-click";
 import Col from "react-bootstrap/Col";
 import { useCollapsing } from "../hooks/useCollapsing";
 
-export default function PersistentPad({ equation, onHighlightChange, side }) {
+export default function PersistentPad({ equation, onHighlightChange, side, jsonTree }) {
+  // attempting to console log the jsonTree
+  console.log("jsonTree rep:", jsonTree)
   const [highlightedText, setHighlightedText] = useState("");
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
   const [controlPressed, setControlPressed] = useState(false);

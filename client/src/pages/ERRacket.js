@@ -593,6 +593,8 @@ const ERRacket = () => {
                                 );
                               }}
                               side={showSide}
+                              //attempting to pass jsonTree to Persistent Pad
+                              jsonTree={racketRuleFields.LHS[0].jsonTree}
                             />
 
                             <Form.Group
