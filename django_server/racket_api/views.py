@@ -106,6 +106,7 @@ def delete_line(request, side):
 def check_goal(request):
     user = request.user
     json_data = request.data
+    jsonTree = makeJson(ERProofLine(json_data["goal"]).exprTree)
     proof = get_or_set_proof(user)
     user_proof = Proof.objects.filter(
         created_by=user, name=json_data["name"], tag=json_data["tag"]
@@ -134,7 +135,7 @@ def check_goal(request):
 
     save_proof_to_cache(user, proof)
 
-    return Response({"isValid": is_valid, "errors": errors}, status=status.HTTP_200_OK)
+    return Response({"isValid": is_valid, "errors": errors, "jsonTree": jsonTree}, status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])
