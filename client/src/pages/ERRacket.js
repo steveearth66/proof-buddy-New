@@ -54,7 +54,8 @@ const ERRacket = () => {
     enhancedHandleChange,
     proofValidationMessage,
     clearProofValidationMessage,
-    loadRacket
+    loadRacket,
+    jsonTreeRep
   ] = useGoalCheck(handleChange);
   const [startPosition, setStartPosition] = useState(0);
   const [currentRacket, setCurrentRacket] = useState("");
@@ -546,6 +547,8 @@ const ERRacket = () => {
                             });
                           }}
                           side={showSide}
+                          //attempting to pass jsonTree to Persistent Pad to initial LHS
+                          jsonTree={jsonTreeRep}
                         />
 
                         <Form.Group
@@ -593,6 +596,9 @@ const ERRacket = () => {
                                 );
                               }}
                               side={showSide}
+                              //attempting to pass jsonTree to Persistent Pad
+                              //temporarily adding LHS[index] assuming that will give us the current line
+                              jsonTree={racketRuleFields.LHS[index].jsonTree}
                             />
 
                             <Form.Group
@@ -655,6 +661,8 @@ const ERRacket = () => {
                             });
                           }}
                           side={showSide}
+                          //attempting to pass jsonTree to Persistent Pad to initial RHS
+                          jsonTree={jsonTreeRep}
                         />
 
                         <Form.Group
@@ -702,6 +710,9 @@ const ERRacket = () => {
                                 );
                               }}
                               side={showSide}
+                              //attempting to pass jsonTree to Persistent Pad
+                              //temporarily adding RHS[index] assuming that will give us the current line
+                              jsonTree={racketRuleFields.RHS[index].jsonTree}
                             />
 
                             <Form.Group
