@@ -1,4 +1,4 @@
-from expression_tree.ERProofEngine import ERProof, ERProofLine
+from expression_tree.ERProofEngine import ERProof, ERProofLine, ERProofLine
 from expression_tree.ERCommon import makeJson
 from rest_framework.response import Response
 from rest_framework import status
@@ -22,13 +22,10 @@ import copy
 
 User = get_user_model()
 
-
 @api_view(["POST"])
 def apply_rule(request):
     user = request.user
     json_data = request.data
-    # initial test to see if racket_dict can be sent to front end
-    jsonTree = makeJson(ERProofLine(json_data["currentRacket"]).exprTree)
     proof = get_or_set_proof(user)
     # initial test to see if racket_dict can be sent to front end
     jsonTree = makeJson(ERProofLine(json_data["currentRacket"]).exprTree)
@@ -72,7 +69,7 @@ def apply_rule(request):
     save_proof_to_cache(user, proof)
 
     return Response(
-        {"isValid": is_valid, "racket": racket_str, "errors": errors, "jsonTree": jsonTree},
+        {"isValid": is_valid, "racket": racket_str, "errors": errors},
         status=status.HTTP_200_OK,
     )
 

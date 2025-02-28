@@ -26,8 +26,8 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     checkParenthesisConsistency,
     balanceParenthesis
   } = useCollapsing();
-  
-  useDoubleClick({
+
+   useDoubleClick({
     onSingleClick: (e) => {
       e.stopPropagation();
       e.preventDefault();
