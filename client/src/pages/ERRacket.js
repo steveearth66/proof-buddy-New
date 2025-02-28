@@ -768,7 +768,7 @@ const ERRacket = () => {
                         className="orange-btn green-btn"
                         onClick={() => {
                           addFieldWithApiCheck(showSide);
-                          racketRuleFields?.LHS[0]?.jsonTree && console.log("the tree is: ", racketRuleFields.LHS[0].jsonTree);                          
+                          //racketRuleFields?.LHS[0]?.jsonTree && console.log("the tree is: ", racketRuleFields.LHS[0].jsonTree);                          
                           if (showSide === "LHS") {
                             setLhsValue(formValues.lHSGoal);
                           } else {

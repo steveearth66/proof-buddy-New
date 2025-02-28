@@ -124,12 +124,12 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
             if (racket.isValid) {
               setRacketErrors([]);
               clearServerError();
-              console.log("log1", racketRuleFields); // added console.log to check
+              //console.log("log1", racketRuleFields); // added console.log to check
               setRacketRuleFields((prevFields) => ({
                 ...prevFields,
                 [side]: prevFields[side].map((field, index) => {
                   if (index === indexToUpdate) {
-                    console.log('tree1.5',racket.jsonTree);
+                    //console.log('tree1.5',racket.jsonTree);
                     return {
                       ...field,
                       racket: racket.racket,
@@ -140,7 +140,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
                   return field;
                 })
               }));
-              console.log("log2", racketRuleFields.LHS[0].jsonTree); // added console.log to check
+              //console.log("log2", racketRuleFields.LHS[0].jsonTree); // added console.log to check
               setRacketRuleFields((prevFields) => ({
                 ...prevFields,
                 [side]: [
