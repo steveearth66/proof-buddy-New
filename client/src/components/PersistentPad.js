@@ -1,12 +1,13 @@
 import "../scss/_persistent-pad.scss";
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import useDoubleClick from "use-double-click";
 import Col from "react-bootstrap/Col";
 import { useCollapsing } from "../hooks/useCollapsing";
+import makeDivs from "./divMaker"; //Steve's addition based on Galen's idea
 
 export default function PersistentPad({ equation, onHighlightChange, side, jsonTree }) {
   // attempting to console log the jsonTree
-  console.log("jsonTree rep:", jsonTree)
+  //console.log("jsonTree rep:", jsonTree)
   const [highlightedText, setHighlightedText] = useState("");
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
   const [controlPressed, setControlPressed] = useState(false);
@@ -25,29 +26,8 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     checkParenthesisConsistency,
     balanceParenthesis
   } = useCollapsing();
-  //const posdict = window.sharedDict || {};
-  //console.log("posdict: ", posdict);
 
-  // place holder for the hardcoded dictionary
-  // for (cons (if (= 2 3) 1 (+ (* 4 5) (* 6 7)) ) null)
- // console.log("sharedDict", window.sharedDict);
- // const posdict = useMemo(
- //   () => (window.sharedDict || {}),[]); // Steve's attempt to get the dictionary from useRacketRuleFields
-  /*
-  const hardcodedPositionDict = useMemo(
-    () => ({ 0: [0, 1, 0, 0],1: [0, 1, 1, 4],4: [0, 5, 1, 14],5: [4, 5, 5, 11],11: [4, 11, 5, 11],
-      14: [0, 15, 4, 30],15: [14, 15, 15, 17],17: [14, 18, 15, 26],18: [17, 18, 18, 20],
-      20: [17, 20, 18, 22],22: [17, 22, 20, 22],26: [14, 26, 17, 26],30: [0, 31, 14, 30],
-      31: [30, 31, 31, 33],33: [30, 34, 31, 43],34: [33, 34, 34, 36],36: [33, 36, 34, 39],
-      39: [33, 39, 36, 39],43: [30, 44, 33, 43],44: [43, 44, 44, 46],46: [43, 46, 44, 49],
-      49: [43, 49, 46, 49] }),[]);
-      
-  useEffect(() => {
-    setPositionDict(posdict);
-  }, [posdict]);
-  console.log(posdict, positionDict);
-*/
-  useDoubleClick({
+   useDoubleClick({
     onSingleClick: (e) => {
       e.stopPropagation();
       e.preventDefault();
@@ -225,6 +205,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     [returnedText]
   );
 
+  /* old highlighting. might be deprecated once switch to arrow controls
   const updateHighlight = useCallback(
     (position) => {
       const start = position;
@@ -235,7 +216,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     },
     [getEndIndex, returnedText]
   );
-
+  */
   const checkAndGetQuotient = (selectedText) => {
     const start = returnedText.indexOf(selectedText);
     const end = start + selectedText.length;
@@ -248,6 +229,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     }
   };
 
+  /* old highlighting. might be deprecated once switch to arrow controls
   const clearHighlight = (e) => {
     e.preventDefault();
     setHighlightedText("");
@@ -262,6 +244,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     );
     sessionStorage.setItem("highlights", JSON.stringify(newHighlights));
   };
+  */
 
   const replaceSelection = useCallback(
     (equation, selectionRange, replacement) => {
@@ -412,17 +395,67 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
       window.removeEventListener("keydown", handleArrowKey);
     };
   }, [currentPosition, posdict, positionDict, updateHighlight]);
+*/ 
+/* galen's version. needs "selected" state
+useEffect(() => {
+  let handleKeyUp = (e) => {
+    if (selected === null) {
+      // should only happen on first render; might be unnecessary
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      // up selects parent expression
+      // if no parent, don't change
+      setSelected((curSelected) =>
+        curSelected.parent === null ? curSelected : curSelected.parent,
+      );
+    } else if (e.key === "ArrowDown") {
+      // down selects first child value/expression
+      // if no children, don't change
+      setSelected((curSelected) =>
+        curSelected.children.length === 0
+          ? curSelected
+          : curSelected.children[0],
+      );
+    } else if (e.key === "ArrowLeft") {
+      // left selects left sibling value/expression
+      // if no left sib, don't change
+      setSelected((curSelected) =>
+        curSelected.leftSib === null ? curSelected : curSelected.leftSib,
+      );
+    } else if (e.key === "ArrowRight") {
+      // right selects right sibling value/expression
+      // if no right sib, don't change
+      setSelected((curSelected) =>
+        curSelected.rightSib === null ? curSelected : curSelected.rightSib,
+      );
+    }
+  };
+  document.addEventListener("keyup", handleKeyUp);
+  return () => {
+    document.removeEventListener("keyup", handleKeyUp);
+  };
+}, [selected]);
+*/
+/*
+return (
+  <Col xs={8}>
+    <p
+      ref={padRef}
+      onContextMenu={clearHighlight}
+      dangerouslySetInnerHTML={{
+        __html: returnedText
+      }}
+      className="pad"
+    />
+  </Col>
+);
 */
   return (
     <Col xs={8}>
-      <p
-        ref={padRef}
-        onContextMenu={clearHighlight}
-        dangerouslySetInnerHTML={{
-          __html: returnedText
-        }}
-        className="pad"
-      />
+      <div ref={padRef} >
+        {makeDivs(jsonTree)}
+      </div>
     </Col>
   );
 }

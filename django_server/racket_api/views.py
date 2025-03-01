@@ -1,4 +1,4 @@
-from expression_tree.ERProofEngine import ERProof, ERProofLine
+from expression_tree.ERProofEngine import ERProof, ERProofLine, ERProofLine
 from expression_tree.ERCommon import makeJson
 from rest_framework.response import Response
 from rest_framework import status
@@ -21,7 +21,6 @@ from django.core.cache import cache
 import copy
 
 User = get_user_model()
-
 
 @api_view(["POST"])
 def apply_rule(request):

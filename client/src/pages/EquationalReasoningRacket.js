@@ -219,8 +219,8 @@ const EquationalReasoningRacket = () => {
     }
     // not currently working
     // print tree representation to the console
-    console.log('sup')
-    console.log(jsonTree);
+    //console.log('sup')
+    //console.log(jsonTree);
   }
 
   const handlePromiseWithPythonServer = async (targetList) => { //sends client 'Rule' to the python-server for 'Racket' code generation

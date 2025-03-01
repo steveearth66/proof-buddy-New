@@ -64,6 +64,8 @@ class ERProof:
         self.proofLines.pop()
 
     def getPrevRacket(self):
+        if len(self.proofLines) == 0: #sometimes the proof is empty for some reason??
+            return ""
         return str(self.proofLines[-1].exprTree)
 
     def addUDF(self, label, typeStr, body):
