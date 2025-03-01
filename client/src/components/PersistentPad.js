@@ -393,6 +393,47 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     };
   }, [currentPosition, posdict, positionDict, updateHighlight]);
 */ 
+/* galen's version. needs "selected" state
+useEffect(() => {
+  let handleKeyUp = (e) => {
+    if (selected === null) {
+      // should only happen on first render; might be unnecessary
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      // up selects parent expression
+      // if no parent, don't change
+      setSelected((curSelected) =>
+        curSelected.parent === null ? curSelected : curSelected.parent,
+      );
+    } else if (e.key === "ArrowDown") {
+      // down selects first child value/expression
+      // if no children, don't change
+      setSelected((curSelected) =>
+        curSelected.children.length === 0
+          ? curSelected
+          : curSelected.children[0],
+      );
+    } else if (e.key === "ArrowLeft") {
+      // left selects left sibling value/expression
+      // if no left sib, don't change
+      setSelected((curSelected) =>
+        curSelected.leftSib === null ? curSelected : curSelected.leftSib,
+      );
+    } else if (e.key === "ArrowRight") {
+      // right selects right sibling value/expression
+      // if no right sib, don't change
+      setSelected((curSelected) =>
+        curSelected.rightSib === null ? curSelected : curSelected.rightSib,
+      );
+    }
+  };
+  document.addEventListener("keyup", handleKeyUp);
+  return () => {
+    document.removeEventListener("keyup", handleKeyUp);
+  };
+}, [selected]);
+*/
   return (
     <Col xs={8}>
       <div ref={padRef} >
