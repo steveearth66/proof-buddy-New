@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react';
 import erService from '../services/erService';
 import { useServerError } from '../hooks/useServerError';
 import logger from '../utils/logger';
-//import { json } from 'react-router-dom';
 
 /**
  * A custom React hook designed to manage racket rule fields within a component.
@@ -120,7 +119,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
           try {
             const ruleValue = undeletedProofLines[lastUnDeletedFieldIndex].rule;
             const racket = await fetchRacketValue(ruleValue);
-            //window.sharedDict = racket.test_dict; // Steve's attempt to pass position dict to persistentPad
+
             if (racket.isValid) {
               setRacketErrors([]);
               clearServerError();
@@ -129,14 +128,12 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
                 ...prevFields,
                 [side]: prevFields[side].map((field, index) => {
                   if (index === indexToUpdate) {
-                    //console.log('tree1.5',racket.jsonTree);
                     return {
                       ...field,
                       racket: racket.racket,
                       jsonTree: racket.jsonTree // added new line to return jsonTree data
                     };
                   }
-                  //console.log('tree2',racket.jsonTree);
                   return field;
                 })
               }));
@@ -148,7 +145,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
                   { racket: '', rule: '', deleted: false, errors: [] }
                 ]
               }));
-              
+
               setValidationErrors((prevErrors) => ({
                 ...prevErrors,
                 [side]: {}
@@ -167,13 +164,11 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
                 ...prevFields,
                 [side]: prevFields[side].map((field, index) => {
                   if (index === indexToUpdate) {
-                    //console.log('tree3',racket.jsonTree);
                     return {
                       ...field,
                       errors
                     };
                   }
-                  //console.log('tree4',racket.jsonTree);
                   return field;
                 })
               }));

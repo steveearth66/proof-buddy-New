@@ -203,7 +203,6 @@ const EquationalReasoningRacket = () => {
   }
 
   const handlePythonGeneration = async () => {//function wraps the logic for communicating 'Client's' 'Rule' to python-server for 'Racket' code generation
-    //console.log('Python Generation Button Clicked!');
     if (isLeftHandActive) {
       if (leftHandSideProofLineList.length - 1 > 0) {
         console.log('sup')

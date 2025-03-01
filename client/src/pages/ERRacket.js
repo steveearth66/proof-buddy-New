@@ -598,7 +598,7 @@ const ERRacket = () => {
                               side={showSide}
                               //attempting to pass jsonTree to Persistent Pad
                               //temporarily adding LHS[index] assuming that will give us the current line
-                              jsonTree={jsonTreeRep}
+                              jsonTree={racketRuleFields.LHS[index].jsonTree}
                             />
 
                             <Form.Group
@@ -712,7 +712,7 @@ const ERRacket = () => {
                               side={showSide}
                               //attempting to pass jsonTree to Persistent Pad
                               //temporarily adding RHS[index] assuming that will give us the current line
-                              jsonTree={jsonTreeRep}
+                              jsonTree={racketRuleFields.RHS[index].jsonTree}
                             />
 
                             <Form.Group
@@ -768,7 +768,6 @@ const ERRacket = () => {
                         className="orange-btn green-btn"
                         onClick={() => {
                           addFieldWithApiCheck(showSide);
-                          //racketRuleFields?.LHS[0]?.jsonTree && console.log("the tree is: ", racketRuleFields.LHS[0].jsonTree);                          
                           if (showSide === "LHS") {
                             setLhsValue(formValues.lHSGoal);
                           } else {
