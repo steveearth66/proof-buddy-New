@@ -203,7 +203,7 @@ const EquationalReasoningRacket = () => {
   }
 
   const handlePythonGeneration = async () => {//function wraps the logic for communicating 'Client's' 'Rule' to python-server for 'Racket' code generation
-    console.log('Python Generation Button Clicked!');
+    //console.log('Python Generation Button Clicked!');
     if (isLeftHandActive) {
       if (leftHandSideProofLineList.length - 1 > 0) {
         console.log('sup')
@@ -220,8 +220,8 @@ const EquationalReasoningRacket = () => {
     }
     // not currently working
     // print tree representation to the console
-    console.log('sup')
-    console.log(jsonTree);
+    //console.log('sup')
+    //console.log(jsonTree);
   }
 
   const handlePromiseWithPythonServer = async (targetList) => { //sends client 'Rule' to the python-server for 'Racket' code generation
