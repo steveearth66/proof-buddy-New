@@ -111,7 +111,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
       ) {
         endWord++;
       }
-
+      // may just be able to replace highlightedText function with data from the jsonTree rep....
       const highlightedText = returnedText.substring(startWord, endWord);
       setHighlightedText(highlightedText);
       onHighlightChange(startWord);
@@ -124,6 +124,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     }
   };
 
+  //  handle highlight function can probably remain the same...
   const handelHighlight = (selectionRange) => {
     const selectedPart = findSelectionParenthesis(returnedText, selectionRange);
     if (!checkParenthesisConsistency(selectedPart)) {
@@ -147,10 +148,12 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     }
   };
 
+  // this function probably becomes redundant
   const getStartIndex = (selectedText) => {
     return returnedText.indexOf(selectedText);
   };
 
+  // this function probably becomes redundant
   const getEndIndex = (selectedText) => {
     return getStartIndex(selectedText) + selectedText.length;
   };
