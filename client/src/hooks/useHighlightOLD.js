@@ -1,5 +1,5 @@
 import { useState } from 'react';
-
+console.log('useHighlight.js');
 const useHighlight = () => {
   const [startPosition, setStartPosition] = useState(0);
 
