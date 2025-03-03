@@ -2,6 +2,9 @@
 
 function enrich(expr) {
   // root has no parent or sibs
+  if (expr === null || expr === undefined || expr === "") { // somewhere in the code it is calling before expr gets defined... this is a hack to prevent crashing
+    return;
+  }
   expr.parent = null;
   expr.leftSib = null;
   expr.rightSib = null;
@@ -36,38 +39,44 @@ function enrich(expr) {
     }
   }
 }
-function getClassNames(e) {
+function getClassNames(e, selected) {
   // no-highlight gives unselected nodes invisible border
   // if we had no border previously, elements would shift slightly when selected changes
   // since highlight gives visible border
 
-  return "node highlight"; // Steve's test until we get arrow selection working to know what's selected
-  /*
+  // return "node highlight"; // Steve's test until we get arrow selection working to know what's selected
+  // /*
+  if (e === null || e === undefined || e === ""||selected === null || selected === undefined || selected === "") { // somewhere in the code it is calling before e gets defined... this is a hack to prevent crashing
+    return "node highlight";
+  }
   return ["node", selected.id === e.id ? "highlight" : "no-highlight"].join(
-    " ",
+    " "
   );
-  */
+  // */
 }
-function recurse(e) {
+function recurse(e, selected) {
   // if has children, is expression, so surround with parens, no data to display
   // if no children, is value, so display its data without parens, no children to display
   // ids not necessary, just for debugging keys
+  if (e === null || e === undefined || e === "") { // somewhere in the code it is calling before e gets defined... this is a hack to prevent crashing
+    return <div>&nbsp;</div>;
+  }
   if (e.children.length > 0) {
     return (
-      <div className={getClassNames(e)} id={e.id} key={e.id}>
+      <div className={getClassNames(e, selected)} id={e.id} key={e.id}>
         ({e.children.map((child) => recurse(child, false))})
       </div>
     );
   } else {
     return (
-      <div className={getClassNames(e)} id={e.id} key={e.id}>
-        {e.data}
-      </div>
+      <div className={getClassNames(e, selected)} id={e.id} key={e.id}> 
+        &nbsp;{e.data}&nbsp; 
+      </div>// added spaces to make it easier to see the values
     );
   }
 }
 
-export default function makeDivs(expr) {
+export default function makeDivs(expr, selected) {
   enrich(expr);
-  return recurse(expr);
+  return recurse(expr, selected);
 }

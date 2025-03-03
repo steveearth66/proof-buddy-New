@@ -27,6 +27,10 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     balanceParenthesis
   } = useCollapsing();
 
+  // Steve's addition based on Galen's idea
+  //let [expr, setExpr] = useState(null);
+  let [selected, setSelected] = useState(null);
+
    useDoubleClick({
     onSingleClick: (e) => {
       e.stopPropagation();
@@ -394,6 +398,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
   }, [currentPosition, posdict, positionDict, updateHighlight]);
 */ 
 /* galen's version. needs "selected" state
+*/
 useEffect(() => {
   let handleKeyUp = (e) => {
     if (selected === null) {
@@ -404,7 +409,7 @@ useEffect(() => {
       // up selects parent expression
       // if no parent, don't change
       setSelected((curSelected) =>
-        curSelected.parent === null ? curSelected : curSelected.parent,
+        curSelected.parent === null ? curSelected : curSelected.parent
       );
     } else if (e.key === "ArrowDown") {
       // down selects first child value/expression
@@ -412,19 +417,19 @@ useEffect(() => {
       setSelected((curSelected) =>
         curSelected.children.length === 0
           ? curSelected
-          : curSelected.children[0],
+          : curSelected.children[0]
       );
     } else if (e.key === "ArrowLeft") {
       // left selects left sibling value/expression
       // if no left sib, don't change
       setSelected((curSelected) =>
-        curSelected.leftSib === null ? curSelected : curSelected.leftSib,
+        curSelected.leftSib === null ? curSelected : curSelected.leftSib
       );
     } else if (e.key === "ArrowRight") {
       // right selects right sibling value/expression
       // if no right sib, don't change
       setSelected((curSelected) =>
-        curSelected.rightSib === null ? curSelected : curSelected.rightSib,
+        curSelected.rightSib === null ? curSelected : curSelected.rightSib
       );
     }
   };
@@ -433,11 +438,11 @@ useEffect(() => {
     document.removeEventListener("keyup", handleKeyUp);
   };
 }, [selected]);
-*/
+// */
   return (
     <Col xs={8}>
       <div ref={padRef} >
-        {makeDivs(jsonTree)}
+        {makeDivs(jsonTree, selected)}
       </div>
     </Col>
   );
