@@ -109,6 +109,7 @@ const ERRacket = () => {
    * Creates JSON object of the target incoming parameter (which should be a JavaScript Object)
    */
   const convertToJSON = (target) => {
+    console.log("target: ", target);
     return JSON.stringify(target);
   };
 
@@ -548,7 +549,7 @@ const ERRacket = () => {
                           }}
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial LHS
-                          jsonTree={racketRuleFields.LHS[index].jsonTree}
+                          jsonTree={jsonTreeRep}
                         />
 
                         <Form.Group
@@ -598,7 +599,7 @@ const ERRacket = () => {
                               side={showSide}
                               //attempting to pass jsonTree to Persistent Pad
                               //temporarily adding LHS[index] assuming that will give us the current line
-                              jsonTree={jsonTreeRep}
+                              jsonTree={racketRuleFields.LHS[index].jsonTree}
                             />
 
                             <Form.Group
