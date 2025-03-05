@@ -29,7 +29,8 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
 
   // Steve's addition based on Galen's idea
   //let [expr, setExpr] = useState(null);
-  let [selected, setSelected] = useState(null);
+  //let [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(jsonTree);
 
    useDoubleClick({
     onSingleClick: (e) => {
@@ -362,82 +363,81 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     selectionRange,
     collapsedSelection
   ]);
-/*
-  // Arrow key navigation by GPT
-  useEffect(() => {
-    const handleArrowKey = (e) => {
-      if (!positionDict[currentPosition]) return;
-
-      let nextPosition = currentPosition;
-      switch (e.key) {
-        case "ArrowUp":
-          nextPosition = positionDict[currentPosition][0];
-          break;
-        case "ArrowDown":
-          nextPosition = positionDict[currentPosition][1];
-          break;
-        case "ArrowLeft":
-          nextPosition = positionDict[currentPosition][2];
-          break;
-        case "ArrowRight":
-          nextPosition = positionDict[currentPosition][3];
-          break;
-        default:
-          return;
-      }
-      if (nextPosition !== currentPosition) {
-        setCurrentPosition(nextPosition);
-        updateHighlight(nextPosition);
-      }
-    };
-
-    window.addEventListener("keydown", handleArrowKey);
-    return () => {
-      window.removeEventListener("keydown", handleArrowKey);
-    };
-  }, [currentPosition, posdict, positionDict, updateHighlight]);
-*/ 
-/* galen's version. needs "selected" state
-*/
+/* Galen's original code
 useEffect(() => {
-  let handleKeyUp = (e) => {
+    let handleKeyUp = (e) => {
+      if (selected === null) {
+        // should only happen on first render; might be unnecessary
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        // up selects parent expression
+        // if no parent, don't change
+        setSelected((curSelected) =>
+          curSelected.parent === null ? curSelected : curSelected.parent,
+        );
+      } else if (e.key === "ArrowDown") {
+        // down selects first child value/expression
+        // if no children, don't change
+        setSelected((curSelected) =>
+          curSelected.children.length === 0
+            ? curSelected
+            : curSelected.children[0],
+        );
+      } else if (e.key === "ArrowLeft") {
+        // left selects left sibling value/expression
+        // if no left sib, don't change
+        setSelected((curSelected) =>
+          curSelected.leftSib === null ? curSelected : curSelected.leftSib,
+        );
+      } else if (e.key === "ArrowRight") {
+        // right selects right sibling value/expression
+        // if no right sib, don't change
+        setSelected((curSelected) =>
+          curSelected.rightSib === null ? curSelected : curSelected.rightSib,
+        );
+      }
+    };
+    document.addEventListener("keyup", handleKeyUp);
+    return () => {
+      document.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [selected]);
+*/
+useEffect(() => { //chatGPT suggestion to do asychronous state updates
+  const handleKeyUp = (e) => {
     if (selected === null) {
-      // should only happen on first render; might be unnecessary
       return;
     }
+
+    const newSelected = { ...selected }; // Copy the current selected state
+
     if (e.key === "ArrowUp") {
-      // up selects parent expression
-      // if no parent, don't change
-      setSelected((curSelected) =>
-        curSelected.parent === null ? curSelected : curSelected.parent
-      );
+      newSelected.parent = newSelected.parent || newSelected;
+      //newSelected.parent = (newSelected.parent === null ? newSelected : newSelected.parent);
     } else if (e.key === "ArrowDown") {
-      // down selects first child value/expression
-      // if no children, don't change
-      setSelected((curSelected) =>
-        curSelected.children.length === 0
-          ? curSelected
-          : curSelected.children[0]
-      );
+      newSelected.children = newSelected.children[0] || newSelected;
+      //newSelected.children = (newSelected.children.length === 0 ? newSelected : newSelected.children[0]);
     } else if (e.key === "ArrowLeft") {
-      // left selects left sibling value/expression
-      // if no left sib, don't change
-      setSelected((curSelected) =>
-        curSelected.leftSib === null ? curSelected : curSelected.leftSib
-      );
+      newSelected.leftSib = newSelected.leftSib || newSelected;
+      //newSelected.leftSib = (newSelected.leftSib === null ? newSelected : newSelected.leftSib);
     } else if (e.key === "ArrowRight") {
-      // right selects right sibling value/expression
-      // if no right sib, don't change
-      setSelected((curSelected) =>
-        curSelected.rightSib === null ? curSelected : curSelected.rightSib
-      );
+      newSelected.rightSib = newSelected.rightSib || newSelected;
+      //newSelected.rightSib = (newSelected.rightSib === null ? newSelected : newSelected.rightSib);
     }
+
+    // Use a "safe" update to defer state updates until after render
+    setTimeout(() => {
+      setSelected(newSelected);  // Update state asynchronously
+    });
   };
+
   document.addEventListener("keyup", handleKeyUp);
   return () => {
     document.removeEventListener("keyup", handleKeyUp);
   };
 }, [selected]);
+
 // */
   return (
     <Col xs={8}>

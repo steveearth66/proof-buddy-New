@@ -46,9 +46,9 @@ function getClassNames(e, selected) {
 
   // return "node highlight"; // Steve's test until we get arrow selection working to know what's selected
   // /*
-  if (e === null || e === undefined || e === ""||selected === null || selected === undefined || selected === "") { // somewhere in the code it is calling before e gets defined... this is a hack to prevent crashing
-    return "node highlight";
-  }
+  //if (e === null || e === undefined || e === ""||selected === null || selected === undefined || selected === "") { // somewhere in the code it is calling before e gets defined... this is a hack to prevent crashing
+  //  return "node highlight";
+  //}
   return ["node", selected.id === e.id ? "highlight" : "no-highlight"].join(
     " "
   );
