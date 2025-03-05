@@ -49,9 +49,7 @@ function getClassNames(e, selected) {
   //if (e === null || e === undefined || e === ""||selected === null || selected === undefined || selected === "") { // somewhere in the code it is calling before e gets defined... this is a hack to prevent crashing
   //  return "node highlight";
   //}
-  return ["node", selected.id === e.id ? "highlight" : "no-highlight"].join(
-    " "
-  );
+  return ["node", selected.id === e.id ? "highlight" : "no-highlight"].join(" ");
   // */
 }
 function recurse(e, selected) {

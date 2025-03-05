@@ -548,7 +548,7 @@ const ERRacket = () => {
                           }}
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial LHS
-                          jsonTree={jsonTreeRep}
+                          jsonTree={racketRuleFields.LHS[index].jsonTree}
                         />
 
                         <Form.Group
@@ -712,7 +712,7 @@ const ERRacket = () => {
                               side={showSide}
                               //attempting to pass jsonTree to Persistent Pad
                               //temporarily adding RHS[index] assuming that will give us the current line
-                              jsonTree={jsonTreeRep}
+                              jsonTree={racketRuleFields.RHS[index].jsonTree}
                             />
 
                             <Form.Group
