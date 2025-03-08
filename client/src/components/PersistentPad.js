@@ -18,6 +18,9 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     start: 0,
     end: 0
   });
+  // Bob - adding in two new variables for arrow key navigation
+  //const [expr, setExpr] = useState(null);
+  const [selected, setSelected] = useState(jsonTree);
   const padRef = useRef(null);
   const {
     collapse,
@@ -127,6 +130,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
       }
       // may just be able to replace highlightedText function with data from the jsonTree rep....
       const highlightedText = returnedText.substring(startWord, endWord);
+      console.log("highlightedText: " + highlightedText);
       setHighlightedText(highlightedText);
       onHighlightChange(startWord);
       setSelectionRange({
@@ -166,8 +170,8 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
   const getStartIndex = (selectedText) => {
     return returnedText.indexOf(selectedText);
   };
-/*
   // this function probably becomes redundant
+  /*
   const getEndIndex = (selectedText) => {
     return getStartIndex(selectedText) + selectedText.length;
   };
@@ -204,8 +208,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     },
     [returnedText]
   );
-
-  /* old highlighting. might be deprecated once switch to arrow controls
+  //old highlighting. might be deprecated once switch to arrow controls
   const updateHighlight = useCallback(
     (position) => {
       const start = position;
@@ -216,7 +219,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     },
     [getEndIndex, returnedText]
   );
-  */
+  
   const checkAndGetQuotient = (selectedText) => {
     const start = returnedText.indexOf(selectedText);
     const end = start + selectedText.length;
@@ -228,8 +231,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
       return selectedText;
     }
   };
-
-  /* old highlighting. might be deprecated once switch to arrow controls
+  //old highlighting. might be deprecated once switch to arrow controls
   const clearHighlight = (e) => {
     e.preventDefault();
     setHighlightedText("");
@@ -244,7 +246,6 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     );
     sessionStorage.setItem("highlights", JSON.stringify(newHighlights));
   };
-  */
 
   const replaceSelection = useCallback(
     (equation, selectionRange, replacement) => {
@@ -361,42 +362,9 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     selectionRange,
     collapsedSelection
   ]);
+
+// Arrow Key Navigation
 /*
-  // Arrow key navigation by GPT
-  useEffect(() => {
-    const handleArrowKey = (e) => {
-      if (!positionDict[currentPosition]) return;
-
-      let nextPosition = currentPosition;
-      switch (e.key) {
-        case "ArrowUp":
-          nextPosition = positionDict[currentPosition][0];
-          break;
-        case "ArrowDown":
-          nextPosition = positionDict[currentPosition][1];
-          break;
-        case "ArrowLeft":
-          nextPosition = positionDict[currentPosition][2];
-          break;
-        case "ArrowRight":
-          nextPosition = positionDict[currentPosition][3];
-          break;
-        default:
-          return;
-      }
-      if (nextPosition !== currentPosition) {
-        setCurrentPosition(nextPosition);
-        updateHighlight(nextPosition);
-      }
-    };
-
-    window.addEventListener("keydown", handleArrowKey);
-    return () => {
-      window.removeEventListener("keydown", handleArrowKey);
-    };
-  }, [currentPosition, posdict, positionDict, updateHighlight]);
-*/ 
-/* galen's version. needs "selected" state
 useEffect(() => {
   let handleKeyUp = (e) => {
     if (selected === null) {
@@ -407,37 +375,41 @@ useEffect(() => {
       // up selects parent expression
       // if no parent, don't change
       setSelected((curSelected) =>
-        curSelected.parent === null ? curSelected : curSelected.parent,
+        curSelected.parent === null ? curSelected : curSelected.parent
       );
     } else if (e.key === "ArrowDown") {
       // down selects first child value/expression
       // if no children, don't change
-      setSelected((curSelected) =>
+      setSelected((curSelected) =>{
+        console.log("step1 parent: "+ curSelected.parent),
+        console.log("step1 children: "+ curSelected.children),
         curSelected.children.length === 0
           ? curSelected
-          : curSelected.children[0],
+          : curSelected.children[0];
+        console.log("step2: "+ curSelected.toString());}
       );
+      
     } else if (e.key === "ArrowLeft") {
       // left selects left sibling value/expression
       // if no left sib, don't change
       setSelected((curSelected) =>
-        curSelected.leftSib === null ? curSelected : curSelected.leftSib,
+        curSelected.leftSib === null ? curSelected : curSelected.leftSib
       );
     } else if (e.key === "ArrowRight") {
       // right selects right sibling value/expression
       // if no right sib, don't change
       setSelected((curSelected) =>
-        curSelected.rightSib === null ? curSelected : curSelected.rightSib,
+        curSelected.rightSib === null ? curSelected : curSelected.rightSib
       );
     }
   };
   document.addEventListener("keyup", handleKeyUp);
+  //document.addEventListener("keyup", () => console.log("key up listener"));
   return () => {
     document.removeEventListener("keyup", handleKeyUp);
   };
 }, [selected]);
 */
-/*
 return (
   <Col xs={8}>
     <p
@@ -450,7 +422,7 @@ return (
     />
   </Col>
 );
-*/
+/*
   return (
     <Col xs={8}>
       <div ref={padRef} >
@@ -458,4 +430,5 @@ return (
       </div>
     </Col>
   );
+*/
 }
