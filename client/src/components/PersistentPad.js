@@ -409,7 +409,7 @@ useEffect(() => {
   };
 }, [selected]);
 
-/*
+// /*
 return (
   <Col xs={8}>
     <p
@@ -422,12 +422,15 @@ return (
     />
   </Col>
 );
-*/
-  return (
+// */
+
+/*  
+return (
     <Col xs={8}>
       <div ref={padRef} >
         {makeDivs(jsonTree)}
       </div>
     </Col>
   );
-}
+  */
+};
