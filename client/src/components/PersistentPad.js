@@ -364,7 +364,6 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
   ]);
 
 // Arrow Key Navigation
-/*
 useEffect(() => {
   let handleKeyUp = (e) => {
     if (selected === null) {
@@ -409,7 +408,8 @@ useEffect(() => {
     document.removeEventListener("keyup", handleKeyUp);
   };
 }, [selected]);
-*/
+
+/*
 return (
   <Col xs={8}>
     <p
@@ -422,7 +422,7 @@ return (
     />
   </Col>
 );
-/*
+*/
   return (
     <Col xs={8}>
       <div ref={padRef} >
@@ -430,5 +430,4 @@ return (
       </div>
     </Col>
   );
-*/
 }
