@@ -7,9 +7,9 @@ import makeDivs from "./divMaker"; //Steve's addition based on Galen's idea
 
 export default function PersistentPad({ equation, onHighlightChange, side, jsonTree }) {
   // attempting to console log the jsonTree
-  console.log("jsonTree rep:", jsonTree)
-  console.log("jsonTree rep 0:", jsonTree[0])
-  console.log("jsonTree rep 0:", jsonTree[0][1])
+  //console.log("jsonTree rep:", jsonTree)
+  //console.log("jsonTree rep 0:", jsonTree[0])
+  //console.log("jsonTree rep 0:", jsonTree[0][1])
   const [highlightedText, setHighlightedText] = useState("");
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
   const [controlPressed, setControlPressed] = useState(false);
@@ -23,6 +23,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
   // Bob - adding in two new variables for arrow key navigation
   //const [expr, setExpr] = useState(null);
   // initialize selected to 0 index
+  const jsonTree_dict = jsonTree;
   const [selected, setSelected] = useState(0);
   const padRef = useRef(null);
   const {
@@ -107,7 +108,9 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
       }
         
       const range = window.getSelection().getRangeAt(0);
-      const startOffset = range.startOffset;
+      //attempting to switch start offset to selection
+      //const startOffset = range.startOffset;
+      const startOffset = selected;
       const endOffset = range.endOffset;
       const selectionRange = { start: startOffset, end: endOffset };
       const start = selectionRange.start;
@@ -369,6 +372,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
 // Arrow Key Navigation
 useEffect(() => {
   let handleKeyUp = (e) => {
+    console.log("initialized, key = "+ jsonTree_dict[selected]);
     if (selected === null) {
       // should only happen on first render; might be unnecessary
       return;
@@ -378,8 +382,9 @@ useEffect(() => {
       // if no parent, don't change
       setSelected((curSelected) =>
         //curSelected.parent === null ? curSelected : curSelected.parent
-        jsonTree[curSelected][0]
+        jsonTree_dict[curSelected][0]
       );
+      console.log("up pressed")
     } else if (e.key === "ArrowDown") {
       // down selects first child value/expression
       // if no children, don't change
@@ -390,24 +395,28 @@ useEffect(() => {
         //  ? curSelected
         //  : curSelected.children[0];
         //console.log("step2: "+ curSelected.toString());}
-        jsonTree[curSelected][1]
+        jsonTree_dict[curSelected][1]
       );
-      
+      console.log("down pressed")
     } else if (e.key === "ArrowLeft") {
       // left selects left sibling value/expression
       // if no left sib, don't change
       setSelected((curSelected) =>
         //curSelected.leftSib === null ? curSelected : curSelected.leftSib
-      jsonTree[curSelected][2]
+        jsonTree_dict[curSelected][2]
       );
+      console.log("left pressed,")
     } else if (e.key === "ArrowRight") {
       // right selects right sibling value/expression
       // if no right sib, don't change
       setSelected((curSelected) =>
         //curSelected.rightSib === null ? curSelected : curSelected.rightSib
-      jsonTree[curSelected][3]
+        jsonTree_dict[curSelected][3]
       );
+      console.log("right pressed")
     }
+    console.log("current index = "+ selected);
+    console.log("current key = "+ jsonTree_dict[selected]);
   };
   document.addEventListener("keyup", handleKeyUp);
   //document.addEventListener("keyup", () => console.log("key up listener"));
