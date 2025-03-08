@@ -239,7 +239,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     }
   };
 
-  /* old highlighting. might be deprecated once switch to arrow controls
+  // old highlighting. might be deprecated once switch to arrow controls
   const clearHighlight = (e) => {
     e.preventDefault();
     setHighlightedText("");
@@ -254,7 +254,6 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     );
     sessionStorage.setItem("highlights", JSON.stringify(newHighlights));
   };
-  */
 
   const replaceSelection = useCallback(
     (equation, selectionRange, replacement) => {
