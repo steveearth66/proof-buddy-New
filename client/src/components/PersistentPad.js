@@ -7,7 +7,9 @@ import makeDivs from "./divMaker"; //Steve's addition based on Galen's idea
 
 export default function PersistentPad({ equation, onHighlightChange, side, jsonTree }) {
   // attempting to console log the jsonTree
-  //console.log("jsonTree rep:", jsonTree)
+  console.log("jsonTree rep:", jsonTree)
+  console.log("jsonTree rep 0:", jsonTree[0])
+  console.log("jsonTree rep 0:", jsonTree[0][1])
   const [highlightedText, setHighlightedText] = useState("");
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
   const [controlPressed, setControlPressed] = useState(false);
@@ -20,7 +22,8 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
   });
   // Bob - adding in two new variables for arrow key navigation
   //const [expr, setExpr] = useState(null);
-  const [selected, setSelected] = useState(jsonTree);
+  // initialize selected to 0 index
+  const [selected, setSelected] = useState(0);
   const padRef = useRef(null);
   const {
     collapse,
@@ -374,31 +377,35 @@ useEffect(() => {
       // up selects parent expression
       // if no parent, don't change
       setSelected((curSelected) =>
-        curSelected.parent === null ? curSelected : curSelected.parent
+        //curSelected.parent === null ? curSelected : curSelected.parent
+        jsonTree[curSelected][0]
       );
     } else if (e.key === "ArrowDown") {
       // down selects first child value/expression
       // if no children, don't change
-      setSelected((curSelected) =>{
-        console.log("step1 parent: "+ curSelected.parent),
-        console.log("step1 children: "+ curSelected.children),
-        curSelected.children.length === 0
-          ? curSelected
-          : curSelected.children[0];
-        console.log("step2: "+ curSelected.toString());}
+      setSelected((curSelected) =>//{
+        //console.log("step1 parent: "+ curSelected.parent),
+        //console.log("step1 children: "+ curSelected.children),
+        //curSelected.children.length === 0
+        //  ? curSelected
+        //  : curSelected.children[0];
+        //console.log("step2: "+ curSelected.toString());}
+        jsonTree[curSelected][1]
       );
       
     } else if (e.key === "ArrowLeft") {
       // left selects left sibling value/expression
       // if no left sib, don't change
       setSelected((curSelected) =>
-        curSelected.leftSib === null ? curSelected : curSelected.leftSib
+        //curSelected.leftSib === null ? curSelected : curSelected.leftSib
+      jsonTree[curSelected][2]
       );
     } else if (e.key === "ArrowRight") {
       // right selects right sibling value/expression
       // if no right sib, don't change
       setSelected((curSelected) =>
-        curSelected.rightSib === null ? curSelected : curSelected.rightSib
+        //curSelected.rightSib === null ? curSelected : curSelected.rightSib
+      jsonTree[curSelected][3]
       );
     }
   };
