@@ -18,6 +18,14 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     start: 0,
     end: 0
   });
+  // Bob - adding in two new variables for arrow key navigation
+  //const [expr, setExpr] = useState(null);
+  //const [selected, setSelected] = useState(jsonTree);
+  const [selected, setSelected] = useState({
+    start: 0,  // Default starting position
+    end: returnedText.length // Set the end to the length of the text content
+  });
+  
   const padRef = useRef(null);
   const {
     collapse,
@@ -30,7 +38,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
   // Steve's addition based on Galen's idea
   //let [expr, setExpr] = useState(null);
   //let [selected, setSelected] = useState(null);
-  const [selected, setSelected] = useState(jsonTree);
+  //const [selected, setSelected] = useState(jsonTree);
 
    useDoubleClick({
     onSingleClick: (e) => {
@@ -363,7 +371,9 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     selectionRange,
     collapsedSelection
   ]);
-/* Galen's original code
+
+  /* attempted arrow key navigation with trees
+// Arrow Key Navigation
 useEffect(() => {
     let handleKeyUp = (e) => {
       if (selected === null) {
@@ -404,6 +414,7 @@ useEffect(() => {
     };
   }, [selected]);
 */
+/*
 useEffect(() => { //chatGPT suggestion to do asychronous state updates
   const handleKeyUp = (e) => {
     if (selected === null) {
@@ -438,12 +449,65 @@ useEffect(() => { //chatGPT suggestion to do asychronous state updates
   };
 }, [selected]);
 
+*/
+
+// Arrow Key Navigation using start and end indices from jsonTree
+useEffect(() => {
+  const handleKeyUp = (e) => {
+    if (!jsonTree) return; // Ensure jsonTree is available
+
+    // Ensure selected is valid
+    if (selected === null) return;
+
+    const currentIndex = selected.start;
+
+    // Map arrow keys to their corresponding indices in the jsonTree
+    const directionMap = {
+      "ArrowUp": 0,    // Up index
+      "ArrowDown": 1,  // Down index
+      "ArrowLeft": 2,  // Left index
+      "ArrowRight": 3  // Right index
+    };
+
+    if (directionMap[e.key] !== undefined) {
+      const directionIndex = directionMap[e.key]; // Get the index based on the pressed arrow key
+      const newIndex = jsonTree[currentIndex] && jsonTree[currentIndex][directionIndex]; // Get the new index
+      
+      if (newIndex !== undefined) {
+        setSelected({ start: newIndex, end: getEndIndex(newIndex) });
+      }
+    }
+  };
+
+  document.addEventListener("keyup", handleKeyUp);
+
+  return () => {
+    document.removeEventListener("keyup", handleKeyUp);
+  };
+}, [jsonTree, selected]);
+
+// /*
+return (
+  <Col xs={8}>
+    <p
+      ref={padRef}
+      onContextMenu={clearHighlight}
+      dangerouslySetInnerHTML={{
+        __html: returnedText
+      }}
+      className="pad"
+    />
+  </Col>
+);
 // */
-  return (
+
+/*  
+return (
     <Col xs={8}>
       <div ref={padRef} >
         {makeDivs(jsonTree, selected)}
       </div>
     </Col>
   );
+  */
 }
