@@ -7,7 +7,7 @@ import makeDivs from "./divMaker"; //Steve's addition based on Galen's idea
 
 export default function PersistentPad({ equation, onHighlightChange, side, jsonTree }) {
   // attempting to console log the jsonTree
-  //console.log("jsonTree rep:", jsonTree)
+  //console.log("jsonTree rep:", jsonTree);
   //console.log("jsonTree rep 0:", jsonTree[0])
   //console.log("jsonTree rep 0:", jsonTree[0][1])
   const [highlightedText, setHighlightedText] = useState("");
@@ -155,6 +155,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
       const highlighted = checkAndGetQuotient(
         balanceParenthesis(returnedText, selectedPart)
       );
+      console.log("highlighted 1: " + highlighted);
       setHighlightedText(highlighted);
       onHighlightChange(getStartIndex(highlighted));
       setSelectionRange({
@@ -163,6 +164,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
       });
     } else {
       const highlighted = checkAndGetQuotient(selectedPart);
+      console.log("highlighted 2: " + highlighted);
       setHighlightedText(highlighted);
       onHighlightChange(getStartIndex(highlighted));
       setSelectionRange({
@@ -372,7 +374,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
 // Arrow Key Navigation
 useEffect(() => {
   let handleKeyUp = (e) => {
-    console.log("initialized, key = "+ jsonTree_dict[selected]);
+    //console.log("initialized, key = "+ jsonTree_dict[selected]);
     if (selected === null) {
       // should only happen on first render; might be unnecessary
       return;
@@ -415,8 +417,11 @@ useEffect(() => {
       );
       console.log("right pressed")
     }
-    console.log("current index = "+ selected);
-    console.log("current key = "+ jsonTree_dict[selected]);
+    //console.log("current index = "+ selected);
+    //console.log("current key = "+ jsonTree_dict);
+    updateHighlight(selected);
+    console.log("start: "+ selected);
+    console.log("end: "+ getEndIndex(selected));
   };
   document.addEventListener("keyup", handleKeyUp);
   //document.addEventListener("keyup", () => console.log("key up listener"));
