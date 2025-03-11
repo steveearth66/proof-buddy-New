@@ -15,6 +15,7 @@ const checkGoal = async (goal) => {
       `${API_GATEWAY}/check-goal`,
       goal
     );
+	console.log("response", response.data);
     return response.data;
   } catch (error) {
     handleServiceError(error, "Error during goal validation:");

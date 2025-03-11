@@ -109,7 +109,6 @@ const ERRacket = () => {
    * Creates JSON object of the target incoming parameter (which should be a JavaScript Object)
    */
   const convertToJSON = (target) => {
-    console.log("target: ", target);
     return JSON.stringify(target);
   };
 
@@ -124,6 +123,7 @@ const ERRacket = () => {
       leftRacketsAndRules: racketRuleFields.LHS,
       rightRacketsAndRules: racketRuleFields.RHS
     };
+	console.log(racketRuleFields)
 
     return convertToJSON(EquationalReasoningObject);
   };
