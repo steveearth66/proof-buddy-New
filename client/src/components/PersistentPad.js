@@ -406,7 +406,7 @@ useEffect(() => {
 */
 
 // take a id and a tree and returns node with that id
-function ID2Node(id, tree) {
+const ID2Node = useCallback((id, tree) => {
   // Base case: if the tree is empty or no tree node
   if (!tree) return null;
 
@@ -423,41 +423,34 @@ function ID2Node(id, tree) {
 
   // Return null if the node was not found
   return null;
-}
+}, []);
 
-useEffect(() => { //chatGPT suggestion to do asychronous state updates
-  const handleKeyUp = (e) => {
-    if (selected === null) {
-      return;
-    }
+const handleKeyUp = useCallback((e) => {
+	console.log('handleKeyUp called at:', new Date().getTime(), 'Key:', e.key);
 
-    const newSelected = { ...selected }; // Copy the current selected state
+	if (!selected) return;
 
-    if (e.key === "ArrowUp") {
-      newSelected.parent = ID2Node(newSelected.parent) || newSelected;
-      //newSelected.parent = (newSelected.parent === null ? newSelected : newSelected.parent);
+	const newSelected = { ...selected };
+
+	if (e.key === "ArrowUp") {
+        newSelected.parent = ID2Node(newSelected.parent, selected) || newSelected;
     } else if (e.key === "ArrowDown") {
-      newSelected.children = newSelected.children[0] || newSelected;
-      //newSelected.children = (newSelected.children.length === 0 ? newSelected : newSelected.children[0]);
-    } else if (e.key === "ArrowLeft") {
-      newSelected.leftSib = ID2Node(newSelected.leftSib) || newSelected;
-      //newSelected.leftSib = (newSelected.leftSib === null ? newSelected : newSelected.leftSib);
-    } else if (e.key === "ArrowRight") {
-      newSelected.rightSib = ID2Node(newSelected.rightSib) || newSelected;
-      //newSelected.rightSib = (newSelected.rightSib === null ? newSelected : newSelected.rightSib);
-    }
+		newSelected.children = newSelected.children[0] || newSelected;
+	} else if (e.key === "ArrowLeft") {
+		newSelected.leftSib = ID2Node(newSelected.leftSib, selected) || newSelected;
+	} else if (e.key === "ArrowRight") {
+		newSelected.rightSib = ID2Node(newSelected.rightSib, selected) || newSelected;
+	}
 
-    // Use a "safe" update to defer state updates until after render
-    setTimeout(() => {
-      setSelected(newSelected);  // Update state asynchronously
-    });
-  };
+	setSelected(newSelected);
+}, [selected, ID2Node]);
 
-  document.addEventListener("keyup", handleKeyUp);
-  return () => {
-    document.removeEventListener("keyup", handleKeyUp);
-  };
-}, [selected]);
+useEffect(() => {
+  	document.addEventListener("keyup", handleKeyUp);
+  	return () => {
+    	document.removeEventListener("keyup", handleKeyUp);
+    };
+}, [handleKeyUp]);
 
 // */
   return (
