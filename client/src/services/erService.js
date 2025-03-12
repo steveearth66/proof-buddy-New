@@ -15,7 +15,6 @@ const checkGoal = async (goal) => {
       `${API_GATEWAY}/check-goal`,
       goal
     );
-	  console.log("response", response.data);
     return response.data;
   } catch (error) {
     handleServiceError(error, "Error during goal validation:");
@@ -35,7 +34,6 @@ const racketGeneration = async (payLoad) => {
       `${API_GATEWAY}/er-generate`,
       payLoad
     );
-    console.log("Response data:", JSON.stringify(response.data, null, 2));
     return response.data;
   } catch (error) {
     handleServiceError(error, "Error during racket generation:");

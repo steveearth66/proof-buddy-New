@@ -123,7 +123,6 @@ const ERRacket = () => {
       leftRacketsAndRules: racketRuleFields.LHS,
       rightRacketsAndRules: racketRuleFields.RHS
     };
-	console.log(racketRuleFields)
 
     return convertToJSON(EquationalReasoningObject);
   };

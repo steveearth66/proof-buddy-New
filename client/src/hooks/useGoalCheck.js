@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import erService from '../services/erService';
 import logger from '../utils/logger';
-import { json } from 'react-router-dom';
+//import { json } from 'react-router-dom';
 
 /**
  * Custom React hook for checking if a goal (LHS or RHS) is valid.
@@ -78,7 +78,6 @@ const useGoalCheck = (handleChange) => {
         setGoalValidationMessage({ ...goalValidationMessage, [side]: '' });
         setProofValidationMessage('');
         // set jsonTreeRep from the result of checkGoal
-		    console.log("tree:", result.jsonTree);
         setJsonTreeRep(result.jsonTree);
       } else {
         setIsGoalChecked({ ...isGoalChecked, [side]: false });

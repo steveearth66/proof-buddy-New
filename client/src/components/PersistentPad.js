@@ -404,6 +404,27 @@ useEffect(() => {
     };
   }, [selected]);
 */
+
+// take a id and a tree and returns node with that id
+function ID2Node(id, tree) {
+  // Base case: if the tree is empty or no tree node
+  if (!tree) return null;
+
+  // If the current node has the matching ID, return it
+  if (tree.id === id) {
+    return tree;
+  }
+
+  // Recursively search through the children of the current node
+  for (let child of tree.children) {
+    const result = ID2Node(id, child); // Recursive call on the child
+    if (result) return result; // If found, return the result
+  }
+
+  // Return null if the node was not found
+  return null;
+}
+
 useEffect(() => { //chatGPT suggestion to do asychronous state updates
   const handleKeyUp = (e) => {
     if (selected === null) {
@@ -413,16 +434,16 @@ useEffect(() => { //chatGPT suggestion to do asychronous state updates
     const newSelected = { ...selected }; // Copy the current selected state
 
     if (e.key === "ArrowUp") {
-      newSelected.parent = newSelected.parent || newSelected;
+      newSelected.parent = ID2Node(newSelected.parent) || newSelected;
       //newSelected.parent = (newSelected.parent === null ? newSelected : newSelected.parent);
     } else if (e.key === "ArrowDown") {
       newSelected.children = newSelected.children[0] || newSelected;
       //newSelected.children = (newSelected.children.length === 0 ? newSelected : newSelected.children[0]);
     } else if (e.key === "ArrowLeft") {
-      newSelected.leftSib = newSelected.leftSib || newSelected;
+      newSelected.leftSib = ID2Node(newSelected.leftSib) || newSelected;
       //newSelected.leftSib = (newSelected.leftSib === null ? newSelected : newSelected.leftSib);
     } else if (e.key === "ArrowRight") {
-      newSelected.rightSib = newSelected.rightSib || newSelected;
+      newSelected.rightSib = ID2Node(newSelected.rightSib) || newSelected;
       //newSelected.rightSib = (newSelected.rightSib === null ? newSelected : newSelected.rightSib);
     }
 
