@@ -22,17 +22,19 @@ function enrich(expr) {
     for (let i = 0; i < e.children.length; i++) {
       let child = e.children[i];
 
-      child.parent = e;
+      // parent and sibs used to point to the node, but this caused infinite loop in JSON, so now it holds the id
+
+      child.parent = e.id; 
 
       if (i === 0) {
         child.leftSib = null;
       } else {
-        child.leftSib = e.children[i - 1];
+        child.leftSib = e.children[i - 1].id;
       }
       if (i === e.children.length - 1) {
         child.rightSib = null;
       } else {
-        child.rightSib = e.children[i + 1];
+        child.rightSib = e.children[i + 1].id;
       }
 
       queue.push(child);

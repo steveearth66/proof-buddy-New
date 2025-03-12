@@ -78,7 +78,7 @@ const useGoalCheck = (handleChange) => {
         setGoalValidationMessage({ ...goalValidationMessage, [side]: '' });
         setProofValidationMessage('');
         // set jsonTreeRep from the result of checkGoal
-		console.log("tree:", result.jsonTree);
+		    console.log("tree:", result.jsonTree);
         setJsonTreeRep(result.jsonTree);
       } else {
         setIsGoalChecked({ ...isGoalChecked, [side]: false });
