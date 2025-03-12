@@ -109,9 +109,11 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
         
       const range = window.getSelection().getRangeAt(0);
       //attempting to switch start offset to selection
-      //const startOffset = range.startOffset;
-      const startOffset = selected;
+      const startOffset = range.startOffset;
+      console.log("startOffset: " + startOffset);
+      //const startOffset = selected;
       const endOffset = range.endOffset;
+      console.log("endOffset: " + endOffset);
       const selectionRange = { start: startOffset, end: endOffset };
       const start = selectionRange.start;
       const end = selectionRange.end;
@@ -123,11 +125,13 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
         }
 
       let startWord = start;
+      console.log("startWord: " + startWord);
       while (startWord > 0 && !returnedText[startWord - 1].match(/\s|\(/)) {
         startWord--;
       }
 
       let endWord = end;
+      console.log("endWord: " + endWord);
       while (
         endWord < returnedText.length &&
         !returnedText[endWord].match(/\s|\)/)
