@@ -23,7 +23,8 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
   // Bob - adding in two new variables for arrow key navigation
   //const [expr, setExpr] = useState(null);
   // initialize selected to 0 index
-  const jsonTree_dict = jsonTree;
+  let jsonTree_dict = jsonTree;
+  console.log("jsonTree_dict: ", jsonTree_dict);
   const [selected, setSelected] = useState(0);
   const padRef = useRef(null);
   const {
@@ -383,6 +384,10 @@ useEffect(() => {
       // should only happen on first render; might be unnecessary
       return;
     }
+    if (!jsonTree[selected]) {
+      console.warn("Selected index is out of bounds.");
+      return;
+    }
     if (e.key === "ArrowUp") {
       // up selects parent expression
       // if no parent, don't change
@@ -421,11 +426,11 @@ useEffect(() => {
       );
       console.log("right pressed")
     }
-    //console.log("current index = "+ selected);
-    //console.log("current key = "+ jsonTree_dict);
-    updateHighlight(selected);
-    console.log("start: "+ selected);
-    console.log("end: "+ getEndIndex(selected));
+    console.log("current index = "+ selected);
+    console.log("current key = "+ jsonTree_dict[selected]);
+    //updateHighlight(selected); // think we are setting selected to a subset of jsonTree_dict... maybe update highlight is causing the issue
+    //console.log("start: "+ selected);
+    //console.log("end: "+ getEndIndex(selected));
   };
   document.addEventListener("keyup", handleKeyUp);
   //document.addEventListener("keyup", () => console.log("key up listener"));
