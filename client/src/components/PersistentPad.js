@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import useDoubleClick from "use-double-click";
 import Col from "react-bootstrap/Col";
 import { useCollapsing } from "../hooks/useCollapsing";
-import makeDivs from "./divMaker"; //Steve's addition based on Galen's idea
+import DivMakerComponent from "./divMaker"; // Steve's addition based on Galen's idea
 
 export default function PersistentPad({ equation, onHighlightChange, side, jsonTree }) {
   // attempting to console log the jsonTree
@@ -31,6 +31,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
   //let [expr, setExpr] = useState(null);
   //let [selected, setSelected] = useState(null);
   const [selected, setSelected] = useState(jsonTree);
+  let origTree = jsonTree; // will this save tree? is having const bad if it changes later for next racket expr?
 
    useDoubleClick({
     onSingleClick: (e) => {
@@ -313,7 +314,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
         setRestoredPress(true);
       }
     };
-
+  
     const keyEventUp = (e) => {
       if (e.key === "Control") {
         setControlPressed(false);
@@ -322,15 +323,18 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
         setRestoredPress(false);
       }
     };
-
-    window.addEventListener("keydown", keyEvent);
-    window.addEventListener("keyup", keyEventUp);
-
-    return () => {
-      window.removeEventListener("keydown", keyEvent);
-      window.removeEventListener("keyup", keyEventUp);
-    };
-  }, []);
+  
+    // Ensure padRef.current is not null before adding event listeners
+    if (padRef.current) {
+      window.addEventListener("keydown", keyEvent);
+      window.addEventListener("keyup", keyEventUp);
+  
+      return () => {
+        window.removeEventListener("keydown", keyEvent);
+        window.removeEventListener("keyup", keyEventUp);
+      };
+    }
+  }, []);  
 
   useEffect(() => {
     if (collapsed === equation) {
@@ -406,44 +410,48 @@ useEffect(() => {
 */
 
 // take a id and a tree and returns node with that id
-const ID2Node = useCallback((id, tree) => {
+const ID2Node = useCallback((NodeId, tree) => {
   // Base case: if the tree is empty or no tree node
   if (!tree) return null;
+  if (Number.isInteger(tree)) {
+    tree = ID2Node(tree, origTree); // if the tree is just an ID, convert it to a node
+  }
+  if (isNaN(NodeId)) {
+    NodeId = NodeId.id; // if the id was passed as a node, convert it to an ID
+  }
 
   // If the current node has the matching ID, return it
-  if (tree.id === id) {
+  if (tree.id === NodeId) {
     return tree;
   }
 
   // Recursively search through the children of the current node
   for (let child of tree.children) {
-    const result = ID2Node(id, child); // Recursive call on the child
+    const result = ID2Node(child, origTree); // Recursive call on the child
     if (result) return result; // If found, return the result
   }
 
   // Return null if the node was not found
   return null;
-}, []);
+}, [origTree]);
 
 const handleKeyUp = useCallback((e) => {
-	console.log('handleKeyUp called at:', new Date().getTime(), 'Key:', e.key);
-
 	if (!selected) return;
 
 	const newSelected = { ...selected };
 
 	if (e.key === "ArrowUp") {
-        newSelected.parent = ID2Node(newSelected.parent, selected) || newSelected;
+        newSelected.parent = ID2Node(newSelected.parent, origTree) || newSelected;
     } else if (e.key === "ArrowDown") {
-		newSelected.children = newSelected.children[0] || newSelected;
+		newSelected.children = (newSelected.children[0]) || newSelected;
 	} else if (e.key === "ArrowLeft") {
-		newSelected.leftSib = ID2Node(newSelected.leftSib, selected) || newSelected;
+		newSelected.leftSib = ID2Node(newSelected.leftSib, origTree) || newSelected;
 	} else if (e.key === "ArrowRight") {
-		newSelected.rightSib = ID2Node(newSelected.rightSib, selected) || newSelected;
+		newSelected.rightSib = ID2Node(newSelected.rightSib, origTree) || newSelected;
 	}
 
 	setSelected(newSelected);
-}, [selected, ID2Node]);
+}, [selected, ID2Node, origTree]);
 
 useEffect(() => {
   	document.addEventListener("keyup", handleKeyUp);
@@ -456,7 +464,7 @@ useEffect(() => {
   return (
     <Col xs={8}>
       <div ref={padRef} >
-        {makeDivs(jsonTree, selected)}
+      <DivMakerComponent expr={jsonTree} selected={selected} origTree={origTree} />
       </div>
     </Col>
   );
