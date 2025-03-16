@@ -5,7 +5,7 @@ import Col from "react-bootstrap/Col";
 import { useCollapsing } from "../hooks/useCollapsing";
 import makeDivs from "./divMaker"; //Steve's addition based on Galen's idea
 
-const PersistentPad = forwardRef(({ equation, onHighlightChange, side, jsonTree }) => {
+export default function PersistentPad ({ equation, onHighlightChange, side, jsonTree }) {
   // attempting to console log the jsonTree
   //console.log("jsonTree rep:", jsonTree);
   //console.log("jsonTree rep 0:", jsonTree[0])
@@ -472,6 +472,7 @@ const handelHighlight = (selectionRange) => {
     selectionRange,
     collapsedSelection
   ]);
+
 const handleKeyUp = (e) => {
   console.log("handle key up executed");
   console.log("current index = "+ selected);
@@ -510,12 +511,12 @@ const handleKeyUp = (e) => {
     console.log("current key = "+ jsonTree_dict[selected]);
     highlightWordOrNumber();
 };
-/*
+
 useEffect(() => {
   document.addEventListener("keyup", handleKeyUp);
   console.log("event listener added");
 }, []);
-*/
+
 // Arrow Key Navigation
 /*
 useEffect(() => {
@@ -584,7 +585,7 @@ useEffect(() => {
 return (
   <Col xs={8}>
     <p
-      ref={ref}
+      ref={padRef}
       onContextMenu={clearHighlight}
       dangerouslySetInnerHTML={{
         __html: returnedText
@@ -604,6 +605,4 @@ return (
     </Col>
   );
   */
-}
-PersistentPad.displayName = "PersistentPad";
-export default PersistentPad;
+};
