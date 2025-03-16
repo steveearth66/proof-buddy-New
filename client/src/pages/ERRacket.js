@@ -42,7 +42,7 @@ const ERRacket = () => {
     rHSGoal: ""
   };
   // added pad refs to allow arrow key highlighting across all rows in persistent pad
-  const padRefs = useRef([]); 
+  //const padRefs = useRef([]); 
   //const [pads, setPads] = useState([]);
   const [showSide, toggleSide] = useToggleSide();
   const [formValues, handleChange] = useInputState(initialValues);
@@ -163,7 +163,7 @@ const ERRacket = () => {
   const handleKeyUp = (event) => {
     console.log("ER Racket Handle Key Up Executed");
   };
-
+/*
   useEffect(() => {
     padRefs.current.forEach(element => {
       element.removeEventListener("keyup", handleKeyUp);
@@ -172,7 +172,7 @@ const ERRacket = () => {
       padRefs.current[padRefs.current.length - 1].addEventListener("keyup", handleKeyUp);
     }
   });
-
+*/
   useEffect(() => {
     sessionStorage.removeItem("highlights");
     sessionStorage.removeItem("definitions");
@@ -564,12 +564,14 @@ const ERRacket = () => {
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial LHS
                           jsonTree={jsonTreeRep}
+                          /*
                           ref = {() => {
                             const newRef = React.createRef();
                             padRefs.current.push(newRef);
                             return newRef;
                             }
                           }
+                          */
                         />
 
                         <Form.Group
@@ -621,12 +623,14 @@ const ERRacket = () => {
                               //attempting to pass jsonTree to Persistent Pad
                               //temporarily adding LHS[index] assuming that will give us the current line
                               jsonTree={racketRuleFields.LHS[index].jsonTree ? racketRuleFields.LHS[index].jsonTree : jsonTreeRep}
+                              /*
                               ref = {() => {
                                 const newRef = React.createRef();
                                 padRefs.current.push(newRef);
                                 return newRef;
                                 }
                               }
+                              */
                             />
 
                             <Form.Group
@@ -692,7 +696,7 @@ const ERRacket = () => {
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial RHS
                           jsonTree={jsonTreeRep}
-                          ref = {React.createRef()}
+                          //ref = {React.createRef()}
                         />
 
                         <Form.Group
@@ -744,7 +748,7 @@ const ERRacket = () => {
                               //attempting to pass jsonTree to Persistent Pad
                               //temporarily adding RHS[index] assuming that will give us the current line
                               jsonTree={racketRuleFields.RHS[index].jsonTree ? racketRuleFields.RHS[index].jsonTree : jsonTreeRep}
-                              ref = {React.createRef()}
+                              //ref = {React.createRef()}
 
                             />
 

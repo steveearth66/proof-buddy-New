@@ -5,7 +5,7 @@ import Col from "react-bootstrap/Col";
 import { useCollapsing } from "../hooks/useCollapsing";
 import makeDivs from "./divMaker"; //Steve's addition based on Galen's idea
 
-const PersistentPad = forwardRef(({ equation, onHighlightChange, side, jsonTree }, ref) => {
+const PersistentPad = forwardRef(({ equation, onHighlightChange, side, jsonTree }) => {
   // attempting to console log the jsonTree
   //console.log("jsonTree rep:", jsonTree);
   //console.log("jsonTree rep 0:", jsonTree[0])
@@ -28,7 +28,7 @@ const PersistentPad = forwardRef(({ equation, onHighlightChange, side, jsonTree 
   console.log("jsonTree_dict: ", jsonTree_dict);
   //const [selected, setSelected] = useState(0);
   let selected = 0;
-  //const padRef = useRef(null);
+  const padRef = useRef(null);
   const {
     collapse,
     restore,
@@ -52,7 +52,7 @@ const PersistentPad = forwardRef(({ equation, onHighlightChange, side, jsonTree 
       e.preventDefault();
       handelSelection();
     },
-    ref: ref,
+    ref: padRef,
     latency: 250
   });
 
@@ -604,6 +604,6 @@ return (
     </Col>
   );
   */
-});
+}
 PersistentPad.displayName = "PersistentPad";
 export default PersistentPad;
