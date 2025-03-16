@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Dropdown from "react-bootstrap/Dropdown";
 import Button from "react-bootstrap/Button";
 import Container from "react-bootstrap/Container";
@@ -41,7 +41,9 @@ const ERRacket = () => {
     lHSGoal: "",
     rHSGoal: ""
   };
-
+  // added pad refs to allow arrow key highlighting across all rows in persistent pad
+  const padRefs = useRef([]); 
+  //const [pads, setPads] = useState([]);
   const [showSide, toggleSide] = useToggleSide();
   const [formValues, handleChange] = useInputState(initialValues);
   const [validationMessages, handleBlur, setAllTouched, isFormValid] =
@@ -104,7 +106,7 @@ const ERRacket = () => {
     setAllTouched,
     handleERRacketSubmission
   );
-
+  
   /**
    * Creates JSON object of the target incoming parameter (which should be a JavaScript Object)
    */
@@ -158,6 +160,18 @@ const ERRacket = () => {
       console.error(error);
     }
   };
+  const handleKeyUp = (event) => {
+    console.log("ER Racket Handle Key Up Executed");
+  };
+
+  useEffect(() => {
+    padRefs.current.forEach(element => {
+      element.removeEventListener("keyup", handleKeyUp);
+    });
+    if (padRefs.current.length > 0) {
+      padRefs.current[padRefs.current.length - 1].addEventListener("keyup", handleKeyUp);
+    }
+  });
 
   useEffect(() => {
     sessionStorage.removeItem("highlights");
@@ -534,6 +548,7 @@ const ERRacket = () => {
                           onHighlightChange={(startPosition) => {
                             handleHighlight(startPosition);
                             setCurrentRacket(formValues.lHSGoal);
+                            console.log("current racket is: " + currentRacket);
                             handleChange({
                               target: {
                                 name: "proofCurrentLHSGoal",
@@ -549,6 +564,12 @@ const ERRacket = () => {
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial LHS
                           jsonTree={jsonTreeRep}
+                          ref = {() => {
+                            const newRef = React.createRef();
+                            padRefs.current.push(newRef);
+                            return newRef;
+                            }
+                          }
                         />
 
                         <Form.Group
@@ -587,6 +608,7 @@ const ERRacket = () => {
                                 setCurrentRacket(
                                   racketRuleFields.LHS.slice(-2)[0].racket
                                 );
+                                console.log("current racket is: " + currentRacket);
                                 handleFieldChange(
                                   showSide,
                                   index,
@@ -599,6 +621,12 @@ const ERRacket = () => {
                               //attempting to pass jsonTree to Persistent Pad
                               //temporarily adding LHS[index] assuming that will give us the current line
                               jsonTree={racketRuleFields.LHS[index].jsonTree ? racketRuleFields.LHS[index].jsonTree : jsonTreeRep}
+                              ref = {() => {
+                                const newRef = React.createRef();
+                                padRefs.current.push(newRef);
+                                return newRef;
+                                }
+                              }
                             />
 
                             <Form.Group
@@ -648,6 +676,7 @@ const ERRacket = () => {
                           onHighlightChange={(startPosition) => {
                             handleHighlight(startPosition);
                             setCurrentRacket(formValues.rHSGoal);
+                            console.log("current racket is: " + currentRacket);
                             handleChange({
                               target: {
                                 name: "proofCurrentRHSGoal",
@@ -663,6 +692,7 @@ const ERRacket = () => {
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial RHS
                           jsonTree={jsonTreeRep}
+                          ref = {React.createRef()}
                         />
 
                         <Form.Group
@@ -701,6 +731,7 @@ const ERRacket = () => {
                                 setCurrentRacket(
                                   racketRuleFields.RHS.slice(-2)[0].racket
                                 );
+                                console.log("current racket is: " + currentRacket);
                                 handleFieldChange(
                                   showSide,
                                   index,
@@ -713,6 +744,8 @@ const ERRacket = () => {
                               //attempting to pass jsonTree to Persistent Pad
                               //temporarily adding RHS[index] assuming that will give us the current line
                               jsonTree={racketRuleFields.RHS[index].jsonTree ? racketRuleFields.RHS[index].jsonTree : jsonTreeRep}
+                              ref = {React.createRef()}
+
                             />
 
                             <Form.Group

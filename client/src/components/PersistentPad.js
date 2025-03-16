@@ -1,11 +1,11 @@
 import "../scss/_persistent-pad.scss";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, forwardRef } from "react";
 import useDoubleClick from "use-double-click";
 import Col from "react-bootstrap/Col";
 import { useCollapsing } from "../hooks/useCollapsing";
 import makeDivs from "./divMaker"; //Steve's addition based on Galen's idea
 
-export default function PersistentPad({ equation, onHighlightChange, side, jsonTree }) {
+const PersistentPad = forwardRef(({ equation, onHighlightChange, side, jsonTree }, ref) => {
   // attempting to console log the jsonTree
   //console.log("jsonTree rep:", jsonTree);
   //console.log("jsonTree rep 0:", jsonTree[0])
@@ -23,10 +23,12 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
   // Bob - adding in two new variables for arrow key navigation
   //const [expr, setExpr] = useState(null);
   // initialize selected to 0 index
-  let jsonTree_dict = jsonTree;
+  const jsonTree_dict = jsonTree;
+  //const equation_stored = equation
   console.log("jsonTree_dict: ", jsonTree_dict);
-  const [selected, setSelected] = useState(0);
-  const padRef = useRef(null);
+  //const [selected, setSelected] = useState(0);
+  let selected = 0;
+  //const padRef = useRef(null);
   const {
     collapse,
     restore,
@@ -39,7 +41,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     onSingleClick: (e) => {
       e.stopPropagation();
       e.preventDefault();
-      if (!controlPressed && !restorePressed) highlightWordOrNumber();
+      //if (!controlPressed && !restorePressed) highlightWordOrNumber();
       if (controlPressed && !restorePressed) doCollapse();
       if (restorePressed && !controlPressed) restoreCollapse();
     },
@@ -50,7 +52,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
       e.preventDefault();
       handelSelection();
     },
-    ref: padRef,
+    ref: ref,
     latency: 250
   });
 
@@ -99,50 +101,82 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
 
   const highlightWordOrNumber = () => {
     try {
-      setHighlightedText("");
-      
+      setHighlightedText(equation);
+      /*
       // Check if there is a valid selection
       const selection = window.getSelection();
       if (!selection || selection.rangeCount === 0) {
         console.warn("No valid text selection found or empty selection.");
         return; // Exit if no valid range is found
       }
-        
+      */
       const range = window.getSelection().getRangeAt(0);
       //attempting to switch start offset to selection
-      const startOffset = range.startOffset;
-      console.log("startOffset: " + startOffset);
+      //const startOffset = range.startOffset;
+      //console.log("startOffset: " + startOffset);
       //const startOffset = selected;
-      const endOffset = range.endOffset;
-      console.log("endOffset: " + endOffset);
-      const selectionRange = { start: startOffset, end: endOffset };
+      //const endOffset = range.endOffset;
+      //console.log("endOffset: " + endOffset);
+      const start_index = selected;
+      console.log("start_index: " + start_index);
+      const end_index = getEndIndex(start_index);
+      console.log("end_index: " + end_index);
+      // used selection Range use state instead of manual overwrite
+      const selectionRange = { start: start_index, end: end_index };
       const start = selectionRange.start;
+      console.log("start: " + start);
       const end = selectionRange.end;
 
-      // Ensure the selection is within the expected element (e.g., padRef)
+      //Ensure the selection is within the expected element (e.g., padRef)
+      //console.log("Pad ref" + JSON.stringify(padRef.current));
+      /*
       if (!padRef.current.contains(range.commonAncestorContainer)) {
+        console.log("Pad ref" + JSON.stringify(padRef.current));
+        console.log("Selection container: " + selectionRange.commonAncestorContainer);
         console.warn("Selection is outside the text container.");
         return; // Exit if selection is not in the correct element
         }
-
+      */
       let startWord = start;
       console.log("startWord: " + startWord);
+      console.log("equations is: " + equation)
+      console.log("equation[startWord] is: "+ equation[startWord])
+      //console.log("stored equation is: " + equation_stored)
+      //console.log("startWord: " + startWord);
+      // try replacing with equation
+      /*
       while (startWord > 0 && !returnedText[startWord - 1].match(/\s|\(/)) {
+        startWord--;
+      }
+        */
+       // getting rid of startword - 1 temporarily
+      while (startWord > 0 && !equation[startWord].match(/\s|\(/)) {
         startWord--;
       }
 
       let endWord = end;
-      console.log("endWord: " + endWord);
+      //console.log("endWord: " + endWord);
+       // try replacing with equation
+      /*
       while (
         endWord < returnedText.length &&
         !returnedText[endWord].match(/\s|\)/)
       ) {
         endWord++;
       }
+        */
+      while (
+        endWord < equation.length &&
+        !equation[endWord].match(/\s|\)/)
+      ) {
+        endWord++;
+      }
       // may just be able to replace highlightedText function with data from the jsonTree rep....
-      const highlightedText = returnedText.substring(startWord, endWord);
-      console.log("highlightedText: " + highlightedText);
-      setHighlightedText(highlightedText);
+      console.log("highlightedText before: " + highlightedText);
+      // swapped replaceText for equation
+      const newHighlightedValue = equation.substring(startWord, endWord);
+      console.log("highlightedText: " + newHighlightedValue);
+      setHighlightedText(newHighlightedValue);
       onHighlightChange(startWord);
       setSelectionRange({
         start: startWord,
@@ -153,7 +187,8 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     }
   };
 
-  //  handle highlight function can probably remain the same...
+  //  replace all instance of returnedText with equation
+  /*
   const handelHighlight = (selectionRange) => {
     const selectedPart = findSelectionParenthesis(returnedText, selectionRange);
     if (!checkParenthesisConsistency(selectedPart)) {
@@ -178,7 +213,31 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
       });
     }
   };
-
+*/
+const handelHighlight = (selectionRange) => {
+  const selectedPart = findSelectionParenthesis(equation, selectionRange);
+  if (!checkParenthesisConsistency(selectedPart)) {
+    const highlighted = checkAndGetQuotient(
+      balanceParenthesis(equation, selectedPart)
+    );
+    console.log("highlighted 1: " + highlighted);
+    setHighlightedText(highlighted);
+    onHighlightChange(getStartIndex(highlighted));
+    setSelectionRange({
+      start: getStartIndex(highlighted),
+      end: getEndIndex(highlighted)
+    });
+  } else {
+    const highlighted = checkAndGetQuotient(selectedPart);
+    console.log("highlighted 2: " + highlighted);
+    setHighlightedText(highlighted);
+    onHighlightChange(getStartIndex(highlighted));
+    setSelectionRange({
+      start: getStartIndex(highlighted),
+      end: getEndIndex(highlighted)
+    });
+  }
+};
   // this function probably becomes redundant
   const getStartIndex = (selectedText) => {
     return returnedText.indexOf(selectedText);
@@ -189,6 +248,8 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     return getStartIndex(selectedText) + selectedText.length;
   };
   */
+ // replace all instances of returnedText with equation
+ /*
   const getEndIndex = useCallback(
     (start) => {
       if (returnedText[start] === "(") {
@@ -220,6 +281,39 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
       return returnedText.length - 1;
     },
     [returnedText]
+  );
+  */
+  const getEndIndex = useCallback(
+    (start) => {
+      if (equation[start] === "(") {
+        let stack = 1;
+        for (let i = start + 1; i < equation.length; i++) {
+          if (equation[i] === "(") stack++;
+          else if (equation[i] === ")") stack--;
+          if (stack === 0) return i;
+        }
+      }
+      if (equation[start] === "'") {
+        if (equation[start + 1] === "(") {
+          let stack = 1;
+          for (let i = start + 2; i < equation.length; i++) {
+            if (equation[i] === "(") stack++;
+            else if (equation[i] === ")") stack--;
+            if (stack === 0) return i;
+          }
+        }
+      }
+      if (/^[a-zA-Z0-9]+$/.test(equation.substring(start))) {
+        return equation.length - 1;
+      }
+      for (let i = start + 1; i < equation.length; i++) {
+        if (!/^[a-zA-Z0-9]$/.test(equation[i])) {
+          return i - 1;
+        }
+      }
+      return equation.length - 1;
+    },
+    [equation]
   );
   //old highlighting. might be deprecated once switch to arrow controls
   const updateHighlight = useCallback(
@@ -266,6 +360,9 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
       const end = selectionRange.end;
       const beforeSelection = equation.substring(0, start);
       const afterSelection = equation.substring(end);
+      console.log("start: " + start);
+      console.log("end: " + end);
+      console.log("replacement: " + replacement);
       return (
         beforeSelection +
         `<span class="highlight">${replacement}</span>` +
@@ -375,59 +472,103 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     selectionRange,
     collapsedSelection
   ]);
-
-// Arrow Key Navigation
-useEffect(() => {
-  let handleKeyUp = (e) => {
+const handleKeyUp = (e) => {
+  console.log("handle key up executed");
+  console.log("current index = "+ selected);
+    console.log("key pressed: " + e.key);
+    let newSelected = selected;
     //console.log("initialized, key = "+ jsonTree_dict[selected]);
-    if (selected === null) {
+    //if (selected === null) {
       // should only happen on first render; might be unnecessary
-      return;
-    }
-    if (!jsonTree[selected]) {
-      console.warn("Selected index is out of bounds.");
-      return;
-    }
+    //  return;
+    //}
+    //if (!jsonTree[selected]) {
+    //  console.warn("Selected index is out of bounds.");
+    //  return;
+    //}
     if (e.key === "ArrowUp") {
-      // up selects parent expression
-      // if no parent, don't change
-      setSelected((curSelected) =>
-        //curSelected.parent === null ? curSelected : curSelected.parent
-        jsonTree_dict[curSelected][0]
-      );
-      console.log("up pressed")
-    } else if (e.key === "ArrowDown") {
-      // down selects first child value/expression
-      // if no children, don't change
-      setSelected((curSelected) =>//{
-        //console.log("step1 parent: "+ curSelected.parent),
-        //console.log("step1 children: "+ curSelected.children),
-        //curSelected.children.length === 0
-        //  ? curSelected
-        //  : curSelected.children[0];
-        //console.log("step2: "+ curSelected.toString());}
-        jsonTree_dict[curSelected][1]
-      );
+      newSelected = jsonTree_dict[selected][0];
+      selected = newSelected;
+      console.log("up pressed");
+    } 
+    else if (e.key === "ArrowDown") {
+      newSelected = jsonTree_dict[selected][1];
+      selected = newSelected;
       console.log("down pressed")
-    } else if (e.key === "ArrowLeft") {
-      // left selects left sibling value/expression
-      // if no left sib, don't change
-      setSelected((curSelected) =>
-        //curSelected.leftSib === null ? curSelected : curSelected.leftSib
-        jsonTree_dict[curSelected][2]
-      );
-      console.log("left pressed,")
-    } else if (e.key === "ArrowRight") {
-      // right selects right sibling value/expression
-      // if no right sib, don't change
-      setSelected((curSelected) =>
-        //curSelected.rightSib === null ? curSelected : curSelected.rightSib
-        jsonTree_dict[curSelected][3]
-      );
-      console.log("right pressed")
+    } 
+    else if (e.key === "ArrowLeft") {
+      newSelected = jsonTree_dict[selected][2];
+      selected = newSelected;
+      console.log("left pressed,");
+    } 
+    else if (e.key === "ArrowRight") {
+      newSelected = jsonTree_dict[selected][3];
+      selected = newSelected;
+      console.log("right pressed");
     }
     console.log("current index = "+ selected);
     console.log("current key = "+ jsonTree_dict[selected]);
+    highlightWordOrNumber();
+};
+/*
+useEffect(() => {
+  document.addEventListener("keyup", handleKeyUp);
+  console.log("event listener added");
+}, []);
+*/
+// Arrow Key Navigation
+/*
+useEffect(() => {
+    const handleKeyUp = (e) => {
+    console.log("current index = "+ selected);
+    console.log("key pressed: " + e.key);
+    let newSelected = selected;
+    //console.log("initialized, key = "+ jsonTree_dict[selected]);
+    //if (selected === null) {
+      // should only happen on first render; might be unnecessary
+    //  return;
+    //}
+    //if (!jsonTree[selected]) {
+    //  console.warn("Selected index is out of bounds.");
+    //  return;
+    //}
+    if (e.key === "ArrowUp") {
+      // up selects parent expression
+      // if no parent, don't change
+      newSelected = jsonTree_dict[selected][0];
+      //setSelected({ newSelected });
+      //setSelected(newSelected);
+      selected = newSelected;
+      console.log("up pressed");
+    } 
+    else if (e.key === "ArrowDown") {
+      newSelected = jsonTree_dict[selected][1];
+      //setSelected({ newSelected });
+      //setSelected(newSelected);
+      selected = newSelected;
+      // down selects first child value/expression
+      // if no children, don't change
+      //setSelected((curSelected) =>//{
+        //jsonTree_dict[curSelected][1]
+      //);
+      console.log("down pressed")
+    } else if (e.key === "ArrowLeft") {
+      newSelected = jsonTree_dict[selected][2];
+      //setSelected({ newSelected });
+      //setSelected(newSelected);
+      selected = newSelected;
+      console.log("left pressed,");
+    } 
+    else if (e.key === "ArrowRight") {
+      newSelected = jsonTree_dict[selected][3];
+      //setSelected({ newSelected });
+      //setSelected(newSelected);
+      selected = newSelected;
+      console.log("right pressed");
+    }
+    console.log("current index = "+ selected);
+    console.log("current key = "+ jsonTree_dict[selected]);
+    highlightWordOrNumber();
     //updateHighlight(selected); // think we are setting selected to a subset of jsonTree_dict... maybe update highlight is causing the issue
     //console.log("start: "+ selected);
     //console.log("end: "+ getEndIndex(selected));
@@ -437,13 +578,13 @@ useEffect(() => {
   return () => {
     document.removeEventListener("keyup", handleKeyUp);
   };
-}, [selected]);
-
+}, [highlightWordOrNumber]);
+*/
 // /*
 return (
   <Col xs={8}>
     <p
-      ref={padRef}
+      ref={ref}
       onContextMenu={clearHighlight}
       dangerouslySetInnerHTML={{
         __html: returnedText
@@ -463,4 +604,6 @@ return (
     </Col>
   );
   */
-};
+});
+PersistentPad.displayName = "PersistentPad";
+export default PersistentPad;
