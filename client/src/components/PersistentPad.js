@@ -122,7 +122,7 @@ export default function PersistentPad ({ equation, onHighlightChange, side, json
       const end_index = getEndIndex(start_index);
       console.log("end_index: " + end_index);
       // used selection Range use state instead of manual overwrite
-      setSelectionRange({ start: start_index, end: end_index });
+      const selectionRange = { start: start_index, end: end_index };
       //const selectionRange = { start: start_index, end: end_index };
       const start = selectionRange.start;
       console.log("start: " + start);
@@ -179,10 +179,12 @@ export default function PersistentPad ({ equation, onHighlightChange, side, json
       console.log("highlightedText: " + newHighlightedValue);
       setHighlightedText(newHighlightedValue);
       onHighlightChange(startWord);
+      
       setSelectionRange({
         start: startWord,
         end: endWord
       });
+      
     } catch (error) {
       console.error("Error while highlighting word: ", error);
     }
@@ -480,49 +482,53 @@ const handelHighlight = (selectionRange) => {
     collapsedSelection
   ]);
 
-const applyKeyStroke = (keyStroke) => {
-  console.log("handle key up executed");
-  console.log("current index = "+ selected);
-  //console.log("key pressed: " + e.key);
-    let newSelected = selected;
-    //console.log("initialized, key = "+ jsonTree_dict[selected]);
-    //if (selected === null) {
-      // should only happen on first render; might be unnecessary
-    //  return;
-    //}
-    //if (!jsonTree[selected]) {
-    //  console.warn("Selected index is out of bounds.");
-    //  return;
-    //}
-    if (keyStroke === "ArrowUp") {
-      newSelected = jsonTree_dict[selected][0];
-      selected = newSelected;
-      console.log("up pressed");
-    } 
-    else if (keyStroke === "ArrowDown") {
-      newSelected = jsonTree_dict[selected][1];
-      selected = newSelected;
-      console.log("down pressed")
-    } 
-    else if (keyStroke === "ArrowLeft") {
-      newSelected = jsonTree_dict[selected][2];
-      selected = newSelected;
-      console.log("left pressed,");
-    } 
-    else if (keyStroke === "ArrowRight") {
-      newSelected = jsonTree_dict[selected][3];
-      selected = newSelected;
-      console.log("right pressed");
-    }
-    console.log("current index = "+ selected);
-    console.log("current key = "+ jsonTree_dict[selected]);
-    highlightWordOrNumber();
-};
-
 useEffect(() => {
-  if (shouldApplyKeyStroke) {
-    applyKeyStroke(keyStroke);
-  }
+  const applyKeyStroke = (e) => {
+    console.log("handle key up executed");
+    console.log("current index = "+ selected);
+    //console.log("key pressed: " + e.key);
+      let newSelected = selected;
+      //console.log("initialized, key = "+ jsonTree_dict[selected]);
+      //if (selected === null) {
+        // should only happen on first render; might be unnecessary
+      //  return;
+      //}
+      //if (!jsonTree[selected]) {
+      //  console.warn("Selected index is out of bounds.");
+      //  return;
+      //}
+      if (e.key === "ArrowUp") {
+        newSelected = jsonTree_dict[selected][0];
+        selected = newSelected;
+        console.log("up pressed");
+        console.log("selected: " + selected);
+      } 
+      else if (e.key === "ArrowDown") {
+        newSelected = jsonTree_dict[selected][1];
+        selected = newSelected;
+        console.log("down pressed")
+        console.log("selected: " + selected);
+      } 
+      else if (e.key === "ArrowLeft") {
+        newSelected = jsonTree_dict[selected][2];
+        selected = newSelected;
+        console.log("left pressed,");
+        console.log("selected: " + selected);
+      } 
+      else if (e.key === "ArrowRight") {
+        newSelected = jsonTree_dict[selected][3];
+        selected = newSelected;
+        console.log("right pressed");
+        console.log("selected: " + selected);
+      }
+      console.log("current index = "+ selected);
+      console.log("current key = "+ jsonTree_dict[selected]);
+      if (shouldApplyKeyStroke) {
+        highlightWordOrNumber();
+      }
+  };
+
+  document.addEventListener("keyup", applyKeyStroke);
   //document.addEventListener("keyup", handleKeyUp);
   //console.log("event listener added");
 }, []);
