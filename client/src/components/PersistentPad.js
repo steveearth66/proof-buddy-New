@@ -122,7 +122,8 @@ export default function PersistentPad ({ equation, onHighlightChange, side, json
       const end_index = getEndIndex(start_index);
       console.log("end_index: " + end_index);
       // used selection Range use state instead of manual overwrite
-      const selectionRange = { start: start_index, end: end_index };
+      setSelectionRange({ start: start_index, end: end_index });
+      //const selectionRange = { start: start_index, end: end_index };
       const start = selectionRange.start;
       console.log("start: " + start);
       const end = selectionRange.end;
@@ -478,11 +479,11 @@ const handelHighlight = (selectionRange) => {
     selectionRange,
     collapsedSelection
   ]);
-/*
-const handleKeyUp = (e) => {
+
+const applyKeyStroke = (keyStroke) => {
   console.log("handle key up executed");
   console.log("current index = "+ selected);
-    console.log("key pressed: " + e.key);
+  //console.log("key pressed: " + e.key);
     let newSelected = selected;
     //console.log("initialized, key = "+ jsonTree_dict[selected]);
     //if (selected === null) {
@@ -493,22 +494,22 @@ const handleKeyUp = (e) => {
     //  console.warn("Selected index is out of bounds.");
     //  return;
     //}
-    if (e.key === "ArrowUp") {
+    if (keyStroke === "ArrowUp") {
       newSelected = jsonTree_dict[selected][0];
       selected = newSelected;
       console.log("up pressed");
     } 
-    else if (e.key === "ArrowDown") {
+    else if (keyStroke === "ArrowDown") {
       newSelected = jsonTree_dict[selected][1];
       selected = newSelected;
       console.log("down pressed")
     } 
-    else if (e.key === "ArrowLeft") {
+    else if (keyStroke === "ArrowLeft") {
       newSelected = jsonTree_dict[selected][2];
       selected = newSelected;
       console.log("left pressed,");
     } 
-    else if (e.key === "ArrowRight") {
+    else if (keyStroke === "ArrowRight") {
       newSelected = jsonTree_dict[selected][3];
       selected = newSelected;
       console.log("right pressed");
@@ -519,10 +520,13 @@ const handleKeyUp = (e) => {
 };
 
 useEffect(() => {
-  document.addEventListener("keyup", handleKeyUp);
-  console.log("event listener added");
+  if (shouldApplyKeyStroke) {
+    applyKeyStroke(keyStroke);
+  }
+  //document.addEventListener("keyup", handleKeyUp);
+  //console.log("event listener added");
 }, []);
-*/
+
 // Arrow Key Navigation
 /*
 useEffect(() => {

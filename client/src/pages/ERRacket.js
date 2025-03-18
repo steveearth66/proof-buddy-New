@@ -611,6 +611,9 @@ useEffect(() => {
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial LHS
                           jsonTree={jsonTreeRep}
+                          shouldApplyKeyStroke={racketRuleFields.LHS.length < 2 ? true : false }
+                          keyStroke={ lastKeyStroke }
+                          myIndex={ 0 }
                           /*
                           ref = {() => {
                             const newRef = React.createRef();
@@ -670,9 +673,9 @@ useEffect(() => {
                               //attempting to pass jsonTree to Persistent Pad
                               //temporarily adding LHS[index] assuming that will give us the current line
                               jsonTree={racketRuleFields.LHS[index].jsonTree ? racketRuleFields.LHS[index].jsonTree : jsonTreeRep}
-                              shouldApplyKeyStroke={(index === racketRuleFields.LHS.length - 1) ? true : false}
+                              shouldApplyKeyStroke={(index === racketRuleFields.LHS.length - 2) ? true : false}
                               keyStroke={ lastKeyStroke }
-                              myIndex={ index }
+                              myIndex={ index +1 }
                               /*
                               ref = {() => {
                                 const newRef = React.createRef();
