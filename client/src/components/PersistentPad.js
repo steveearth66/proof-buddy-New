@@ -5,7 +5,7 @@ import Col from "react-bootstrap/Col";
 import { useCollapsing } from "../hooks/useCollapsing";
 import makeDivs from "./divMaker"; //Steve's addition based on Galen's idea
 
-export default function PersistentPad ({ equation, onHighlightChange, side, jsonTree }) {
+export default function PersistentPad ({ equation, onHighlightChange, side, jsonTree, shouldApplyKeyStroke, keyStroke, myIndex }) {
   // attempting to console log the jsonTree
   //console.log("jsonTree rep:", jsonTree);
   //console.log("jsonTree rep 0:", jsonTree[0])
@@ -373,6 +373,12 @@ const handelHighlight = (selectionRange) => {
   );
 
   useEffect(() => {
+    console.log(`My index is ${ myIndex }`)
+    console.log(`I should do highlight: ${ shouldApplyKeyStroke }`)
+    console.log(`I believe the last keystoke was ${ keyStroke }`)
+  });
+
+  useEffect(() => {
     const saveHighlightToSession = (highlightedText) => {
       const savedHighlights = JSON.parse(
         sessionStorage.getItem("highlights") || "[]"
@@ -472,7 +478,7 @@ const handelHighlight = (selectionRange) => {
     selectionRange,
     collapsedSelection
   ]);
-
+/*
 const handleKeyUp = (e) => {
   console.log("handle key up executed");
   console.log("current index = "+ selected);
@@ -516,7 +522,7 @@ useEffect(() => {
   document.addEventListener("keyup", handleKeyUp);
   console.log("event listener added");
 }, []);
-
+*/
 // Arrow Key Navigation
 /*
 useEffect(() => {

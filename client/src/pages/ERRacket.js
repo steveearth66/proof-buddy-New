@@ -107,6 +107,8 @@ const ERRacket = () => {
     handleERRacketSubmission
   );
   
+  let selected = 0;
+  const [lastKeyStroke, setLastKeyStroke] = useState("");
   /**
    * Creates JSON object of the target incoming parameter (which should be a JavaScript Object)
    */
@@ -160,9 +162,7 @@ const ERRacket = () => {
       console.error(error);
     }
   };
-  const handleKeyUp = (event) => {
-    console.log("ER Racket Handle Key Up Executed");
-  };
+
 /*
   useEffect(() => {
     padRefs.current.forEach(element => {
@@ -173,6 +173,53 @@ const ERRacket = () => {
     }
   });
 */
+
+useEffect(() => {
+  const handleKeyUp = (e) => {
+    console.log("handle key up executed");
+    console.log("current index = "+ selected);
+      console.log("key pressed: " + e.key);
+      //const jsonTree_dict = jsonTree ? jsonTree : jsonTreeRep;
+      //let newSelected = selected;
+      let key = "";
+      if (e.key === "ArrowUp") {
+        //newSelected = jsonTree_dict[selected][0];
+        //selected = newSelected; 
+        console.log("up pressed");
+        key = e.key;
+      } 
+      else if (e.key === "ArrowDown") {
+        //newSelected = jsonTree_dict[selected][1];
+        //selected = newSelected;
+        console.log("down pressed")
+        key = e.key;
+      } 
+      else if (e.key === "ArrowLeft") {
+        //newSelected = jsonTree_dict[selected][2];
+        //selected = newSelected;
+        console.log("left pressed,");
+        key = e.key;
+      } 
+      else if (e.key === "ArrowRight") {
+        //newSelected = jsonTree_dict[selected][3];
+        //selected = newSelected;
+        console.log("right pressed");
+        key = e.key;
+      }
+      console.log("current index = "+ selected);
+      //console.log("current key = "+ jsonTree_dict[selected]);
+      //highlightWordOrNumber();
+      setLastKeyStroke(key);
+  };
+
+  document.addEventListener("keyup", handleKeyUp);
+  console.log("event listener added");
+
+  return () => {
+    document.removeEventListener('keyup', handleKeyUp);
+  };
+}, []);
+
   useEffect(() => {
     sessionStorage.removeItem("highlights");
     sessionStorage.removeItem("definitions");
@@ -623,6 +670,9 @@ const ERRacket = () => {
                               //attempting to pass jsonTree to Persistent Pad
                               //temporarily adding LHS[index] assuming that will give us the current line
                               jsonTree={racketRuleFields.LHS[index].jsonTree ? racketRuleFields.LHS[index].jsonTree : jsonTreeRep}
+                              shouldApplyKeyStroke={(index === racketRuleFields.LHS.length - 1) ? true : false}
+                              keyStroke={ lastKeyStroke }
+                              myIndex={ index }
                               /*
                               ref = {() => {
                                 const newRef = React.createRef();
