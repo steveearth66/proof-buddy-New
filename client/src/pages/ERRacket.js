@@ -173,7 +173,7 @@ const ERRacket = () => {
     }
   });
 */
-
+/*
 useEffect(() => {
   const handleKeyUp = (e) => {
     console.log("handle key up executed");
@@ -219,7 +219,7 @@ useEffect(() => {
     document.removeEventListener('keyup', handleKeyUp);
   };
 }, []);
-
+*/
   useEffect(() => {
     sessionStorage.removeItem("highlights");
     sessionStorage.removeItem("definitions");

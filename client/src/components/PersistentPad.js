@@ -374,13 +374,13 @@ const handelHighlight = (selectionRange) => {
     },
     []
   );
-
+/*
   useEffect(() => {
     console.log(`My index is ${ myIndex }`)
     console.log(`I should do highlight: ${ shouldApplyKeyStroke }`)
     console.log(`I believe the last keystoke was ${ keyStroke }`)
   });
-
+*/
   useEffect(() => {
     const saveHighlightToSession = (highlightedText) => {
       const savedHighlights = JSON.parse(
@@ -484,8 +484,8 @@ const handelHighlight = (selectionRange) => {
 
 useEffect(() => {
   const applyKeyStroke = (e) => {
-    console.log("handle key up executed");
-    console.log("current index = "+ selected);
+    //console.log("handle key up executed");
+    console.log("current selected = "+ selected);
     //console.log("key pressed: " + e.key);
       let newSelected = selected;
       //console.log("initialized, key = "+ jsonTree_dict[selected]);
@@ -523,7 +523,11 @@ useEffect(() => {
       }
       console.log("current index = "+ selected);
       console.log("current key = "+ jsonTree_dict[selected]);
+      console.log(`My index is ${ myIndex }`)
+      console.log(`I should do highlight: ${ shouldApplyKeyStroke }`)
+      console.log(`I believe the last keystoke was ${ keyStroke }`)
       if (shouldApplyKeyStroke) {
+        console.log("apply keystroke for index: " + myIndex);
         highlightWordOrNumber();
       }
   };
