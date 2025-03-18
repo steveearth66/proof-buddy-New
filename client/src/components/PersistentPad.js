@@ -5,11 +5,13 @@ import Col from "react-bootstrap/Col";
 import { useCollapsing } from "../hooks/useCollapsing";
 import makeDivs from "./divMaker"; //Steve's addition based on Galen's idea
 
-export default function PersistentPad ({ equation, onHighlightChange, side, jsonTree }) {
+export default function PersistentPad ({ equation, onHighlightChange, side, jsonTree, shouldDoHighlight, myIndex }) {
   // attempting to console log the jsonTree
   //console.log("jsonTree rep:", jsonTree);
   //console.log("jsonTree rep 0:", jsonTree[0])
   //console.log("jsonTree rep 0:", jsonTree[0][1])
+
+  console.log("equation line 13: ", equation);
   const [highlightedText, setHighlightedText] = useState("");
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
   const [controlPressed, setControlPressed] = useState(false);
@@ -101,6 +103,7 @@ export default function PersistentPad ({ equation, onHighlightChange, side, json
 
   const highlightWordOrNumber = () => {
     try {
+      console.log("equation line 106: " + equation);
       setHighlightedText(equation);
       /*
       // Check if there is a valid selection
@@ -139,7 +142,7 @@ export default function PersistentPad ({ equation, onHighlightChange, side, json
       */
       let startWord = start;
       console.log("startWord: " + startWord);
-      console.log("equations is: " + equation)
+      //console.log("equations is: " + equation)
       console.log("equation[startWord] is: "+ equation[startWord])
       //console.log("stored equation is: " + equation_stored)
       //console.log("startWord: " + startWord);
@@ -490,26 +493,31 @@ const handleKeyUp = (e) => {
     if (e.key === "ArrowUp") {
       newSelected = jsonTree_dict[selected][0];
       selected = newSelected;
-      console.log("up pressed");
+      //console.log("up pressed");
     } 
     else if (e.key === "ArrowDown") {
       newSelected = jsonTree_dict[selected][1];
       selected = newSelected;
-      console.log("down pressed")
+      //console.log("down pressed")
     } 
     else if (e.key === "ArrowLeft") {
       newSelected = jsonTree_dict[selected][2];
       selected = newSelected;
-      console.log("left pressed,");
+      //console.log("left pressed,");
     } 
     else if (e.key === "ArrowRight") {
       newSelected = jsonTree_dict[selected][3];
       selected = newSelected;
-      console.log("right pressed");
+      //console.log("right pressed");
     }
-    console.log("current index = "+ selected);
-    console.log("current key = "+ jsonTree_dict[selected]);
-    highlightWordOrNumber();
+    //console.log("current index = "+ selected);
+    //console.log("current key = "+ jsonTree_dict[selected]);
+
+    console.log(`My index is ${ myIndex } and shouldHighlight is ${ shouldDoHighlight }`)
+    if (shouldDoHighlight) {
+      console.log("should do highlight, my index is: " + myIndex);
+      highlightWordOrNumber();
+    }
 };
 
 useEffect(() => {

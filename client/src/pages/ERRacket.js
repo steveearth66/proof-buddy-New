@@ -94,6 +94,7 @@ const ERRacket = () => {
   const [leftPremise, setLeftPremise] = useState({});
   const [rightPremise, setRightPremise] = useState({});
   const [loadedProof, setLoadedProof] = useState(null);
+  const [shouldHighlightArray, setShouldHighlightArray] = useState([])
   const location = useLocation();
 
   const handleERRacketSubmission = async () => {
@@ -282,7 +283,13 @@ const ERRacket = () => {
     const undeletedRackets = currentSideRackets.filter((line) => !line.deleted && line.racket !== '');
     const lastUndeletedRacket = undeletedRackets[undeletedRackets.length - 1];
     if (lastUndeletedRacket) setCurrentRacket(lastUndeletedRacket.racket);
-
+    // adding logic to update which PersistentPad should be highlighted
+    console.log(`racketRuleFields: ${JSON.stringify(racketRuleFields.LHS)}`)
+    let tempShouldHighlightArray = Array(racketRuleFields.LHS.length).fill(false);
+    console.log(`racketRuleFieldsLHS length: ${racketRuleFields.LHS.length}`)
+    tempShouldHighlightArray[tempShouldHighlightArray.length -1] = true;
+    console.log(`temp array is now: ${tempShouldHighlightArray}`)
+    setShouldHighlightArray(tempShouldHighlightArray);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setStartPosition, showSide, racketRuleFields, formValues.lHSGoal, formValues.rHSGoal]);
 
@@ -564,6 +571,9 @@ const ERRacket = () => {
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial LHS
                           jsonTree={jsonTreeRep}
+                          //shouldDoHighlight={ shouldHighlightArray.length < 1 ? true : false }
+                          shouldDoHighlight={ false }
+                          myIndex={ "static" }
                           /*
                           ref = {() => {
                             const newRef = React.createRef();
@@ -597,8 +607,9 @@ const ERRacket = () => {
                       </Row>
 
                       {/* Dynamically Added Racket and Rule Fields */}
-                      {racketRuleFields.LHS.map((field, index) =>
-                        field.deleted ? null : (
+                      {racketRuleFields.LHS.map((field, index) => {
+                        console.log(`field: ${field.equation}; index ${index}`)
+                        return field.deleted ? null : (
                           <Row
                             className="racket-rule-row"
                             key={`LHS-field-${index}`}
@@ -623,6 +634,9 @@ const ERRacket = () => {
                               //attempting to pass jsonTree to Persistent Pad
                               //temporarily adding LHS[index] assuming that will give us the current line
                               jsonTree={racketRuleFields.LHS[index].jsonTree ? racketRuleFields.LHS[index].jsonTree : jsonTreeRep}
+                              //shouldDoHighlight={ shouldHighlightArray[index + 1] }
+                              shouldDoHighlight={true}
+                              myIndex={ index }
                               /*
                               ref = {() => {
                                 const newRef = React.createRef();
@@ -666,7 +680,7 @@ const ERRacket = () => {
                             </Form.Group>
                           </Row>
                         )
-                      )}
+})}
                     </div>
                   )}
 
@@ -788,7 +802,7 @@ const ERRacket = () => {
                       )}
                     </div>
                   )}
-                </div>
+                </div> 
 
                 <div className="button-row-wrap">
                   <Row className="button-row">
