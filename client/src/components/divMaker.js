@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import ID2NODE from "./PersistentPad"; // Steve's addition based on Galen's idea
 
+/*
 function enrich(expr) {
   if (expr === null || expr === undefined || expr === "") {
     return;
@@ -36,7 +37,8 @@ function enrich(expr) {
     }
   }
 }
-
+  */
+/*
 function subChildIDS(expr) {
   if (expr === null || expr === undefined || expr === "") {
     return;
@@ -47,6 +49,7 @@ function subChildIDS(expr) {
     subChildIDS(child);
   }
 }
+  */
 
 function getClassNames(e, selected) {
   return ["node", selected.id === e.id ? "highlight" : "no-highlight"].join(" ");
@@ -107,7 +110,7 @@ function recurse(e, selected) {
 
 export default function DivMakerComponent({ expr, selected, origTree }) {
   const prevOrigTree = useRef();
-
+/*
   useEffect(() => {
     if (prevOrigTree.current !== origTree) {
       enrich(expr, origTree); // Only call enrich if origTree has changed
@@ -115,8 +118,8 @@ export default function DivMakerComponent({ expr, selected, origTree }) {
       prevOrigTree.current = origTree; // Update prevOrigTree to the new origTree
     }
   }, [origTree, expr]); // Run this effect when origTree or expr changes
+  */
 
-  console.log(expr);  // Log expr after modifications
-
+  console.log("front end tree", recurse(expr, selected));  // Log expr after modifications
   return recurse(expr, selected);  // Return the result of the recurse function
 }

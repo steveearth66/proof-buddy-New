@@ -3,6 +3,20 @@ import { handleServiceError } from "../utils/serviceErrorHandling";
 
 const API_GATEWAY = "/api/v1/proof";
 
+// this function used to convert children list to id list rather than nodes
+/*
+const subChildIDS = (expr) => {
+  if (expr === null || expr === undefined || expr === "") {
+    return;
+  }
+  for (let i = 0; i < expr.children.length; i++) {
+    let child = expr.children[i];
+    expr.children[i] = child.startPosition;
+    subChildIDS(child);
+  }
+};
+*/
+
 /**
  * Check the proof goal.
  *
@@ -15,6 +29,9 @@ const checkGoal = async (goal) => {
       `${API_GATEWAY}/check-goal`,
       goal
     );
+    //console.log("before", response.data); // checking to see if we can change nodes to id's here
+    //subChildIDS(response.data.jsonTree);
+    console.log("after", response.data); // checking to see if backend successfully changed children to id's
     return response.data;
   } catch (error) {
     handleServiceError(error, "Error during goal validation:");
