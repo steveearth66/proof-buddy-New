@@ -30,7 +30,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
   // Steve's addition based on Galen's idea
   //let [expr, setExpr] = useState(null);
   //let [selected, setSelected] = useState(null);
-  const [selected, setSelected] = useState(jsonTree);
+  const [selected, setSelected] = useState(0); // changing selected from node to it's ID
   let origTree = jsonTree; // will this save tree? is having const bad if it changes later for next racket expr?
 
    useDoubleClick({
@@ -208,18 +208,6 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     [returnedText]
   );
 
-  /* old highlighting. might be deprecated once switch to arrow controls
-  const updateHighlight = useCallback(
-    (position) => {
-      const start = position;
-      const end = getEndIndex(start);
-      const highlightedText = returnedText.substring(start, end + 1);
-      setHighlightedText(highlightedText);
-      setSelectionRange({ start, end });
-    },
-    [getEndIndex, returnedText]
-  );
-  */
   const checkAndGetQuotient = (selectedText) => {
     const start = returnedText.indexOf(selectedText);
     const end = start + selectedText.length;
@@ -231,23 +219,6 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
       return selectedText;
     }
   };
-
-  /* old highlighting. might be deprecated once switch to arrow controls
-  const clearHighlight = (e) => {
-    e.preventDefault();
-    setHighlightedText("");
-
-    onHighlightChange(-1);
-    const savedHighlights = JSON.parse(
-      sessionStorage.getItem("highlights") || "[]"
-    );
-    const newHighlights = savedHighlights.filter(
-      (highlight) =>
-        !(highlight.equation === equation && highlight.side === side)
-    );
-    sessionStorage.setItem("highlights", JSON.stringify(newHighlights));
-  };
-  */
 
   const replaceSelection = useCallback(
     (equation, selectionRange, replacement) => {
@@ -367,91 +338,27 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     selectionRange,
     collapsedSelection
   ]);
-/* Galen's original code
-useEffect(() => {
-    let handleKeyUp = (e) => {
-      if (selected === null) {
-        // should only happen on first render; might be unnecessary
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        // up selects parent expression
-        // if no parent, don't change
-        setSelected((curSelected) =>
-          curSelected.parent === null ? curSelected : curSelected.parent,
-        );
-      } else if (e.key === "ArrowDown") {
-        // down selects first child value/expression
-        // if no children, don't change
-        setSelected((curSelected) =>
-          curSelected.children.length === 0
-            ? curSelected
-            : curSelected.children[0],
-        );
-      } else if (e.key === "ArrowLeft") {
-        // left selects left sibling value/expression
-        // if no left sib, don't change
-        setSelected((curSelected) =>
-          curSelected.leftSib === null ? curSelected : curSelected.leftSib,
-        );
-      } else if (e.key === "ArrowRight") {
-        // right selects right sibling value/expression
-        // if no right sib, don't change
-        setSelected((curSelected) =>
-          curSelected.rightSib === null ? curSelected : curSelected.rightSib,
-        );
-      }
-    };
-    document.addEventListener("keyup", handleKeyUp);
-    return () => {
-      document.removeEventListener("keyup", handleKeyUp);
-    };
-  }, [selected]);
-*/
 
-// take a id and a tree and returns node with that id
-const ID2Node = useCallback((NodeId, tree) => {
-  // Base case: if the tree is empty or no tree node
-  if (!tree) return null;
-  if (Number.isInteger(tree)) {
-    tree = ID2Node(tree, origTree); // if the tree is just an ID, convert it to a node
-  }
-  if (isNaN(NodeId)) {
-    NodeId = NodeId.id; // if the id was passed as a node, convert it to an ID
-  }
-
-  // If the current node has the matching ID, return it
-  if (tree.id === NodeId) {
-    return tree;
-  }
-
-  // Recursively search through the children of the current node
-  for (let child of tree.children) {
-    const result = ID2Node(child, origTree); // Recursive call on the child
-    if (result) return result; // If found, return the result
-  }
-
-  // Return null if the node was not found
-  return null;
-}, [origTree]);
-
+//should no longer need ID2Node with the new jsonTree dictionary structure
+//so this is the attempted rewrite with the new jsonTree dictionary structure
+//newSelected will be the ID of the next node, 
 const handleKeyUp = useCallback((e) => {
-	if (!selected) return;
+	// if (!selected) return;
 
-	const newSelected = { ...selected };
+	let newSelected = selected; //defaulting to currNode
 
 	if (e.key === "ArrowUp") {
-        newSelected.parent = ID2Node(newSelected.parent, origTree) || newSelected;
-    } else if (e.key === "ArrowDown") {
-		newSelected.children = (newSelected.children[0]) || newSelected;
+    newSelected = origTree[newSelected].parent || newSelected;
+  } else if (e.key === "ArrowDown") {
+    newSelected = origTree[newSelected].children[0] || newSelected;
 	} else if (e.key === "ArrowLeft") {
-		newSelected.leftSib = ID2Node(newSelected.leftSib, origTree) || newSelected;
+    newSelected = origTree[newSelected].leftSib || newSelected;
 	} else if (e.key === "ArrowRight") {
-		newSelected.rightSib = ID2Node(newSelected.rightSib, origTree) || newSelected;
+		newSelected = origTree[newSelected].rightSib || newSelected;
 	}
 
 	setSelected(newSelected);
-}, [selected, ID2Node, origTree]);
+}, [selected, origTree]);
 
 useEffect(() => {
   	document.addEventListener("keyup", handleKeyUp);
@@ -464,7 +371,7 @@ useEffect(() => {
   return (
     <Col xs={8}>
       <div ref={padRef} >
-      <DivMakerComponent expr={jsonTree} selected={selected} origTree={origTree} />
+        <DivMakerComponent expr={jsonTree} selected={selected} origTree={origTree} />
       </div>
     </Col>
   );

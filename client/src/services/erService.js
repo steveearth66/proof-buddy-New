@@ -31,7 +31,7 @@ const checkGoal = async (goal) => {
     );
     //console.log("before", response.data); // checking to see if we can change nodes to id's here
     //subChildIDS(response.data.jsonTree);
-    console.log("after", response.data); // checking to see if backend successfully changed children to id's
+    //console.log("after", response.data); // checking to see if backend successfully changed children to id's
     return response.data;
   } catch (error) {
     handleServiceError(error, "Error during goal validation:");
