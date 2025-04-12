@@ -30,6 +30,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
   // Steve's addition based on Galen's idea
   //let [expr, setExpr] = useState(null);
   //let [selected, setSelected] = useState(null);
+  const [isActive, setIsActive] = useState(false);
   const [selected, setSelected] = useState(0); // changing selected from node to it's ID
   let origTree = jsonTree; // will this save tree? is having const bad if it changes later for next racket expr?
 
@@ -344,6 +345,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
 //newSelected will be the ID of the next node, 
 const handleKeyUp = useCallback((e) => {
 	// if (!selected) return;
+  if (!isActive) return; // Only run if this pad is active
 
 	let newSelected = selected; //defaulting to currNode
 
@@ -358,21 +360,40 @@ const handleKeyUp = useCallback((e) => {
 	}
 
 	setSelected(newSelected);
-}, [selected, origTree]);
+}, [isActive, selected, origTree]);
 
 useEffect(() => {
-  	document.addEventListener("keyup", handleKeyUp);
-  	return () => {
-    	document.removeEventListener("keyup", handleKeyUp);
-    };
+  const activatePad = () => setIsActive(true); // Mark this pad as active
+  const deactivatePad = () => setIsActive(false); // Mark this pad as inactive
+
+  // // Add focus and blur listeners to the pad
+  const padElement = padRef.current;
+  if (padElement) {
+    padElement.addEventListener("focus", activatePad);
+    padElement.addEventListener("blur", deactivatePad);
+  }
+
+  // Add keyup listener
+  document.addEventListener("keyup", handleKeyUp);
+
+  return () => {
+    if (padElement) {
+      padElement.removeEventListener("focus", activatePad);
+      padElement.removeEventListener("blur", deactivatePad);
+    }
+    document.removeEventListener("keyup", handleKeyUp);
+  };
 }, [handleKeyUp]);
 
-// */
-  return (
-    <Col xs={8}>
-      <div ref={padRef} >
-        <DivMakerComponent expr={jsonTree} selected={selected} origTree={origTree} />
-      </div>
-    </Col>
-  );
+return (
+  <Col xs={8}>
+    <div
+      ref={padRef}
+      tabIndex={0} // Make the div focusable
+      onClick={() => setIsActive(true)} // Mark as active on click
+    >
+      <DivMakerComponent expr={jsonTree} selected={selected} origTree={origTree} />
+    </div>
+  </Col>
+);
 }

@@ -1,9 +1,8 @@
 // DivMaker.js
-
-// Update getClassNames to use the unique ID when checking the selected node:
+// working
 function getClassNames(e, selected, prefix) {
-  const uniqueId = `${prefix}-${e.startPosition}`;
-  return ["node", selected === uniqueId ? "highlight" : "no-highlight"].join(" ");
+  // const uniqueId = `${prefix}-${e.startPosition}`;
+  return ["node", selected === e.startPosition ? "highlight" : "no-highlight"].join(" ");
 }
 
 /*
@@ -18,7 +17,7 @@ function recurse(e, selected, jsonDict, prefix) {
   }
 
   // Create a new object based on 'e' (we use a spread operator for clarity)
-  const node = { ...e };
+  const node = Object.create(e);
 
   // Ensure that 'children' is an array; if not, set it to an empty array
   if (!node.children) {
