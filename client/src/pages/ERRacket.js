@@ -98,6 +98,33 @@ const ERRacket = () => {
     alert("We are stilling working on proof submission!");
   };
 
+  const [rows, setRows] = useState([
+    { editableColumn1: "", editableColumn2: "", validity: "X" } // Initial row
+  ]);
+  
+  const addRow = () => {
+    setRows([...rows, { editableColumn1: "", editableColumn2: "", validity: "X" }]);
+  };
+  
+  const deleteRow = (index = -1) => {
+    if (index === -1) {
+      // Remove the last row
+      setRows(rows.slice(0, -1));
+    } else {
+      // Remove the row at the specified index
+      setRows(rows.filter((_, i) => i !== index));
+    }
+  };
+
+  const exportGridValues = () => {
+    const gridValues = rows.map((row) => [
+      row.editableColumn1,
+      row.editableColumn2,
+      row.validity
+    ]);
+    console.log(gridValues); // Replace with actual export logic
+  };
+
   const { handleSubmit } = useFormSubmit(
     isFormValid,
     setValidated,
@@ -470,6 +497,7 @@ const ERRacket = () => {
           </div>
 
           <div className="form-bottom-part">
+            {/* switch to __ side btn */}
             <Row className="switch-btn-wrap">
               <Col>
                 <Button
@@ -484,286 +512,93 @@ const ERRacket = () => {
                 </Button>
               </Col>
             </Row>
+            {/* Main Grid */}
+            {rows.map((row, index) => (
+              <Row className="main-grid" key={index}>
+                {/* Column 1: Editable */}
+                <Col md="5">
+                  <Form.Floating className="mb-3">
+                    <Form.Control
+                      id={`editableColumn1-${index}`}
+                      name={`editableColumn1-${index}`}
+                      type="text"
+                      placeholder="Editable Column 1"
+                      value={row.editableColumn1}
+                      onChange={(e) => {
+                        const updatedRows = [...rows];
+                        updatedRows[index].editableColumn1 = e.target.value;
+                        setRows(updatedRows);
+                      }}
+                      required
+                    />
+                    <label htmlFor={`editableColumn1-${index}`}>Statement</label>
+                  </Form.Floating>
+                </Col>
 
-            {!isGoalChecked[showSide] && (
-              <Row className="goal-btn-wrap">
-                <Button
-                  className="orange-btn"
-                  onClick={() =>
-                    checkGoal(
-                      showSide,
-                      formValues[`${showSide[0].toLowerCase()}HSGoal`],
-                      formValues.proofName,
-                      formValues.proofTag,
-                      formValues.lHSGoal,
-                      formValues.rHSGoal
-                    )
-                  }
-                >
-                  Check {showSide} Goal
-                </Button>
+                {/* Column 2: Editable */}
+                <Col md="3">
+                  <Form.Floating className="mb-3">
+                    <Form.Control
+                      id={`editableColumn2-${index}`}
+                      name={`editableColumn2-${index}`}
+                      type="text"
+                      placeholder="Rule"
+                      value={row.editableColumn2}
+                      onChange={(e) => {
+                        const updatedRows = [...rows];
+                        updatedRows[index].editableColumn2 = e.target.value;
+                        setRows(updatedRows);
+                      }}
+                      required
+                    />
+                    <label htmlFor={`editableColumn2-${index}`}>Rule</label>
+                  </Form.Floating>
+                </Col>
+                {/* Column 3:Validity */}
+                <Col md="1">
+                  <Form.Floating className="mb-3">
+                    <Form.Control
+                      id="readOnlyColumn4"
+                      name="readOnlyColumn4"
+                      type="text"
+                      placeholder="Validity"
+                      value={formValues.readOnlyColumn4 || "X"}
+                      readOnly
+                    />
+                    <label htmlFor="readOnlyColumn4">Validity</label>
+                  </Form.Floating>
+                </Col>
+                {/* Column 3: Validate Button */}
+                <Col md="2" className="d-flex align-items-center">
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      console.log(`Validate Row ${index + 1}`);
+                    }}
+                  >
+                    Validate
+                  </Button>
+                </Col>
               </Row>
-            )}
+            ))}
 
-            {isGoalChecked[showSide] && (
-              <div className="racket-rule-container-wrap">
-                <div className="racket-rule-wrap" id="racket-rule">
-                  {serverError && (
-                    <Alert variant={"danger"}>{serverError}</Alert>
-                  )}
-
-                  {racketErrors.length > 0 && (
-                    <Alert variant={"danger"} className="scroll-error">
-                      {racketErrors.map((error, index) => (
-                        <span key={`racket-error-${index}`}>{error}</span>
-                      ))}
-                    </Alert>
-                  )}
-
-                  {proofComplete && (
-                    <Alert variant={"success"}>Proof Complete!</Alert>
-                  )}
-
-                  {showSide === "LHS" && (
-                    <div className="racket-rule-lhs" id="racket-rule-lhs">
-                      {/* Static Row Always Present */}
-                      {/* When a saved proof is loaded a static premise should not be rendered. I suggest having a checker and only call this code if it returns true. */}
-                      <Row className="racket-rule-row">
-                        <PersistentPad
-                          equation={formValues.lHSGoal}
-                          onHighlightChange={(startPosition) => {
-                            handleHighlight(startPosition);
-                            setCurrentRacket(formValues.lHSGoal);
-                            handleChange({
-                              target: {
-                                name: "proofCurrentLHSGoal",
-                                value: formValues.lHSGoal
-                              }
-                            });
-                            setLeftPremise({
-                              racket: formValues.lHSGoal,
-                              rule: "Premise",
-                              startPosition
-                            });
-                          }}
-                          side={showSide}
-                          //attempting to pass jsonTree to Persistent Pad to initial LHS
-                          jsonTree={jsonTreeRep}
-                        />
-
-                        <Form.Group
-                          as={Col}
-                          md="4"
-                          className="er-proof-premise"
-                        >
-                          <Form.Floating className="mb-3">
-                            <Form.Control
-                              id="eRProofLHSPremise"
-                              name="proofeRProofLHSPremise"
-                              type="text"
-                              value="Premise"
-                              placeholder="LHS Premise"
-                              onChange={handleChange}
-                              readOnly
-                            />
-                            <label htmlFor="eRProofLHSPremise">
-                              LHS Premise
-                            </label>
-                          </Form.Floating>
-                        </Form.Group>
-                      </Row>
-
-                      {/* Dynamically Added Racket and Rule Fields */}
-                      {racketRuleFields.LHS.map((field, index) =>
-                        field.deleted ? null : (
-                          <Row
-                            className="racket-rule-row"
-                            key={`LHS-field-${index}`}
-                          >
-                            <PersistentPad
-                              equation={field.racket}
-                              onHighlightChange={(startPosition) => {
-                                handleHighlight(startPosition);
-                                setCurrentRacket(
-                                  racketRuleFields.LHS.slice(-2)[0].racket
-                                );
-                                handleFieldChange(
-                                  showSide,
-                                  index,
-                                  "racket",
-                                  field.racket,
-                                  startPosition
-                                );
-                              }}
-                              side={showSide}
-                              //attempting to pass jsonTree to Persistent Pad
-                              //temporarily adding LHS[index] assuming that will give us the current line
-                              jsonTree={racketRuleFields.LHS[index].jsonTree ? racketRuleFields.LHS[index].jsonTree : jsonTreeRep}
-                            />
-
-                            <Form.Group
-                              as={Col}
-                              md="4"
-                              className="er-proof-rule"
-                            >
-                              <Form.Floating className="mb-3">
-                                <Form.Control
-                                  id={`eRProofLHSRule-${index}`}
-                                  name={`eRProofLHSRule_${index}`}
-                                  type="text"
-                                  placeholder="LHS Rule"
-                                  value={field.rule}
-                                  onChange={(e) =>
-                                    handleFieldChange(
-                                      showSide,
-                                      index,
-                                      "rule",
-                                      e.target.value
-                                    )
-                                  }
-                                  isInvalid={!!validationErrors.LHS[index]}
-                                  required
-                                />
-                                <label htmlFor={`eRProofLHSRule-${index}`}>
-                                  LHS Rule
-                                </label>
-                                <Form.Control.Feedback type="invalid" tooltip>
-                                  {validationErrors.LHS[index]}
-                                </Form.Control.Feedback>
-                              </Form.Floating>
-                            </Form.Group>
-                          </Row>
-                        )
-                      )}
-                    </div>
-                  )}
-
-                  {showSide === "RHS" && (
-                    <div className="racket-rule-rhs" id="racket-rule-rhs">
-                      {/* Static Row Always Present */}
-                      {/* When a saved proof is loaded a static premise should not be rendered. I suggest having a checker and only call this code if it returns true. */}
-                      <Row className="racket-rule-row">
-                        <PersistentPad
-                          equation={formValues.rHSGoal}
-                          onHighlightChange={(startPosition) => {
-                            handleHighlight(startPosition);
-                            setCurrentRacket(formValues.rHSGoal);
-                            handleChange({
-                              target: {
-                                name: "proofCurrentRHSGoal",
-                                value: formValues.rHSGoal
-                              }
-                            });
-                            setRightPremise({
-                              racket: formValues.rHSGoal,
-                              rule: "Premise",
-                              startPosition
-                            });
-                          }}
-                          side={showSide}
-                          //attempting to pass jsonTree to Persistent Pad to initial RHS
-                          jsonTree={jsonTreeRep}
-                        />
-
-                        <Form.Group
-                          as={Col}
-                          md="4"
-                          className="er-proof-premise"
-                        >
-                          <Form.Floating className="mb-3">
-                            <Form.Control
-                              id="eRProofRHSPremise"
-                              name="proofeRProofRHSPremise"
-                              type="text"
-                              value="Premise"
-                              placeholder="RHS Premise"
-                              onChange={handleChange}
-                              readOnly
-                            />
-                            <label htmlFor="eRProofRHSPremise">
-                              RHS Premise
-                            </label>
-                          </Form.Floating>
-                        </Form.Group>
-                      </Row>
-
-                      {/* Dynamically Added Racket and Rule Fields */}
-                      {racketRuleFields.RHS.map((field, index) =>
-                        field.deleted ? null : (
-                          <Row
-                            className="racket-rule-row"
-                            key={`RHS-field-${index}`}
-                          >
-                            <PersistentPad
-                              equation={field.racket}
-                              onHighlightChange={(startPosition) => {
-                                handleHighlight(startPosition);
-                                setCurrentRacket(
-                                  racketRuleFields.RHS.slice(-2)[0].racket
-                                );
-                                handleFieldChange(
-                                  showSide,
-                                  index,
-                                  "racket",
-                                  field.racket,
-                                  startPosition
-                                );
-                              }}
-                              side={showSide}
-                              //attempting to pass jsonTree to Persistent Pad
-                              //temporarily adding RHS[index] assuming that will give us the current line
-                              jsonTree={racketRuleFields.RHS[index].jsonTree ? racketRuleFields.RHS[index].jsonTree : jsonTreeRep}
-                            />
-
-                            <Form.Group
-                              as={Col}
-                              md="4"
-                              className="er-proof-rule"
-                            >
-                              <Form.Floating className="mb-3">
-                                <Form.Control
-                                  id={`eRProofRHSRule-${index}`}
-                                  name={`eRProofRHSRule_${index}`}
-                                  type="text"
-                                  placeholder="RHS Rule"
-                                  value={field.rule}
-                                  onChange={(e) =>
-                                    handleFieldChange(
-                                      showSide,
-                                      index,
-                                      "rule",
-                                      e.target.value
-                                    )
-                                  }
-                                  isInvalid={!!validationErrors.RHS[index]}
-                                  required
-                                />
-                                <label htmlFor={`eRProofRHSRule-${index}`}>
-                                  RHS Rule
-                                </label>
-                                <Form.Control.Feedback type="invalid" tooltip>
-                                  {validationErrors.RHS[index]}
-                                </Form.Control.Feedback>
-                              </Form.Floating>
-                            </Form.Group>
-                          </Row>
-                        )
-                      )}
-                    </div>
-                  )}
-                </div>
-
+                {/* footer (delete line, generate, and operations) */}
                 <div className="button-row-wrap">
                   <Row className="button-row">
-                    <Col md="8">
+                    <Col md="3" className="rules-btn-grp">
                       <Button
                         className="orange-btn delete-btn"
-                        onClick={() => deleteLastLine(showSide)}
-                      >
+                        onClick={addRow}>
+                        Add Row
+                      </Button>
+                      <Button
+                        className="orange-btn delete-btn"
+                        onClick={() => deleteRow()}>
                         Delete Line
                       </Button>
                     </Col>
-                    <Col md="4" className="rules-btn-grp">
+                    <Col md="5"></Col>
+                    <Col md="3" className="rules-btn-grp">
                       <Button
                         className="orange-btn green-btn"
                         onClick={() => {
@@ -787,7 +622,6 @@ const ERRacket = () => {
                     </Col>
                   </Row>
                 </div>
-
                 <div className="proof-opr-wrap">
                   <Row className="proof-oprs">
                     <Dropdown
@@ -811,8 +645,6 @@ const ERRacket = () => {
                     </Dropdown>
                   </Row>
                 </div>
-              </div>
-            )}
           </div>
         </Form>
       </Container>
