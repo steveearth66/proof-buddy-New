@@ -343,54 +343,56 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
 //should no longer need ID2Node with the new jsonTree dictionary structure
 //so this is the attempted rewrite with the new jsonTree dictionary structure
 //newSelected will be the ID of the next node, 
-const handleKeyUp = useCallback((e) => {
+const handleKeyDown = useCallback((e) => {
 	// if (!selected) return;
   if (!isActive) return; // Only run if this pad is active
 
 	let newSelected = selected; //defaulting to currNode
 
-	if (e.key === "ArrowUp") {
-    newSelected = origTree[newSelected].parent || newSelected;
+  if (e.key === "ArrowUp") {
+    e.preventDefault();
+    newSelected = origTree[newSelected].parent ?? newSelected;
   } else if (e.key === "ArrowDown") {
-    newSelected = origTree[newSelected].children[0] || newSelected;
-	} else if (e.key === "ArrowLeft") {
-    newSelected = origTree[newSelected].leftSib || newSelected;
-	} else if (e.key === "ArrowRight") {
-		newSelected = origTree[newSelected].rightSib || newSelected;
-	}
+    e.preventDefault();
+    newSelected = origTree[newSelected].children[0] ?? newSelected;
+  } else if (e.key === "ArrowLeft") {
+    newSelected = origTree[newSelected].leftSib ?? newSelected;
+  } else if (e.key === "ArrowRight") {
+    newSelected = origTree[newSelected].rightSib ?? newSelected;
+  }
 
 	setSelected(newSelected);
 }, [isActive, selected, origTree]);
 
 useEffect(() => {
-  const activatePad = () => setIsActive(true); // Mark this pad as active
-  const deactivatePad = () => setIsActive(false); // Mark this pad as inactive
-
-  // // Add focus and blur listeners to the pad
   const padElement = padRef.current;
-  if (padElement) {
-    padElement.addEventListener("focus", activatePad);
-    padElement.addEventListener("blur", deactivatePad);
-  }
 
-  // Add keyup listener
-  document.addEventListener("keyup", handleKeyUp);
+  const handleKeyDownWrapper = (e) => {
+    if (isActive) {
+      handleKeyDown(e); // Call your existing keydown logic
+    }
+  };
+
+  if (padElement) {
+    padElement.addEventListener("keydown", handleKeyDownWrapper);
+  }
 
   return () => {
     if (padElement) {
-      padElement.removeEventListener("focus", activatePad);
-      padElement.removeEventListener("blur", deactivatePad);
+      padElement.removeEventListener("keydown", handleKeyDownWrapper);
     }
-    document.removeEventListener("keyup", handleKeyUp);
   };
-}, [handleKeyUp]);
+}, [isActive, handleKeyDown]);
 
 return (
   <Col xs={8}>
     <div
       ref={padRef}
       tabIndex={0} // Make the div focusable
+      onFocus={() => setIsActive(true)} // Mark as active on focus
+      onBlur={() => setIsActive(false)} // Mark as inactive on blur
       onClick={() => setIsActive(true)} // Mark as active on click
+      // onKeyDown={(e) => handleKeyDown(e)} // Handle keypresses directly
     >
       <DivMakerComponent expr={jsonTree} selected={selected} origTree={origTree} />
     </div>
