@@ -142,3 +142,6 @@ db.sqlite3
 
 # Cypress cache
 .cypress/
+
+# Cypress test credentials
+cypress.env.json
