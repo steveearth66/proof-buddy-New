@@ -393,6 +393,8 @@ return (
       onBlur={() => setIsActive(false)} // Mark as inactive on blur
       onClick={() => setIsActive(true)} // Mark as active on click
       // onKeyDown={(e) => handleKeyDown(e)} // Handle keypresses directly
+      // need to add linenumber parameter in the call below
+      // which is currently in apply_rule function via response.data.lineNum of racketapi/view.py a
     >
       <DivMakerComponent expr={jsonTree} selected={selected} origTree={origTree} />
     </div>
