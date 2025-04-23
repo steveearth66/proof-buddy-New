@@ -1,6 +1,6 @@
 describe('Home Page', () => {
   it('loads successfully', () => {
-    cy.visit('http://localhost:3000/');
+    cy.visit('/');
     cy.contains('Proof Buddy');
   })
 })
