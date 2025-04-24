@@ -384,6 +384,10 @@ def addSibs(jsontree:dict)->None:
 # e.g. myDict[6]["children"] = [8, 12] where the children are identified by their start positions (essentially acting as node IDs)
 def makeJson(ractree:Node)->dict:
     jsontree = addChildren(ractree)
+
+    if jsontree == {}:
+        return jsontree
+    
     jsontree[0]["parent"] = None
     addParent(jsontree)
     addSibs(jsontree)
