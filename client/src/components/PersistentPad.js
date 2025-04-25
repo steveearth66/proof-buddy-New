@@ -5,7 +5,7 @@ import Col from "react-bootstrap/Col";
 import { useCollapsing } from "../hooks/useCollapsing";
 import DivMakerComponent from "./divMaker"; // Steve's addition based on Galen's idea
 
-export default function PersistentPad({ equation, onHighlightChange, side, jsonTree }) {
+export default function PersistentPad({ equation, onHighlightChange, side, jsonTree, lineNumber }) {
   // attempting to console log the jsonTree
   //console.log("jsonTree rep:", jsonTree)
   const [highlightedText, setHighlightedText] = useState("");
@@ -394,7 +394,7 @@ return (
       onClick={() => setIsActive(true)} // Mark as active on click
       // onKeyDown={(e) => handleKeyDown(e)} // Handle keypresses directly
     >
-      <DivMakerComponent expr={jsonTree} selected={selected} origTree={origTree} />
+      <DivMakerComponent expr={jsonTree} selected={selected} origTree={origTree} lineNumber={lineNumber} />
     </div>
   </Col>
 );

@@ -59,6 +59,7 @@ const ERRacket = () => {
   ] = useGoalCheck(handleChange);
   const [startPosition, setStartPosition] = useState(0);
   const [currentRacket, setCurrentRacket] = useState("");
+  const [localLineNumber, setLocalLineNumber] = useState(null); // State for lineNumber
   const [
     racketRuleFields,
     addFieldWithApiCheck,
@@ -73,7 +74,8 @@ const ERRacket = () => {
     substituteFieldWithApiCheck,
     substitutionErrors,
     loadRacketProof,
-    sendProofComplete
+    sendProofComplete,
+    lineNumber
   ] = useRacketRuleFields(
     startPosition,
     currentRacket,
@@ -187,6 +189,14 @@ const ERRacket = () => {
       });
     }
   }, [formValues.lHSGoal, formValues.rHSGoal]);
+
+  // Update localLineNumber when lineNumber changes
+  useEffect(() => {
+    if (lineNumber !== null && lineNumber !== undefined) {
+      console.log("Updated lineNumber in ERRacket.js:", lineNumber);
+      setLocalLineNumber(lineNumber); // Update the local state
+    }
+  }, [lineNumber]);
 
   useEffect(() => {
     const removeBlankRackets = () => {
@@ -767,6 +777,7 @@ const ERRacket = () => {
                       <Button
                         className="orange-btn green-btn"
                         onClick={() => {
+                          console.log("cuurent line? (ERRacket.js):", lineNumber);
                           addFieldWithApiCheck(showSide);
                           //racketRuleFields?.LHS[0]?.jsonTree && console.log("the tree is: ", racketRuleFields.LHS[0].jsonTree);                          
                           if (showSide === "LHS") {
