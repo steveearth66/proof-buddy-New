@@ -31,7 +31,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
     RHS: []
   });
   const [substitutionErrors, setSubstitutionErrors] = useState([]);
-  const [lineNumber, setLineNumber] = useState(null); // Initialize lineNumber
+  const [lineNumber, setLineNumber] = useState(0); // Initialize lineNumber
 
   // Function to update the showSubstitution state
   const updateShowSubstitution = () => {
