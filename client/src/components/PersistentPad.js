@@ -362,6 +362,7 @@ const handleKeyDown = useCallback((e) => {
   }
 
 	setSelected(newSelected);
+  onHighlightChange(newSelected);
 }, [isActive, selected, origTree]);
 
 useEffect(() => {
