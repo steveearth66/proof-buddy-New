@@ -28,9 +28,6 @@ def apply_rule(request):
     json_data = request.data
     proof = get_or_set_proof(user)
 
-     # this jsonTree was being returned in the old
-    jsonTree = makeJson(ERProofLine(json_data["currentRacket"]).exprTree)
-
     is_p_one_active = json_data["side"] == "LHS"
     proof_one: ERProof = proof["proofOne"]
     proof_two: ERProof = proof["proofTwo"]
