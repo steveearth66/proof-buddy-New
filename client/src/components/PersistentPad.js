@@ -47,7 +47,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
       setRestoredPress(false);
       e.stopPropagation();
       e.preventDefault();
-      handelSelection();
+      handleSelection();
     },
     ref: padRef,
     latency: 250
@@ -82,7 +82,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     }
   };
 
-  const handelSelection = () => {
+  const handleSelection = () => {
     try {
       setHighlightedText("");
       const range = window.getSelection().getRangeAt(0);
@@ -90,7 +90,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
       const endOffset = range.endOffset;
 
       const selectionRange = { start: startOffset, end: endOffset };
-      handelHighlight(selectionRange);
+      handleHighlight(selectionRange);
     } catch (error) {
       console.error("Error while highlighting selection: ", error);
     }
@@ -145,7 +145,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     }
   };
 
-  const handelHighlight = (selectionRange) => {
+  const handleHighlight = (selectionRange) => {
     const selectedPart = findSelectionParenthesis(returnedText, selectionRange);
     if (!checkParenthesisConsistency(selectedPart)) {
       const highlighted = checkAndGetQuotient(
