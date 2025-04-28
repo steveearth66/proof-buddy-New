@@ -22,6 +22,7 @@ import copy
 
 User = get_user_model()
 
+
 @api_view(["POST"])
 def apply_rule(request):
     user = request.user
@@ -68,8 +69,8 @@ def apply_rule(request):
 
     save_proof_to_cache(user, proof)
 
-    return Response(
-        {"isValid": is_valid, "racket": racket_str, "errors": errors, "jsonTree": jsonTree, "lineNumber": len(current_proof.proofLines)},
+    return Response(  #attempting to pass a linenumber to the front end
+        {"isValid": is_valid, "racket": racket_str, "errors": errors, "jsonTree": jsonTree, "lineNum" : len(proof["currentProof"].proofLines)},
         status=status.HTTP_200_OK,
     )
 
