@@ -22,14 +22,15 @@ import copy
 
 User = get_user_model()
 
-
 @api_view(["POST"])
 def apply_rule(request):
     user = request.user
     json_data = request.data
     proof = get_or_set_proof(user)
-    # initial test to see if racket_dict can be sent to front end
+
+     # this jsonTree was being returned in the old
     jsonTree = makeJson(ERProofLine(json_data["currentRacket"]).exprTree)
+
     is_p_one_active = json_data["side"] == "LHS"
     proof_one: ERProof = proof["proofOne"]
     proof_two: ERProof = proof["proofTwo"]
@@ -65,12 +66,16 @@ def apply_rule(request):
     racket_str = (
         current_proof.getPrevRacket() if is_valid else "Error generating racket"
     )
+
+    # this jsonTree is of the last proofline after the rule is applied
+    jsonTree = makeJson(current_proof.proofLines[-1].exprTree)
+
     errors, proof = get_errors_and_clear(proof)
 
     save_proof_to_cache(user, proof)
 
-    return Response(  #attempting to pass a linenumber to the front end
-        {"isValid": is_valid, "racket": racket_str, "errors": errors, "jsonTree": jsonTree, "lineNum" : len(proof["currentProof"].proofLines)},
+    return Response(
+        {"isValid": is_valid, "racket": racket_str, "errors": errors, "jsonTree": jsonTree, "lineNum": len(current_proof.proofLines)},
         status=status.HTTP_200_OK,
     )
 

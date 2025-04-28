@@ -147,7 +147,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
                 ...prevFields,
                 [side]: [
                   ...prevFields[side],
-                  { racket: '', rule: '', deleted: false, errors: [] }
+                  { racket: '', jsonTree: {}, rule: '', deleted: false, errors: [] }
                 ]
               }));
               
@@ -189,7 +189,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
           ...prevFields,
           [side]: [
             ...prevFields[side],
-            { racket: '', rule: '', deleted: false }
+            { racket: '', jsonTree: {}, rule: '', deleted: false }
           ]
         }));
       }

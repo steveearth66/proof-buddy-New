@@ -5,7 +5,7 @@ import Col from "react-bootstrap/Col";
 import { useCollapsing } from "../hooks/useCollapsing";
 import DivMakerComponent from "./divMaker"; // Steve's addition based on Galen's idea
 
-export default function PersistentPad({ equation, onHighlightChange, side, jsonTree, lineNumber }) {
+export default function PersistentPad({ equation, onHighlightChange, side, jsonTree }) {
   // attempting to console log the jsonTree
   //console.log("jsonTree rep:", jsonTree)
   const [highlightedText, setHighlightedText] = useState("");
@@ -362,7 +362,7 @@ const handleKeyDown = useCallback((e) => {
   }
 
 	setSelected(newSelected);
-  onHighlightChange(newSelected)
+  onHighlightChange(newSelected);
 }, [isActive, selected, origTree]);
 
 useEffect(() => {
@@ -394,10 +394,8 @@ return (
       onBlur={() => setIsActive(false)} // Mark as inactive on blur
       onClick={() => setIsActive(true)} // Mark as active on click
       // onKeyDown={(e) => handleKeyDown(e)} // Handle keypresses directly
-      // need to add linenumber parameter in the call below
-      // which is currently in apply_rule function via response.data.lineNum of racketapi/view.py a
     >
-      <DivMakerComponent expr={jsonTree} selected={selected} origTree={origTree} lineNumber={lineNumber} />
+      <DivMakerComponent expr={jsonTree} selected={selected} origTree={origTree} />
     </div>
   </Col>
 );
