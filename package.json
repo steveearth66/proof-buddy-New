@@ -1,5 +1,6 @@
 {
   "devDependencies": {
-    "cypress": "^14.3.0"
+    "cypress": "^14.3.2",
+    "start-server-and-test": "^2.0.11"
   }
 }

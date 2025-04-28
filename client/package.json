@@ -21,7 +21,10 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
+    "frontend": "react-scripts start",
+    "cypress:e2e": "cypress run --project=..",
+    "start": "start-server-and-test frontend http://localhost:3000 cypress:e2e",
+    "start:frontend": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
@@ -46,10 +49,12 @@
   },
   "devDependencies": {
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
+    "cypress": "^14.3.2",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.2.1",
     "eslint-plugin-react": "^7.35.0",
-    "prettier": "3.2.5"
+    "prettier": "3.2.5",
+    "start-server-and-test": "^2.0.11"
   }
 }
