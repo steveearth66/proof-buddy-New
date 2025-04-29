@@ -42,6 +42,8 @@ const ERRacket = () => {
     rHSGoal: ""
   };
 
+  var justHighlighted = false; // Variable to track if a highlight has been made
+
   const [showSide, toggleSide] = useToggleSide();
   const [formValues, handleChange] = useInputState(initialValues);
   const [validationMessages, handleBlur, setAllTouched, isFormValid] =
@@ -542,6 +544,8 @@ const ERRacket = () => {
                         <PersistentPad
                           equation={formValues.lHSGoal}
                           onHighlightChange={(startPosition) => {
+                            console.log("justHighlighted: ", justHighlighted); // DEBUG REMOVE
+                            justHighlighted = true; // Set the highlight flag
                             handleHighlight(startPosition);
                             setCurrentRacket(formValues.lHSGoal);
                             handleChange({
@@ -593,6 +597,8 @@ const ERRacket = () => {
                             <PersistentPad
                               equation={field.racket}
                               onHighlightChange={(startPosition) => {
+                                console.log("justHighlighted: ", justHighlighted); // DEBUG REMOVE
+                                justHighlighted = true; // Set the highlight flag
                                 handleHighlight(startPosition);
                                 setCurrentRacket(
                                   racketRuleFields.LHS.slice(-2)[0].racket
@@ -656,6 +662,8 @@ const ERRacket = () => {
                         <PersistentPad
                           equation={formValues.rHSGoal}
                           onHighlightChange={(startPosition) => {
+                            console.log("justHighlighted: ", justHighlighted); // DEBUG REMOVE
+                            justHighlighted = true; // Set the highlight flag
                             handleHighlight(startPosition);
                             setCurrentRacket(formValues.rHSGoal);
                             handleChange({
@@ -707,6 +715,8 @@ const ERRacket = () => {
                             <PersistentPad
                               equation={field.racket}
                               onHighlightChange={(startPosition) => {
+                                console.log("justHighlighted: ", justHighlighted); // DEBUG REMOVE
+                                justHighlighted = true; // Set the highlight flag
                                 handleHighlight(startPosition);
                                 setCurrentRacket(
                                   racketRuleFields.RHS.slice(-2)[0].racket
@@ -779,6 +789,11 @@ const ERRacket = () => {
                         onClick={() => {
                           console.log("cuurent line? (ERRacket.js):", lineNumber);
                           addFieldWithApiCheck(showSide);
+                          if (!justHighlighted) {
+                            setStartPosition(0); // Reset start position
+                          }
+                          console.log("justHighlighted setting to false"); // DEBUG REMOVE
+                          justHighlighted = false; // Reset the highlight flag
                           //racketRuleFields?.LHS[0]?.jsonTree && console.log("the tree is: ", racketRuleFields.LHS[0].jsonTree);                          
                           if (showSide === "LHS") {
                             setLhsValue(formValues.lHSGoal);

@@ -46,6 +46,7 @@ const checkGoal = async (goal) => {
  * @returns {Promise<Object>} - The response data from the server.
  */
 const racketGeneration = async (payLoad) => {
+  console.log("Payload sent to backend (erService.js):", payLoad); // DEBUG REMOVE
   try {
     const response = await axiosInstance.post(
       `${API_GATEWAY}/er-generate`,
