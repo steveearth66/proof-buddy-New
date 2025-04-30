@@ -81,7 +81,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
 
       try {
         const response = await erService.racketGeneration(payLoad);
-
+        console.log('line num (useRacketRuleFields.js)?:', response.lineNum); // test to see if lineNum shows up in the response
         if (response) return response;
       } catch (error) {
         handleServerError(error);
@@ -153,6 +153,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
                 ...prevErrors,
                 [side]: {}
               }));
+              return racket.lineNum;
             } else {
               setRacketErrors(racket.errors);
               const errors = undeletedProofLines[lastUnDeletedFieldIndex].errors || [];
@@ -190,6 +191,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
             { racket: '', jsonTree: {}, rule: '', deleted: false }
           ]
         }));
+        return null;
       }
     },
     [fetchRacketValue, racketRuleFields, clearServerError]

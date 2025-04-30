@@ -72,7 +72,7 @@ def apply_rule(request):
     save_proof_to_cache(user, proof)
 
     return Response(
-        {"isValid": is_valid, "racket": racket_str, "errors": errors, "jsonTree": jsonTree, "lineNum": len(current_proof.proofLines)},
+        {"isValid": is_valid, "racket": racket_str, "errors": errors, "jsonTree": jsonTree, "lineNum": max(0, len(current_proof.proofLines) - 1)},
         status=status.HTTP_200_OK,
     )
 

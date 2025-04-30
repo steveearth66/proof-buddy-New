@@ -5,7 +5,7 @@ import Col from "react-bootstrap/Col";
 import { useCollapsing } from "../hooks/useCollapsing";
 import DivMakerComponent from "./divMaker"; // Steve's addition based on Galen's idea
 
-export default function PersistentPad({ equation, onHighlightChange, side, jsonTree }) {
+export default function PersistentPad({ equation, onHighlightChange, side, jsonTree, lineNum, editableLineNum }) {
   // attempting to console log the jsonTree
   //console.log("jsonTree rep:", jsonTree)
   const [highlightedText, setHighlightedText] = useState("");
@@ -32,6 +32,9 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
   //let [selected, setSelected] = useState(null);
   const [isActive, setIsActive] = useState(false);
   const [selected, setSelected] = useState(0); // changing selected from node to it's ID
+
+  const staticLineNum = useRef(lineNum).current; // Store the initial lineNum in a ref
+
   let origTree = jsonTree; // will this save tree? is having const bad if it changes later for next racket expr?
 
 /*    useDoubleClick({
@@ -47,7 +50,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
       setRestoredPress(false);
       e.stopPropagation();
       e.preventDefault();
-      handelSelection();
+      handleSelection();
     },
     ref: padRef,
     latency: 250
@@ -82,7 +85,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     }
   };
 
-  const handelSelection = () => {
+  const handleSelection = () => {
     try {
       setHighlightedText("");
       const range = window.getSelection().getRangeAt(0);
@@ -90,7 +93,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
       const endOffset = range.endOffset;
 
       const selectionRange = { start: startOffset, end: endOffset };
-      handelHighlight(selectionRange);
+      handleHighlight(selectionRange);
     } catch (error) {
       console.error("Error while highlighting selection: ", error);
     }
@@ -146,7 +149,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     }
   };
 
-  const handelHighlight = (selectionRange) => {
+  const handleHighlight = (selectionRange) => {
     const selectedPart = findSelectionParenthesis(returnedText, selectionRange);
     if (!checkParenthesisConsistency(selectedPart)) {
       const highlighted = checkAndGetQuotient(
@@ -390,13 +393,18 @@ return (
   <Col xs={8}>
     <div
       ref={padRef}
-      tabIndex={0} // Make the div focusable
-      onFocus={() => setIsActive(true)} // Mark as active on focus
+      id={`persistent-pad-${staticLineNum}`}
+      tabIndex={staticLineNum === editableLineNum ? 0 : -1} // Make the div focusable
+      onFocus={() => {
+        if (staticLineNum === editableLineNum) setIsActive(true)
+      }} // Mark as active on focus
       onBlur={() => setIsActive(false)} // Mark as inactive on blur
-      onClick={() => setIsActive(true)} // Mark as active on click
+      onClick={() => {
+        if (staticLineNum === editableLineNum) setIsActive(true)
+      }} // Mark as active on click
       // onKeyDown={(e) => handleKeyDown(e)} // Handle keypresses directly
     >
-      <DivMakerComponent expr={jsonTree} selected={selected} origTree={origTree} />
+      <DivMakerComponent expr={jsonTree} selected={selected} origTree={origTree} lineNumber={staticLineNum} />
     </div>
   </Col>
 );

@@ -383,6 +383,8 @@ def addSibs(jsontree:dict)->None:
 # the key is the start position of the node in the original string, and the values are dictionaries of the node's data, children, and start position
 # e.g. myDict[6]["children"] = [8, 12] where the children are identified by their start positions (essentially acting as node IDs)
 def makeJson(ractree:Node)->dict:
+    if ractree == None or ractree.data == None or ractree.data == "":
+        return dict() #fixed by Jerry
     jsontree = addChildren(ractree)
 
     if jsontree == {}:
