@@ -34,7 +34,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
   const [selected, setSelected] = useState(0); // changing selected from node to it's ID
   let origTree = jsonTree; // will this save tree? is having const bad if it changes later for next racket expr?
 
-   useDoubleClick({
+/*    useDoubleClick({
     onSingleClick: (e) => {
       e.stopPropagation();
       e.preventDefault();
@@ -51,7 +51,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     },
     ref: padRef,
     latency: 250
-  });
+  }); */
 
   const doCollapse = () => {
     try {
@@ -134,6 +134,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
       }
 
       const highlightedText = returnedText.substring(startWord, endWord);
+      console.log(`Startword: ${startWord}`);
       setHighlightedText(highlightedText);
       onHighlightChange(startWord);
       setSelectionRange({

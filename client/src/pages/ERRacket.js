@@ -774,7 +774,8 @@ const ERRacket = () => {
                           } else {
                             setRhsValue(formValues.rHSGoal);
                           }
-                          if (racketRuleFields[showSide].filter(line => !line.deleted).length != 0)
+                          const numGeneratedLines = racketRuleFields[showSide].filter(line => !line.deleted).length;
+                          if (numGeneratedLines != 0)
                             setStartPosition(0);
                         }}
                       >
