@@ -46,13 +46,13 @@ const checkGoal = async (goal) => {
  * @returns {Promise<Object>} - The response data from the server.
  */
 const racketGeneration = async (payLoad) => {
-  console.log("Payload sent to backend (erService.js):", payLoad); // DEBUG REMOVE
+  //console.log("Payload sent to backend (erService.js):", payLoad); // DEBUG REMOVE
   try {
     const response = await axiosInstance.post(
       `${API_GATEWAY}/er-generate`,
       payLoad
     );
-    console.log("line num?(erService.js):", response.data.lineNum); // test to see if lineNum shows up in the response
+    //console.log("line num?(erService.js):", response.data.lineNum); // test to see if lineNum shows up in the response
     return response.data;
   } catch (error) {
     handleServiceError(error, "Error during racket generation:");

@@ -248,6 +248,7 @@ const ERRacket = () => {
     }
   }, [location]);
 
+  /*
   useEffect(() => {
     console.log("lineNum updated in ERRacket.js:", lineNum); // Logs the correct value after the state update
   }, [lineNum]);
@@ -259,6 +260,7 @@ const ERRacket = () => {
   useEffect(() => {
     console.log("editableLineNum updated in ERRacket.js:", editableLineNum); // Logs the correct value after the state update
   }, [editableLineNum]);
+  */
 
   useEffect(() => {
     if (loadedProof) {
@@ -789,18 +791,24 @@ const ERRacket = () => {
                       <Button
                         className="orange-btn green-btn"
                         onClick={async () => {
-                          const tempNewLine = await addFieldWithApiCheck(showSide);
-                          setLineNum(tempNewLine);
-                          setEditableLineNum(tempNewLine < 1 || tempNewLine === null ? 0 : tempNewLine);
+                          const fullRacket = await addFieldWithApiCheck(showSide);
+                          try {
+                            if (fullRacket.isValid) {
+                              setLineNum(fullRacket.lineNum);
+                              setEditableLineNum(fullRacket.lineNum < 1 || fullRacket.lineNum === null ? 0 : fullRacket.lineNum);
+                              if (racketRuleFields[showSide].filter(line => !line.deleted).length != 0) {
+                                setStartPosition(0);
+                              }
+                            }
+                          } catch (error) {
+                            //console.log("Null because on premise, don't worry about it");
+                          }
                           //console.log("current line? (ERRacket.js):", lineNum);
                           //racketRuleFields?.LHS[0]?.jsonTree && console.log("the tree is: ", racketRuleFields.LHS[0].jsonTree);                          
                           if (showSide === "LHS") {
                             setLhsValue(formValues.lHSGoal);
                           } else {
                             setRhsValue(formValues.rHSGoal);
-                          }
-                          if (racketRuleFields[showSide].filter(line => !line.deleted).length != 0) {
-                            setStartPosition(0);
                           }
                         }}
                       >
