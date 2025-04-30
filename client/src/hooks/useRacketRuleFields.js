@@ -81,7 +81,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
 
       try {
         const response = await erService.racketGeneration(payLoad);
-
+        //console.log('line num (useRacketRuleFields.js)?:', response.lineNum); // test to see if lineNum shows up in the response
         if (response) return response;
       } catch (error) {
         handleServerError(error);
@@ -145,7 +145,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
                 ...prevFields,
                 [side]: [
                   ...prevFields[side],
-                  { racket: '', rule: '', deleted: false, errors: [] }
+                  { racket: '', jsonTree: {}, rule: '', deleted: false, errors: [] }
                 ]
               }));
               
@@ -178,6 +178,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
                 })
               }));
             }
+            return racket;
           } catch (error) {
             logger.error('Failed to fetch racket value:', error);
           }
@@ -187,10 +188,11 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
           ...prevFields,
           [side]: [
             ...prevFields[side],
-            { racket: '', rule: '', deleted: false }
+            { racket: '', jsonTree: {}, rule: '', deleted: false }
           ]
         }));
       }
+      return null;
     },
     [fetchRacketValue, racketRuleFields, clearServerError]
   );

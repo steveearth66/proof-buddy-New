@@ -386,6 +386,10 @@ def makeJson(ractree:Node)->dict:
     if ractree == None or ractree.data == None or ractree.data == "":
         return dict() #fixed by Jerry
     jsontree = addChildren(ractree)
+
+    if jsontree == {}:
+        return jsontree
+    
     jsontree[0]["parent"] = None
     addParent(jsontree)
     addSibs(jsontree)
