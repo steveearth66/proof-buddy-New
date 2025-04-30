@@ -54,7 +54,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     },
     ref: padRef,
     latency: 250
-  }); */
+  });
 
   const doCollapse = () => {
     try {
@@ -174,11 +174,11 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
   const getStartIndex = (selectedText) => {
     return returnedText.indexOf(selectedText);
   };
-/*
+
   const getEndIndex = (selectedText) => {
     return getStartIndex(selectedText) + selectedText.length;
   };
-  */
+  
   const getEndIndex = useCallback(
     (start) => {
       if (returnedText[start] === "(") {
@@ -222,7 +222,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
     } else {
       return selectedText;
     }
-  };
+  };*/
 
   const replaceSelection = useCallback(
     (equation, selectionRange, replacement) => {
