@@ -137,7 +137,6 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
       }
 
       const highlightedText = returnedText.substring(startWord, endWord);
-      console.log(`Startword: ${startWord}`);
       setHighlightedText(highlightedText);
       onHighlightChange(startWord);
       setSelectionRange({
