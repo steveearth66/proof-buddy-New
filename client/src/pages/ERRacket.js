@@ -799,6 +799,9 @@ const ERRacket = () => {
                           } else {
                             setRhsValue(formValues.rHSGoal);
                           }
+                          if (racketRuleFields[showSide].filter(line => !line.deleted).length != 0) {
+                            setStartPosition(0);
+                          }
                         }}
                       >
                         Generate & Check
