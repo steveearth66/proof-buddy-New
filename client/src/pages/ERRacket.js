@@ -792,7 +792,6 @@ const ERRacket = () => {
                           const tempNewLine = await addFieldWithApiCheck(showSide);
                           setLineNum(tempNewLine);
                           setEditableLineNum(tempNewLine < 1 || tempNewLine === null ? 0 : tempNewLine);
-                          setStartPosition(0);
                           //console.log("current line? (ERRacket.js):", lineNum);
                           //racketRuleFields?.LHS[0]?.jsonTree && console.log("the tree is: ", racketRuleFields.LHS[0].jsonTree);                          
                           if (showSide === "LHS") {
