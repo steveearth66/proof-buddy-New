@@ -31,7 +31,6 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
     RHS: []
   });
   const [substitutionErrors, setSubstitutionErrors] = useState([]);
-  const [lineNumber, setLineNumber] = useState(0); // Initialize lineNumber
 
   // Function to update the showSubstitution state
   const updateShowSubstitution = () => {
@@ -82,8 +81,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
 
       try {
         const response = await erService.racketGeneration(payLoad);
-        setLineNumber(response.lineNumber); // test to see if lineNum shows up in the response
-        console.log('line num (useRacketRuleFields.js)?:', response.lineNumber); // test to see if lineNum shows up in the response
+        console.log('line num (useRacketRuleFields.js)?:', response.lineNum); // test to see if lineNum shows up in the response
         if (response) return response;
       } catch (error) {
         handleServerError(error);
@@ -155,6 +153,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
                 ...prevErrors,
                 [side]: {}
               }));
+              return racket.lineNum;
             } else {
               setRacketErrors(racket.errors);
               const errors = undeletedProofLines[lastUnDeletedFieldIndex].errors || [];
@@ -192,6 +191,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
             { racket: '', jsonTree: {}, rule: '', deleted: false }
           ]
         }));
+        return null;
       }
     },
     [fetchRacketValue, racketRuleFields, clearServerError]
@@ -345,8 +345,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
     closeSubstitution,
     substituteFieldWithApiCheck,
     substitutionErrors,
-    loadRacketProof,
-    lineNumber
+    loadRacketProof
   ];
 };
 

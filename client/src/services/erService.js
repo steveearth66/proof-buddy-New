@@ -52,7 +52,7 @@ const racketGeneration = async (payLoad) => {
       `${API_GATEWAY}/er-generate`,
       payLoad
     );
-    console.log("line num?(erService.js):", response.data.lineNumber); // test to see if lineNum shows up in the response
+    console.log("line num?(erService.js):", response.data.lineNum); // test to see if lineNum shows up in the response
     return response.data;
   } catch (error) {
     handleServiceError(error, "Error during racket generation:");

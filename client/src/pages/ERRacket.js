@@ -42,8 +42,6 @@ const ERRacket = () => {
     rHSGoal: ""
   };
 
-  var justHighlighted = false; // Variable to track if a highlight has been made
-
   const [showSide, toggleSide] = useToggleSide();
   const [formValues, handleChange] = useInputState(initialValues);
   const [validationMessages, handleBlur, setAllTouched, isFormValid] =
@@ -61,7 +59,6 @@ const ERRacket = () => {
   ] = useGoalCheck(handleChange);
   const [startPosition, setStartPosition] = useState(0);
   const [currentRacket, setCurrentRacket] = useState("");
-  const [localLineNumber, setLocalLineNumber] = useState(null); // State for lineNumber
   const [
     racketRuleFields,
     addFieldWithApiCheck,
@@ -76,8 +73,7 @@ const ERRacket = () => {
     substituteFieldWithApiCheck,
     substitutionErrors,
     loadRacketProof,
-    sendProofComplete,
-    lineNumber
+    sendProofComplete
   ] = useRacketRuleFields(
     startPosition,
     currentRacket,
@@ -97,6 +93,8 @@ const ERRacket = () => {
   const [rightPremise, setRightPremise] = useState({});
   const [loadedProof, setLoadedProof] = useState(null);
   const location = useLocation();
+  const [lineNum, setLineNum] = useState(0);
+  const [editableLineNum, setEditableLineNum] = useState(0);
 
   const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
@@ -192,14 +190,6 @@ const ERRacket = () => {
     }
   }, [formValues.lHSGoal, formValues.rHSGoal]);
 
-  // Update localLineNumber when lineNumber changes
-  useEffect(() => {
-    if (lineNumber !== null && lineNumber !== undefined) {
-      console.log("Updated lineNumber in ERRacket.js:", lineNumber);
-      setLocalLineNumber(lineNumber); // Update the local state
-    }
-  }, [lineNumber]);
-
   useEffect(() => {
     const removeBlankRackets = () => {
       racketRuleFields.LHS.splice(-1);
@@ -257,6 +247,18 @@ const ERRacket = () => {
       fetchProof(location.state.id);
     }
   }, [location]);
+
+  useEffect(() => {
+    console.log("lineNum updated in ERRacket.js:", lineNum); // Logs the correct value after the state update
+  }, [lineNum]);
+
+  useEffect(() => {
+    console.log("startPosition updated in ERRacket.js", startPosition); // Logs the correct value after the state update
+  }, [startPosition]);
+
+  useEffect(() => {
+    console.log("editableLineNum updated in ERRacket.js:", editableLineNum); // Logs the correct value after the state update
+  }, [editableLineNum]);
 
   useEffect(() => {
     if (loadedProof) {
@@ -544,8 +546,6 @@ const ERRacket = () => {
                         <PersistentPad
                           equation={formValues.lHSGoal}
                           onHighlightChange={(startPosition) => {
-                            console.log("justHighlighted: ", justHighlighted); // DEBUG REMOVE
-                            justHighlighted = true; // Set the highlight flag
                             handleHighlight(startPosition);
                             setCurrentRacket(formValues.lHSGoal);
                             handleChange({
@@ -563,6 +563,8 @@ const ERRacket = () => {
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial LHS
                           jsonTree={jsonTreeRep}
+                          lineNum={lineNum}
+                          editableLineNum={editableLineNum}
                         />
 
                         <Form.Group
@@ -597,8 +599,6 @@ const ERRacket = () => {
                             <PersistentPad
                               equation={field.racket}
                               onHighlightChange={(startPosition) => {
-                                console.log("justHighlighted: ", justHighlighted); // DEBUG REMOVE
-                                justHighlighted = true; // Set the highlight flag
                                 handleHighlight(startPosition);
                                 setCurrentRacket(
                                   racketRuleFields.LHS.slice(-2)[0].racket
@@ -615,6 +615,8 @@ const ERRacket = () => {
                               //attempting to pass jsonTree to Persistent Pad
                               //temporarily adding LHS[index] assuming that will give us the current line
                               jsonTree={racketRuleFields.LHS[index].jsonTree ? racketRuleFields.LHS[index].jsonTree : jsonTreeRep}
+                              lineNum={lineNum + 1}
+                              editableLineNum={editableLineNum}
                             />
 
                             <Form.Group
@@ -662,8 +664,6 @@ const ERRacket = () => {
                         <PersistentPad
                           equation={formValues.rHSGoal}
                           onHighlightChange={(startPosition) => {
-                            console.log("justHighlighted: ", justHighlighted); // DEBUG REMOVE
-                            justHighlighted = true; // Set the highlight flag
                             handleHighlight(startPosition);
                             setCurrentRacket(formValues.rHSGoal);
                             handleChange({
@@ -681,6 +681,8 @@ const ERRacket = () => {
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial RHS
                           jsonTree={jsonTreeRep}
+                          lineNum={lineNum}
+                          editableLineNum={editableLineNum}
                         />
 
                         <Form.Group
@@ -715,8 +717,6 @@ const ERRacket = () => {
                             <PersistentPad
                               equation={field.racket}
                               onHighlightChange={(startPosition) => {
-                                console.log("justHighlighted: ", justHighlighted); // DEBUG REMOVE
-                                justHighlighted = true; // Set the highlight flag
                                 handleHighlight(startPosition);
                                 setCurrentRacket(
                                   racketRuleFields.RHS.slice(-2)[0].racket
@@ -733,6 +733,8 @@ const ERRacket = () => {
                               //attempting to pass jsonTree to Persistent Pad
                               //temporarily adding RHS[index] assuming that will give us the current line
                               jsonTree={racketRuleFields.RHS[index].jsonTree ? racketRuleFields.RHS[index].jsonTree : jsonTreeRep}
+                              lineNum={lineNum + 1}
+                              editableLineNum={editableLineNum}
                             />
 
                             <Form.Group
@@ -786,14 +788,12 @@ const ERRacket = () => {
                     <Col md="4" className="rules-btn-grp">
                       <Button
                         className="orange-btn green-btn"
-                        onClick={() => {
-                          console.log("cuurent line? (ERRacket.js):", lineNumber);
-                          addFieldWithApiCheck(showSide);
-                          if (!justHighlighted) {
-                            setStartPosition(0); // Reset start position
-                          }
-                          console.log("justHighlighted setting to false"); // DEBUG REMOVE
-                          justHighlighted = false; // Reset the highlight flag
+                        onClick={async () => {
+                          const tempNewLine = await addFieldWithApiCheck(showSide);
+                          setLineNum(tempNewLine);
+                          setEditableLineNum(tempNewLine < 1 || tempNewLine === null ? 0 : tempNewLine);
+                          setStartPosition(0);
+                          //console.log("current line? (ERRacket.js):", lineNum);
                           //racketRuleFields?.LHS[0]?.jsonTree && console.log("the tree is: ", racketRuleFields.LHS[0].jsonTree);                          
                           if (showSide === "LHS") {
                             setLhsValue(formValues.lHSGoal);
