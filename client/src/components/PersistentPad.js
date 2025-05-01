@@ -33,7 +33,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
   const [isActive, setIsActive] = useState(false);
   const [selected, setSelected] = useState(0); // changing selected from node to it's ID
 
-  const staticLineNum = useRef(lineNum).current; // Store the initial lineNum in a ref
+  const lineNumRef = useRef(lineNum); // Store the initial lineNum in a ref
 
   let origTree = jsonTree; // will this save tree? is having const bad if it changes later for next racket expr?
 
@@ -392,18 +392,20 @@ return (
   <Col xs={8}>
     <div
       ref={padRef}
-      id={`persistent-pad-${staticLineNum}`}
-      tabIndex={staticLineNum === editableLineNum ? 0 : -1} // Make the div focusable
+      id={`persistent-pad-${lineNumRef.current}`}
+      tabIndex={lineNumRef.current === editableLineNum ? 0 : -1} // Make the div focusable
       onFocus={() => {
-        if (staticLineNum === editableLineNum) setIsActive(true)
+        if (lineNumRef.current === editableLineNum) setIsActive(true)
       }} // Mark as active on focus
       onBlur={() => setIsActive(false)} // Mark as inactive on blur
       onClick={() => {
-        if (staticLineNum === editableLineNum) setIsActive(true)
+        if (lineNumRef.current === editableLineNum) setIsActive(true);
+        console.log(`Line num: ${lineNumRef.current}`); // DEBUG: Delete later
+        console.log(`Editable line num: ${editableLineNum}`); // DEBUG: Delete later
       }} // Mark as active on click
       // onKeyDown={(e) => handleKeyDown(e)} // Handle keypresses directly
     >
-      <DivMakerComponent expr={jsonTree} selected={selected} origTree={origTree} lineNumber={staticLineNum} />
+      <DivMakerComponent expr={jsonTree} selected={selected} origTree={origTree} lineNumber={lineNumRef.current} />
     </div>
   </Col>
 );

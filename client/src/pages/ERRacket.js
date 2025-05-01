@@ -93,8 +93,14 @@ const ERRacket = () => {
   const [rightPremise, setRightPremise] = useState({});
   const [loadedProof, setLoadedProof] = useState(null);
   const location = useLocation();
-  const [lineNum, setLineNum] = useState(0);
-  const [editableLineNum, setEditableLineNum] = useState(0);
+  const [lineNums, setLineNums] = useState({
+    LHS: 0,
+    RHS: 0
+  });
+  const [editableLineNums, setEditableLineNums] = useState({
+    LHS: 0,
+    RHS: 0
+  });
 
   const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
@@ -565,8 +571,8 @@ const ERRacket = () => {
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial LHS
                           jsonTree={jsonTreeRep}
-                          lineNum={lineNum}
-                          editableLineNum={editableLineNum}
+                          lineNum={lineNums[showSide]}
+                          editableLineNum={editableLineNums[showSide]}
                         />
 
                         <Form.Group
@@ -617,8 +623,8 @@ const ERRacket = () => {
                               //attempting to pass jsonTree to Persistent Pad
                               //temporarily adding LHS[index] assuming that will give us the current line
                               jsonTree={racketRuleFields.LHS[index].jsonTree ? racketRuleFields.LHS[index].jsonTree : jsonTreeRep}
-                              lineNum={lineNum + 1}
-                              editableLineNum={editableLineNum}
+                              lineNum={lineNums[showSide] + 1}
+                              editableLineNum={editableLineNums[showSide]}
                             />
 
                             <Form.Group
@@ -683,8 +689,8 @@ const ERRacket = () => {
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial RHS
                           jsonTree={jsonTreeRep}
-                          lineNum={lineNum}
-                          editableLineNum={editableLineNum}
+                          lineNum={lineNums[showSide]}
+                          editableLineNum={editableLineNums[showSide]}
                         />
 
                         <Form.Group
@@ -735,8 +741,8 @@ const ERRacket = () => {
                               //attempting to pass jsonTree to Persistent Pad
                               //temporarily adding RHS[index] assuming that will give us the current line
                               jsonTree={racketRuleFields.RHS[index].jsonTree ? racketRuleFields.RHS[index].jsonTree : jsonTreeRep}
-                              lineNum={lineNum + 1}
-                              editableLineNum={editableLineNum}
+                              lineNum={lineNums[showSide] + 1}
+                              editableLineNum={editableLineNums[showSide]}
                             />
 
                             <Form.Group
@@ -794,8 +800,10 @@ const ERRacket = () => {
                           const fullRacket = await addFieldWithApiCheck(showSide);
                           try {
                             if (fullRacket.isValid) {
-                              setLineNum(fullRacket.lineNum);
-                              setEditableLineNum(fullRacket.lineNum < 1 || fullRacket.lineNum === null ? 0 : fullRacket.lineNum);
+                              setLineNums((prevLineNums) => ({ ...prevLineNums, 
+                                [showSide]: fullRacket.lineNum }));
+                              setEditableLineNums((prevEditableLineNums) => ({ ...prevEditableLineNums,
+                                [showSide]: (fullRacket.lineNum < 1 || fullRacket.lineNum === null ? 0 : fullRacket.lineNum) }));
                               if (racketRuleFields[showSide].filter(line => !line.deleted).length != 0) {
                                 setStartPosition(0);
                               }
