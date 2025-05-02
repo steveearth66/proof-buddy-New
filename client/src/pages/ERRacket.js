@@ -93,10 +93,6 @@ const ERRacket = () => {
   const [rightPremise, setRightPremise] = useState({});
   const [loadedProof, setLoadedProof] = useState(null);
   const location = useLocation();
-  const [lineNums, setLineNums] = useState({
-    LHS: 0,
-    RHS: 0
-  });
   const [editableLineNums, setEditableLineNums] = useState({
     LHS: 0,
     RHS: 0
@@ -570,8 +566,8 @@ const ERRacket = () => {
                           }}
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial LHS
-                          jsonTree={jsonTreeRep}
-                          lineNum={lineNums[showSide]}
+                          jsonTree={jsonTreeRep.LHS}
+                          lineNum={0}
                           editableLineNum={editableLineNums[showSide]}
                         />
 
@@ -598,7 +594,7 @@ const ERRacket = () => {
                       </Row>
 
                       {/* Dynamically Added Racket and Rule Fields */}
-                      {racketRuleFields.LHS.map((field, index) =>
+                      {racketRuleFields.LHS.map((field, index) => 
                         field.deleted ? null : (
                           <Row
                             className="racket-rule-row"
@@ -622,8 +618,8 @@ const ERRacket = () => {
                               side={showSide}
                               //attempting to pass jsonTree to Persistent Pad
                               //temporarily adding LHS[index] assuming that will give us the current line
-                              jsonTree={racketRuleFields.LHS[index].jsonTree ? racketRuleFields.LHS[index].jsonTree : jsonTreeRep}
-                              lineNum={lineNums[showSide] + 1}
+                              jsonTree={racketRuleFields.LHS[index].jsonTree ? racketRuleFields.LHS[index].jsonTree : jsonTreeRep.LHS}
+                              lineNum={index + 1}
                               editableLineNum={editableLineNums[showSide]}
                             />
 
@@ -688,8 +684,8 @@ const ERRacket = () => {
                           }}
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial RHS
-                          jsonTree={jsonTreeRep}
-                          lineNum={lineNums[showSide]}
+                          jsonTree={jsonTreeRep.RHS}
+                          lineNum={0}
                           editableLineNum={editableLineNums[showSide]}
                         />
 
@@ -740,8 +736,8 @@ const ERRacket = () => {
                               side={showSide}
                               //attempting to pass jsonTree to Persistent Pad
                               //temporarily adding RHS[index] assuming that will give us the current line
-                              jsonTree={racketRuleFields.RHS[index].jsonTree ? racketRuleFields.RHS[index].jsonTree : jsonTreeRep}
-                              lineNum={lineNums[showSide] + 1}
+                              jsonTree={racketRuleFields.RHS[index].jsonTree ? racketRuleFields.RHS[index].jsonTree : jsonTreeRep.RHS}
+                              lineNum={index + 1}
                               editableLineNum={editableLineNums[showSide]}
                             />
 
@@ -786,12 +782,12 @@ const ERRacket = () => {
                 <div className="button-row-wrap">
                   <Row className="button-row">
                     <Col md="8">
-                      <Button
+                  {/* <Button
                         className="orange-btn delete-btn"
                         onClick={() => deleteLastLine(showSide)}
                       >
                         Delete Line
-                      </Button>
+                      </Button> */}
                     </Col>
                     <Col md="4" className="rules-btn-grp">
                       <Button
@@ -800,8 +796,6 @@ const ERRacket = () => {
                           const fullRacket = await addFieldWithApiCheck(showSide);
                           try {
                             if (fullRacket.isValid) {
-                              setLineNums((prevLineNums) => ({ ...prevLineNums, 
-                                [showSide]: fullRacket.lineNum }));
                               setEditableLineNums((prevEditableLineNums) => ({ ...prevEditableLineNums,
                                 [showSide]: (fullRacket.lineNum < 1 || fullRacket.lineNum === null ? 0 : fullRacket.lineNum) }));
                               if (racketRuleFields[showSide].filter(line => !line.deleted).length != 0) {

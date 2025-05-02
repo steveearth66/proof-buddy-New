@@ -19,7 +19,7 @@ const useGoalCheck = (handleChange) => {
   const [goalValidationMessage, setGoalValidationMessage] = useState({ LHS: '', RHS: '' });
   const [proofValidationMessage, setProofValidationMessage] = useState({ name: '', tag: '' });
   // adding new variable/function to grap the jsonTree
-  const [jsonTreeRep, setJsonTreeRep] = useState({});
+  const [jsonTreeRep, setJsonTreeRep] = useState({ LHS: {}, RHS: {} });
 
   /**
    * Clears the validation message for a specific goal side (LHS or RHS).
@@ -78,7 +78,7 @@ const useGoalCheck = (handleChange) => {
         setGoalValidationMessage({ ...goalValidationMessage, [side]: '' });
         setProofValidationMessage('');
         // set jsonTreeRep from the result of checkGoal
-        setJsonTreeRep(result.jsonTree);
+        setJsonTreeRep({ ...jsonTreeRep, [side]: result.jsonTree });
       } else {
         setIsGoalChecked({ ...isGoalChecked, [side]: false });
         const errorMessage = result.errors?.length ? result.errors.join('\n') : 'An unknown error occurred.';
