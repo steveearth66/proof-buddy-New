@@ -5,7 +5,7 @@ import Col from "react-bootstrap/Col";
 import { useCollapsing } from "../hooks/useCollapsing";
 import DivMakerComponent from "./divMaker"; // Steve's addition based on Galen's idea
 
-export default function PersistentPad({ equation, onHighlightChange, side, jsonTree, lineNum, editableLineNum }) {
+export default function PersistentPad({ equation, onHighlightChange, side, jsonTree, lineNum, editableLineNum, startPosition }) {
   // attempting to console log the jsonTree
   //console.log("jsonTree rep:", jsonTree)
   const [highlightedText, setHighlightedText] = useState("");
@@ -31,7 +31,7 @@ export default function PersistentPad({ equation, onHighlightChange, side, jsonT
   //let [expr, setExpr] = useState(null);
   //let [selected, setSelected] = useState(null);
   const [isActive, setIsActive] = useState(false);
-  const [selected, setSelected] = useState(0); // changing selected from node to it's ID
+  const [selected, setSelected] = useState(startPosition); // changing selected from node to it's ID
 
   const lineNumRef = useRef(lineNum); // Store the initial lineNum in a ref
 
@@ -400,8 +400,8 @@ return (
       onBlur={() => setIsActive(false)} // Mark as inactive on blur
       onClick={() => {
         if (lineNumRef.current === editableLineNum) setIsActive(true);
-        console.log(`Line num: ${lineNumRef.current}`); // DEBUG: Delete later
-        console.log(`Editable line num: ${editableLineNum}`); // DEBUG: Delete later
+        //console.log(`Line num: ${lineNumRef.current}`); // DEBUG: Delete later
+        //console.log(`Editable line num: ${editableLineNum}`); // DEBUG: Delete later
       }} // Mark as active on click
       // onKeyDown={(e) => handleKeyDown(e)} // Handle keypresses directly
     >

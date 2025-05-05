@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Dropdown from "react-bootstrap/Dropdown";
 import Button from "react-bootstrap/Button";
 import Container from "react-bootstrap/Container";
@@ -58,6 +58,10 @@ const ERRacket = () => {
     jsonTreeRep
   ] = useGoalCheck(handleChange);
   const [startPosition, setStartPosition] = useState(0);
+  const savedStartPositions = useRef({
+    LHS: [],
+    RHS: []
+  });
   const [currentRacket, setCurrentRacket] = useState("");
   const [
     racketRuleFields,
@@ -551,6 +555,7 @@ const ERRacket = () => {
                           equation={formValues.lHSGoal}
                           onHighlightChange={(startPosition) => {
                             handleHighlight(startPosition);
+                            savedStartPositions.current.LHS[0] = startPosition;
                             setCurrentRacket(formValues.lHSGoal);
                             handleChange({
                               target: {
@@ -569,6 +574,7 @@ const ERRacket = () => {
                           jsonTree={jsonTreeRep.LHS}
                           lineNum={0}
                           editableLineNum={editableLineNums[showSide]}
+                          startPosition = {savedStartPositions.current.LHS[0] ?? 0}
                         />
 
                         <Form.Group
@@ -604,6 +610,7 @@ const ERRacket = () => {
                               equation={field.racket}
                               onHighlightChange={(startPosition) => {
                                 handleHighlight(startPosition);
+                                savedStartPositions.current.LHS[index + 1] = startPosition;
                                 setCurrentRacket(
                                   racketRuleFields.LHS.slice(-2)[0].racket
                                 );
@@ -621,6 +628,7 @@ const ERRacket = () => {
                               jsonTree={racketRuleFields.LHS[index].jsonTree ? racketRuleFields.LHS[index].jsonTree : jsonTreeRep.LHS}
                               lineNum={index + 1}
                               editableLineNum={editableLineNums[showSide]}
+                              startPosition = {savedStartPositions.current.LHS[index + 1] ?? 0}
                             />
 
                             <Form.Group
@@ -669,6 +677,7 @@ const ERRacket = () => {
                           equation={formValues.rHSGoal}
                           onHighlightChange={(startPosition) => {
                             handleHighlight(startPosition);
+                            savedStartPositions.current.RHS[0] = startPosition;
                             setCurrentRacket(formValues.rHSGoal);
                             handleChange({
                               target: {
@@ -687,6 +696,7 @@ const ERRacket = () => {
                           jsonTree={jsonTreeRep.RHS}
                           lineNum={0}
                           editableLineNum={editableLineNums[showSide]}
+                          startPosition = {savedStartPositions.current.RHS[0] ?? 0}
                         />
 
                         <Form.Group
@@ -722,6 +732,7 @@ const ERRacket = () => {
                               equation={field.racket}
                               onHighlightChange={(startPosition) => {
                                 handleHighlight(startPosition);
+                                savedStartPositions.current.RHS[index + 1] = startPosition;
                                 setCurrentRacket(
                                   racketRuleFields.RHS.slice(-2)[0].racket
                                 );
@@ -739,6 +750,7 @@ const ERRacket = () => {
                               jsonTree={racketRuleFields.RHS[index].jsonTree ? racketRuleFields.RHS[index].jsonTree : jsonTreeRep.RHS}
                               lineNum={index + 1}
                               editableLineNum={editableLineNums[showSide]}
+                              startPosition = {savedStartPositions.current.RHS[index + 1] ?? 0}
                             />
 
                             <Form.Group
