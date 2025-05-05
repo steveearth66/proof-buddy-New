@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Dropdown from "react-bootstrap/Dropdown";
 import Button from "react-bootstrap/Button";
 import Container from "react-bootstrap/Container";
@@ -58,6 +58,10 @@ const ERRacket = () => {
     jsonTreeRep
   ] = useGoalCheck(handleChange);
   const [startPosition, setStartPosition] = useState(0);
+  const savedStartPositions = useRef({
+    LHS: [],
+    RHS: []
+  });
   const [currentRacket, setCurrentRacket] = useState("");
   const [
     racketRuleFields,
@@ -93,8 +97,10 @@ const ERRacket = () => {
   const [rightPremise, setRightPremise] = useState({});
   const [loadedProof, setLoadedProof] = useState(null);
   const location = useLocation();
-  const [lineNum, setLineNum] = useState(0);
-  const [editableLineNum, setEditableLineNum] = useState(0);
+  const [editableLineNums, setEditableLineNums] = useState({
+    LHS: 0,
+    RHS: 0
+  });
 
   const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
@@ -549,6 +555,7 @@ const ERRacket = () => {
                           equation={formValues.lHSGoal}
                           onHighlightChange={(startPosition) => {
                             handleHighlight(startPosition);
+                            savedStartPositions.current.LHS[0] = startPosition;
                             setCurrentRacket(formValues.lHSGoal);
                             handleChange({
                               target: {
@@ -564,9 +571,10 @@ const ERRacket = () => {
                           }}
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial LHS
-                          jsonTree={jsonTreeRep}
-                          lineNum={lineNum}
-                          editableLineNum={editableLineNum}
+                          jsonTree={jsonTreeRep.LHS}
+                          lineNum={0}
+                          editableLineNum={editableLineNums[showSide]}
+                          startPosition = {savedStartPositions.current.LHS[0] ?? 0}
                         />
 
                         <Form.Group
@@ -592,7 +600,7 @@ const ERRacket = () => {
                       </Row>
 
                       {/* Dynamically Added Racket and Rule Fields */}
-                      {racketRuleFields.LHS.map((field, index) =>
+                      {racketRuleFields.LHS.map((field, index) => 
                         field.deleted ? null : (
                           <Row
                             className="racket-rule-row"
@@ -602,6 +610,7 @@ const ERRacket = () => {
                               equation={field.racket}
                               onHighlightChange={(startPosition) => {
                                 handleHighlight(startPosition);
+                                savedStartPositions.current.LHS[index + 1] = startPosition;
                                 setCurrentRacket(
                                   racketRuleFields.LHS.slice(-2)[0].racket
                                 );
@@ -616,9 +625,10 @@ const ERRacket = () => {
                               side={showSide}
                               //attempting to pass jsonTree to Persistent Pad
                               //temporarily adding LHS[index] assuming that will give us the current line
-                              jsonTree={racketRuleFields.LHS[index].jsonTree ? racketRuleFields.LHS[index].jsonTree : jsonTreeRep}
-                              lineNum={lineNum + 1}
-                              editableLineNum={editableLineNum}
+                              jsonTree={racketRuleFields.LHS[index].jsonTree ? racketRuleFields.LHS[index].jsonTree : jsonTreeRep.LHS}
+                              lineNum={index + 1}
+                              editableLineNum={editableLineNums[showSide]}
+                              startPosition = {savedStartPositions.current.LHS[index + 1] ?? 0}
                             />
 
                             <Form.Group
@@ -667,6 +677,7 @@ const ERRacket = () => {
                           equation={formValues.rHSGoal}
                           onHighlightChange={(startPosition) => {
                             handleHighlight(startPosition);
+                            savedStartPositions.current.RHS[0] = startPosition;
                             setCurrentRacket(formValues.rHSGoal);
                             handleChange({
                               target: {
@@ -682,9 +693,10 @@ const ERRacket = () => {
                           }}
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial RHS
-                          jsonTree={jsonTreeRep}
-                          lineNum={lineNum}
-                          editableLineNum={editableLineNum}
+                          jsonTree={jsonTreeRep.RHS}
+                          lineNum={0}
+                          editableLineNum={editableLineNums[showSide]}
+                          startPosition = {savedStartPositions.current.RHS[0] ?? 0}
                         />
 
                         <Form.Group
@@ -720,6 +732,7 @@ const ERRacket = () => {
                               equation={field.racket}
                               onHighlightChange={(startPosition) => {
                                 handleHighlight(startPosition);
+                                savedStartPositions.current.RHS[index + 1] = startPosition;
                                 setCurrentRacket(
                                   racketRuleFields.RHS.slice(-2)[0].racket
                                 );
@@ -734,9 +747,10 @@ const ERRacket = () => {
                               side={showSide}
                               //attempting to pass jsonTree to Persistent Pad
                               //temporarily adding RHS[index] assuming that will give us the current line
-                              jsonTree={racketRuleFields.RHS[index].jsonTree ? racketRuleFields.RHS[index].jsonTree : jsonTreeRep}
-                              lineNum={lineNum + 1}
-                              editableLineNum={editableLineNum}
+                              jsonTree={racketRuleFields.RHS[index].jsonTree ? racketRuleFields.RHS[index].jsonTree : jsonTreeRep.RHS}
+                              lineNum={index + 1}
+                              editableLineNum={editableLineNums[showSide]}
+                              startPosition = {savedStartPositions.current.RHS[index + 1] ?? 0}
                             />
 
                             <Form.Group
@@ -780,12 +794,12 @@ const ERRacket = () => {
                 <div className="button-row-wrap">
                   <Row className="button-row">
                     <Col md="8">
-                      <Button
+                  {/* <Button
                         className="orange-btn delete-btn"
                         onClick={() => deleteLastLine(showSide)}
                       >
                         Delete Line
-                      </Button>
+                      </Button> */}
                     </Col>
                     <Col md="4" className="rules-btn-grp">
                       <Button
@@ -794,8 +808,8 @@ const ERRacket = () => {
                           const fullRacket = await addFieldWithApiCheck(showSide);
                           try {
                             if (fullRacket.isValid) {
-                              setLineNum(fullRacket.lineNum);
-                              setEditableLineNum(fullRacket.lineNum < 1 || fullRacket.lineNum === null ? 0 : fullRacket.lineNum);
+                              setEditableLineNums((prevEditableLineNums) => ({ ...prevEditableLineNums,
+                                [showSide]: (fullRacket.lineNum < 1 || fullRacket.lineNum === null ? 0 : fullRacket.lineNum) }));
                               if (racketRuleFields[showSide].filter(line => !line.deleted).length != 0) {
                                 setStartPosition(0);
                               }
