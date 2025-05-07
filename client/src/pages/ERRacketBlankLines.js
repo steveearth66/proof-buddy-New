@@ -18,7 +18,7 @@ import { useRacketRuleFields } from "../hooks/useRacketRuleFields";
 import { useCurrentRacketValues } from "../hooks/useCurrentRacketValues";
 import { useFormSubmit } from "../hooks/useFormSubmit";
 import "../scss/_forms.scss";
-import "../scss/_er-racket.scss";
+import "../scss/_er-racket-blank-lines.scss";
 import { useExportToLocalMachine } from "../hooks/useExportToLocalMachine";
 import {
   Definitions,
@@ -92,7 +92,7 @@ const ERRacketBlankLines = () => {
   const [rightPremise, setRightPremise] = useState({});
   const [loadedProof, setLoadedProof] = useState(null);
   const location = useLocation();
-
+  const [userRow, setUserRow] = useState({ num: "", expression: "", rule: "" });
   const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
   };
@@ -487,7 +487,6 @@ const ERRacketBlankLines = () => {
                 </Form.Floating>
               </Form.Group>
             </Row>
-
             <Form.Text
               as={"div"}
               id="formSeparator"
@@ -510,6 +509,30 @@ const ERRacketBlankLines = () => {
                     : "⋘ Switch to Left Hand Side"}
                 </Button>
               </Col>
+              <Col>
+                <div className="proof-opr-wrap">
+                <Dropdown
+                        as={Col}
+                        className="d-inline proof-dropdown-btn proof-operations"
+                      >
+                        <Dropdown.Toggle id="dropdown-autoclose-true">
+                          File Operations
+                        </Dropdown.Toggle>
+
+                        <Dropdown.Menu>
+                          <Dropdown.Item onClick={exportJSON}>
+                            Download Proof
+                          </Dropdown.Item>
+                          <Dropdown.Item href="#">Upload Proof</Dropdown.Item>
+                          <Dropdown.Item onClick={saveProof}>
+                            Save Proof
+                          </Dropdown.Item>
+                          <Dropdown.Item href="#">Submit Proof</Dropdown.Item>
+                        </Dropdown.Menu>
+                      </Dropdown>
+                  </div>
+                </Col>
+
             </Row>
             
             {/* Main Grid */}
@@ -581,10 +604,83 @@ const ERRacketBlankLines = () => {
                 </Col> */}
               </Row>
             ))}
+          </div>
+        </Form>
+      </Container>
+               {/* Floating Footer */}
+          <div className="floating-footer">
+            <Row className="input-row">
+              {/* Column 1: Num */}
+              <Col md="2">
+                <Form.Floating className="mb-3">
+                  <Form.Control
+                    id="userRowNum"
+                    name="userRowNum"
+                    type="text"
+                    placeholder="Num"
+                    value={userRow.num}
+                    onChange={(e) =>
+                      setUserRow({ ...userRow, num: e.target.value })
+                    }
+                  />
+                  <label htmlFor="userRowNum">Num</label>
+                </Form.Floating>
+              </Col>
 
-                {/* footer (delete line, generate, and operations) */}
-                <div className="button-row-wrap">
-                  <Row className="button-row">
+              {/* Column 2: Expression */}
+              <Col md="5">
+                <Form.Floating className="mb-3">
+                  <Form.Control
+                    id="userRowExpression"
+                    name="userRowExpression"
+                    type="text"
+                    placeholder="Expression"
+                    value={userRow.expression}
+                    readOnly
+                  />
+                  <label htmlFor="userRowExpression">Expression</label>
+                </Form.Floating>
+              </Col>
+
+              {/* Column 3: Rule */}
+              <Col md="3">
+                <Form.Floating className="mb-3">
+                  <Form.Control
+                    id="userRowRule"
+                    name="userRowRule"
+                    type="text"
+                    placeholder="Rule"
+                    value={userRow.rule}
+                    readOnly
+                  />
+                  <label htmlFor="userRowRule">Rule</label>
+                </Form.Floating>
+              </Col>
+
+              {/* Column 4: Button */}
+              <Col md="2" className="d-flex align-items-center">
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    const matchingRow = rows.find(
+                      (row, index) => index + 1 === parseInt(userRow.num, 10)
+                    );
+                    if (matchingRow) {
+                      setUserRow({
+                        num: userRow.num,
+                        expression: matchingRow.editableColumn1,
+                        rule: matchingRow.editableColumn2
+                      });
+                    } else {
+                      alert("No matching row found!");
+                    }
+                  }}
+                >
+                  Fill Values
+                </Button>
+              </Col>
+            </Row>
+            <Row className="button-row">
                     <Col md="3" className="rules-btn-grp">
                       <Button
                         className="orange-btn delete-btn"
@@ -621,33 +717,7 @@ const ERRacketBlankLines = () => {
                       </Button>
                     </Col>
                   </Row>
-                </div>
-                <div className="proof-opr-wrap">
-                  <Row className="proof-oprs">
-                    <Dropdown
-                      as={Col}
-                      className="d-inline proof-dropdown-btn proof-operations"
-                    >
-                      <Dropdown.Toggle id="dropdown-autoclose-true">
-                        File Operations
-                      </Dropdown.Toggle>
-
-                      <Dropdown.Menu>
-                        <Dropdown.Item onClick={exportJSON}>
-                          Download Proof
-                        </Dropdown.Item>
-                        <Dropdown.Item href="#">Upload Proof</Dropdown.Item>
-                        <Dropdown.Item onClick={saveProof}>
-                          Save Proof
-                        </Dropdown.Item>
-                        <Dropdown.Item href="#">Submit Proof</Dropdown.Item>
-                      </Dropdown.Menu>
-                    </Dropdown>
-                  </Row>
-                </div>
           </div>
-        </Form>
-      </Container>
     </MainLayout>
   );
 };
