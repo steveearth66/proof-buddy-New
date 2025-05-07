@@ -1,4 +1,5 @@
-from expression_tree.ERProofEngine import ERProof
+from expression_tree.ERProofEngine import ERProof, ERProofLine, ERProofLine
+from expression_tree.ERCommon import makeJson
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -21,12 +22,14 @@ import copy
 
 User = get_user_model()
 
-
 @api_view(["POST"])
 def apply_rule(request):
     user = request.user
     json_data = request.data
     proof = get_or_set_proof(user)
+
+     # this jsonTree was being returned in the old
+    jsonTree = makeJson(ERProofLine(json_data["currentRacket"]).exprTree)
 
     is_p_one_active = json_data["side"] == "LHS"
     proof_one: ERProof = proof["proofOne"]
@@ -63,12 +66,16 @@ def apply_rule(request):
     racket_str = (
         current_proof.getPrevRacket() if is_valid else "Error generating racket"
     )
+
+    # this jsonTree is of the last proofline after the rule is applied
+    jsonTree = makeJson(current_proof.proofLines[-1].exprTree)
+
     errors, proof = get_errors_and_clear(proof)
 
     save_proof_to_cache(user, proof)
 
     return Response(
-        {"isValid": is_valid, "racket": racket_str, "errors": errors},
+        {"isValid": is_valid, "racket": racket_str, "errors": errors, "jsonTree": jsonTree, "lineNum": max(0, len(current_proof.proofLines) - 1)},
         status=status.HTTP_200_OK,
     )
 
@@ -104,6 +111,7 @@ def delete_line(request, side):
 def check_goal(request):
     user = request.user
     json_data = request.data
+    jsonTree = makeJson(ERProofLine(json_data["goal"]).exprTree)
     proof = get_or_set_proof(user)
     user_proof = Proof.objects.filter(
         created_by=user, name=json_data["name"], tag=json_data["tag"]
@@ -132,7 +140,7 @@ def check_goal(request):
 
     save_proof_to_cache(user, proof)
 
-    return Response({"isValid": is_valid, "errors": errors}, status=status.HTTP_200_OK)
+    return Response({"isValid": is_valid, "errors": errors, "jsonTree": jsonTree}, status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])

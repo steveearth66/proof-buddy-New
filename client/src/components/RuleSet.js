@@ -17,14 +17,14 @@ const ruleSet = () => { //just creates a ruleset for the ER Page. If new rules a
     {
       toFrom: "(rest '(a b ... z))",
       fromTo: "'(b ... z)",
-      name: "restLis",
+      name: "restList",
       tags: "rest, quote"
     },
     { toFrom: "(rest (cons x L))", fromTo: "L", name: "rest", tags: "test" },
     {
       toFrom: "‘(x y … z)",
       fromTo: "(cons x ‘(y…z))",
-      name: "quote/cons",
+      name: "consList",
       tags: "test"
     },
     { toFrom: "(if #t x y)", fromTo: "x", name: "if", tags: "test" },

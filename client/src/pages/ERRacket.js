@@ -54,7 +54,8 @@ const ERRacket = () => {
     enhancedHandleChange,
     proofValidationMessage,
     clearProofValidationMessage,
-    loadRacket
+    loadRacket,
+    jsonTreeRep
   ] = useGoalCheck(handleChange);
   const [startPosition, setStartPosition] = useState(0);
   const [currentRacket, setCurrentRacket] = useState("");
@@ -92,6 +93,8 @@ const ERRacket = () => {
   const [rightPremise, setRightPremise] = useState({});
   const [loadedProof, setLoadedProof] = useState(null);
   const location = useLocation();
+  const [lineNum, setLineNum] = useState(0);
+  const [editableLineNum, setEditableLineNum] = useState(0);
 
   const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
@@ -244,6 +247,20 @@ const ERRacket = () => {
       fetchProof(location.state.id);
     }
   }, [location]);
+
+  /*
+  useEffect(() => {
+    console.log("lineNum updated in ERRacket.js:", lineNum); // Logs the correct value after the state update
+  }, [lineNum]);
+
+  useEffect(() => {
+    console.log("startPosition updated in ERRacket.js", startPosition); // Logs the correct value after the state update
+  }, [startPosition]);
+
+  useEffect(() => {
+    console.log("editableLineNum updated in ERRacket.js:", editableLineNum); // Logs the correct value after the state update
+  }, [editableLineNum]);
+  */
 
   useEffect(() => {
     if (loadedProof) {
@@ -546,6 +563,10 @@ const ERRacket = () => {
                             });
                           }}
                           side={showSide}
+                          //attempting to pass jsonTree to Persistent Pad to initial LHS
+                          jsonTree={jsonTreeRep}
+                          lineNum={lineNum}
+                          editableLineNum={editableLineNum}
                         />
 
                         <Form.Group
@@ -593,6 +614,11 @@ const ERRacket = () => {
                                 );
                               }}
                               side={showSide}
+                              //attempting to pass jsonTree to Persistent Pad
+                              //temporarily adding LHS[index] assuming that will give us the current line
+                              jsonTree={racketRuleFields.LHS[index].jsonTree ? racketRuleFields.LHS[index].jsonTree : jsonTreeRep}
+                              lineNum={lineNum + 1}
+                              editableLineNum={editableLineNum}
                             />
 
                             <Form.Group
@@ -655,6 +681,10 @@ const ERRacket = () => {
                             });
                           }}
                           side={showSide}
+                          //attempting to pass jsonTree to Persistent Pad to initial RHS
+                          jsonTree={jsonTreeRep}
+                          lineNum={lineNum}
+                          editableLineNum={editableLineNum}
                         />
 
                         <Form.Group
@@ -702,6 +732,11 @@ const ERRacket = () => {
                                 );
                               }}
                               side={showSide}
+                              //attempting to pass jsonTree to Persistent Pad
+                              //temporarily adding RHS[index] assuming that will give us the current line
+                              jsonTree={racketRuleFields.RHS[index].jsonTree ? racketRuleFields.RHS[index].jsonTree : jsonTreeRep}
+                              lineNum={lineNum + 1}
+                              editableLineNum={editableLineNum}
                             />
 
                             <Form.Group
@@ -755,8 +790,21 @@ const ERRacket = () => {
                     <Col md="4" className="rules-btn-grp">
                       <Button
                         className="orange-btn green-btn"
-                        onClick={() => {
-                          addFieldWithApiCheck(showSide);
+                        onClick={async () => {
+                          const fullRacket = await addFieldWithApiCheck(showSide);
+                          try {
+                            if (fullRacket.isValid) {
+                              setLineNum(fullRacket.lineNum);
+                              setEditableLineNum(fullRacket.lineNum < 1 || fullRacket.lineNum === null ? 0 : fullRacket.lineNum);
+                              if (racketRuleFields[showSide].filter(line => !line.deleted).length != 0) {
+                                setStartPosition(0);
+                              }
+                            }
+                          } catch (error) {
+                            //console.log("Null because on premise, don't worry about it");
+                          }
+                          //console.log("current line? (ERRacket.js):", lineNum);
+                          //racketRuleFields?.LHS[0]?.jsonTree && console.log("the tree is: ", racketRuleFields.LHS[0].jsonTree);                          
                           if (showSide === "LHS") {
                             setLhsValue(formValues.lHSGoal);
                           } else {
