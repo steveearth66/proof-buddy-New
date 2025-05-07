@@ -30,8 +30,8 @@ function recurse(e, selected, jsonDict, prefix) {
   if (Array.isArray(node.children) && node.children.length > 0) {
     return (
       <div className={getClassNames(node, selected, prefix)} id={uniqueId} key={uniqueId}>
-        ({node.children.map((child) => 
-          recurse(jsonDict[child], selected, jsonDict, prefix)
+        {node.data}{node.children.map((child) => // node.data is either ( or '(
+          recurse(jsonDict[child], selected, jsonDict, prefix) // VSCode thinks we're missing a ( but it doesn't matter!
         )})
       </div>
     );

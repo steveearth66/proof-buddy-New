@@ -338,8 +338,7 @@ def Node2Dict(ractree:Node)->dict:
         return dict() #just in case of an error
     resdict = dict()
     #note: None becomes "null" when converted to json
-    #made ( and '( show up as null to be consistent with Galen's version
-    resdict["data"] = ractree.data if (ractree.data != "'(") and (ractree.data != "(") else None
+    resdict["data"] = ractree.data # stop processing ( and '( as None to differentiate between them on the frontend
     resdict["children"]=[]
     resdict["startPosition"]=ractree.startPosition # this might not be necessary since it just replicates the key
     for child in ractree.children:
