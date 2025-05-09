@@ -9,6 +9,7 @@
   border-top: 20px;
 }
 
+
 .er-racket-container {
   .er-racket-form {
     margin-bottom: 10px;
@@ -114,6 +115,7 @@
 
     .form-bottom-part {
       margin-top: 20px;
+      margin-bottom: 150px;
 
       input::selection {
         background-color: var(--selectBGColor);
@@ -143,7 +145,6 @@
           }
         }
       }
-
       .goal-btn-wrap {
         justify-content: center;
         margin-bottom: 20px;

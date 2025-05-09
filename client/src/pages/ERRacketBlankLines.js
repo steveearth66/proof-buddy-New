@@ -19,7 +19,7 @@ import { useCurrentRacketValues } from "../hooks/useCurrentRacketValues";
 import { useFormSubmit } from "../hooks/useFormSubmit";
 import "../scss/_forms.scss";
 import "../scss/_er-racket-blank-lines.scss";
-import { useExportToLocalMachine } from "../hooks/useExportToLocalMachine";
+import { useExportBlankLinesToLocalMachine } from "../hooks/useExportBlankLinesToLocalMachine";
 import {
   Definitions,
   ProofComplete,
@@ -92,17 +92,16 @@ const ERRacketBlankLines = () => {
   const [rightPremise, setRightPremise] = useState({});
   const [loadedProof, setLoadedProof] = useState(null);
   const location = useLocation();
-  const [userRow, setUserRow] = useState({ num: "", expression: "", rule: "" });
-  const handleERRacketSubmission = async () => {
+  const rowObject = { num: "", expression: "", rule: "", validity: false, highlight: 0, highlightLength: 0 };
+  const [userRow, setUserRow] = useState({ ...rowObject });
+    const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
   };
 
-  const [rows, setRows] = useState([
-    { editableColumn1: "", editableColumn2: "", validity: "X" } // Initial row
-  ]);
+  const [rows, setRows] = useState([{ rowObject }]);
   
   const addRow = () => {
-    setRows([...rows, { editableColumn1: "", editableColumn2: "", validity: "X" }]);
+    setRows([...rows, { ...rowObject }]);
   };
   
   const deleteRow = (index = -1) => {
@@ -111,14 +110,14 @@ const ERRacketBlankLines = () => {
       setRows(rows.slice(0, -1));
     } else {
       // Remove the row at the specified index
-      setRows(rows.filter((_, i) => i !== index));
+      setRows((rows || []).filter((_, i) => i !== index));
     }
   };
 
   const exportGridValues = () => {
     const gridValues = rows.map((row) => [
-      row.editableColumn1,
-      row.editableColumn2,
+      row.expression,
+      row.rule,
       row.validity
     ]);
     console.log(gridValues); // Replace with actual export logic
@@ -153,10 +152,48 @@ const ERRacketBlankLines = () => {
     return convertToJSON(EquationalReasoningObject);
   };
 
-  const exportJSON = useExportToLocalMachine(
-    formValues.proofName,
-    convertFormToJSON()
-  );
+  const { exportBlankLinesToLocalMachine } = useExportBlankLinesToLocalMachine(); // Call the hook at the top level
+  const exportJSON = () => {  
+    // Ensure formValues and its properties are defined
+    if (!formValues.proofName || !formValues.proofTag || !formValues.lHSGoal || !formValues.rHSGoal) {
+      alert("Please fill out all required fields before exporting.");
+      return;
+    }
+  
+    exportBlankLinesToLocalMachine({
+      name: formValues.proofName || "Unnamed Proof",
+      tag: formValues.proofTag || "",
+      lhsGoal: formValues.lHSGoal || "No LHS Goal Specified",
+      rhsGoal: formValues.rHSGoal || "No RHS Goal Specified",
+      rows: rows || []
+    });
+  };
+
+  const { readBlankLinesFromFile } = useExportBlankLinesToLocalMachine(); // Call the hook at the top level
+
+  const handleFileUpload = async (file) => {
+    if (file) {
+      try {
+        const data = await readBlankLinesFromFile(file); // Parse the file
+  
+        // Update the `loadedProof` state with the parsed data
+        setLoadedProof({
+          name: data.name || "",
+          tag: data.tag || "",
+          lhs: data.lhsGoal || "",
+          rhs: data.rhsGoal || "",
+          proofLines: [], // fix later
+          isComplete: false // change if needed
+        });
+        setRows(data.rows);
+        } catch (error) {
+        console.error("Error reading file:", error.message);
+        alert("Failed to load the file. Please upload a valid .txt file.");
+      }
+    }
+  };
+
+  const [isBound, setIsBound] = useState(false); // State to track if the num field is bound
 
   const handleHighlight = (startPosition) => {
     setStartPosition(startPosition);
@@ -523,7 +560,16 @@ const ERRacketBlankLines = () => {
                           <Dropdown.Item onClick={exportJSON}>
                             Download Proof
                           </Dropdown.Item>
-                          <Dropdown.Item href="#">Upload Proof</Dropdown.Item>
+                          <Dropdown.Item onClick={() => document.getElementById("uploadProofInput").click()}>
+                            Upload Proof
+                          </Dropdown.Item>
+                          <input
+                            id="uploadProofInput"
+                            type="file"
+                            accept=".txt"
+                            style={{ display: "none" }}
+                            onChange={(e) => handleFileUpload(e.target.files[0])}
+                          />
                           <Dropdown.Item onClick={saveProof}>
                             Save Proof
                           </Dropdown.Item>
@@ -536,74 +582,68 @@ const ERRacketBlankLines = () => {
             </Row>
             
             {/* Main Grid */}
-            {rows.map((row, index) => (
-              <Row className="main-grid" key={index}>
-                {/* Column 1:Line Number */}
-                <Col md="1">
-                  <Form.Floating className="mb-3">
-                    <Form.Control
-                      id={`lineNumber-${index}`}
-                      name={`lineNumber-${index}`}
-                      type="text"
-                      placeholder="Line #"
-                      value={(index + 1).toString().padStart(3, "0")} // Pad the row number with zeros
-                      readOnly
-                    />
-                    <label htmlFor={`lineNumber-${index}`}>Line #</label>
-                  </Form.Floating>
-                </Col>
-                {/* Column 1: Editable */}
-                <Col md="5">
-                  <Form.Floating className="mb-3">
-                    <Form.Control
-                      id={`editableColumn1-${index}`}
-                      name={`editableColumn1-${index}`}
-                      type="text"
-                      placeholder="Editable Column 1"
-                      value={row.editableColumn1}
-                      onChange={(e) => {
-                        const updatedRows = [...rows];
-                        updatedRows[index].editableColumn1 = e.target.value;
-                        setRows(updatedRows);
-                      }}
-                      required
-                    />
-                    <label htmlFor={`editableColumn1-${index}`}>Statement</label>
-                  </Form.Floating>
-                </Col>
+            <div className="main-grid-container">
+              {(rows || []).map((row, index) => (
+                <Row className="main-grid" key={index}>
+                  {/* Column 1: Line Number */}
+                  <Col md="1">
+                    <Form.Floating className="mb-3">
+                      <Form.Control
+                        id={`lineNumber-${index}`}
+                        name={`lineNumber-${index}`}
+                        type="text"
+                        placeholder="Line #"
+                        value={(index + 1).toString().padStart(3, "0")} // Pad the row number with zeros
+                        readOnly
+                      />
+                      <label htmlFor={`lineNumber-${index}`}>Line #</label>
+                    </Form.Floating>
+                  </Col>
 
-                {/* Column 2: Editable */}
-                <Col md="3">
-                  <Form.Floating className="mb-3">
-                    <Form.Control
-                      id={`editableColumn2-${index}`}
-                      name={`editableColumn2-${index}`}
-                      type="text"
-                      placeholder="Rule"
-                      value={row.editableColumn2}
-                      onChange={(e) => {
-                        const updatedRows = [...rows];
-                        updatedRows[index].editableColumn2 = e.target.value;
-                        setRows(updatedRows);
-                      }}
-                      required
-                    />
-                    <label htmlFor={`editableColumn2-${index}`}>Rule</label>
-                  </Form.Floating>
-                </Col>
-                {/* Column 3: Validate Button
-                <Col md="2" className="d-flex align-items-center">
-                  <Button
-                    variant="primary"
-                    onClick={() => {
-                      console.log(`Validate Row ${index + 1}`);
-                    }}
-                  >
-                    Validate
-                  </Button>
-                </Col> */}
-              </Row>
-            ))}
+                  {/* Column 2: Expression */}
+                  <Col md="5">
+                    <Form.Floating className="mb-3">
+                      <Form.Control
+                        id={`expression-${index}`}
+                        name={`expression-${index}`}
+                        type="text"
+                        placeholder="Expression"
+                        value={row.expression}
+                        onChange={(e) => {
+                          const updatedRows = [...rows];
+                          updatedRows[index].expression = e.target.value;
+                          setRows(updatedRows);
+                        }}
+                        readOnly
+                        required
+                      />
+                      <label htmlFor={`expression-${index}`}>Expression</label>
+                    </Form.Floating>
+                  </Col>
+
+                  {/* Column 3: Rule */}
+                  <Col md="3">
+                    <Form.Floating className="mb-3">
+                      <Form.Control
+                        id={`rule-${index}`}
+                        name={`rule-${index}`}
+                        type="text"
+                        placeholder="Rule"
+                        value={row.rule}
+                        onChange={(e) => {
+                          const updatedRows = [...rows];
+                          updatedRows[index].rule = e.target.value;
+                          setRows(updatedRows);
+                        }}
+                        readOnly
+                        required
+                      />
+                      <label htmlFor={`rule-${index}`}>Rule</label>
+                    </Form.Floating>
+                  </Col>
+                </Row>
+              ))}
+            </div>
           </div>
         </Form>
       </Container>
@@ -622,6 +662,7 @@ const ERRacketBlankLines = () => {
                     onChange={(e) =>
                       setUserRow({ ...userRow, num: e.target.value })
                     }
+                    disabled={isBound} // Disable the field when isBound is true
                   />
                   <label htmlFor="userRowNum">Num</label>
                 </Form.Floating>
@@ -636,7 +677,18 @@ const ERRacketBlankLines = () => {
                     type="text"
                     placeholder="Expression"
                     value={userRow.expression}
-                    readOnly
+                    onChange={(e) => {
+                      const updatedExpression = e.target.value;
+                      setUserRow({ ...userRow, expression: updatedExpression });
+
+                      // Automatically update the corresponding row in the grid
+                      const rowIndex = parseInt(userRow.num, 10) - 1;
+                      if (isBound && rowIndex >= 0 && rowIndex < rows.length) {
+                        const updatedRows = [...rows];
+                        updatedRows[rowIndex].expression = updatedExpression;
+                        setRows(updatedRows);
+                      }
+                    }}
                   />
                   <label htmlFor="userRowExpression">Expression</label>
                 </Form.Floating>
@@ -651,7 +703,18 @@ const ERRacketBlankLines = () => {
                     type="text"
                     placeholder="Rule"
                     value={userRow.rule}
-                    readOnly
+                    onChange={(e) => {
+                      const updatedRule = e.target.value;
+                      setUserRow({ ...userRow, rule: updatedRule });
+
+                      // Automatically update the corresponding row in the grid
+                      const rowIndex = parseInt(userRow.num, 10) - 1;
+                      if (isBound && rowIndex >= 0 && rowIndex < rows.length) {
+                        const updatedRows = [...rows];
+                        updatedRows[rowIndex].rule = updatedRule;
+                        setRows(updatedRows);
+                      }
+                    }}
                   />
                   <label htmlFor="userRowRule">Rule</label>
                 </Form.Floating>
@@ -662,21 +725,33 @@ const ERRacketBlankLines = () => {
                 <Button
                   variant="primary"
                   onClick={() => {
-                    const matchingRow = rows.find(
-                      (row, index) => index + 1 === parseInt(userRow.num, 10)
-                    );
-                    if (matchingRow) {
-                      setUserRow({
-                        num: userRow.num,
-                        expression: matchingRow.editableColumn1,
-                        rule: matchingRow.editableColumn2
-                      });
+                    if (!isBound) {
+                      // Fill Values mode
+                      const matchingRow = rows.find(
+                        (row, index) => index + 1 === parseInt(userRow.num, 10)
+                      );
+                      if (matchingRow) {
+                        setUserRow({
+                          num: userRow.num,
+                          expression: matchingRow.expression,
+                          rule: matchingRow.rule
+                        });
+                        setIsBound(true); // Switch to Unbind mode
+                      } else {
+                        alert("No matching row found!");
+                      }
                     } else {
-                      alert("No matching row found!");
+                      // Unbind mode
+                      setUserRow({
+                        num: "",
+                        expression: "",
+                        rule: ""
+                      });
+                      setIsBound(false); // Switch back to Fill Values mode
                     }
                   }}
                 >
-                  Fill Values
+                  {isBound ? "Unbind" : "Fill Values"}
                 </Button>
               </Col>
             </Row>
