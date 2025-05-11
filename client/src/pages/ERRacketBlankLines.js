@@ -92,7 +92,7 @@ const ERRacketBlankLines = () => {
   const [rightPremise, setRightPremise] = useState({});
   const [loadedProof, setLoadedProof] = useState(null);
   const location = useLocation();
-  const rowObject = { num: "", expression: "", rule: "", validity: false, highlight: 0, highlightLength: 0 };
+  const rowObject = { num: "", expression: "", rule: "", validity: false, highlightStartIndex: 0, highlightLength: 0 };
   const [userRow, setUserRow] = useState({ ...rowObject });
     const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
@@ -587,59 +587,35 @@ const ERRacketBlankLines = () => {
                 <Row className="main-grid" key={index}>
                   {/* Column 1: Line Number */}
                   <Col md="1">
-                    <Form.Floating className="mb-3">
-                      <Form.Control
-                        id={`lineNumber-${index}`}
-                        name={`lineNumber-${index}`}
-                        type="text"
-                        placeholder="Line #"
-                        value={(index + 1).toString().padStart(3, "0")} // Pad the row number with zeros
-                        readOnly
-                      />
-                      <label htmlFor={`lineNumber-${index}`}>Line #</label>
-                    </Form.Floating>
+                    <div className="main-grid-column">
+                      {(index + 1).toString().padStart(3, "0")}
+                    </div>
                   </Col>
 
                   {/* Column 2: Expression */}
                   <Col md="5">
-                    <Form.Floating className="mb-3">
-                      <Form.Control
-                        id={`expression-${index}`}
-                        name={`expression-${index}`}
-                        type="text"
-                        placeholder="Expression"
-                        value={row.expression}
-                        onChange={(e) => {
-                          const updatedRows = [...rows];
-                          updatedRows[index].expression = e.target.value;
-                          setRows(updatedRows);
-                        }}
-                        readOnly
-                        required
-                      />
-                      <label htmlFor={`expression-${index}`}>Expression</label>
-                    </Form.Floating>
+                    <div className="main-grid-column">
+                      {Array.from(row.expression).map((char, charIndex) => {
+                        const isHighlighted =
+                          charIndex >= parseInt(row.highlightStartIndex, 10) &&
+                          charIndex < parseInt(row.highlightStartIndex, 10) + parseInt(row.highlightLength, 10);
+                        return (
+                          <span
+                            key={charIndex}
+                            style={{
+                              backgroundColor: isHighlighted ? "yellow" : "transparent"
+                            }}
+                          >
+                            {char}
+                          </span>
+                        );
+                      })}
+                    </div>
                   </Col>
 
                   {/* Column 3: Rule */}
                   <Col md="3">
-                    <Form.Floating className="mb-3">
-                      <Form.Control
-                        id={`rule-${index}`}
-                        name={`rule-${index}`}
-                        type="text"
-                        placeholder="Rule"
-                        value={row.rule}
-                        onChange={(e) => {
-                          const updatedRows = [...rows];
-                          updatedRows[index].rule = e.target.value;
-                          setRows(updatedRows);
-                        }}
-                        readOnly
-                        required
-                      />
-                      <label htmlFor={`rule-${index}`}>Rule</label>
-                    </Form.Floating>
+                    <div className="main-grid-column">{row.rule}</div>
                   </Col>
                 </Row>
               ))}
@@ -651,7 +627,7 @@ const ERRacketBlankLines = () => {
           <div className="floating-footer">
             <Row className="input-row">
               {/* Column 1: Num */}
-              <Col md="2">
+              <Col md="1">
                 <Form.Floating className="mb-3">
                   <Form.Control
                     id="userRowNum"
@@ -695,7 +671,7 @@ const ERRacketBlankLines = () => {
               </Col>
 
               {/* Column 3: Rule */}
-              <Col md="3">
+              <Col md="2">
                 <Form.Floating className="mb-3">
                   <Form.Control
                     id="userRowRule"
@@ -719,8 +695,56 @@ const ERRacketBlankLines = () => {
                   <label htmlFor="userRowRule">Rule</label>
                 </Form.Floating>
               </Col>
+                {/* Highlight Start Index */}
+              <Col md="1">
+                <Form.Floating className="mb-3">
+                  <Form.Control
+                    id="highlightStartIndex"
+                    name="highlightStartIndex"
+                    type="number"
+                    placeholder="Start Index"
+                    value={userRow.highlightStartIndex}
+                    onChange={(e) => {
+                      const updatedHighlightStartIndex = e.target.value;
+                      setUserRow({ ...userRow, highlightStartIndex: updatedHighlightStartIndex });
 
-              {/* Column 4: Button */}
+                      // Automatically update the corresponding row in the grid
+                      const rowIndex = parseInt(userRow.num, 10) - 1;
+                      if (isBound && rowIndex >= 0 && rowIndex < rows.length) {
+                        const updatedRows = [...rows];
+                        updatedRows[rowIndex].highlightStartIndex = updatedHighlightStartIndex;
+                        setRows(updatedRows);
+                      }
+                    }}                  />
+                  <label htmlFor="highlightStartIndex">Start Index</label>
+                </Form.Floating>
+              </Col>
+
+              {/* Highlight Length */}
+              <Col md="1">
+                <Form.Floating className="mb-3">
+                  <Form.Control
+                    id="highlightLength"
+                    name="highlightLength"
+                    type="number"
+                    placeholder="Length"
+                    value={userRow.highlightLength}
+                    onChange={(e) => {
+                      const updatedHighlightLength = e.target.value;
+                      setUserRow({ ...userRow, highlightLength: updatedHighlightLength });
+
+                      // Automatically update the corresponding row in the grid
+                      const rowIndex = parseInt(userRow.num, 10) - 1;
+                      if (isBound && rowIndex >= 0 && rowIndex < rows.length) {
+                        const updatedRows = [...rows];
+                        updatedRows[rowIndex].highlightLength = updatedHighlightLength;
+                        setRows(updatedRows);
+                      }
+                    }}                  />
+                  <label htmlFor="highlightLength">Length</label>
+                </Form.Floating>
+              </Col>
+              {/* Column 6: Button */}
               <Col md="2" className="d-flex align-items-center">
                 <Button
                   variant="primary"
@@ -734,7 +758,9 @@ const ERRacketBlankLines = () => {
                         setUserRow({
                           num: userRow.num,
                           expression: matchingRow.expression,
-                          rule: matchingRow.rule
+                          rule: matchingRow.rule,
+                          highlightStartIndex: matchingRow.highlightStartIndex,
+                          highlightLength: matchingRow.highlightLength
                         });
                         setIsBound(true); // Switch to Unbind mode
                       } else {
@@ -745,7 +771,9 @@ const ERRacketBlankLines = () => {
                       setUserRow({
                         num: "",
                         expression: "",
-                        rule: ""
+                        rule: "",
+                        highlightStartIndex: 0,
+                        highlightLength: 0
                       });
                       setIsBound(false); // Switch back to Fill Values mode
                     }

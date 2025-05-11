@@ -9,6 +9,33 @@
   border-top: 20px;
 }
 
+.main-grid-container {
+  margin-top: 20px;
+}
+
+.main-grid {
+  margin-bottom: 10px; /* Add spacing between rows */
+}
+
+.main-grid-column {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%; /* Ensure consistent height */
+  padding: 10px;
+  border: 1px solid #ced4da; /* Match the border of Form.Control */
+  border-radius: 4px; /* Match the border radius */
+  background-color: #f8f9fa; /* Match the background color */
+  font-size: 1rem; /* Match the font size */
+  color: #495057; /* Match the text color */
+  white-space: pre-wrap; /* Preserve spaces and line breaks */
+  overflow-wrap: break-word; /* Handle long text */
+}
+
+.main-grid-column span {
+  display: inline-block;
+  padding: 0 2px; /* Add padding to highlighted text */
+}
 
 .er-racket-container {
   .er-racket-form {
