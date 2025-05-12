@@ -301,7 +301,9 @@ class Math(Rule):
         """
         try:
             # Convert the node's math expression to a sympy expression
+            print(f"ruleNode.children: {ruleNode.children}")
             math_expr = sp.sympify(ruleNode.mathStr())
+            print(f"Math expression: {math_expr}")
 
             # Ensure the expression only contains valid math symbols
             if not ruleNode.allMath():
