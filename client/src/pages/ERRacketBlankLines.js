@@ -98,8 +98,7 @@ const ERRacketBlankLines = () => {
     alert("We are stilling working on proof submission!");
   };
 
-  const [rows, setRows] = useState([{ rowObject }]);
-  
+  const [rows, setRows] = useState([ rowObject ]);
   const addRow = () => {
     setRows([...rows, { ...rowObject }]);
   };
