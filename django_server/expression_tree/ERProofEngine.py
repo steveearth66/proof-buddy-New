@@ -155,8 +155,14 @@ class ERProofLine:
         if targetNode == None:
             self.errLog.append(
                 f'Could not find Token with starting index {startPos}')
+        ruleCategory = rule.split(' ')[0]
+        rule = rule.split(' ')[-1]
+        if ruleCategory not in ['eval', 'apply']:
+            self.errLog.append("Rule must start with 'eval' or 'apply'")
         if not (rule in ruleSet.keys()):
             self.errLog.append(f'Could not find rule associated with {rule}')
+        elif ruleCategory == 'apply' and not isinstance(ruleSet[rule], UDF):
+            self.errLog.append("Cannot apply a built-in racket function")
         # checking to see if highlighted portion is within a quote
         if "'(" in targetNode.ancestors():
             self.errLog.append(f"Cannot apply rules within a quoted expression")
