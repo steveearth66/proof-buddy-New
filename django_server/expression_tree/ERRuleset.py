@@ -250,7 +250,7 @@ class ConsList(Rule):
         return lNode
 
 # TODO: this needs to be generalized to use a python math library and normal forms, and not just the 4 basic operations
-
+'''
 class Math(Rule):
     def __init__(self):
         super().__init__('math')
@@ -289,6 +289,64 @@ class Math(Rule):
             newdata = str(newname)
             newtype = RacType((None, Type.INT))
         return Node(data=newdata, tokenType=newtype, name=newname)  # converting node
+'''
+class Math(Rule):
+    def __init__(self):
+        super().__init__('math')
+        self.mathSymbols = ARITHMETIC + ["expt", "<=", ">=", "quotient", "remainder"]
+
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        """
+        Check if the math rule can be applied to the given node.
+        """
+        try:
+            # Convert the node's math expression to a sympy expression
+            math_expr = sp.sympify(ruleNode.mathStr())
+
+            # Ensure the expression only contains valid math symbols
+            if not ruleNode.allMath():
+                invalid_funcs = ruleNode.funcSet() - set(self.mathSymbols)
+                return False, f"Math rule requires only math functions, but found {invalid_funcs}"
+
+            # Additional checks for specific cases
+            if ruleNode.children[0].data == "expt" and math_expr.is_negative:
+                return False, "Exponentiation with negative arguments results in non-integer output"
+            if ruleNode.children[0].data == "expt" and math_expr == sp.sympify("0**0"):
+                return False, "0^0 is undefined"
+
+            return True, "Math.isApplicable() PASS"
+        except Exception as e:
+            return False, f"Error in isApplicable: {str(e)}"
+
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        """
+        Apply the math rule and compute the result using sympy.
+        """
+        try:
+            # Convert the node's math expression to a sympy expression
+            math_expr = sp.sympify(ruleNode.mathStr())
+
+            # Simplify the expression to its normal form
+            simplified_expr = sp.simplify(math_expr)
+
+            # Convert the simplified expression back to a string
+            newdata = str(simplified_expr)
+
+            # Determine the type of the result (e.g., INT or BOOL)
+            if simplified_expr.is_Boolean:
+                newtype = RacType((None, Type.BOOL))
+                newname = "#t" if simplified_expr else "#f"
+            elif simplified_expr.is_Integer:
+                newtype = RacType((None, Type.INT))
+                newname = int(simplified_expr)
+            else:
+                newtype = RacType((None, Type.ANY))
+                newname = str(simplified_expr)
+
+            # Create a new node with the simplified expression
+            return Node(data=newdata, tokenType=newtype, name=newname)
+        except Exception as e:
+            raise ValueError(f"Error in insertSubstitution: {str(e)}")
 
 
 class Logic(Rule):
