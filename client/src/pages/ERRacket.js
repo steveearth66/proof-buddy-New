@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Dropdown from "react-bootstrap/Dropdown";
 import Button from "react-bootstrap/Button";
 import Container from "react-bootstrap/Container";
@@ -30,7 +30,6 @@ import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import erService from "../services/erService";
 import { useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
-import { use } from "react";
 
 /**
  * ERRacket component facilitates the Equational Reasoning Racket.
@@ -59,6 +58,10 @@ const ERRacket = () => {
     jsonTreeRep
   ] = useGoalCheck(handleChange);
   const [startPosition, setStartPosition] = useState(0);
+  const savedStartPositions = useRef({
+    LHS: [],
+    RHS: []
+  });
   const [currentRacket, setCurrentRacket] = useState("");
   const [
     racketRuleFields,
@@ -94,8 +97,10 @@ const ERRacket = () => {
   const [rightPremise, setRightPremise] = useState({});
   const [loadedProof, setLoadedProof] = useState(null);
   const location = useLocation();
-  const [editableLineNumLHS, setEditableLineNumLHS] = useState(0);
-  const [editableLineNumRHS, setEditableLineNumRHS] = useState(0);
+  const [editableLineNums, setEditableLineNums] = useState({
+    LHS: 0,
+    RHS: 0
+  });
 
   const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
@@ -249,17 +254,19 @@ const ERRacket = () => {
     }
   }, [location]);
 
+  /*
+  useEffect(() => {
+    console.log("lineNum updated in ERRacket.js:", lineNum); // Logs the correct value after the state update
+  }, [lineNum]);
+
   useEffect(() => {
     console.log("startPosition updated in ERRacket.js", startPosition); // Logs the correct value after the state update
   }, [startPosition]);
 
   useEffect(() => {
-    console.log("editableLineNumLHS updated in ERRacket.js:", editableLineNumLHS); // Logs the correct value after the state update
-  }, [editableLineNumLHS]);
-
-  useEffect(() => {
-    console.log("editableLineNumRHS updated in ERRacket.js:", editableLineNumRHS); // Logs the correct value after the state update
-  }, [editableLineNumRHS]);
+    console.log("editableLineNum updated in ERRacket.js:", editableLineNum); // Logs the correct value after the state update
+  }, [editableLineNum]);
+  */
 
   useEffect(() => {
     if (loadedProof) {
@@ -548,6 +555,7 @@ const ERRacket = () => {
                           equation={formValues.lHSGoal}
                           onHighlightChange={(startPosition) => {
                             handleHighlight(startPosition);
+                            savedStartPositions.current.LHS[0] = startPosition;
                             setCurrentRacket(formValues.lHSGoal);
                             handleChange({
                               target: {
@@ -563,9 +571,10 @@ const ERRacket = () => {
                           }}
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial LHS
-                          jsonTree={jsonTreeRep}
+                          jsonTree={jsonTreeRep.LHS}
                           lineNum={0}
-                          editableLineNum={editableLineNumLHS}
+                          editableLineNum={editableLineNums[showSide]}
+                          startPosition = {savedStartPositions.current.LHS[0] ?? 0}
                         />
 
                         <Form.Group
@@ -601,6 +610,7 @@ const ERRacket = () => {
                               equation={field.racket}
                               onHighlightChange={(startPosition) => {
                                 handleHighlight(startPosition);
+                                savedStartPositions.current.LHS[index + 1] = startPosition;
                                 setCurrentRacket(
                                   racketRuleFields.LHS.slice(-2)[0].racket
                                 );
@@ -613,9 +623,12 @@ const ERRacket = () => {
                                 );
                               }}
                               side={showSide}
-                              jsonTree={racketRuleFields.LHS[index].jsonTree ? racketRuleFields.LHS[index].jsonTree : jsonTreeRep}
+                              //attempting to pass jsonTree to Persistent Pad
+                              //temporarily adding LHS[index] assuming that will give us the current line
+                              jsonTree={racketRuleFields.LHS[index].jsonTree ? racketRuleFields.LHS[index].jsonTree : jsonTreeRep.LHS}
                               lineNum={index + 1}
-                              editableLineNum={editableLineNumLHS}
+                              editableLineNum={editableLineNums[showSide]}
+                              startPosition = {savedStartPositions.current.LHS[index + 1] ?? 0}
                             />
 
                             <Form.Group
@@ -664,6 +677,7 @@ const ERRacket = () => {
                           equation={formValues.rHSGoal}
                           onHighlightChange={(startPosition) => {
                             handleHighlight(startPosition);
+                            savedStartPositions.current.RHS[0] = startPosition;
                             setCurrentRacket(formValues.rHSGoal);
                             handleChange({
                               target: {
@@ -679,9 +693,10 @@ const ERRacket = () => {
                           }}
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial RHS
-                          jsonTree={jsonTreeRep}
+                          jsonTree={jsonTreeRep.RHS}
                           lineNum={0}
-                          editableLineNum={editableLineNumRHS}
+                          editableLineNum={editableLineNums[showSide]}
+                          startPosition = {savedStartPositions.current.RHS[0] ?? 0}
                         />
 
                         <Form.Group
@@ -707,7 +722,7 @@ const ERRacket = () => {
                       </Row>
 
                       {/* Dynamically Added Racket and Rule Fields */}
-                      {racketRuleFields.RHS.map((field, index) => 
+                      {racketRuleFields.RHS.map((field, index) =>
                         field.deleted ? null : (
                           <Row
                             className="racket-rule-row"
@@ -717,6 +732,7 @@ const ERRacket = () => {
                               equation={field.racket}
                               onHighlightChange={(startPosition) => {
                                 handleHighlight(startPosition);
+                                savedStartPositions.current.RHS[index + 1] = startPosition;
                                 setCurrentRacket(
                                   racketRuleFields.RHS.slice(-2)[0].racket
                                 );
@@ -729,9 +745,12 @@ const ERRacket = () => {
                                 );
                               }}
                               side={showSide}
-                              jsonTree={racketRuleFields.RHS[index].jsonTree ? racketRuleFields.RHS[index].jsonTree : jsonTreeRep}
+                              //attempting to pass jsonTree to Persistent Pad
+                              //temporarily adding RHS[index] assuming that will give us the current line
+                              jsonTree={racketRuleFields.RHS[index].jsonTree ? racketRuleFields.RHS[index].jsonTree : jsonTreeRep.RHS}
                               lineNum={index + 1}
-                              editableLineNum={editableLineNumRHS}
+                              editableLineNum={editableLineNums[showSide]}
+                              startPosition = {savedStartPositions.current.RHS[index + 1] ?? 0}
                             />
 
                             <Form.Group
@@ -775,12 +794,12 @@ const ERRacket = () => {
                 <div className="button-row-wrap">
                   <Row className="button-row">
                     <Col md="8">
-                      <Button
+                  {/* <Button
                         className="orange-btn delete-btn"
                         onClick={() => deleteLastLine(showSide)}
                       >
                         Delete Line
-                      </Button>
+                      </Button> */}
                     </Col>
                     <Col md="4" className="rules-btn-grp">
                       <Button
@@ -789,12 +808,8 @@ const ERRacket = () => {
                           const fullRacket = await addFieldWithApiCheck(showSide);
                           try {
                             if (fullRacket.isValid) {
-                              //TODO: add a check to see if on LHS or RHS
-                              if (showSide === "LHS") {
-                                setEditableLineNumLHS(fullRacket.lineNum < 1 || fullRacket.lineNum === null ? 0 : fullRacket.lineNum);
-                              } else {
-                                setEditableLineNumRHS(fullRacket.lineNum < 1 || fullRacket.lineNum === null ? 0 : fullRacket.lineNum);
-                              }
+                              setEditableLineNums((prevEditableLineNums) => ({ ...prevEditableLineNums,
+                                [showSide]: (fullRacket.lineNum < 1 || fullRacket.lineNum === null ? 0 : fullRacket.lineNum) }));
                               if (racketRuleFields[showSide].filter(line => !line.deleted).length != 0) {
                                 setStartPosition(0);
                               }
@@ -802,6 +817,7 @@ const ERRacket = () => {
                           } catch (error) {
                             //console.log("Null because on premise, don't worry about it");
                           }
+                          //console.log("current line? (ERRacket.js):", lineNum);
                           //racketRuleFields?.LHS[0]?.jsonTree && console.log("the tree is: ", racketRuleFields.LHS[0].jsonTree);                          
                           if (showSide === "LHS") {
                             setLhsValue(formValues.lHSGoal);
