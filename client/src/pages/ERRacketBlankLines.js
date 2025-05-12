@@ -594,7 +594,7 @@ const ERRacketBlankLines = () => {
                   {/* Column 2: Expression */}
                   <Col md="5">
                     <div className="main-grid-column">
-                      {Array.from(row.expression).map((char, charIndex) => {
+                      {row.expression.split("").map((char, charIndex) => {
                         const isHighlighted =
                           charIndex >= parseInt(row.highlightStartIndex, 10) &&
                           charIndex < parseInt(row.highlightStartIndex, 10) + parseInt(row.highlightLength, 10);
