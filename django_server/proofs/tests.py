@@ -7,15 +7,18 @@ import sympy as sp
 import json
 from expression_tree.ERCommon import makeJson
 
-def test_loop_body(func: str, expr: str, expected, prefix: str = 'eval') -> int:
+def do_single_test_case(prefix: str, func: str, expr: str, expected, proof: ERProof = None) -> int:
+    if proof == None:
+        proof = ERProof()
     if prefix != '':
         prefix += ' '
-    print("input:", expr)
-    proof = ERProof()
-    proof.addProofLine(expr, prefix + func)
+    rule = prefix + func
+    print(f"input: {expr}, using rule '{rule}'")
+    proof.addProofLine(expr, rule)
     ans = str(proof.errLog if proof.errLog != [] else proof.getPrevRacket())
     word = "errors" if isinstance(expected, list) else "output"
     expected = str(expected)
+    proof.proofLines.clear()
     if ans == expected:
         print(f"PASS: expected {word}: {ans}\n")
         return 0
@@ -28,15 +31,17 @@ def test_racket_function(func: str, tests: list[tuple]) -> int:
     fails = 0
     for trial in tests:
         expr, expected = trial
-        fails += test_loop_body(func, expr, expected)
-    fails += test_loop_body(func, expr, 
-                            expected=["Rule must start with 'eval' or 'apply'"], prefix='')
-    fails += test_loop_body(func, expr,
-                            expected=['Cannot apply built-in Racket function'], prefix='apply')
+        fails += do_single_test_case('eval', func, expr, expected)
+    fails += do_single_test_case('', func, expr, 
+                            expected=["Rule must start with 'eval' or 'apply'"])
+    fails += do_single_test_case('apply', func, expr,
+                            expected=['Cannot apply built-in Racket function'])
     return fails
 
 totalFails = 0
 
+# Math function tests
+print('Testing Math Rules:\n')
 plus_tests = [
      # bad operation
     ("(cons 1 null)", ['Cannot apply + rule to cons']),
@@ -202,72 +207,87 @@ ge_tests = [
 ]
 totalFails += test_racket_function('>=', ge_tests)
 
-Log_err_strings = [
-    # expected errs
-    ("(cons 1 null)", ['Cannot apply logic rule to cons']),  # bad operation
-    # too many args
-    ("(or #t #t #t)", ['or only takes 2 arguments, but 3 were provided']),
-    # too few args
-    ("(and 3)", ['and only takes 2 arguments, but 1 was provided']),
-    # no args
-    ("(implies)", ['implies only takes 2 arguments, but 0 were provided']),
-    ("(and 1 #t)", [
-     # bad type
-     "Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['BOOL', 'BOOL']"]),
-    # bad type
+# Logic Function Tests
+print('\nTesting Logic Rules:\n')
+not_tests = [
+    ("(cons 1 null)", ['Cannot apply not rule to cons']),
+    ("(and #t #t)", ['Cannot apply not rule to and']),
+    ("(not #t #t)", ['Not only takes 1 arguments, but 2 were provided']),
+    ("(not)", ['Not only takes 1 arguments, but 0 were provided']),
     ("(not 1)", ["Cannot match argument out typeList ['INT'] with expected typeList ['BOOL']"]),
-    # too many args
-    ("(not #t #f)", ['not only takes 1 arguments, but 2 were provided']),
-    # insufficiently resolved
-    ("(or #t (and #f #f))", ['insufficiently resolved arguments'])
+    ("(not (and #t #f))", ['insufficiently resolved arguments']),
+    ("(not #t)", "f"),
+    ("(not #f)", "t")
 ]
+totalFails += test_racket_function('not', not_tests)
 
-Log_good_strgs = [
-    # expected output
-    ("(not #t)", "#f"),
-    ("(not #f)", "#t"),
+and_tests = [
+    ("(cons 1 null)", ['Cannot apply and rule to cons']),
+    ("(or #t #f)", ['Cannot apply and rule to or']),
+    ("(and #t #t #f)", ['and only takes 2 arguments, but 3 were provided']),
+    ("(and #t)", ['and only takes 2 arguments, but 1 was provided']),
+    ("(and 3)", ['and only takes 2 arguments, but 1 was provided']),
+    ("(and 1 #t)", [
+     "Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['BOOL', 'BOOL']"]),
+    ("(and #t (and #f #f))", ['insufficiently resolved arguments']),
     ("(and #t #t)", "#t"),
-    ("(or #f #f)", "#f"),
-    ("(implies #f #f)", "#t"),
-    ("(implies #t #f)", "#f"),
-    # ("(nand #t #f)", "#t"),
-    # ("(iff #f #f)", "#t"),
-    # ("(iff #f #t)", "#f"),
-    # ("(nor #f #f)", "#t"),
-    ("(xor #t #t)", "#f")
+    ("(and #f #f)", "#f"),
+    ("(and #t #f))", "#f"),
+    ("(and #f #f)", "#f")
 ]
+totalFails += test_racket_function('and', and_tests)
 
-print("\nLogic testing Errs:\n")
-for trial in Log_err_strings+Log_good_strgs:
-    expr, expected = trial
-    print("input:", expr)
-    proof = ERProof()
-    proof.addProofLine(expr, 'logic')
+or_tests = [
+    ("(cons 1 null)", ['Cannot apply or rule to cons']),
+    ("(and #t #t)", ['Cannot apply or rule to and']),
+    ("(or #t #t #t)", ['or only takes 2 arguments, but 3 were provided']),
+    ("(or #t)", ['or only takes 2 arguments, but 1 was provided']),
+    ("(or 3)", ['or only takes 2 arguments, but 1 was provided']),
+    ("(or 1 #t)", [
+     "Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['BOOL', 'BOOL']"]),
+    ("(or #t (or #f #f))", ['insufficiently resolved arguments']),
+    ("(or #t #t)", "#t"),
+    ("(or #f #f)", "#f"),
+    ("(or #t #f))", "#t"),
+    ("(or #f #f)", "#t")
+]
+totalFails += test_racket_function('or', or_tests)
 
-    ans = str(proof.errLog if proof.errLog != [] else proof.getPrevRacket())
-    word = "errors" if isinstance(expected, list) else "output"
-    expected = str(expected)
-    if ans == expected:
-        print(f"PASS: expected {word}: {ans}\n")
-    else:
-        print(f"FAIL! expected {word}: {expected} but got: {ans}\n")
-        totalFails += 1
+xor_tests = [
+    ("(cons 1 null)", ['Cannot apply xor rule to cons']),
+    ("(and #t #t)", ['Cannot apply xor rule to and']),
+    ("(xor #t #t #f)", ['xor only takes 2 arguments, but 3 were provided']),
+    ("(xor #t)", ['xor only takes 2 arguments, but 1 was provided']),
+    ("(xor 3)", ['xor only takes 2 arguments, but 1 was provided']),
+    ("(xor 1 #t)", [
+     "Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['BOOL', 'BOOL']"]),
+    ("(xor #t (not #t))", ['insufficiently resolved arguments']),
+    ("(xor #t #t)", "#f"),
+    ("(xor #t #f))", "#t"),
+    ("(xor #f #f)", "#f")
+]
+totalFails += test_racket_function('xor', xor_tests)
 
+implies_tests = [
+    ("(cons 1 null)", ['Cannot apply implies rule to cons']),
+    ("(and #t #t)", ['Cannot apply imples rule to and']),
+    ("(implies #t #t #f)", ['implies only takes 2 arguments, but 3 were provided']),
+    ("(implies #t)", ['implies only takes 2 arguments, but 1 was provided']),
+    ("(implies #t #1)", [
+     "Cannot match argument out typeList ['BOOL', 'INT'] with expected typeList ['BOOL', 'BOOL']"]),
+    ("(implies #t (or #f #f))", ['insufficiently resolved arguments']),
+    ("(implies #t #t)", "#t"),
+    ("(xor #t #f))", "#f"),
+    ("(xor #f #f)", "#t")
+]
+totalFails += test_racket_function('implies', implies_tests)
 
 print("\nUDF testing:\n")
-proof=ERProof()
-proof.addUDF("(f x y)", "(INT,INT)>INT", "(* x y)")
-proof.addProofLine("(f 3 4)", "f")
-print("(f x y) defined as (* x y)")
-print("input: (f 3 4), using rule f")
-ans = str(proof.errLog if proof.errLog != [] else proof.getPrevRacket())
-expected = "(* 3 4)"
-word = "errors" if isinstance(expected, list) else "output"
-if ans == expected:
-    print(f"PASS: expected {word}: {ans}\n")
-else:
-    print(f"FAIL! expected {word}: {expected} but got: {ans}\n")
-    totalFails += 1
+udfProof = ERProof()
+udfProof.addUDF("(f x y)", "(INT,INT)>INT", "(* x y)")
+totalFails += do_single_test_case('', 'f', "(f 3 4)", ["Rule must start with 'eval' or 'apply'"], udfProof)
+totalFails += do_single_test_case('eval', 'f',  "(f 3 4)", ['Cannot evaluate a user-defined function'], udfProof)
+totalFails += do_single_test_case('apply', 'f', "(f 3 4)", "(* 3 4)", udfProof)
 
 #node method tests for funcset, ancestor, allMath, mathstr: method, expr, expected
 methTests = [
