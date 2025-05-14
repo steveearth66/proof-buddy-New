@@ -11,23 +11,21 @@ reservedLabels = ["cons", "if", "first", "rest", "null?", "cons?", "zero?", "con
 class ERProof:
     def __init__(self, debug=False):
         self.ruleSet = {
-            'eval if': If(),
-            'eval cons': Cons(),
-            'apply first': First(),
-            'apply rest': Rest(),
-            'eval null?': NullQ(),
-            'eval cons?': ConsQ(),
+            'if': If(),
+            'cons': Cons(),
+            'first': First(),
+            'rest': Rest(),
+            'null?': NullQ(),
+            'cons?': ConsQ(),
             'zero?': ZeroQ(),
-            'apply consList': ConsList(),
-            #'eval math': Math(),
-            'logic': Logic(), #TODO change logic rules like how changed math rules
+            'consList': ConsList(),
+            'math': Math(),
+            'logic': Logic(),
             'restList': RestList(),
             'firstList': FirstList(),
             'advMath': advMath(),
             #'doubleFront': DoubleFront(),  # this is fake for demo. remove when UDF working
         }
-        for e in MathSet:
-            self.ruleSet["eval " + e] = Math()
         self.proofLines = []
         self.errLog = []
         self.debug = debug
@@ -43,7 +41,6 @@ class ERProof:
             proofLine.errLog = []
         if proofLine.errLog == []:
             if ruleStr != None:
-                print(f"Applying rule {ruleStr}")
                 if substitution!=None:
                     proofLine.applySubstitution(self.ruleSet, ruleStr, highlightPos, subLine)
                 else:
