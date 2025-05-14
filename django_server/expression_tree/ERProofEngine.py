@@ -163,6 +163,8 @@ class ERProofLine:
             self.errLog.append(f'Could not find rule associated with {rule}')
         elif ruleCategory == 'apply' and not isinstance(ruleSet[rule], UDF):
             self.errLog.append("Cannot apply a built-in Racket function")
+        elif ruleCategory == 'eval' and isinstance(ruleSet[rule], UDF):
+            self.errLog.append("Cannot evaluate a user-defined function")
         # checking to see if highlighted portion is within a quote
         if "'(" in targetNode.ancestors():
             self.errLog.append(f"Cannot apply rules within a quoted expression")

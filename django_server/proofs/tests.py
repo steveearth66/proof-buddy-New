@@ -19,6 +19,7 @@ def do_single_test_case(prefix: str, func: str, expr: str, expected, proof: ERPr
     word = "errors" if isinstance(expected, list) else "output"
     expected = str(expected)
     proof.proofLines.clear()
+    proof.errLog.clear()
     if ans == expected:
         print(f"PASS: expected {word}: {ans}\n")
         return 0
@@ -263,7 +264,7 @@ xor_tests = [
      "Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['BOOL', 'BOOL']"]),
     ("(xor #t (not #t))", ['insufficiently resolved arguments']),
     ("(xor #t #t)", "#f"),
-    ("(xor #t #f))", "#t"),
+    ("(xor #t #f)", "#t"),
     ("(xor #f #f)", "#f")
 ]
 totalFails += test_racket_function('xor', xor_tests)
@@ -273,12 +274,12 @@ implies_tests = [
     ("(and #t #t)", ['Cannot apply imples rule to and']),
     ("(implies #t #t #f)", ['implies only takes 2 arguments, but 3 were provided']),
     ("(implies #t)", ['implies only takes 2 arguments, but 1 was provided']),
-    ("(implies #t #1)", [
+    ("(implies #t 1)", [
      "Cannot match argument out typeList ['BOOL', 'INT'] with expected typeList ['BOOL', 'BOOL']"]),
     ("(implies #t (or #f #f))", ['insufficiently resolved arguments']),
     ("(implies #t #t)", "#t"),
-    ("(xor #t #f))", "#f"),
-    ("(xor #f #f)", "#t")
+    ("(implies #t #f)", "#f"),
+    ("(implies #f #f)", "#t")
 ]
 totalFails += test_racket_function('implies', implies_tests)
 
