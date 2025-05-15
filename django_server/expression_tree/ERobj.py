@@ -48,7 +48,7 @@ pmult = ERobj("*", Type.FUNCTION, (Type.INT, Type.INT),
               Type.INT, lambda x, y: x*y, 2)
 pexpt = ERobj("expt", Type.FUNCTION, (Type.INT, Type.INT),
               Type.INT, lambda x, y: x**y, 2)
-peq = ERobj("=", Type.FUNCTION, (Type.ANY, Type.ANY),
+peq = ERobj("=", Type.FUNCTION, (Type.INT, Type.INT),
             Type.BOOL, lambda x, y: x == y, 2)
 pgtr = ERobj(">", Type.FUNCTION, (Type.INT, Type.INT),
              Type.BOOL, lambda x, y: x > y, 2)

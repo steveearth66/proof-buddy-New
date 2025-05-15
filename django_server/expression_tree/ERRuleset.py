@@ -296,9 +296,12 @@ class Math(Rule):
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         try:
+            # Removed due to sympy throwing its own error before we can check the node
+            '''
             # Convert the node's math expression to a sympy expression
             math_expr = sp.sympify(ruleNode.mathStr())
             print(f"Math expression: {math_expr}")
+            '''
 
             if len(ruleNode.children[1].children) != 0 or len(ruleNode.children[2].children) != 0:
                 return False, 'insufficiently resolved arguments'
