@@ -291,31 +291,21 @@ class Math(Rule):
         return Node(data=newdata, tokenType=newtype, name=newname)  # converting node
 '''
 class Math(Rule):
-    def __init__(self):
-        super().__init__('math')
-        self.mathSymbols = ARITHMETIC + ["expt", "<=", ">=", "quotient", "remainder"]
+    def __init__(self, operator):
+        super().__init__(operator)
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
-        """
-        Check if the math rule can be applied to the given node.
-        """
         try:
             # Convert the node's math expression to a sympy expression
-            print(f"ruleNode.children: {ruleNode.children}")
             math_expr = sp.sympify(ruleNode.mathStr())
             print(f"Math expression: {math_expr}")
 
-            # Ensure the expression only contains valid math symbols
-            if not ruleNode.allMath():
-                invalid_funcs = ruleNode.funcSet() - set(self.mathSymbols)
-                return False, f"Math rule requires only math functions, but found {invalid_funcs}"
-
-            # Additional checks for specific cases
-            if ruleNode.children[0].data == "expt" and math_expr.is_negative:
-                return False, "Exponentiation with negative arguments results in non-integer output"
-            if ruleNode.children[0].data == "expt" and math_expr == sp.sympify("0**0"):
-                return False, "0^0 is undefined"
-
+            if len(ruleNode.children[1].children) != 0 or len(ruleNode.children[2].children) != 0:
+                return False, 'insufficiently resolved arguments'
+            # Check if the operator matches the rule label
+            if ruleNode.children[0].data != self.label:
+                return False, f"Cannot apply {self.label} rule to {ruleNode.children[0].data}"
+            
             return True, "Math.isApplicable() PASS"
         except Exception as e:
             return False, f"Error in isApplicable: {str(e)}"
@@ -331,9 +321,6 @@ class Math(Rule):
             # Simplify the expression to its normal form
             simplified_expr = sp.simplify(math_expr)
 
-            # Convert the simplified expression back to a string
-            newdata = str(simplified_expr)
-
             # Determine the type of the result (e.g., INT or BOOL)
             if simplified_expr.is_Boolean:
                 newtype = RacType((None, Type.BOOL))
@@ -344,13 +331,83 @@ class Math(Rule):
             else:
                 newtype = RacType((None, Type.ANY))
                 newname = str(simplified_expr)
+            
+            newdata = str(newname)
 
             # Create a new node with the simplified expression
             return Node(data=newdata, tokenType=newtype, name=newname)
         except Exception as e:
             raise ValueError(f"Error in insertSubstitution: {str(e)}")
 
+class Plus(Math):
+    def __init__(self):
+        super().__init__('+')
 
+class Minus(Math):
+    def __init__(self):
+        super().__init__('-')
+
+class Times(Math):
+    def __init__(self):
+        super().__init__('*')
+
+class Quotient(Math):
+    def __init__(self):
+        super().__init__('quotient')
+    
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        passed, errMsg = super().isApplicable(ruleNode)
+        if not passed:
+            return False, errMsg
+        if int(ruleNode.children[-1].data) == 0:
+            return False, "denominator can't be zero"
+        return True, errMsg
+
+class Remainder(Math):
+    def __init__(self):
+        super().__init__('remainder')
+    
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        passed, errMsg = super().isApplicable(ruleNode)
+        if not passed:
+            return False, errMsg
+        if int(ruleNode.children[-1].data) == 0:
+            return False, "denominator can't be zero"
+        return True, errMsg
+
+class Expt(Math):
+    def __init__(self):
+        super().__init__('expt')
+    
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        passed, errMsg = super().isApplicable(ruleNode)
+        if not passed:
+            return False, errMsg
+        if int(ruleNode.children[1].data) == 0 and int(ruleNode.children[2].data) == 0:
+            return False, '0^0 is undefined'
+        if int(ruleNode.children[2].data) < 0:
+            return False, f'{ruleNode.children[2]} contains illegal character'
+        return True, errMsg
+        
+class Equals(Math):
+    def __init__(self):
+        super().__init__('=')
+
+class LessThan(Math):
+    def __init__(self):
+        super().__init__('<')
+
+class LessOrEqual(Math):
+    def __init__(self):
+        super().__init__('<=')
+
+class GreaterThan(Math):
+    def __init__(self):
+        super().__init__('>')
+
+class GreaterOrEqual(Math):
+    def __init__(self):
+        super().__init__('>=')
 class Logic(Rule):
     def __init__(self):
         super().__init__('logic')

@@ -36,7 +36,7 @@ def test_racket_function(func: str, tests: list[tuple]) -> int:
     fails += do_single_test_case('', func, expr, 
                             expected=["Rule must start with 'eval' or 'apply'"])
     fails += do_single_test_case('apply', func, expr,
-                            expected=['Cannot apply built-in Racket function'])
+                            expected=['Cannot apply a built-in Racket function'])
     return fails
 
 totalFails = 0
@@ -46,7 +46,7 @@ print('Testing Math Rules:\n')
 plus_tests = [
      # bad operation
     ("(cons 1 null)", ['Cannot apply + rule to cons']),
-    #("(* 2 3)", ['Cannot apply + rule to *']) # commented out due to low priority
+    ("(* 2 3)", ['Cannot apply + rule to *']),
     # too few arguments
     ("(+ 1)", ['+ only takes 2 arguments, but 1 was provided']),
     ("(+)", ['+ only takes 2 arguments, but 0 were provided']),
@@ -61,7 +61,7 @@ totalFails += test_racket_function('+', plus_tests)
 minus_tests = [
     # bad operation
     ("(cons 1 null)", ['Cannot apply - rule to cons']),
-    #("(* 2 3)", ['Cannot apply - rule to *']) # commented out due to low priority
+    ("(* 2 3)", ['Cannot apply - rule to *']),
     # too few arguments
     ("(- 3)", ['- only takes 2 arguments, but 1 was provided']),
     ("(-)", ['- only takes 2 arguments, but 0 were provided']),
@@ -75,8 +75,8 @@ minus_tests = [
 totalFails += test_racket_function('-', minus_tests)
 
 times_tests = [
-    ("(cons 1 null)", ['Cannot apply - rule to cons']),
-    #("(- 2 3)", ['Cannot apply * rule to -']) # commented out due to low priority
+    ("(cons 1 null)", ['Cannot apply * rule to cons']),
+    ("(- 2 3)", ['Cannot apply * rule to -']),
     ("(* 3)", ['* only takes 2 arguments, but 1 was provided']), # too few arguments
     ("(* 2 3 4)", ['* only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(* #t 1)",
@@ -89,7 +89,7 @@ totalFails += test_racket_function('*', times_tests)
 quotient_tests = [
     # bad operation
     ("(cons 1 null)", ['Cannot apply quotient rule to cons']),
-    #("(* 2 3)", ['Cannot apply quotient rule to *']) # commented out due to low priority
+    ("(* 2 3)", ['Cannot apply quotient rule to *']),
     ("(quotient 3)", ['quotient only takes 2 arguments, but 1 was provided']), # too few arguments
     ("(quotient 12 2 3)", ['quotient only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(quotient #t 1)",
@@ -104,7 +104,7 @@ totalFails += test_racket_function('quotient', quotient_tests)
 remainder_tests = [
     # bad operation
     ("(cons 1 null)", ['Cannot apply remainder rule to cons']),
-    #("(* 2 3)", ['Cannot apply remainder rule to *']) # commented out due to low priority
+    ("(* 2 3)", ['Cannot apply remainder rule to *']),
     ("(remainder 3)", ['remainder only takes 2 arguments, but 1 was provided']), # too few arguments
     ("(remainder 14 5 3)", ['remainder only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(remainder 5 #t)",
@@ -119,7 +119,7 @@ totalFails = test_racket_function('remainder', remainder_tests)
 expt_tests = [
     # bad operation
     ("(cons 1 null)", ['Cannot apply expt rule to cons']),
-    #("(* 2 3)", ['Cannot apply expt rule to *']) # commented out due to low priority
+    ("(* 2 3)", ['Cannot apply expt rule to *']),
     ("(expt 3)", ['expt only takes 2 arguments, but 1 was provided']), # too few arguments
     ("(expt 2 2 2)", ['expt only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(expt 5 #t)",
@@ -136,22 +136,22 @@ totalFails = test_racket_function('expt', expt_tests)
 eq_tests = [
     # bad operation
     ("(cons 1 null)", ['Cannot apply = rule to cons']),
-    #("(* 2 3)", ['Cannot apply = rule to *']) # commented out due to low priority
+    ("(* 2 3)", ['Cannot apply = rule to *']),
     ("(= 3)", ['= only takes 2 arguments, but 1 was provided']), # too few arguments
     ("(= 2 2 2)", ['= only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(= #t #t)",
     ["Cannot match argument out typeList ['BOOL', 'BOOL'] with expected typeList ['INT', 'INT']"]), # bad type
     ("(= 3 (+ 1 2))", ['insufficiently resolved arguments']), # insufficiently resolved
-    ("(< 4 3)", '#f'), # greater than
-    ("(< 3 3)", '#t'), # equal
-    ("(< 3 4)", '#f') # less than
+    ("(= 4 3)", '#f'), # greater than
+    ("(= 3 3)", '#t'), # equal
+    ("(= 3 4)", '#f') # less than
 ]
 totalFails += test_racket_function('=', eq_tests)
 
 lt_tests = [
     # bad operation
     ("(cons 1 null)", ['Cannot apply < rule to cons']),
-    #("(<= 2 3)", ['Cannot apply < rule to <=']) # commented out due to low priority
+    ("(<= 2 3)", ['Cannot apply < rule to <=']),
     ("(< 3)", ['< only takes 2 arguments, but 1 was provided']), # too few arguments
     ("(< 2 3 4)", ['< only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(< #f #t)",
@@ -166,7 +166,7 @@ totalFails += test_racket_function('<', lt_tests)
 le_tests = [
     # bad operation
     ("(cons 1 null)", ['Cannot apply <= rule to cons']),
-    #("(< 2 3)", ['Cannot apply <= rule to <']) # commented out due to low priority
+    ("(< 2 3)", ['Cannot apply <= rule to <']),
     ("(<= 3)", ['<= only takes 2 arguments, but 1 was provided']), # too few arguments
     ("(<= 2 3 4)", ['<= only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(<= 0 #t)",
@@ -181,7 +181,7 @@ totalFails += test_racket_function('<=', le_tests)
 gt_tests = [
     # bad operation
     ("(cons 1 null)", ['Cannot apply > rule to cons']),
-    #("(< 2 3)", ['Cannot apply > rule to <']) # commented out due to low priority
+    ("(< 2 3)", ['Cannot apply > rule to <']),
     ("(> 3)", ['> only takes 2 arguments, but 1 was provided']), # too few arguments
     ("(> 4 3 2)", ['> only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(> 1 #f)",
@@ -196,7 +196,7 @@ totalFails += test_racket_function('>', gt_tests)
 ge_tests = [
     # bad operation
     ("(cons 1 null)", ['Cannot apply >= rule to cons']),
-    #("(< 2 3)", ['Cannot apply >= rule to <']) # commented out due to low priority
+    ("(< 2 3)", ['Cannot apply >= rule to <']),
     ("(>= 3)", ['>= only takes 2 arguments, but 1 was provided']), # too few arguments
     ("(>= 4 3 2)", ['>= only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(>= #f #t)",
@@ -301,6 +301,8 @@ methTests = [
 ("mathstr", "(+ 2 3)","(2+3)"),
 ("mathstr", "(expt x (+ 1 y))","(x**(1+y))"),
 ("mathstr", "(+ (- 9 (* 2 3))(quotient (+ 2 8)(remainder 7 3)))","((9-(2*3))+((2+8)/(7%3)))"),
+("mathstr", "(= 2 3)", "(2==3)"),
+("mathstr", "(< 2 3)", "(2<3)"),
 ("simp", "(expt (+ x 1) 2)" , "(x + 1)**2"),
 ("simp", "(+ (+ (* x x) (* 2 x)) 1)", "x**2 + 2*x + 1"),
 ("sub", ["(expt (+ x 1) 2)","(+ (+ (* x x) (* 2 x)) 2)"], "False"),

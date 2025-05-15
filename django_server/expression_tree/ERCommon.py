@@ -2,7 +2,7 @@ from typing import Union, Tuple, List
 from enum import Enum
 
 # special math characters. any other math uses ascii, such as expt, quotient, remainder. Note: "/" not permitted
-ARITHMETIC = ["+", "*", "-", "=", ">", "<"]
+ARITHMETIC = {"+", "*", "-", "=", ">", "<", "<=", ">="}
 MathSet = {"+","-","*","expt", "quotient","remainder"}
 class Type(Enum):
     TEMP = 'TEMP'
@@ -245,7 +245,7 @@ class Node:
     
      #checks if node is all math functions
     def allMath(self)->bool:
-        return self.funcSet().issubset(MathSet)
+        return self.funcSet().issubset(MathSet | ARITHMETIC)
     
     #gives the non-racket infix string representation of a math expression
     #note: this could include an outermost parens, but that won't effect equality check
@@ -258,6 +258,8 @@ class Node:
             return "/"
         if self.data == "remainder":
             return "%"
+        if self.data == "=":
+            return "=="
         if self.children==[]: #just a single int, symbol, or +,-,*
             return self.data
         # only case left should be a parenthesized expression, but just in case:
