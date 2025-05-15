@@ -303,7 +303,7 @@ class Math(Rule):
             print(f"Math expression: {math_expr}")
             '''
 
-            if len(ruleNode.children[1].children) != 0 or len(ruleNode.children[2].children) != 0:
+            if (len(ruleNode.children[1].children) != 0 and ruleNode.children[1].data != "'(") or (len(ruleNode.children[2].children) != 0 and ruleNode.children[2].data != "'("):
                 return False, 'insufficiently resolved arguments'
             # Check if the operator matches the rule label
             if ruleNode.children[0].data != self.label:
@@ -395,6 +395,11 @@ class Expt(Math):
 class Equals(Math):
     def __init__(self):
         super().__init__('=')
+
+    def insertSubstitution(self, ruleNode):
+        argOne = str(ruleNode.children[1])
+        argTwo = str(ruleNode.children[2])
+        return Node(data="#t" if argOne == argTwo else "#f", tokenType=RacType((None, Type.BOOL)), name=argOne == argTwo)  # converting node
 
 class LessThan(Math):
     def __init__(self):

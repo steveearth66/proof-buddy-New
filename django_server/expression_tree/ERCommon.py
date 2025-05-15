@@ -255,7 +255,7 @@ class Node:
         if self.data == "expt":
             return "**"
         if self.data == "quotient":
-            return "/"
+            return "//"
         if self.data == "remainder":
             return "%"
         if self.data == "=":

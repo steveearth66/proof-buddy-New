@@ -139,12 +139,18 @@ eq_tests = [
     ("(* 2 3)", ['Cannot apply = rule to *']),
     ("(= 3)", ['= only takes 2 arguments, but 1 was provided']), # too few arguments
     ("(= 2 2 2)", ['= only takes 2 arguments, but 3 were provided']), # too many arguments
-    ("(= #t #t)",
-    ["Cannot match argument out typeList ['BOOL', 'BOOL'] with expected typeList ['INT', 'INT']"]), # bad type
+    ("(= #t #t)", '#t'), # allowed to use '=' for any type in buddy racket
     ("(= 3 (+ 1 2))", ['insufficiently resolved arguments']), # insufficiently resolved
     ("(= 4 3)", '#f'), # greater than
     ("(= 3 3)", '#t'), # equal
-    ("(= 3 4)", '#f') # less than
+    ("(= 3 4)", '#f'), # less than
+    ("(= #t 3)", '#f'), # comparing different types
+    ("(= 3 #t)", '#f'), # comparing different types different order
+    ("(= '(1 2) '(1 2))", '#t'), # comparing equal lists
+    ("(= '(1         2) '(1 2))", '#t'), # comparing equal lists with different spacing
+    ("(= '(1 2) '(1 3))", '#f'), # comparing lists different values
+    ("(= '(1 2) '(1 2 3))", '#f'), # comparing lists different lengths
+    ("(= '() null)", '#t') # comparing empty list to null
 ]
 totalFails += test_racket_function('=', eq_tests)
 
