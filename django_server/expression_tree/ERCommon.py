@@ -4,6 +4,7 @@ from enum import Enum
 # special math characters. any other math uses ascii, such as expt, quotient, remainder. Note: "/" not permitted
 ARITHMETIC = {"+", "*", "-", "=", ">", "<", "<=", ">="}
 MathSet = {"+","-","*","expt", "quotient","remainder"}
+LogicSet = {'and', 'or', 'not', 'xor', 'implies'}
 class Type(Enum):
     TEMP = 'TEMP'
     BOOL = 'BOOL'
@@ -268,6 +269,23 @@ class Node:
         return "("+self.children[1].mathStr()+self.children[0].mathStr()+\
             self.children[2].mathStr()+")"
 
+    def logicStr(self) -> str:
+        if self.data == None or self.data == '' or not self.funcSet().issubset(LogicSet):
+            return 'ERROR'
+        if self.data == '#t':
+            return 'True'
+        if self.data == '#f':
+            return 'False'
+        if self.children == []:
+            return self.data
+        if self.data != '(':
+            return 'ERROR'
+        if self.children[0].data in ('xor', 'implies'):
+            return f'({self.children[0].logicStr().capitalize()}({self.children[1].logicStr()}, {self.children[2].logicStr()}))'
+        elif self.children[0].data in ('and', 'or'):
+            return f'({self.children[1].logicStr()} {self.children[0].logicStr()} {self.children[2].logicStr()})'
+        else:
+            return f'({self.children[0].logicStr()} {self.children[1].logicStr()})'
 
     def replaceWith(self, newNode):
         self.data = newNode.data

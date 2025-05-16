@@ -219,12 +219,12 @@ print('\nTesting Logic Rules:\n')
 not_tests = [
     ("(cons 1 null)", ['Cannot apply not rule to cons']),
     ("(and #t #t)", ['Cannot apply not rule to and']),
-    ("(not #t #t)", ['Not only takes 1 arguments, but 2 were provided']),
-    ("(not)", ['Not only takes 1 arguments, but 0 were provided']),
+    ("(not #t #t)", ['not only takes 1 arguments, but 2 were provided']),
+    ("(not)", ['not only takes 1 arguments, but 0 were provided']),
     ("(not 1)", ["Cannot match argument out typeList ['INT'] with expected typeList ['BOOL']"]),
     ("(not (and #t #f))", ['insufficiently resolved arguments']),
-    ("(not #t)", "f"),
-    ("(not #f)", "t")
+    ("(not #t)", "#f"),
+    ("(not #f)", "#t")
 ]
 totalFails += test_racket_function('not', not_tests)
 
@@ -239,8 +239,8 @@ and_tests = [
     ("(and #t (and #f #f))", ['insufficiently resolved arguments']),
     ("(and #t #t)", "#t"),
     ("(and #f #f)", "#f"),
-    ("(and #t #f))", "#f"),
-    ("(and #f #f)", "#f")
+    ("(and #t #f)", "#f"),
+    ("(and #f #t)", "#f")
 ]
 totalFails += test_racket_function('and', and_tests)
 
@@ -255,8 +255,8 @@ or_tests = [
     ("(or #t (or #f #f))", ['insufficiently resolved arguments']),
     ("(or #t #t)", "#t"),
     ("(or #f #f)", "#f"),
-    ("(or #t #f))", "#t"),
-    ("(or #f #f)", "#t")
+    ("(or #t #f)", "#t"),
+    ("(or #f #t)", "#t")
 ]
 totalFails += test_racket_function('or', or_tests)
 
@@ -277,7 +277,7 @@ totalFails += test_racket_function('xor', xor_tests)
 
 implies_tests = [
     ("(cons 1 null)", ['Cannot apply implies rule to cons']),
-    ("(and #t #t)", ['Cannot apply imples rule to and']),
+    ("(and #t #t)", ['Cannot apply implies rule to and']),
     ("(implies #t #t #f)", ['implies only takes 2 arguments, but 3 were provided']),
     ("(implies #t)", ['implies only takes 2 arguments, but 1 was provided']),
     ("(implies #t 1)", [
@@ -296,7 +296,7 @@ totalFails += do_single_test_case('', 'f', "(f 3 4)", ["Rule must start with 'ev
 totalFails += do_single_test_case('eval', 'f',  "(f 3 4)", ['Cannot evaluate a user-defined function'], udfProof)
 totalFails += do_single_test_case('apply', 'f', "(f 3 4)", "(* 3 4)", udfProof)
 
-#node method tests for funcset, ancestor, allMath, mathstr: method, expr, expected
+#node method tests for funcset, ancestor, allMath, mathstr, logicStr: method, expr, expected
 methTests = [
 ("funcset", "(+ (- 9 (* 2 3)) (quotient (+ 2 8) (remainder 7 3)))",\
  {'-', 'remainder', 'quotient', '*', '+'}),
@@ -306,9 +306,15 @@ methTests = [
 ("mathstr", "(expt 3 (if #t 2 2))","ERROR"),
 ("mathstr", "(+ 2 3)","(2+3)"),
 ("mathstr", "(expt x (+ 1 y))","(x**(1+y))"),
-("mathstr", "(+ (- 9 (* 2 3))(quotient (+ 2 8)(remainder 7 3)))","((9-(2*3))+((2+8)/(7%3)))"),
+("mathstr", "(+ (- 9 (* 2 3))(quotient (+ 2 8)(remainder 7 3)))","((9-(2*3))+((2+8)//(7%3)))"),
 ("mathstr", "(= 2 3)", "(2==3)"),
 ("mathstr", "(< 2 3)", "(2<3)"),
+("logicStr", "(if (and #t #t) (implies #t #f) (implies #f #t))", "ERROR"),
+("logicStr", "(and #t (= 2 3))", "ERROR"),
+("logicStr", "(not #t)", "(not True)"),
+("logicStr", "(and #t #f)", "(True and False)"),
+("logicStr", "(implies #t #f)", "(Implies(True, False))"),
+("logicStr", "(or (not (xor #t #f)) (and #t #t))", "((not (Xor(True, False))) or (True and True))"),
 ("simp", "(expt (+ x 1) 2)" , "(x + 1)**2"),
 ("simp", "(+ (+ (* x x) (* 2 x)) 1)", "x**2 + 2*x + 1"),
 ("sub", ["(expt (+ x 1) 2)","(+ (+ (* x x) (* 2 x)) 2)"], "False"),
@@ -326,6 +332,8 @@ for meth,expr, expected in methTests:
         ans = str(expTree.allMath())
     elif meth == "mathstr":
         ans = expTree.mathStr()
+    elif meth == "logicStr":
+        ans = expTree.logicStr()
     elif meth == "simp":
         ans = str(sp.sympify(expTree.mathStr()))
     elif meth == "sub":

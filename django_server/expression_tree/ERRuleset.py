@@ -290,50 +290,34 @@ class Math(Rule):
             newtype = RacType((None, Type.INT))
         return Node(data=newdata, tokenType=newtype, name=newname)  # converting node
 '''
-class Math(Rule):
-    def __init__(self, operator):
-        super().__init__(operator)
-
+class Symbolic(Rule, ABC):
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
-        try:
-            # Removed due to sympy throwing its own error before we can check the node
-            '''
-            # Convert the node's math expression to a sympy expression
-            math_expr = sp.sympify(ruleNode.mathStr())
-            print(f"Math expression: {math_expr}")
-            '''
-
-            if (len(ruleNode.children[1].children) != 0 and ruleNode.children[1].data != "'(") or (len(ruleNode.children[2].children) != 0 and ruleNode.children[2].data != "'("):
-                return False, 'insufficiently resolved arguments'
-            # Check if the operator matches the rule label
-            if ruleNode.children[0].data != self.label:
-                return False, f"Cannot apply {self.label} rule to {ruleNode.children[0].data}"
-            
-            return True, "Math.isApplicable() PASS"
-        except Exception as e:
-            return False, f"Error in isApplicable: {str(e)}"
+        #if (len(ruleNode.children[1].children) != 0 and ruleNode.children[1].data != "'(") or (len(ruleNode.children[2].children) != 0 and ruleNode.children[2].data != "'("):
+        if True in map(lambda child: (len(child.children) != 0 and child.data != "'("), ruleNode.children[1:]):
+            return False, 'insufficiently resolved arguments'
+        # Check if the operator matches the rule label
+        if ruleNode.children[0].data != self.label:
+            return False, f"Cannot apply {self.label} rule to {ruleNode.children[0].data}"
+        return True, 'Symbolic.isApplicable() PASS'
+        
+    @abstractmethod
+    def getStdExpr(self, ruleNode: Node) -> str:
+        pass
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
-        """
-        Apply the math rule and compute the result using sympy.
-        """
         try:
-            # Convert the node's math expression to a sympy expression
-            math_expr = sp.sympify(ruleNode.mathStr())
-
-            # Simplify the expression to its normal form
-            simplified_expr = sp.simplify(math_expr)
-
+            symbolicExpr = sp.simplify(sp.sympify(self.getStdExpr(ruleNode)))
+            
             # Determine the type of the result (e.g., INT or BOOL)
-            if simplified_expr.is_Boolean:
+            if symbolicExpr.is_Boolean:
                 newtype = RacType((None, Type.BOOL))
-                newname = "#t" if simplified_expr else "#f"
-            elif simplified_expr.is_Integer:
+                newname = "#t" if symbolicExpr else "#f"
+            elif symbolicExpr.is_Integer:
                 newtype = RacType((None, Type.INT))
-                newname = int(simplified_expr)
+                newname = int(symbolicExpr)
             else:
                 newtype = RacType((None, Type.ANY))
-                newname = str(simplified_expr)
+                newname = str(symbolicExpr)
             
             newdata = str(newname)
 
@@ -341,6 +325,9 @@ class Math(Rule):
             return Node(data=newdata, tokenType=newtype, name=newname)
         except Exception as e:
             raise ValueError(f"Error in insertSubstitution: {str(e)}")
+class Math(Symbolic):
+    def getStdExpr(self, ruleNode: Node) -> str:
+        return ruleNode.mathStr()
 
 class Plus(Math):
     def __init__(self):
@@ -416,7 +403,8 @@ class GreaterThan(Math):
 class GreaterOrEqual(Math):
     def __init__(self):
         super().__init__('>=')
-class Logic(Rule):
+
+""" class Logic(Rule):
     def __init__(self):
         super().__init__('logic')
 
@@ -440,9 +428,30 @@ class Logic(Rule):
         newname = self.logicDict[ruleNode.children[0].data](argOne, argTwo)
         newdata = "#t" if newname else "#f"  # convert to racket bool
         newtype = RacType((None, Type.BOOL))
-        return Node(data=newdata, tokenType=newtype, name=newname)  # converting node
+        return Node(data=newdata, tokenType=newtype, name=newname)  # converting node """
 
+class Logic(Symbolic):
+    def getStdExpr(self, ruleNode: Node) -> str:
+        return ruleNode.logicStr()
+class And(Logic):
+    def __init__(self):
+        super().__init__('and')
 
+class Or(Logic):
+    def __init__(self):
+        super().__init__('or')
+
+class Not(Logic):
+    def __init__(self):
+        super().__init__('not')
+
+class Xor(Logic):
+    def __init__(self):
+        super().__init__('xor')
+
+class Implies(Logic):
+    def __init__(self):
+        super().__init__('implies')
 class UDF(Rule):
     def __init__(self, label, filledBodyNode, racTypeObj, paramsList):
         super().__init__(label)
