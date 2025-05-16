@@ -19,8 +19,22 @@ class ERProof:
             'cons?': ConsQ(),
             'zero?': ZeroQ(),
             'consList': ConsList(),
-            'math': Math(),
-            'logic': Logic(),
+            '+': Plus(),
+            '-': Minus(),
+            '*': Times(),
+            'quotient': Quotient(),
+            'remainder': Remainder(),
+            'expt': Expt(),
+            '=': Equals(),
+            '<': LessThan(),
+            '<=': LessOrEqual(),
+            '>': GreaterThan(),
+            '>=': GreaterOrEqual(),
+            'and': And(),
+            'or': Or(),
+            'not': Not(),
+            'xor': Xor(),
+            'implies': Implies(),
             'restList': RestList(),
             'firstList': FirstList(),
             'advMath': advMath(),
@@ -155,8 +169,16 @@ class ERProofLine:
         if targetNode == None:
             self.errLog.append(
                 f'Could not find Token with starting index {startPos}')
-        if not (rule in ruleSet.keys()):
+        ruleCategory = rule.split(' ')[0]
+        rule = rule.split(' ')[-1]
+        if ruleCategory not in ('eval', 'apply'):
+            self.errLog.append("Rule must start with 'eval' or 'apply'")
+        elif not (rule in ruleSet.keys()):
             self.errLog.append(f'Could not find rule associated with {rule}')
+        elif ruleCategory == 'apply' and not isinstance(ruleSet[rule], UDF):
+            self.errLog.append("Cannot apply a built-in Racket function")
+        elif ruleCategory == 'eval' and isinstance(ruleSet[rule], UDF):
+            self.errLog.append("Cannot evaluate a user-defined function")
         # checking to see if highlighted portion is within a quote
         if "'(" in targetNode.ancestors():
             self.errLog.append(f"Cannot apply rules within a quoted expression")

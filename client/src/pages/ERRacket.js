@@ -220,7 +220,7 @@ const ERRacket = () => {
     };
 
     if (lhsValue !== "" && rhsValue !== "" && currentLHS !== "") {
-      if (currentLHS === currentRHS || currentLHS === rhsValue) {
+      if (currentLHS === currentRHS) {
         removeBlankRackets();
         setShowProofComplete(true);
         setProofComplete(true);

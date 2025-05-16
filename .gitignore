@@ -139,3 +139,5 @@ __pycache__
 db.sqlite3
 
 .data
+
+cypress.env.json

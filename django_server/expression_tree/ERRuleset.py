@@ -250,7 +250,7 @@ class ConsList(Rule):
         return lNode
 
 # TODO: this needs to be generalized to use a python math library and normal forms, and not just the 4 basic operations
-
+'''
 class Math(Rule):
     def __init__(self):
         super().__init__('math')
@@ -289,9 +289,122 @@ class Math(Rule):
             newdata = str(newname)
             newtype = RacType((None, Type.INT))
         return Node(data=newdata, tokenType=newtype, name=newname)  # converting node
+'''
+class Symbolic(Rule, ABC):
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        #if (len(ruleNode.children[1].children) != 0 and ruleNode.children[1].data != "'(") or (len(ruleNode.children[2].children) != 0 and ruleNode.children[2].data != "'("):
+        if True in map(lambda child: (len(child.children) != 0 and child.data != "'("), ruleNode.children[1:]):
+            return False, 'insufficiently resolved arguments'
+        # Check if the operator matches the rule label
+        if ruleNode.children[0].data != self.label:
+            return False, f"Cannot apply {self.label} rule to {ruleNode.children[0].data}"
+        return True, 'Symbolic.isApplicable() PASS'
+        
+    @abstractmethod
+    def getStdExpr(self, ruleNode: Node) -> str:
+        pass
 
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        try:
+            symbolicExpr = sp.simplify(sp.sympify(self.getStdExpr(ruleNode)))
+            
+            # Determine the type of the result (e.g., INT or BOOL)
+            if symbolicExpr.is_Boolean:
+                newtype = RacType((None, Type.BOOL))
+                newname = "#t" if symbolicExpr else "#f"
+            elif symbolicExpr.is_Integer:
+                newtype = RacType((None, Type.INT))
+                newname = int(symbolicExpr)
+            else:
+                newtype = RacType((None, Type.ANY))
+                newname = str(symbolicExpr)
+            
+            newdata = str(newname)
 
-class Logic(Rule):
+            # Create a new node with the simplified expression
+            return Node(data=newdata, tokenType=newtype, name=newname)
+        except Exception as e:
+            raise ValueError(f"Error in insertSubstitution: {str(e)}")
+class Math(Symbolic):
+    def getStdExpr(self, ruleNode: Node) -> str:
+        return ruleNode.mathStr()
+
+class Plus(Math):
+    def __init__(self):
+        super().__init__('+')
+
+class Minus(Math):
+    def __init__(self):
+        super().__init__('-')
+
+class Times(Math):
+    def __init__(self):
+        super().__init__('*')
+
+class Quotient(Math):
+    def __init__(self):
+        super().__init__('quotient')
+    
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        passed, errMsg = super().isApplicable(ruleNode)
+        if not passed:
+            return False, errMsg
+        if int(ruleNode.children[-1].data) == 0:
+            return False, "denominator can't be zero"
+        return True, errMsg
+
+class Remainder(Math):
+    def __init__(self):
+        super().__init__('remainder')
+    
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        passed, errMsg = super().isApplicable(ruleNode)
+        if not passed:
+            return False, errMsg
+        if int(ruleNode.children[-1].data) == 0:
+            return False, "denominator can't be zero"
+        return True, errMsg
+
+class Expt(Math):
+    def __init__(self):
+        super().__init__('expt')
+    
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        passed, errMsg = super().isApplicable(ruleNode)
+        if not passed:
+            return False, errMsg
+        if int(ruleNode.children[1].data) == 0 and int(ruleNode.children[2].data) == 0:
+            return False, '0^0 is undefined'
+        if int(ruleNode.children[2].data) < 0:
+            return False, f'{ruleNode.children[2]} contains illegal character'
+        return True, errMsg
+        
+class Equals(Math):
+    def __init__(self):
+        super().__init__('=')
+
+    def insertSubstitution(self, ruleNode):
+        argOne = str(ruleNode.children[1])
+        argTwo = str(ruleNode.children[2])
+        return Node(data="#t" if argOne == argTwo else "#f", tokenType=RacType((None, Type.BOOL)), name=argOne == argTwo)  # converting node
+
+class LessThan(Math):
+    def __init__(self):
+        super().__init__('<')
+
+class LessOrEqual(Math):
+    def __init__(self):
+        super().__init__('<=')
+
+class GreaterThan(Math):
+    def __init__(self):
+        super().__init__('>')
+
+class GreaterOrEqual(Math):
+    def __init__(self):
+        super().__init__('>=')
+
+""" class Logic(Rule):
     def __init__(self):
         super().__init__('logic')
 
@@ -315,9 +428,30 @@ class Logic(Rule):
         newname = self.logicDict[ruleNode.children[0].data](argOne, argTwo)
         newdata = "#t" if newname else "#f"  # convert to racket bool
         newtype = RacType((None, Type.BOOL))
-        return Node(data=newdata, tokenType=newtype, name=newname)  # converting node
+        return Node(data=newdata, tokenType=newtype, name=newname)  # converting node """
 
+class Logic(Symbolic):
+    def getStdExpr(self, ruleNode: Node) -> str:
+        return ruleNode.logicStr()
+class And(Logic):
+    def __init__(self):
+        super().__init__('and')
 
+class Or(Logic):
+    def __init__(self):
+        super().__init__('or')
+
+class Not(Logic):
+    def __init__(self):
+        super().__init__('not')
+
+class Xor(Logic):
+    def __init__(self):
+        super().__init__('xor')
+
+class Implies(Logic):
+    def __init__(self):
+        super().__init__('implies')
 class UDF(Rule):
     def __init__(self, label, filledBodyNode, racTypeObj, paramsList):
         super().__init__(label)

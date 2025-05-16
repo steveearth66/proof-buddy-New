@@ -7,128 +7,306 @@ import sympy as sp
 import json
 from expression_tree.ERCommon import makeJson
 
-err_strings = [
-    # expected errs
-    ("(cons 1 null)", ['Cannot apply math rule to cons']),  # bad operation
-    # too many args
-    ("(+ 1 1 1)", ['+ only takes 2 arguments, but 3 were provided']),
-    # too few args
-    ("(* 3)", ['* only takes 2 arguments, but 1 was provided']),
-    ("(-)", ['- only takes 2 arguments, but 0 were provided']),  # no args
-    ("(expt 0 0)", ['0^0 is undefined']),  # undef
-    # fraction, not a legal input due to -1
-    ("(expt 3 -1)", ['-1 contains illegal characters']),
-    # bad type
+def do_single_test_case(prefix: str, func: str, expr: str, expected, proof: ERProof = None) -> int:
+    if proof == None:
+        proof = ERProof()
+    if prefix != '':
+        prefix += ' '
+    rule = prefix + func
+    print(f"input: {expr}, using rule '{rule}'")
+    proof.addProofLine(expr, rule)
+    ans = str(proof.errLog if proof.errLog != [] else proof.getPrevRacket())
+    word = "errors" if isinstance(expected, list) else "output"
+    expected = str(expected)
+    proof.proofLines.clear()
+    proof.errLog.clear()
+    if ans == expected:
+        print(f"PASS: expected {word}: {ans}\n")
+        return 0
+    else:
+        print(f"FAIL! expected {word}: {expected} but got: {ans}\n")
+        return 1
+
+def test_racket_function(func: str, tests: list[tuple]) -> int:
+    # expects last test case to not have errors
+    fails = 0
+    for trial in tests:
+        expr, expected = trial
+        fails += do_single_test_case('eval', func, expr, expected)
+    fails += do_single_test_case('', func, expr, 
+                            expected=["Rule must start with 'eval' or 'apply'"])
+    fails += do_single_test_case('apply', func, expr,
+                            expected=['Cannot apply a built-in Racket function'])
+    return fails
+
+totalFails = 0
+
+# Math function tests
+print('Testing Math Rules:\n')
+plus_tests = [
+     # bad operation
+    ("(cons 1 null)", ['Cannot apply + rule to cons']),
+    ("(* 2 3)", ['Cannot apply + rule to *']),
+    # too few arguments
+    ("(+ 1)", ['+ only takes 2 arguments, but 1 was provided']),
+    ("(+)", ['+ only takes 2 arguments, but 0 were provided']),
+    ("(+ 1 1 1)", ['+ only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(+ 1 #t)",
-     ["Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['INT', 'INT']"]),
-    # too many args
-    ("(+ 1 2 3)", ['+ only takes 2 arguments, but 3 were provided']),
-    # insufficiently resolved
-    ("(+ 1 (+ 2 3))", ['insufficiently resolved arguments']),
-    ("(quotient 3 0)", ["denominator can't be zero"]),  # div by 0
-    ("(remainder 2 0)", ["denominator can't be zero"]),  # div by 0
-    # bad type
-    ("(< 2 #f)", ["Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['INT', 'INT']"])]
+    ["Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['INT', 'INT']"]), # bad type
+    ("(+ 1 (+ 2 3))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(+ 1 2)", 3) # valid test case
+]
+totalFails += test_racket_function('+', plus_tests)
 
-good_strgs = [
-    # expected output
-    ("(expt 1 2)", 1),  # expt with 1 base
-    ("(expt 2 0)", 1),  # expt with 0 power
-    ("(expt 0 2)", 0),  # expt with 0 base
+minus_tests = [
+    # bad operation
+    ("(cons 1 null)", ['Cannot apply - rule to cons']),
+    ("(* 2 3)", ['Cannot apply - rule to *']),
+    # too few arguments
+    ("(- 3)", ['- only takes 2 arguments, but 1 was provided']),
+    ("(-)", ['- only takes 2 arguments, but 0 were provided']),
+    ("(- 5 1 2)", ['- only takes 2 arguments, but 3 were provided']), # too many arguments
+    ("(- #f 1)",
+    ["Cannot match argument out typeList ['BOOL', 'INT'] with expected typeList ['INT', 'INT']"]), # bad type
+    ("(- 5 (- 2 1))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(- 3 5)", -2), # output negative number
+    ("(- 5 3)", 2) # valid test case
+]
+totalFails += test_racket_function('-', minus_tests)
+
+times_tests = [
+    ("(cons 1 null)", ['Cannot apply * rule to cons']),
+    ("(- 2 3)", ['Cannot apply * rule to -']),
+    ("(* 3)", ['* only takes 2 arguments, but 1 was provided']), # too few arguments
+    ("(* 2 3 4)", ['* only takes 2 arguments, but 3 were provided']), # too many arguments
+    ("(* #t 1)",
+    ["Cannot match argument out typeList ['BOOL', 'INT'] with expected typeList ['INT', 'INT']"]), # bad type
+    ("(* 2 (+ 3 4))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(* 8 9)", 72) # valid test case
+]
+totalFails += test_racket_function('*', times_tests)
+
+quotient_tests = [
+    # bad operation
+    ("(cons 1 null)", ['Cannot apply quotient rule to cons']),
+    ("(* 2 3)", ['Cannot apply quotient rule to *']),
+    ("(quotient 3)", ['quotient only takes 2 arguments, but 1 was provided']), # too few arguments
+    ("(quotient 12 2 3)", ['quotient only takes 2 arguments, but 3 were provided']), # too many arguments
+    ("(quotient #t 1)",
+    ["Cannot match argument out typeList ['BOOL', 'INT'] with expected typeList ['INT', 'INT']"]), # bad type
+    ("(quotient 12 (quotient 6 2))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(quotient 3 0)", ["denominator can't be zero"]), # division by zero
     ("(quotient 0 2)", 0),  # quotient with 0 numerator
-    ("(expt 2 1)", 2),  # expt with 1 power
-    ("(quotient 7 3)", 2),  # quotient with remainder
-    ("(+ 1 2)", 3),  # addition
-    ("(< 3 4)", "#t"),  # less than
-    ("(< 4 3)", "#f")  # greater than
+    ("(quotient 7 3)", 2)  # quotient with remainder
 ]
+totalFails += test_racket_function('quotient', quotient_tests)
 
-fails = 0
+remainder_tests = [
+    # bad operation
+    ("(cons 1 null)", ['Cannot apply remainder rule to cons']),
+    ("(* 2 3)", ['Cannot apply remainder rule to *']),
+    ("(remainder 3)", ['remainder only takes 2 arguments, but 1 was provided']), # too few arguments
+    ("(remainder 14 5 3)", ['remainder only takes 2 arguments, but 3 were provided']), # too many arguments
+    ("(remainder 5 #t)",
+    ["Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['INT', 'INT']"]), # bad type
+    ("(remainder 12 (quotient 29 6))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(remainder 2 0)", ["denominator can't be zero"]), # division by zero
+    ("(remainder 0 2)", 0),  # remainder with 0 numerator
+    ("(remainder 14 5)", 4)  # normal test case
+]
+totalFails = test_racket_function('remainder', remainder_tests)
 
-print("\nMath testing Errs:\n")
-for trial in err_strings+good_strgs:
-    expr, expected = trial
-    print("input:", expr)
-    proof = ERProof()
-    proof.addProofLine(expr, 'math')
+expt_tests = [
+    # bad operation
+    ("(cons 1 null)", ['Cannot apply expt rule to cons']),
+    ("(* 2 3)", ['Cannot apply expt rule to *']),
+    ("(expt 3)", ['expt only takes 2 arguments, but 1 was provided']), # too few arguments
+    ("(expt 2 2 2)", ['expt only takes 2 arguments, but 3 were provided']), # too many arguments
+    ("(expt 5 #t)",
+    ["Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['INT', 'INT']"]), # bad type
+    ("(expt 3 (expt 2 2))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(expt 0 0)", ['0^0 is undefined']),  # undef
+    ("(expt 3 -1)", ['-1 contains illegal characters']), # fraction, not a legal input due to -1
+    ("(expt 2 0)", 1), # expt with 0 power
+    ("(expt 0 2)", 0), # expt with 0 base
+    ("(expt 2 3)", 8) # normal test case
+]
+totalFails = test_racket_function('expt', expt_tests)
 
-    ans = str(proof.errLog if proof.errLog != [] else proof.getPrevRacket())
-    word = "errors" if isinstance(expected, list) else "output"
-    expected = str(expected)
-    if ans == expected:
-        print(f"PASS: expected {word}: {ans}\n")
-    else:
-        print(f"FAIL! expected {word}: {expected} but got: {ans}\n")
-        fails = +1
+eq_tests = [
+    # bad operation
+    ("(cons 1 null)", ['Cannot apply = rule to cons']),
+    ("(* 2 3)", ['Cannot apply = rule to *']),
+    ("(= 3)", ['= only takes 2 arguments, but 1 was provided']), # too few arguments
+    ("(= 2 2 2)", ['= only takes 2 arguments, but 3 were provided']), # too many arguments
+    ("(= #t #t)", '#t'), # allowed to use '=' for any type in buddy racket
+    ("(= 3 (+ 1 2))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(= 4 3)", '#f'), # greater than
+    ("(= 3 3)", '#t'), # equal
+    ("(= 3 4)", '#f'), # less than
+    ("(= #t 3)", '#f'), # comparing different types
+    ("(= 3 #t)", '#f'), # comparing different types different order
+    ("(= '(1 2) '(1 2))", '#t'), # comparing equal lists
+    ("(= '(1         2) '(1 2))", '#t'), # comparing equal lists with different spacing
+    ("(= '(1 2) '(1 3))", '#f'), # comparing lists different values
+    ("(= '(1 2) '(1 2 3))", '#f'), # comparing lists different lengths
+    ("(= '() null)", '#t'), # comparing empty list to null
+    ("(= (2 3) '(2 3))", ['insufficiently resolved arguments']), # compare unquoted list to quoted list
+    ("(= 3 '(3))", '#f')
+]
+totalFails += test_racket_function('=', eq_tests)
 
-Log_err_strings = [
-    # expected errs
-    ("(cons 1 null)", ['Cannot apply logic rule to cons']),  # bad operation
-    # too many args
-    ("(or #t #t #t)", ['or only takes 2 arguments, but 3 were provided']),
-    # too few args
-    ("(and 3)", ['and only takes 2 arguments, but 1 was provided']),
-    # no args
-    ("(implies)", ['implies only takes 2 arguments, but 0 were provided']),
-    ("(and 1 #t)", [
-     # bad type
-     "Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['BOOL', 'BOOL']"]),
-    # bad type
+lt_tests = [
+    # bad operation
+    ("(cons 1 null)", ['Cannot apply < rule to cons']),
+    ("(<= 2 3)", ['Cannot apply < rule to <=']),
+    ("(< 3)", ['< only takes 2 arguments, but 1 was provided']), # too few arguments
+    ("(< 2 3 4)", ['< only takes 2 arguments, but 3 were provided']), # too many arguments
+    ("(< #f #t)",
+    ["Cannot match argument out typeList ['BOOL', 'BOOL'] with expected typeList ['INT', 'INT']"]), # bad type
+    ("(< 3 (+ 1 2))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(< 4 3)", '#f'), # greater than
+    ("(< 3 3)", '#f'), # equal
+    ("(< 3 4)", '#t') # less than
+]
+totalFails += test_racket_function('<', lt_tests)
+
+le_tests = [
+    # bad operation
+    ("(cons 1 null)", ['Cannot apply <= rule to cons']),
+    ("(< 2 3)", ['Cannot apply <= rule to <']),
+    ("(<= 3)", ['<= only takes 2 arguments, but 1 was provided']), # too few arguments
+    ("(<= 2 3 4)", ['<= only takes 2 arguments, but 3 were provided']), # too many arguments
+    ("(<= 0 #t)",
+    ["Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['INT', 'INT']"]), # bad type
+    ("(<= 3 (+ 1 2))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(<= 4 3)", '#f'), # greater than
+    ("(<= 3 3)", '#t'), # equal
+    ("(<= 3 4)", '#t') # less than
+]
+totalFails += test_racket_function('<=', le_tests)
+
+gt_tests = [
+    # bad operation
+    ("(cons 1 null)", ['Cannot apply > rule to cons']),
+    ("(< 2 3)", ['Cannot apply > rule to <']),
+    ("(> 3)", ['> only takes 2 arguments, but 1 was provided']), # too few arguments
+    ("(> 4 3 2)", ['> only takes 2 arguments, but 3 were provided']), # too many arguments
+    ("(> 1 #f)",
+    ["Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['INT', 'INT']"]), # bad type
+    ("(> 3 (+ 1 2))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(> 4 3)", '#t'), # greater than
+    ("(> 3 3)", '#f'), # equal
+    ("(> 3 4)", '#f') # less than
+]
+totalFails += test_racket_function('>', gt_tests)
+
+ge_tests = [
+    # bad operation
+    ("(cons 1 null)", ['Cannot apply >= rule to cons']),
+    ("(< 2 3)", ['Cannot apply >= rule to <']),
+    ("(>= 3)", ['>= only takes 2 arguments, but 1 was provided']), # too few arguments
+    ("(>= 4 3 2)", ['>= only takes 2 arguments, but 3 were provided']), # too many arguments
+    ("(>= #f #t)",
+    ["Cannot match argument out typeList ['BOOL', 'BOOL'] with expected typeList ['INT', 'INT']"]), # bad type
+    ("(>= 3 (+ 1 2))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(>= 4 3)", '#t'), # greater than
+    ("(>= 3 3)", '#t'), # equal
+    ("(>= 3 4)", '#f') # less than
+]
+totalFails += test_racket_function('>=', ge_tests)
+
+# Check that 'math' rule can no longer be used in place of the individual operators
+totalFails += do_single_test_case('eval', 'math', '(+ 1 2)', ['Cannot evaluate an axiom'])
+totalFails += do_single_test_case('', 'math', '(+ 1 2)', ["Rule must start with 'eval' or 'apply'"])
+
+# Logic Function Tests
+print('\nTesting Logic Rules:\n')
+not_tests = [
+    ("(cons 1 null)", ['Cannot apply not rule to cons']),
+    ("(and #t #t)", ['Cannot apply not rule to and']),
+    ("(not #t #t)", ['not only takes 1 arguments, but 2 were provided']),
+    ("(not)", ['not only takes 1 arguments, but 0 were provided']),
     ("(not 1)", ["Cannot match argument out typeList ['INT'] with expected typeList ['BOOL']"]),
-    # too many args
-    ("(not #t #f)", ['not only takes 1 arguments, but 2 were provided']),
-    # insufficiently resolved
-    ("(or #t (and #f #f))", ['insufficiently resolved arguments'])
-]
-
-Log_good_strgs = [
-    # expected output
+    ("(not (and #t #f))", ['insufficiently resolved arguments']),
     ("(not #t)", "#f"),
-    ("(not #f)", "#t"),
-    ("(and #t #t)", "#t"),
-    ("(or #f #f)", "#f"),
-    ("(implies #f #f)", "#t"),
-    ("(implies #t #f)", "#f"),
-    # ("(nand #t #f)", "#t"),
-    # ("(iff #f #f)", "#t"),
-    # ("(iff #f #t)", "#f"),
-    # ("(nor #f #f)", "#t"),
-    ("(xor #t #t)", "#f")
+    ("(not #f)", "#t")
 ]
+totalFails += test_racket_function('not', not_tests)
 
-print("\nLogic testing Errs:\n")
-for trial in Log_err_strings+Log_good_strgs:
-    expr, expected = trial
-    print("input:", expr)
-    proof = ERProof()
-    proof.addProofLine(expr, 'logic')
+and_tests = [
+    ("(cons 1 null)", ['Cannot apply and rule to cons']),
+    ("(or #t #f)", ['Cannot apply and rule to or']),
+    ("(and #t #t #f)", ['and only takes 2 arguments, but 3 were provided']),
+    ("(and #t)", ['and only takes 2 arguments, but 1 was provided']),
+    ("(and 3)", ['and only takes 2 arguments, but 1 was provided']),
+    ("(and 1 #t)", [
+     "Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['BOOL', 'BOOL']"]),
+    ("(and #t (and #f #f))", ['insufficiently resolved arguments']),
+    ("(and #t #t)", "#t"),
+    ("(and #f #f)", "#f"),
+    ("(and #t #f)", "#f"),
+    ("(and #f #t)", "#f")
+]
+totalFails += test_racket_function('and', and_tests)
 
-    ans = str(proof.errLog if proof.errLog != [] else proof.getPrevRacket())
-    word = "errors" if isinstance(expected, list) else "output"
-    expected = str(expected)
-    if ans == expected:
-        print(f"PASS: expected {word}: {ans}\n")
-    else:
-        print(f"FAIL! expected {word}: {expected} but got: {ans}\n")
-        fails += 1
+or_tests = [
+    ("(cons 1 null)", ['Cannot apply or rule to cons']),
+    ("(and #t #t)", ['Cannot apply or rule to and']),
+    ("(or #t #t #t)", ['or only takes 2 arguments, but 3 were provided']),
+    ("(or #t)", ['or only takes 2 arguments, but 1 was provided']),
+    ("(or 3)", ['or only takes 2 arguments, but 1 was provided']),
+    ("(or 1 #t)", [
+     "Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['BOOL', 'BOOL']"]),
+    ("(or #t (or #f #f))", ['insufficiently resolved arguments']),
+    ("(or #t #t)", "#t"),
+    ("(or #f #f)", "#f"),
+    ("(or #t #f)", "#t"),
+    ("(or #f #t)", "#t")
+]
+totalFails += test_racket_function('or', or_tests)
 
+xor_tests = [
+    ("(cons 1 null)", ['Cannot apply xor rule to cons']),
+    ("(and #t #t)", ['Cannot apply xor rule to and']),
+    ("(xor #t #t #f)", ['xor only takes 2 arguments, but 3 were provided']),
+    ("(xor #t)", ['xor only takes 2 arguments, but 1 was provided']),
+    ("(xor 3)", ['xor only takes 2 arguments, but 1 was provided']),
+    ("(xor 1 #t)", [
+     "Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['BOOL', 'BOOL']"]),
+    ("(xor #t (not #t))", ['insufficiently resolved arguments']),
+    ("(xor #t #t)", "#f"),
+    ("(xor #t #f)", "#t"),
+    ("(xor #f #f)", "#f")
+]
+totalFails += test_racket_function('xor', xor_tests)
+
+implies_tests = [
+    ("(cons 1 null)", ['Cannot apply implies rule to cons']),
+    ("(and #t #t)", ['Cannot apply implies rule to and']),
+    ("(implies #t #t #f)", ['implies only takes 2 arguments, but 3 were provided']),
+    ("(implies #t)", ['implies only takes 2 arguments, but 1 was provided']),
+    ("(implies #t 1)", [
+     "Cannot match argument out typeList ['BOOL', 'INT'] with expected typeList ['BOOL', 'BOOL']"]),
+    ("(implies #t (or #f #f))", ['insufficiently resolved arguments']),
+    ("(implies #t #t)", "#t"),
+    ("(implies #t #f)", "#f"),
+    ("(implies #f #f)", "#t")
+]
+totalFails += test_racket_function('implies', implies_tests)
+
+# Check that logic is no longer a valid rule
+totalFails += do_single_test_case('eval', 'logic', '(and #t #t)', ['Could not find rule associated with logic'])
+totalFails += do_single_test_case('', 'logic', '(and #t #t)', ["Rule must start with 'eval' or 'apply'"])
 
 print("\nUDF testing:\n")
-proof=ERProof()
-proof.addUDF("(f x y)", "(INT,INT)>INT", "(* x y)")
-proof.addProofLine("(f 3 4)", "f")
-print("(f x y) defined as (* x y)")
-print("input: (f 3 4), using rule f")
-ans = str(proof.errLog if proof.errLog != [] else proof.getPrevRacket())
-expected = "(* 3 4)"
-word = "errors" if isinstance(expected, list) else "output"
-if ans == expected:
-    print(f"PASS: expected {word}: {ans}\n")
-else:
-    print(f"FAIL! expected {word}: {expected} but got: {ans}\n")
-    fails += 1
+udfProof = ERProof()
+udfProof.addUDF("(f x y)", "(INT,INT)>INT", "(* x y)")
+totalFails += do_single_test_case('', 'f', "(f 3 4)", ["Rule must start with 'eval' or 'apply'"], udfProof)
+totalFails += do_single_test_case('eval', 'f',  "(f 3 4)", ['Cannot evaluate a user-defined function'], udfProof)
+totalFails += do_single_test_case('apply', 'f', "(f 3 4)", "(* 3 4)", udfProof)
 
-#node method tests for funcset, ancestor, allMath, mathstr: method, expr, expected
+#node method tests for funcset, ancestor, allMath, mathstr, logicStr: method, expr, expected
 methTests = [
 ("funcset", "(+ (- 9 (* 2 3)) (quotient (+ 2 8) (remainder 7 3)))",\
  {'-', 'remainder', 'quotient', '*', '+'}),
@@ -138,7 +316,15 @@ methTests = [
 ("mathstr", "(expt 3 (if #t 2 2))","ERROR"),
 ("mathstr", "(+ 2 3)","(2+3)"),
 ("mathstr", "(expt x (+ 1 y))","(x**(1+y))"),
-("mathstr", "(+ (- 9 (* 2 3))(quotient (+ 2 8)(remainder 7 3)))","((9-(2*3))+((2+8)/(7%3)))"),
+("mathstr", "(+ (- 9 (* 2 3))(quotient (+ 2 8)(remainder 7 3)))","((9-(2*3))+((2+8)//(7%3)))"),
+("mathstr", "(= 2 3)", "(2==3)"),
+("mathstr", "(< 2 3)", "(2<3)"),
+("logicStr", "(if (and #t #t) (implies #t #f) (implies #f #t))", "ERROR"),
+("logicStr", "(and #t (= 2 3))", "ERROR"),
+("logicStr", "(not #t)", "(not True)"),
+("logicStr", "(and #t #f)", "(True and False)"),
+("logicStr", "(implies #t #f)", "(Implies(True, False))"),
+("logicStr", "(or (not (xor #t #f)) (and #t #t))", "((not (Xor(True, False))) or (True and True))"),
 ("simp", "(expt (+ x 1) 2)" , "(x + 1)**2"),
 ("simp", "(+ (+ (* x x) (* 2 x)) 1)", "x**2 + 2*x + 1"),
 ("sub", ["(expt (+ x 1) 2)","(+ (+ (* x x) (* 2 x)) 2)"], "False"),
@@ -156,6 +342,8 @@ for meth,expr, expected in methTests:
         ans = str(expTree.allMath())
     elif meth == "mathstr":
         ans = expTree.mathStr()
+    elif meth == "logicStr":
+        ans = expTree.logicStr()
     elif meth == "simp":
         ans = str(sp.sympify(expTree.mathStr()))
     elif meth == "sub":
@@ -164,9 +352,9 @@ for meth,expr, expected in methTests:
         ans = str(sp.sympify(exp1.mathStr()).equals(sp.sympify(exp2.mathStr())))
     print(f"{'PASS' if ans==expected else 'FAIL'}: for input={expTree if meth!='sub' else [str(exp1),str(exp2)]} with method {meth}, expected {expected} and got={ans}")
     if ans!=expected:
-        fails += 1
+        totalFails += 1
 
-print("\nall tests passed!\n" if fails == 0 else f"number of fails: {fails}\n")
+print("\nall tests passed!\n" if totalFails == 0 else f"number of fails: {totalFails}\n")
 
 proof=ERProof()
 proof.addUDF("(f x)", "int>int", "(if (zero? x) 0 (+ x (f (- x 1))))")

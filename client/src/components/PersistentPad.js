@@ -400,8 +400,6 @@ return (
       onBlur={() => setIsActive(false)} // Mark as inactive on blur
       onClick={() => {
         if (lineNumRef.current === editableLineNum) setIsActive(true);
-        //console.log(`Line num: ${lineNumRef.current}`); // DEBUG: Delete later
-        //console.log(`Editable line num: ${editableLineNum}`); // DEBUG: Delete later
       }} // Mark as active on click
       // onKeyDown={(e) => handleKeyDown(e)} // Handle keypresses directly
     >
