@@ -150,7 +150,9 @@ eq_tests = [
     ("(= '(1         2) '(1 2))", '#t'), # comparing equal lists with different spacing
     ("(= '(1 2) '(1 3))", '#f'), # comparing lists different values
     ("(= '(1 2) '(1 2 3))", '#f'), # comparing lists different lengths
-    ("(= '() null)", '#t') # comparing empty list to null
+    ("(= '() null)", '#t'), # comparing empty list to null
+    ("(= (2 3) '(2 3))", ['insufficiently resolved arguments']), # compare unquoted list to quoted list
+    ("(= 3 '(3))", '#f')
 ]
 totalFails += test_racket_function('=', eq_tests)
 
@@ -213,6 +215,10 @@ ge_tests = [
     ("(>= 3 4)", '#f') # less than
 ]
 totalFails += test_racket_function('>=', ge_tests)
+
+# Check that 'math' rule can no longer be used in place of the individual operators
+totalFails += do_single_test_case('eval', 'math', '(+ 1 2)', ['Cannot evaluate an axiom'])
+totalFails += do_single_test_case('', 'math', '(+ 1 2)', ["Rule must start with 'eval' or 'apply'"])
 
 # Logic Function Tests
 print('\nTesting Logic Rules:\n')
@@ -288,6 +294,10 @@ implies_tests = [
     ("(implies #f #f)", "#t")
 ]
 totalFails += test_racket_function('implies', implies_tests)
+
+# Check that logic is no longer a valid rule
+totalFails += do_single_test_case('eval', 'logic', '(and #t #t)', ['Could not find rule associated with logic'])
+totalFails += do_single_test_case('', 'logic', '(and #t #t)', ["Rule must start with 'eval' or 'apply'"])
 
 print("\nUDF testing:\n")
 udfProof = ERProof()
