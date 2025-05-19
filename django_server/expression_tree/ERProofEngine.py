@@ -12,13 +12,15 @@ class ERProof:
     def __init__(self, debug=False):
         self.ruleSet = {
             'if': If(),
-            'cons': Cons(),
-            'first': First(),
-            'rest': Rest(),
+            'cons': ConsList(),
+            'rest': RestList(),
+            'first': FirstList(),
+            #'cons': Cons(),
+            #'first': First(),
+            #'rest': Rest(),
             'null?': NullQ(),
             'cons?': ConsQ(),
             'zero?': ZeroQ(),
-            'consList': ConsList(),
             '+': Plus(),
             '-': Minus(),
             '*': Times(),
@@ -35,8 +37,6 @@ class ERProof:
             'not': Not(),
             'xor': Xor(),
             'implies': Implies(),
-            'restList': RestList(),
-            'firstList': FirstList(),
             'advMath': advMath(),
             #'doubleFront': DoubleFront(),  # this is fake for demo. remove when UDF working
         }

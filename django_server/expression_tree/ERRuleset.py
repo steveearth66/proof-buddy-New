@@ -215,13 +215,13 @@ class ConsList(Rule):
         if ruleNode.data != "(":
             return False, "must select entire expression to apply consList rule"
         elif len(ruleNode.children) == 0 or ruleNode.children[0].data != 'cons':
-            return False, 'operator must be cons to apply consList rule'
+            return False, f"Cannot evaluate cons on a '{ruleNode.children[0].data}' expression"
         elif num :=(len(ruleNode.children)) != 3: #NOTE: this case should have been caught earlier in buildtree, but just to be safe
             return False, f'cons expects 2 arguments, but you provided {num-1}'
         elif (ruleNode.children[1].data) =="(":
-            return False, 'insufficiently resolved first argument'
+            return False, 'insufficiently resolved arguments'
         elif (ruleNode.children[2].data) not in ("null", "'("):
-            return False, 'insufficiently resolved second argument, which must be a list'
+            return False, 'insufficiently resolved arguments'
         return True, "ConsList.isApplicable() PASS"  # string should not print out if debug=False
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
@@ -297,7 +297,7 @@ class Symbolic(Rule, ABC):
             return False, 'insufficiently resolved arguments'
         # Check if the operator matches the rule label
         if ruleNode.children[0].data != self.label:
-            return False, f"Cannot apply {self.label} rule to {ruleNode.children[0].data}"
+            return False, f"Cannot evaluate {self.label} on a '{ruleNode.children[0].data}' expression"
         return True, 'Symbolic.isApplicable() PASS'
         
     @abstractmethod
@@ -484,11 +484,11 @@ class RestList(Rule):
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:  # presumes buildtree checked types/qty already
         if ruleNode.data != "(" or len(ruleNode.children) != 2 or ruleNode.children[0].data != "rest":
-            return False, f'restList rule requires calling rest function'
+            return False, f"Cannot evaluate rest on a '{ruleNode.children[0].data}' expression"
         if len(ruleNode.children[1].children) ==0: #this handles (rest null), (rest '()) :
-            return False, f'restList rule requires nonempty list'
+            return False, f'rest requires nonempty list'
         if ruleNode.children[1].data != "'(":
-            return False, f'restList rule requires explicit list'  # null case already handled. e.g. (rest L)
+            return False, f'insufficiently resolved list argument'  # null case already handled. e.g. (rest L)
         return True, "RestList.isApplicable() PASS"
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
@@ -509,11 +509,11 @@ class FirstList(Rule):
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:  # presumes buildtree checked types/qty already
         if ruleNode.data != "(" or len(ruleNode.children) != 2 or ruleNode.children[0].data != "first":
-            return False, f'firstList rule requires calling rest function'
+            return False, f"Cannot evaluate first on a '{ruleNode.children[0].data}' expression"
         if len(ruleNode.children[1].children) ==0: #this handles (rest null), (rest '()) :
-            return False, f'firstList rule requires nonempty list'
+            return False, f'first requires nonempty list'
         if ruleNode.children[1].data != "'(":
-            return False, f'firstList rule requires explicit list'  # null case already handled. e.g. (rest L)
+            return False, f'insufficiently resolved list argument'  # null case already handled. e.g. (rest L)
         return True, "RestList.isApplicable() PASS"
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
