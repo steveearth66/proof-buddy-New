@@ -170,9 +170,13 @@ class ERProofLine:
             self.errLog.append(
                 f'Could not find Token with starting index {startPos}')
         ruleCategory = rule.split(' ')[0]
-        rule = rule.split(' ')[-1]
+        rule = rule.split(' ')[1:][-1] if rule.split(' ')[1:] != [] else ''
         if ruleCategory not in ('eval', 'apply'):
             self.errLog.append("Rule must start with 'eval' or 'apply'")
+        elif rule == '':
+            self.errLog.append('Rule must include the ' + 
+                               ('function to be evaluated' if ruleCategory == 'eval'
+                               else 'definition/axiom/lemma to be applied'))
         elif not (rule in ruleSet.keys()):
             self.errLog.append(f'Could not find rule associated with {rule}')
         elif ruleCategory == 'apply' and not isinstance(ruleSet[rule], UDF):
