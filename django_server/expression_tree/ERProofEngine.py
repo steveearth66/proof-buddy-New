@@ -150,10 +150,12 @@ class ERProofLine:
 
         if self.errLog == []:
             decTree, self.errLog = Decorator.decorateTree(labeledTree, self.errLog)
+        #if self.errLog == []: #added userType in case of UDF
+        #    decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog, theRuleDict=ruleDict, userType=udfType)
+        if self.errLog == []:
+            self.errLog = Decorator.remTemps(decTree, self.errLog, theRuleDict=ruleDict)
         if self.errLog == []: #added userType in case of UDF
             decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog, theRuleDict=ruleDict, userType=udfType)
-        if self.errLog == []:
-            self.errLog = Decorator.remTemps(labeledTree, self.errLog, theRuleDict=ruleDict)
         if self.errLog == []:
             self.exprTree = decTree
         if self.errLog == []: #makes the positions dict for arrow key navigation

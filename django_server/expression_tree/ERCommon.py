@@ -80,7 +80,9 @@ class RacType:
         return [RacType(x) for x in self.value[0]]
 
     def getRange(self) -> RacType:
-        return RacType(self.value[1])
+        if isinstance(self.value[1], tuple):
+            return RacType(self.value[1])
+        return RacType((None, self.value[1]))
 
     def isType(self, typeStr)->bool:
         return str(self.getType()) == typeStr
