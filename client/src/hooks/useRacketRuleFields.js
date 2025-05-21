@@ -36,10 +36,10 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
   const updateShowSubstitution = () => {
     setSubstitutionErrors([]);
 
-    if (startPosition < 1) {
+    /* if (startPosition < 1) {
       alert('Please select a keyword to substitute!');
       return;
-    }
+    } */
 
     const sideFields = racketRuleFields[side];
     const undeletedProofLines = sideFields.filter((line) => {
