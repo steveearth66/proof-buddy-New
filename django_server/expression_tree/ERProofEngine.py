@@ -15,9 +15,9 @@ class ERProof:
             'cons': ConsList(),
             'rest': RestList(),
             'first': FirstList(),
-            #'cons': Cons(),
-            #'first': First(),
-            #'rest': Rest(),
+            'consA': Cons(),
+            'firstA': First(),
+            'restA': Rest(),
             'null?': NullQ(),
             'cons?': ConsQ(),
             'zero?': ZeroQ(),
@@ -37,7 +37,7 @@ class ERProof:
             'not': Not(),
             'xor': Xor(),
             'implies': Implies(),
-            'advMath': advMath(),
+            'math': advMath(),
             #'doubleFront': DoubleFront(),  # this is fake for demo. remove when UDF working
         }
         self.proofLines = []
@@ -179,12 +179,16 @@ class ERProofLine:
             self.errLog.append('Rule must include the ' + 
                                ('function to be evaluated' if ruleCategory == 'eval'
                                else 'definition/axiom/lemma to be applied'))
-        elif not (rule in ruleSet.keys()):
+        elif rule not in ruleSet.keys() - {'consA', 'firstA', 'restA'}: # 'apply consA' is not valid
             self.errLog.append(f'Could not find rule associated with {rule}')
-        elif ruleCategory == 'apply' and not isinstance(ruleSet[rule], UDF):
+        elif ruleCategory == 'apply' and rule in ('cons', 'first', 'rest'): # for cons, first, rest axioms
+            rule += 'A'
+        elif ruleCategory == 'apply' and not (isinstance(ruleSet[rule], UDF) or ruleSet[rule].isProperty):
             self.errLog.append("Cannot apply a built-in Racket function")
         elif ruleCategory == 'eval' and isinstance(ruleSet[rule], UDF):
             self.errLog.append("Cannot evaluate a user-defined function")
+        elif ruleCategory == 'eval' and ruleSet[rule].isProperty:
+            self.errLog.append("Cannot evaluate a property")
         # checking to see if highlighted portion is within a quote
         if "'(" in targetNode.ancestors():
             self.errLog.append(f"Cannot apply rules within a quoted expression")
