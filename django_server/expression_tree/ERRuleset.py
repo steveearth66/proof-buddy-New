@@ -217,7 +217,7 @@ class ConsList(Rule):
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.data != "(":
-            return False, "must select entire expression to apply consList rule"
+            return False, "must select entire expression to evaluate cons"
         elif len(ruleNode.children) == 0 or ruleNode.children[0].data != 'cons':
             return False, f"Cannot evaluate cons on a '{ruleNode.children[0].data}' expression"
         elif num :=(len(ruleNode.children)) != 3: #NOTE: this case should have been caught earlier in buildtree, but just to be safe
