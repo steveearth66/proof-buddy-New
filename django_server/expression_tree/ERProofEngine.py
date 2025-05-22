@@ -178,7 +178,7 @@ class ERProofLine:
         elif rule == '':
             self.errLog.append('Rule must include the ' + 
                                ('function to be evaluated' if ruleCategory == 'eval'
-                               else 'definition/axiom/lemma to be applied'))
+                               else 'definition/property/lemma to be applied'))
         elif rule not in ruleSet.keys() - {'consA', 'firstA', 'restA'}: # 'apply consA' is not valid
             self.errLog.append(f'Could not find rule associated with {rule}')
         elif ruleCategory == 'apply' and rule in ('cons', 'first', 'rest'): # for cons, first, rest axioms
@@ -194,7 +194,7 @@ class ERProofLine:
             self.errLog.append(f"Cannot apply rules within a quoted expression")
         if self.errLog == []:       
             selectedRule = ruleSet[rule]
-            if rule == 'advMath':
+            if rule == 'math':
                 isApplicable, error = selectedRule.isApplicable(targetNode, subNode)
                 if isApplicable:
                     newNode = selectedRule.insertSubstitution(
@@ -218,8 +218,8 @@ class ERProofLine:
         if targetNode == None:
             self.errLog.append(
                 f'Could not find Token with starting index {startPos}')
-        if not (rule in ruleSet.keys()):
-            self.errLog.append(f'Could not find rule associated with {rule}')
+        #if not (rule in ruleSet.keys()):
+            #self.errLog.append(f'Could not find rule associated with {rule}')
         # checking to see if highlighted portion is within a quote
         if "'(" in targetNode.ancestors():
             self.errLog.append(f"Cannot apply rules within a quoted expression")

@@ -273,12 +273,13 @@ def substitution(request):
     racket_str = (
         current_proof.getPrevRacket() if is_valid else "Error generating racket"
     )
+    jsonTree = makeJson(current_proof.proofLines[-1].exprTree)
     errors, proof = get_errors_and_clear(proof)
 
     save_proof_to_cache(user, proof)
 
     return Response(
-        {"isValid": is_valid, "racket": racket_str, "errors": errors},
+        {"isValid": is_valid, "racket": racket_str, "jsonTree": jsonTree, "errors": errors},
         status=status.HTTP_200_OK,
     )
 

@@ -279,11 +279,12 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
             [side]: [
               ...prevFields[side].slice(0, -1),
               {
+                jsonTree: response.jsonTree,
                 racket: response.racket,
                 rule: rule + '(SUB)',
                 deleted: false
               },
-              { racket: '', rule: '', deleted: false }
+              { racket: '', jsonTree: {}, rule: '', deleted: false }
             ]
           }));
           closeSubstitution();
