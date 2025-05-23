@@ -80,16 +80,16 @@ class Cons(Rule):
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'cons':
-            return False, f"Cannot apply cons property to a '{ruleNode.children[0].data}' expression"
+            return False, f"Cannot apply cons-first-rest property to a '{ruleNode.children[0].data}' expression"
         elif len(ruleNode.children[1].children) == 0 or len(ruleNode.children[2].children) == 0 or \
         ruleNode.children[1].children[0].data != 'first' or ruleNode.children[2].children[0].data != 'rest':
-            return False, "Can only apply cons property when first arg is a 'first' expression and second arg is a 'rest' expression"
+            return False, "Can only apply cons-first-rest property when first arg is a 'first' expression and second arg is a 'rest' expression"
         elif ruleNode.children[1].children[1].data == 'null':
             return False, "first requires nonempty list"
         elif ruleNode.children[2].children[1].data == 'null':
             return False, "rest requires nonempty list"
         elif not isMatch(ruleNode.children[1].children[1], ruleNode.children[2].children[1]):
-            return False, f'Cannot apply cons property on two different lists'
+            return False, f'Cannot apply cons-first-rest property on two different lists'
         # string should not print out if debug=False
         return True, 'Cons.isApplicable() PASS'
 
@@ -104,9 +104,9 @@ class First(Rule):
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'first':
-            return False, f"Cannot apply first property to a '{ruleNode.children[0].data}' expression"
+            return False, f"Cannot apply first-cons property to a '{ruleNode.children[0].data}' expression"
         elif len(ruleNode.children[1].children) == 0 or ruleNode.children[1].children[0].data != 'cons':
-            return False, "Can only apply first property when argument is a 'cons' expression"
+            return False, "Can only apply first-cons property when argument is a 'cons' expression"
         # string should not print out if debug=False
         return True, 'First.isApplicable() PASS'
 
@@ -121,9 +121,9 @@ class Rest(Rule):
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'rest':
-            return False, f"Cannot apply rest property to a '{ruleNode.children[0].data}' expression"
+            return False, f"Cannot apply rest-cons property to a '{ruleNode.children[0].data}' expression"
         elif len(ruleNode.children[1].children) == 0 or ruleNode.children[1].children[0].data != 'cons':
-            return False, "Can only apply rest property when argument is a 'cons' expression"
+            return False, "Can only apply rest-cons property when argument is a 'cons' expression"
         # string should not print out if debug=False
         return True, 'Rest.isApplicable() PASS'
 

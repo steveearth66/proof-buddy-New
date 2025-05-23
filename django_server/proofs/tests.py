@@ -37,7 +37,7 @@ def test_racket_function(func: str, tests: list[tuple], appliable=False) -> int:
                             expected=["Rule must start with 'eval' or 'apply'"])
     if not appliable:
         fails += do_single_test_case('apply', func, expr,
-                                expected=['Cannot apply a built-in Racket function'])
+                                expected=[f'Could not find UDF/lemma/property associated with {func}'])
     return fails
 
 def test_list_func_props(func: str, tests: list[tuple]) -> int:
@@ -226,7 +226,7 @@ ge_tests = [
 totalFails += test_racket_function('>=', ge_tests)
 
 # Check that 'math' rule can no longer be used in place of the individual operators
-totalFails += do_single_test_case('eval', 'math', '(+ 1 2)', ['Cannot evaluate a property'])
+totalFails += do_single_test_case('eval', 'math', '(+ 1 2)', ['Cannot evaluate advanced math'])
 totalFails += do_single_test_case('', 'math', '(+ 1 2)', ["Rule must start with 'eval' or 'apply'"])
 
 # Logic Function Tests
@@ -361,15 +361,15 @@ totalFails += do_single_test_case('eval', 'restList', "(rest '(1 2 3))",
 
 print("\nList Function Property Testing\n")
 cons_prop_tests = [
-    ("(+ 1 2)", ["Cannot apply cons property to a '+' expression"]),
+    ("(+ 1 2)", ["Cannot apply cons-first-rest property to a '+' expression"]),
     ("(cons 1 null)", 
-     ["Can only apply cons property when first arg is a 'first' expression and second arg is a 'rest' expression"]),
+     ["Can only apply cons-first-rest property when first arg is a 'first' expression and second arg is a 'rest' expression"]),
     ("(cons 1 (rest '(1 2)))", 
-     ["Can only apply cons property when first arg is a 'first' expression and second arg is a 'rest' expression"]),
+     ["Can only apply cons-first-rest property when first arg is a 'first' expression and second arg is a 'rest' expression"]),
     ("(cons (first '(1 2)) '(2))", 
-     ["Can only apply cons property when first arg is a 'first' expression and second arg is a 'rest' expression"]),
-    ("(cons (first L) (rest M))", ["Cannot apply cons property on two different lists"]),
-    ("(cons (first '(1 2)) (rest '(1 3)))", ["Cannot apply cons property on two different lists"]),
+     ["Can only apply cons-first-rest property when first arg is a 'first' expression and second arg is a 'rest' expression"]),
+    ("(cons (first L) (rest M))", ["Cannot apply cons-first-rest property on two different lists"]),
+    ("(cons (first '(1 2)) (rest '(1 3)))", ["Cannot apply cons-first-rest property on two different lists"]),
     ("(cons (first null) (rest null))", ["first requires nonempty list"]), # cannot apply property when list is null
     ("(cons (first '(1 2)) (rest '()))", ["rest requires nonempty list"]), # '() instead of null
     ("(cons (first 1) (rest '(1)))", ["Cannot match argument out typeList ['INT'] with expected typeList ['LIST']"]), # bad type in argument expression
@@ -383,8 +383,8 @@ cons_prop_tests = [
 totalFails += test_list_func_props('cons', cons_prop_tests)
 
 first_prop_tests = [
-    ("(+ 1 2)", ["Cannot apply first property to a '+' expression"]),
-    ("(first '(1 2))", ["Can only apply first property when argument is a 'cons' expression"]),
+    ("(+ 1 2)", ["Cannot apply first-cons property to a '+' expression"]),
+    ("(first '(1 2))", ["Can only apply first-cons property when argument is a 'cons' expression"]),
     ("(first (cons 1 1))", # bad type in argument expression
      ["Cannot match argument out typeList ['INT', 'INT'] with expected typeList ['ANY', 'LIST']"]),
     ("(first (cons 1 '(2 3) '(4 5)))", ["cons only takes 2 arguments, but 3 were provided"]), # extra argument in argument expression
@@ -398,8 +398,8 @@ first_prop_tests = [
 totalFails += test_list_func_props('first', first_prop_tests)
 
 rest_prop_tests = [
-    ("(+ 1 2)", ["Cannot apply rest property to a '+' expression"]),
-    ("(rest '(1 2))", ["Can only apply rest property when argument is a 'cons' expression"]),
+    ("(+ 1 2)", ["Cannot apply rest-cons property to a '+' expression"]),
+    ("(rest '(1 2))", ["Can only apply rest-cons property when argument is a 'cons' expression"]),
     ("(rest (cons 1 1))", # bad type in argument expression
      ["Cannot match argument out typeList ['INT', 'INT'] with expected typeList ['ANY', 'LIST']"]),
     ("(rest (cons 1 '(2 3) '(4 5)))", ["cons only takes 2 arguments, but 3 were provided"]), # extra argument in argument expression

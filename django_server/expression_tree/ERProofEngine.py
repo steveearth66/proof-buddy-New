@@ -184,14 +184,18 @@ class ERProofLine:
         elif ruleCategory == 'apply' and rule in ('cons', 'first', 'rest'): # for cons, first, rest axioms
             rule += 'A'
         elif ruleCategory == 'apply' and not (isinstance(ruleSet[rule], UDF) or ruleSet[rule].isProperty):
-            self.errLog.append("Cannot apply a built-in Racket function")
+            self.errLog.append(f"Could not find UDF/lemma/property associated with {rule}")
         elif ruleCategory == 'eval' and isinstance(ruleSet[rule], UDF):
             self.errLog.append("Cannot evaluate a user-defined function")
+            self.errLog.append("Cannot evaluate a property")
+        elif ruleCategory == 'eval' and rule == 'math':
+            self.errLog.append("Cannot evaluate advanced math")
         elif ruleCategory == 'eval' and ruleSet[rule].isProperty:
             self.errLog.append("Cannot evaluate a property")
         # checking to see if highlighted portion is within a quote
         if "'(" in targetNode.ancestors():
             self.errLog.append(f"Cannot apply rules within a quoted expression")
+            
         if self.errLog == []:       
             selectedRule = ruleSet[rule]
             if rule == 'math':
