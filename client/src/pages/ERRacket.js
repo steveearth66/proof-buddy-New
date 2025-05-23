@@ -280,10 +280,16 @@ const ERRacket = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadedProof, loadRacketProof]);
+ 
+  // set startPosition upon switching sides
+  useEffect(() => {
+    const lastUnDeletedFieldIndex = racketRuleFields[showSide].filter(line => !line.deleted).length - 1;
+    setStartPosition(savedStartPositions.current[showSide][lastUnDeletedFieldIndex >= 0 ? lastUnDeletedFieldIndex : 0] ?? 0);
+  }, [showSide]);
 
   useEffect(() => {
-    const currentSideRackets = showSide === "LHS" ? racketRuleFields.LHS : racketRuleFields.RHS;
-    if (currentSideRackets.length === 0) {
+    const currentSideRackets = racketRuleFields[showSide];
+    if (currentSideRackets.length <= 1) {
       setCurrentRacket(formValues[`${showSide[0].toLowerCase()}HSGoal`]);
       return;
     }
