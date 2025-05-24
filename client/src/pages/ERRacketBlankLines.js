@@ -9,6 +9,7 @@ import Alert from "react-bootstrap/Alert";
 import MainLayout from "../layouts/MainLayout";
 import validateField from "../utils/eRFormValidationUtils";
 import OffcanvasRuleSet from "../components/OffcanvasRuleSet";
+import { useAuth } from '../context/AuthContext';
 import { useToggleSide } from "../hooks/useToggleSide";
 import { useOffcanvas } from "../hooks/useOffcanvas";
 import { useInputState } from "../hooks/useInputState";
@@ -34,6 +35,8 @@ import { toast } from "react-toastify";
  * ERRacket component facilitates the Equational Reasoning Racket.
  */
 const ERRacketBlankLines = () => {
+  const { user } = useAuth();
+
   const initialValues = {
     proofName: "",
     proofTag: "",
@@ -366,12 +369,12 @@ const ERRacketBlankLines = () => {
           <div className="form-top-section">
             <Row className="page-header-row">
               <Col>
-                <h1>Equational Reasoning: Racket</h1>
+                <h1>Equational Reasoning: Racket Blank Lines - {user?.is_student === true ? "Student" : "Instructor"}</h1>
               </Col>
             </Row>
 
             <Row>
-              <Form.Group as={Col} md="3" className="er-proof-name">
+              <Form.Group as={Col} md="3" className="er-proof -name">
                 <Form.Floating className="mb-3">
                   <Form.Control
                     id="eRProofName"
@@ -801,7 +804,6 @@ const ERRacketBlankLines = () => {
                         className="orange-btn green-btn"
                         onClick={() => {
                           addFieldWithApiCheck(showSide);
-                          //racketRuleFields?.LHS[0]?.jsonTree && console.log("the tree is: ", racketRuleFields.LHS[0].jsonTree);                          
                           if (showSide === "LHS") {
                             setLhsValue(formValues.lHSGoal);
                           } else {
