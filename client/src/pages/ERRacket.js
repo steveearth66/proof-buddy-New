@@ -19,7 +19,7 @@ import { useCurrentRacketValues } from "../hooks/useCurrentRacketValues";
 import { useFormSubmit } from "../hooks/useFormSubmit";
 import "../scss/_forms.scss";
 import "../scss/_er-racket.scss";
-import { useExportToLocalMachine } from "../hooks/useExportToLocalMachine";
+import { exportToLocalMachine, readFromFile } from "../hooks/useExportToLocalMachine";
 import {
   Definitions,
   ProofComplete,
@@ -124,24 +124,50 @@ const ERRacket = () => {
    * Returns a JSON object of the present form
    */
   const convertFormToJSON = () => {
-    //This is a Front End Proof Object placeholder
-    //In the future we will be using a Proof Object sent from the python-server
     let EquationalReasoningObject = {
       name: formValues.proofName,
       leftRacketsAndRules: racketRuleFields.LHS,
-      rightRacketsAndRules: racketRuleFields.RHS
+      rightRacketsAndRules: racketRuleFields.RHS,
+      definitions: JSON.parse(sessionStorage.getItem("definitions") || "[]")
     };
-
-    return convertToJSON(EquationalReasoningObject);
+    // console.log("Equational Reasoning Object:", EquationalReasoningObject);
+    return JSON.stringify(EquationalReasoningObject);
   };
 
-  const exportJSON = useExportToLocalMachine(
-    formValues.proofName,
-    convertFormToJSON()
-  );
+  const exportJSON = () => {
+    if (!formValues.proofName || !formValues.proofTag || !formValues.lHSGoal || !formValues.rHSGoal) {
+      alert("Please fill out all required fields before exporting.");
+      return;
+    }
+    exportToLocalMachine(formValues.proofName, convertFormToJSON());
+  };
 
   const handleHighlight = (startPosition) => {
     setStartPosition(startPosition);
+  };
+
+  const handleFileUpload = async (file) => {
+    if (file) {
+      try {
+        const data = await readFromFile(file); // Parse the file
+        
+        //TODO RACHEL parse the file json
+        // Update the `loadedProof` state with the parsed data
+        // setLoadedProof({
+        //   name: data.name || "",
+        //   tag: data.tag || "",
+        //   lhs: data.lhsGoal || "",
+        //   rhs: data.rhsGoal || "",
+        //   proofLines: [], // fix later
+        //   isComplete: false // change if needed
+        // });
+        // setRows(data.rows);
+
+        } catch (error) {
+        console.error("Error reading file:", error.message);
+        alert("Failed to load the file. Please upload a valid .txt file.");
+      }
+    }
   };
 
   const saveProof = async () => {
@@ -858,7 +884,16 @@ const ERRacket = () => {
                         <Dropdown.Item onClick={exportJSON}>
                           Download Proof
                         </Dropdown.Item>
-                        <Dropdown.Item href="#">Upload Proof</Dropdown.Item>
+                        <Dropdown.Item onClick={() => document.getElementById("uploadProofInput").click()}>
+                            Upload Proof
+                          </Dropdown.Item>
+                          <input
+                            id="uploadProofInput"
+                            type="file"
+                            accept=".txt"
+                            style={{ display: "none" }}
+                            onChange={(e) => handleFileUpload(e.target.files[0])}
+                          />
                         <Dropdown.Item onClick={saveProof}>
                           Save Proof
                         </Dropdown.Item>
