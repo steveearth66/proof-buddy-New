@@ -60,6 +60,27 @@ const racketGeneration = async (payLoad) => {
   }
 };
 
+/**
+ * Generate the racket for the provided rule.
+ *
+ * @param {Object} payLoad - The object contains proof rule & start position of highlight.
+ * @returns {Promise<Object>} - The response data from the server.
+ */
+const loadProof = async (payLoad) => {
+  //console.log("Payload sent to backend (erService.js):", payLoad); // DEBUG REMOVE
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/set-proof`,
+      payLoad
+    );
+    //console.log("line num?(erService.js):", response.data.lineNum); // test to see if lineNum shows up in the response
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during racket generation:");
+    throw error;
+  }
+};
+
 const createDefinition = async (definition) => {
   try {
     const response = await axiosInstance.post(
@@ -227,6 +248,7 @@ const deleteLine = async (side) => {
 
 const erService = {
   checkGoal,
+  loadProof,
   racketGeneration,
   createDefinition,
   completeProof,

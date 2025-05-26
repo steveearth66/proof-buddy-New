@@ -126,8 +126,13 @@ const ERRacket = () => {
   const convertFormToJSON = () => {
     let EquationalReasoningObject = {
       name: formValues.proofName,
+      tag: formValues.proofTag,
       leftRacketsAndRules: racketRuleFields.LHS,
       rightRacketsAndRules: racketRuleFields.RHS,
+      lHSGoal: formValues.lHSGoal,
+      rHSGoal: formValues.rHSGoal,
+      leftPremise,
+      rightPremise,
       definitions: JSON.parse(sessionStorage.getItem("definitions") || "[]")
     };
     // console.log("Equational Reasoning Object:", EquationalReasoningObject);
@@ -150,19 +155,7 @@ const ERRacket = () => {
     if (file) {
       try {
         const data = await readFromFile(file); // Parse the file
-        
-        //TODO RACHEL parse the file json
-        // Update the `loadedProof` state with the parsed data
-        // setLoadedProof({
-        //   name: data.name || "",
-        //   tag: data.tag || "",
-        //   lhs: data.lhsGoal || "",
-        //   rhs: data.rhsGoal || "",
-        //   proofLines: [], // fix later
-        //   isComplete: false // change if needed
-        // });
-        // setRows(data.rows);
-
+        setLoadedProof( data);
         } catch (error) {
         console.error("Error reading file:", error.message);
         alert("Failed to load the file. Please upload a valid .txt file.");
@@ -298,14 +291,15 @@ const ERRacket = () => {
     if (loadedProof) {
       formValues.proofName = loadedProof.name;
       formValues.proofTag = loadedProof.tag;
-      formValues.lHSGoal = loadedProof.lhs;
-      formValues.rHSGoal = loadedProof.rhs;
+      formValues.lHSGoal = loadedProof.lHSGoal;
+      formValues.rHSGoal = loadedProof.rHSGoal;
 
-      loadRacketProof(loadedProof.proofLines, loadedProof.isComplete);
-      loadRacket();
+      setLeftPremise(loadedProof.leftPremise);
+      setRightPremise(loadedProof.rightPremise);
+      loadRacketProof(loadedProof);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadedProof, loadRacketProof]);
+  }, [loadedProof]);
  
   // set startPosition upon switching sides
   useEffect(() => {
@@ -428,6 +422,35 @@ const ERRacket = () => {
                   </Dropdown.Item>
                 </Dropdown.Menu>
               </Dropdown>
+
+              <Dropdown
+                      as={Col}
+                      className="d-inline proof-dropdown-btn proof-operations"
+                    >
+                      <Dropdown.Toggle id="dropdown-autoclose-true">
+                        File Operations
+                      </Dropdown.Toggle>
+
+                      <Dropdown.Menu>
+                        <Dropdown.Item onClick={exportJSON}>
+                          Download Proof
+                        </Dropdown.Item>
+                        <Dropdown.Item onClick={() => document.getElementById("uploadProofInput").click()}>
+                            Upload Proof
+                          </Dropdown.Item>
+                          <input
+                            id="uploadProofInput"
+                            type="file"
+                            accept=".json"
+                            style={{ display: "none" }}
+                            onChange={(e) => handleFileUpload(e.target.files[0])}
+                          />
+                        <Dropdown.Item onClick={saveProof}>
+                          Save Proof
+                        </Dropdown.Item>
+                        <Dropdown.Item href="#">Submit Proof</Dropdown.Item>
+                      </Dropdown.Menu>
+                    </Dropdown>
             </Row>
 
             <Row className="g-5">
@@ -872,34 +895,7 @@ const ERRacket = () => {
 
                 <div className="proof-opr-wrap">
                   <Row className="proof-oprs">
-                    <Dropdown
-                      as={Col}
-                      className="d-inline proof-dropdown-btn proof-operations"
-                    >
-                      <Dropdown.Toggle id="dropdown-autoclose-true">
-                        File Operations
-                      </Dropdown.Toggle>
-
-                      <Dropdown.Menu>
-                        <Dropdown.Item onClick={exportJSON}>
-                          Download Proof
-                        </Dropdown.Item>
-                        <Dropdown.Item onClick={() => document.getElementById("uploadProofInput").click()}>
-                            Upload Proof
-                          </Dropdown.Item>
-                          <input
-                            id="uploadProofInput"
-                            type="file"
-                            accept=".txt"
-                            style={{ display: "none" }}
-                            onChange={(e) => handleFileUpload(e.target.files[0])}
-                          />
-                        <Dropdown.Item onClick={saveProof}>
-                          Save Proof
-                        </Dropdown.Item>
-                        <Dropdown.Item href="#">Submit Proof</Dropdown.Item>
-                      </Dropdown.Menu>
-                    </Dropdown>
+                    
                   </Row>
                 </div>
               </div>
