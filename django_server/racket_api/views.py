@@ -28,34 +28,7 @@ def apply_rule(request):
     json_data = request.data
     proof = get_or_set_proof(user)
 
-    is_p_one_active = json_data["side"] == "LHS"
-    proof_one: ERProof = proof["proofOne"]
-    proof_two: ERProof = proof["proofTwo"]
-
-    if is_p_one_active:
-        if proof_one.getPrevRacket() != json_data["currentRacket"]:
-            proof_two.addProofLine(
-                json_data["currentRacket"],
-                json_data["rule"],
-                json_data["startPosition"],
-            )
-        else:
-            proof_one.addProofLine(
-                json_data["currentRacket"],
-                json_data["rule"],
-                json_data["startPosition"],
-            )
-    elif proof_two.getPrevRacket() != json_data["currentRacket"]:
-        proof_one.addProofLine(
-            json_data["currentRacket"], json_data["rule"], json_data["startPosition"]
-        )
-    else:
-        proof_two.addProofLine(
-            json_data["currentRacket"], json_data["rule"], json_data["startPosition"]
-        )
-
-    proof = update_current_proof(proof, json_data["side"])
-    proof = update_is_valid(proof)
+    errors, proof = add_proof_line(json_data, proof, json_data["side"])
 
     current_proof: ERProof = proof["currentProof"]
     is_valid = proof["isValid"]
@@ -66,9 +39,6 @@ def apply_rule(request):
 
     # this jsonTree is of the last proofline after the rule is applied
     jsonTree = makeJson(current_proof.proofLines[-1].exprTree)
-
-    errors, proof = get_errors_and_clear(proof)
-
     save_proof_to_cache(user, proof)
 
     return Response(
@@ -130,10 +100,8 @@ def check_goal(request):
 
     current_proof.addProofLine(json_data["goal"])
 
-    proof = update_current_proof(proof, json_data["side"])
-    proof = update_is_valid(proof)
+    errors, proof = update_and_validate(proof, json_data["side"])
     is_valid = proof["isValid"]
-    errors, proof = get_errors_and_clear(proof)
 
     save_proof_to_cache(user, proof)
 
