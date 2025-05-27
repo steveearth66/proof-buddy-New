@@ -36,10 +36,10 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
   const updateShowSubstitution = () => {
     setSubstitutionErrors([]);
 
-    if (startPosition < 1) {
+    /* if (startPosition < 1) {
       alert('Please select a keyword to substitute!');
       return;
-    }
+    } */
 
     const sideFields = racketRuleFields[side];
     const undeletedProofLines = sideFields.filter((line) => {
@@ -88,6 +88,66 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
       }
     },
     [handleServerError, startPosition, currentRacket, name, tag, side]
+  );
+
+  /**
+   * A callback function to fetch a racket value for a given rule.
+   * Utilizes the custom service `erService` to make an external request.
+   *
+   * @param {string} ruleValue - The value of the rule for which to fetch the racket value.
+   * @returns {Promise<string|undefined>} A promise that resolves to the racket value or undefined if an error occurs.
+   */
+  const loadProofInServer = useCallback(
+    async (loadedProof) => {
+
+      let currentRacket = loadedProof.lHSGoal
+      let startPosition = loadedProof.leftPremise["startPosition"]
+      let LHS = []
+      for(let i = 0; i < loadedProof.leftRacketsAndRules.length; i++){
+        LHS.push({ currentRacket, startPosition, "rule":loadedProof.leftRacketsAndRules[i]["rule"] })
+        if( i + 1 < loadedProof.leftRacketsAndRules.length){
+          currentRacket = loadedProof.leftRacketsAndRules[i]["racket"];
+          if (loadedProof.leftRacketsAndRules[i]["startPosition"]){
+            startPosition = loadedProof.leftRacketsAndRules[i]["startPosition"]
+          } else {
+            break;
+          }
+        }
+      }
+
+      currentRacket = loadedProof.rHSGoal
+      startPosition = loadedProof.rightPremise["startPosition"]
+      let RHS = []
+      for(let i = 0; i < loadedProof.rightRacketsAndRules.length; i++){
+        
+        LHS.push({ currentRacket, startPosition, "rule":loadedProof.rightRacketsAndRules[i]["rule"] })
+        if( i + 1 < loadedProof.rightRacketsAndRules.length){
+          currentRacket = loadedProof.rightRacketsAndRules[i]["racket"];
+          if (loadedProof.rightRacketsAndRules[i]["startPosition"]){
+            startPosition = loadedProof.rightRacketsAndRules[i]["startPosition"]
+          } else {
+            break;
+          }
+        }
+      }
+
+      const payLoad = {
+        "lHSGoal": loadedProof.lHSGoal,
+        "rHSGoal": loadedProof.rHSGoal,
+        LHS,
+        RHS,
+        "name": loadedProof.name,
+        "tag": loadedProof.tag
+      };
+
+      try {
+        const response = await erService.loadProof(payLoad);
+        //console.log('line num (useRacketRuleFields.js)?:', response.lineNum); // test to see if lineNum shows up in the response
+        if (response) return response;
+      } catch (error) {
+        handleServerError(error);
+      }
+    }
   );
 
   /**
@@ -279,11 +339,12 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
             [side]: [
               ...prevFields[side].slice(0, -1),
               {
+                jsonTree: response.jsonTree,
                 racket: response.racket,
                 rule: rule + '(SUB)',
                 deleted: false
               },
-              { racket: '', rule: '', deleted: false }
+              { racket: '', jsonTree: {}, rule: '', deleted: false }
             ]
           }));
           closeSubstitution();
@@ -301,35 +362,13 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
     [currentRacket, side, startPosition]
   );
 
-  const loadRacketProof = useCallback((proofLines, isComplete) => {
-    const leftRackets = proofLines.filter((line) => line.leftSide === true);
-    const rightRackets = proofLines.filter((line) => line.leftSide === false);
-
-    const leftFields = leftRackets.map((line) => ({
-      racket: line.racket,
-      rule: line.rule,
-      deleted: line.deleted,
-      startPosition: line.startPosition,
-      errors: line.errors
-    }));
-
-    const rightFields = rightRackets.map((line) => ({
-      racket: line.racket,
-      rule: line.rule,
-      deleted: line.deleted,
-      startPosition: line.startPosition,
-      errors: line.errors
-    }));
-
-    if (!isComplete) {
-      leftFields.push({ racket: '', rule: '', deleted: false, errors: [] });
-      rightFields.push({ racket: '', rule: '', deleted: false, errors: [] });
-    }
-
+  const loadRacketProof = useCallback((loadedProof) => {
     setRacketRuleFields({
-      LHS: leftFields,
-      RHS: rightFields
+      LHS: loadedProof.leftRacketsAndRules,
+      RHS: loadedProof.rightRacketsAndRules
     });
+
+    loadProofInServer(loadedProof)
   }, []);
 
   return [

@@ -93,7 +93,7 @@ const useGoalCheck = (handleChange) => {
     }
   };
 
-  const loadRacket = () => {
+  const loadRacketGoal = () => {
     setIsGoalChecked({ LHS: true, RHS: true });
   };
 
@@ -104,7 +104,7 @@ const useGoalCheck = (handleChange) => {
     enhancedHandleChange,
     proofValidationMessage,
     clearProofValidationMessage,
-    loadRacket,
+    loadRacketGoal,
     jsonTreeRep
   ];
 };

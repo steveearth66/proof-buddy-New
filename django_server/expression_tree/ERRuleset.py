@@ -27,10 +27,10 @@ def isMatch(xNode: Node, yNode: Node) -> bool:
         sofar &= isMatch(xNode.children[i], yNode.children[i])
     return sofar
 
-
 class Rule(ABC):
-    def __init__(self, label):
+    def __init__(self, label, isProperty=False):
         self.label = label
+        self.isProperty = isProperty
 
     @property
     def label(self):
@@ -76,16 +76,20 @@ class If(Rule):
 
 class Cons(Rule):
     def __init__(self):
-        super().__init__('cons')
+        super().__init__('cons', isProperty=True)
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'cons':
-            return False, f'Cannot apply cons rule to {ruleNode.children[0].data}'
+            return False, f"Cannot apply cons-first-rest property to a '{ruleNode.children[0].data}' expression"
         elif len(ruleNode.children[1].children) == 0 or len(ruleNode.children[2].children) == 0 or \
         ruleNode.children[1].children[0].data != 'first' or ruleNode.children[2].children[0].data != 'rest':
-            return False, f'Can only apply the cons rule to first and rest'
+            return False, "Can only apply cons-first-rest property when first arg is a 'first' expression and second arg is a 'rest' expression"
+        elif ruleNode.children[1].children[1].data == 'null':
+            return False, "first requires nonempty list"
+        elif ruleNode.children[2].children[1].data == 'null':
+            return False, "rest requires nonempty list"
         elif not isMatch(ruleNode.children[1].children[1], ruleNode.children[2].children[1]):
-            return False, f'Cannot apply cons rule on two different lists'
+            return False, f'Cannot apply cons-first-rest property on two different lists'
         # string should not print out if debug=False
         return True, 'Cons.isApplicable() PASS'
 
@@ -96,13 +100,13 @@ class Cons(Rule):
 
 class First(Rule):
     def __init__(self):
-        super().__init__('first')
+        super().__init__('first', isProperty=True)
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'first':
-            return False, f'Cannot apply first rule to {ruleNode.children[0].data}'
+            return False, f"Cannot apply first-cons property to a '{ruleNode.children[0].data}' expression"
         elif len(ruleNode.children[1].children) == 0 or ruleNode.children[1].children[0].data != 'cons':
-            return False, f'first rule can only be applied with a cons'
+            return False, "Can only apply first-cons property when argument is a 'cons' expression"
         # string should not print out if debug=False
         return True, 'First.isApplicable() PASS'
 
@@ -113,13 +117,13 @@ class First(Rule):
 
 class Rest(Rule):
     def __init__(self):
-        super().__init__('rest')
+        super().__init__('rest', isProperty=True)
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'rest':
-            return False, f'Cannot apply rest rule to {ruleNode.children[0].data}'
+            return False, f"Cannot apply rest-cons property to a '{ruleNode.children[0].data}' expression"
         elif len(ruleNode.children[1].children) == 0 or ruleNode.children[1].children[0].data != 'cons':
-            return False, f'rest rule can only be applied with a cons'
+            return False, "Can only apply rest-cons property when argument is a 'cons' expression"
         # string should not print out if debug=False
         return True, 'Rest.isApplicable() PASS'
 
@@ -213,15 +217,15 @@ class ConsList(Rule):
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.data != "(":
-            return False, "must select entire expression to apply consList rule"
+            return False, "must select entire expression to evaluate cons"
         elif len(ruleNode.children) == 0 or ruleNode.children[0].data != 'cons':
-            return False, 'operator must be cons to apply consList rule'
+            return False, f"Cannot evaluate cons on a '{ruleNode.children[0].data}' expression"
         elif num :=(len(ruleNode.children)) != 3: #NOTE: this case should have been caught earlier in buildtree, but just to be safe
             return False, f'cons expects 2 arguments, but you provided {num-1}'
         elif (ruleNode.children[1].data) =="(":
-            return False, 'insufficiently resolved first argument'
+            return False, 'insufficiently resolved arguments'
         elif (ruleNode.children[2].data) not in ("null", "'("):
-            return False, 'insufficiently resolved second argument, which must be a list'
+            return False, 'insufficiently resolved arguments'
         return True, "ConsList.isApplicable() PASS"  # string should not print out if debug=False
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
@@ -297,7 +301,7 @@ class Symbolic(Rule, ABC):
             return False, 'insufficiently resolved arguments'
         # Check if the operator matches the rule label
         if ruleNode.children[0].data != self.label:
-            return False, f"Cannot apply {self.label} rule to {ruleNode.children[0].data}"
+            return False, f"Cannot evaluate {self.label} on a '{ruleNode.children[0].data}' expression"
         return True, 'Symbolic.isApplicable() PASS'
         
     @abstractmethod
@@ -325,6 +329,7 @@ class Symbolic(Rule, ABC):
             return Node(data=newdata, tokenType=newtype, name=newname)
         except Exception as e:
             raise ValueError(f"Error in insertSubstitution: {str(e)}")
+
 class Math(Symbolic):
     def getStdExpr(self, ruleNode: Node) -> str:
         return ruleNode.mathStr()
@@ -433,6 +438,7 @@ class GreaterOrEqual(Math):
 class Logic(Symbolic):
     def getStdExpr(self, ruleNode: Node) -> str:
         return ruleNode.logicStr()
+    
 class And(Logic):
     def __init__(self):
         super().__init__('and')
@@ -484,11 +490,11 @@ class RestList(Rule):
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:  # presumes buildtree checked types/qty already
         if ruleNode.data != "(" or len(ruleNode.children) != 2 or ruleNode.children[0].data != "rest":
-            return False, f'restList rule requires calling rest function'
+            return False, f"Cannot evaluate rest on a '{ruleNode.children[0].data}' expression"
         if len(ruleNode.children[1].children) ==0: #this handles (rest null), (rest '()) :
-            return False, f'restList rule requires nonempty list'
+            return False, f'rest requires nonempty list'
         if ruleNode.children[1].data != "'(":
-            return False, f'restList rule requires explicit list'  # null case already handled. e.g. (rest L)
+            return False, f'insufficiently resolved list argument'  # null case already handled. e.g. (rest L)
         return True, "RestList.isApplicable() PASS"
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
@@ -509,11 +515,11 @@ class FirstList(Rule):
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:  # presumes buildtree checked types/qty already
         if ruleNode.data != "(" or len(ruleNode.children) != 2 or ruleNode.children[0].data != "first":
-            return False, f'firstList rule requires calling rest function'
+            return False, f"Cannot evaluate first on a '{ruleNode.children[0].data}' expression"
         if len(ruleNode.children[1].children) ==0: #this handles (rest null), (rest '()) :
-            return False, f'firstList rule requires nonempty list'
+            return False, f'first requires nonempty list'
         if ruleNode.children[1].data != "'(":
-            return False, f'firstList rule requires explicit list'  # null case already handled. e.g. (rest L)
+            return False, f'insufficiently resolved list argument'  # null case already handled. e.g. (rest L)
         return True, "RestList.isApplicable() PASS"
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
@@ -525,7 +531,7 @@ class FirstList(Rule):
 class advMath(Rule):
     
     def __init__(self):
-        super().__init__('advMath')
+        super().__init__('advMath', isProperty=True)
 
 # presumes buildtree checked types/qty already for main node and the subnode
 # "subnode" is the exptree created by the user in the Substitution pane.

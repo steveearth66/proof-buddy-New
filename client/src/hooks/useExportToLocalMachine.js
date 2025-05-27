@@ -1,7 +1,44 @@
-/** 
-  * Custom Hook to export the created JSON Object to the user's local machine as a .json file.
-  *   - Example of how to implement: 'const exportJSON = useExportToLocalMachine(proofName, convertFormToJSON());'
-  */
+export const exportToLocalMachine = (proofName, JSONForm) => {
+  // console.log('Exporting to local machine:', JSONForm)
+  let fileName = proofName || 'your-JSON-File';
+  let blob = new Blob([JSONForm], { type: 'application/json' });
+  let href = URL.createObjectURL(blob);
+  let link = document.createElement('a');
+  link.href = href;
+  link.download = fileName + '.json';
+  link.click();
+};
+
+/**
+ * Reads a .txt file and returns the parsed exportData object.
+ * @param {File} file - The .txt file to read.
+ * @returns {Promise<Object>} - A promise that resolves to the parsed exportData object.
+ */
+export const readFromFile = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    // Handle file reading
+    reader.onload = (event) => {
+      try {
+        const fileContent = event.target.result;
+        const parsedData = JSON.parse(fileContent); // Parse the JSON content
+        resolve(parsedData); // Resolve with the parsed data
+      } catch (error) {
+        reject(new Error("Invalid file format. Please upload a valid .txt file containing JSON."));
+      }
+    };
+
+    // Handle file reading errors
+    reader.onerror = () => {
+      reject(new Error("Error reading the file."));
+    };
+
+    // Read the file as text
+    reader.readAsText(file);
+  });
+};
+
 const useExportToLocalMachine = (proofName, JSONForm) => {
   /** 
    * Exports the created JSON Object to the user's local machine as a .json file.

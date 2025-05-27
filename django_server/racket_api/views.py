@@ -28,34 +28,7 @@ def apply_rule(request):
     json_data = request.data
     proof = get_or_set_proof(user)
 
-    is_p_one_active = json_data["side"] == "LHS"
-    proof_one: ERProof = proof["proofOne"]
-    proof_two: ERProof = proof["proofTwo"]
-
-    if is_p_one_active:
-        if proof_one.getPrevRacket() != json_data["currentRacket"]:
-            proof_two.addProofLine(
-                json_data["currentRacket"],
-                json_data["rule"],
-                json_data["startPosition"],
-            )
-        else:
-            proof_one.addProofLine(
-                json_data["currentRacket"],
-                json_data["rule"],
-                json_data["startPosition"],
-            )
-    elif proof_two.getPrevRacket() != json_data["currentRacket"]:
-        proof_one.addProofLine(
-            json_data["currentRacket"], json_data["rule"], json_data["startPosition"]
-        )
-    else:
-        proof_two.addProofLine(
-            json_data["currentRacket"], json_data["rule"], json_data["startPosition"]
-        )
-
-    proof = update_current_proof(proof, json_data["side"])
-    proof = update_is_valid(proof)
+    errors, proof = add_proof_line(json_data, proof, json_data["side"])
 
     current_proof: ERProof = proof["currentProof"]
     is_valid = proof["isValid"]
@@ -66,9 +39,6 @@ def apply_rule(request):
 
     # this jsonTree is of the last proofline after the rule is applied
     jsonTree = makeJson(current_proof.proofLines[-1].exprTree)
-
-    errors, proof = get_errors_and_clear(proof)
-
     save_proof_to_cache(user, proof)
 
     return Response(
@@ -130,15 +100,92 @@ def check_goal(request):
 
     current_proof.addProofLine(json_data["goal"])
 
-    proof = update_current_proof(proof, json_data["side"])
-    proof = update_is_valid(proof)
+    errors, proof = update_and_validate(proof, json_data["side"])
     is_valid = proof["isValid"]
-    errors, proof = get_errors_and_clear(proof)
 
     save_proof_to_cache(user, proof)
 
     return Response({"isValid": is_valid, "errors": errors, "jsonTree": jsonTree}, status=status.HTTP_200_OK)
 
+@api_view(["POST"])
+def set_current_proof(request):
+    user = request.user
+    json_data = request.data
+
+    # clear working cache for the user
+    cache.delete(f"proofs_{user.username}")
+
+    # create a new working cache for the user
+    proof = get_or_set_proof(user)
+
+    proof_one: ERProof = proof["proofOne"]
+    proof_two: ERProof = proof["proofTwo"]
+
+    # Set LHS and RHS goals
+    proof_one.addProofLine(json_data["lHSGoal"])
+    errors, proof = update_and_validate(proof, "LHS")
+    if not proof["isValid"]:
+        return Response(
+            {
+                "isValid": False,
+                "errors": errors,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    proof_two.addProofLine(json_data["rHSGoal"])
+    errors, proof = update_and_validate(proof, "RHS")
+    if not proof["isValid"]:
+        return Response(
+            {
+                "isValid": False,
+                "errors": errors,
+            },
+            status=status.HTTP_200_OK,
+        )
+    
+    # Add all LHS and RHS and validate
+    for side in {"LHS", "RHS"}:
+        for line in json_data[side]:
+            errors, proof = add_proof_line(line, proof, side)
+            save_proof_to_cache(user, proof)
+            if not proof["isValid"]:
+                return Response(
+                    {
+                        "isValid": False,
+                        "errors": errors,
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
+    return Response(
+        {"isValid": "True", "errors": []},
+        status=status.HTTP_200_OK,
+    )
+
+def add_proof_line(line, proof, side):
+    current = ("proofOne" if side == "LHS" else "proofTwo")
+    other = ("proofTwo" if side == "LHS" else "proofOne")
+
+    current_proof: ERProof = proof[current]
+    
+
+    if current_proof.getPrevRacket() != line["currentRacket"]:
+        current_proof = proof[other]
+    
+    current_proof.addProofLine(
+        line["currentRacket"],
+        line["rule"],
+        line["startPosition"],
+    )
+    
+    return update_and_validate(proof, side)
+
+
+def update_and_validate(proof, side):
+    proof = update_current_proof(proof, side)
+    proof = update_is_valid(proof)
+    return get_errors_and_clear(proof)
 
 @api_view(["POST"])
 def add_definitions(request):
@@ -273,12 +320,13 @@ def substitution(request):
     racket_str = (
         current_proof.getPrevRacket() if is_valid else "Error generating racket"
     )
+    jsonTree = makeJson(current_proof.proofLines[-1].exprTree)
     errors, proof = get_errors_and_clear(proof)
 
     save_proof_to_cache(user, proof)
 
     return Response(
-        {"isValid": is_valid, "racket": racket_str, "errors": errors},
+        {"isValid": is_valid, "racket": racket_str, "jsonTree": jsonTree, "errors": errors},
         status=status.HTTP_200_OK,
     )
 

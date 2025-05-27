@@ -4,6 +4,7 @@ from . import views
 urlpatterns = [
     path("er-generate", views.apply_rule),
     path("check-goal", views.check_goal),
+    path("set-proof", views.set_current_proof),
     path("er-definitions", views.add_definitions),
     path("er-complete", views.complete_proof),
     path("er-clear", views.clear_proof),

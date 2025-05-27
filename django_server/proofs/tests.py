@@ -27,7 +27,7 @@ def do_single_test_case(prefix: str, func: str, expr: str, expected, proof: ERPr
         print(f"FAIL! expected {word}: {expected} but got: {ans}\n")
         return 1
 
-def test_racket_function(func: str, tests: list[tuple]) -> int:
+def test_racket_function(func: str, tests: list[tuple], appliable=False) -> int:
     # expects last test case to not have errors
     fails = 0
     for trial in tests:
@@ -35,8 +35,17 @@ def test_racket_function(func: str, tests: list[tuple]) -> int:
         fails += do_single_test_case('eval', func, expr, expected)
     fails += do_single_test_case('', func, expr, 
                             expected=["Rule must start with 'eval' or 'apply'"])
-    fails += do_single_test_case('apply', func, expr,
-                            expected=['Cannot apply a built-in Racket function'])
+    if not appliable:
+        fails += do_single_test_case('apply', func, expr,
+                                expected=[f'Could not find UDF/lemma/property associated with {func}'])
+    return fails
+
+def test_list_func_props(func: str, tests: list[tuple]) -> int:
+    fails = 0
+    for trial in tests:
+        expr, expected = trial
+        fails += do_single_test_case('apply', func, expr, expected)
+    fails += do_single_test_case('apply', func + 'A', expr, [f'Could not find rule associated with {func + 'A'}'])
     return fails
 
 totalFails = 0
@@ -45,8 +54,8 @@ totalFails = 0
 print('Testing Math Rules:\n')
 plus_tests = [
      # bad operation
-    ("(cons 1 null)", ['Cannot apply + rule to cons']),
-    ("(* 2 3)", ['Cannot apply + rule to *']),
+    ("(cons 1 null)", ["Cannot evaluate + on a 'cons' expression"]),
+    ("(* 2 3)", ["Cannot evaluate + on a '*' expression"]),
     # too few arguments
     ("(+ 1)", ['+ only takes 2 arguments, but 1 was provided']),
     ("(+)", ['+ only takes 2 arguments, but 0 were provided']),
@@ -60,8 +69,8 @@ totalFails += test_racket_function('+', plus_tests)
 
 minus_tests = [
     # bad operation
-    ("(cons 1 null)", ['Cannot apply - rule to cons']),
-    ("(* 2 3)", ['Cannot apply - rule to *']),
+    ("(cons 1 null)", ["Cannot evaluate - on a 'cons' expression"]),
+    ("(* 2 3)", ["Cannot evaluate - on a '*' expression"]),
     # too few arguments
     ("(- 3)", ['- only takes 2 arguments, but 1 was provided']),
     ("(-)", ['- only takes 2 arguments, but 0 were provided']),
@@ -75,8 +84,8 @@ minus_tests = [
 totalFails += test_racket_function('-', minus_tests)
 
 times_tests = [
-    ("(cons 1 null)", ['Cannot apply * rule to cons']),
-    ("(- 2 3)", ['Cannot apply * rule to -']),
+    ("(cons 1 null)", ["Cannot evaluate * on a 'cons' expression"]),
+    ("(- 2 3)", ["Cannot evaluate * on a '-' expression"]),
     ("(* 3)", ['* only takes 2 arguments, but 1 was provided']), # too few arguments
     ("(* 2 3 4)", ['* only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(* #t 1)",
@@ -88,8 +97,8 @@ totalFails += test_racket_function('*', times_tests)
 
 quotient_tests = [
     # bad operation
-    ("(cons 1 null)", ['Cannot apply quotient rule to cons']),
-    ("(* 2 3)", ['Cannot apply quotient rule to *']),
+    ("(cons 1 null)", ["Cannot evaluate quotient on a 'cons' expression"]),
+    ("(* 2 3)", ["Cannot evaluate quotient on a '*' expression"]),
     ("(quotient 3)", ['quotient only takes 2 arguments, but 1 was provided']), # too few arguments
     ("(quotient 12 2 3)", ['quotient only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(quotient #t 1)",
@@ -103,8 +112,8 @@ totalFails += test_racket_function('quotient', quotient_tests)
 
 remainder_tests = [
     # bad operation
-    ("(cons 1 null)", ['Cannot apply remainder rule to cons']),
-    ("(* 2 3)", ['Cannot apply remainder rule to *']),
+    ("(cons 1 null)", ["Cannot evaluate remainder on a 'cons' expression"]),
+    ("(* 2 3)", ["Cannot evaluate remainder on a '*' expression"]),
     ("(remainder 3)", ['remainder only takes 2 arguments, but 1 was provided']), # too few arguments
     ("(remainder 14 5 3)", ['remainder only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(remainder 5 #t)",
@@ -118,8 +127,8 @@ totalFails = test_racket_function('remainder', remainder_tests)
 
 expt_tests = [
     # bad operation
-    ("(cons 1 null)", ['Cannot apply expt rule to cons']),
-    ("(* 2 3)", ['Cannot apply expt rule to *']),
+    ("(cons 1 null)", ["Cannot evaluate expt on a 'cons' expression"]),
+    ("(* 2 3)", ["Cannot evaluate expt on a '*' expression"]),
     ("(expt 3)", ['expt only takes 2 arguments, but 1 was provided']), # too few arguments
     ("(expt 2 2 2)", ['expt only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(expt 5 #t)",
@@ -135,8 +144,8 @@ totalFails = test_racket_function('expt', expt_tests)
 
 eq_tests = [
     # bad operation
-    ("(cons 1 null)", ['Cannot apply = rule to cons']),
-    ("(* 2 3)", ['Cannot apply = rule to *']),
+    ("(cons 1 null)", ["Cannot evaluate = on a 'cons' expression"]),
+    ("(* 2 3)", ["Cannot evaluate = on a '*' expression"]),
     ("(= 3)", ['= only takes 2 arguments, but 1 was provided']), # too few arguments
     ("(= 2 2 2)", ['= only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(= #t #t)", '#t'), # allowed to use '=' for any type in buddy racket
@@ -158,8 +167,8 @@ totalFails += test_racket_function('=', eq_tests)
 
 lt_tests = [
     # bad operation
-    ("(cons 1 null)", ['Cannot apply < rule to cons']),
-    ("(<= 2 3)", ['Cannot apply < rule to <=']),
+    ("(cons 1 null)", ["Cannot evaluate < on a 'cons' expression"]),
+    ("(<= 2 3)", ["Cannot evaluate < on a '<=' expression"]),
     ("(< 3)", ['< only takes 2 arguments, but 1 was provided']), # too few arguments
     ("(< 2 3 4)", ['< only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(< #f #t)",
@@ -173,8 +182,8 @@ totalFails += test_racket_function('<', lt_tests)
 
 le_tests = [
     # bad operation
-    ("(cons 1 null)", ['Cannot apply <= rule to cons']),
-    ("(< 2 3)", ['Cannot apply <= rule to <']),
+    ("(cons 1 null)", ["Cannot evaluate <= on a 'cons' expression"]),
+    ("(< 2 3)", ["Cannot evaluate <= on a '<' expression"]),
     ("(<= 3)", ['<= only takes 2 arguments, but 1 was provided']), # too few arguments
     ("(<= 2 3 4)", ['<= only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(<= 0 #t)",
@@ -188,8 +197,8 @@ totalFails += test_racket_function('<=', le_tests)
 
 gt_tests = [
     # bad operation
-    ("(cons 1 null)", ['Cannot apply > rule to cons']),
-    ("(< 2 3)", ['Cannot apply > rule to <']),
+    ("(cons 1 null)", ["Cannot evaluate > on a 'cons' expression"]),
+    ("(< 2 3)", ["Cannot evaluate > on a '<' expression"]),
     ("(> 3)", ['> only takes 2 arguments, but 1 was provided']), # too few arguments
     ("(> 4 3 2)", ['> only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(> 1 #f)",
@@ -203,8 +212,8 @@ totalFails += test_racket_function('>', gt_tests)
 
 ge_tests = [
     # bad operation
-    ("(cons 1 null)", ['Cannot apply >= rule to cons']),
-    ("(< 2 3)", ['Cannot apply >= rule to <']),
+    ("(cons 1 null)", ["Cannot evaluate >= on a 'cons' expression"]),
+    ("(< 2 3)", ["Cannot evaluate >= on a '<' expression"]),
     ("(>= 3)", ['>= only takes 2 arguments, but 1 was provided']), # too few arguments
     ("(>= 4 3 2)", ['>= only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(>= #f #t)",
@@ -217,14 +226,14 @@ ge_tests = [
 totalFails += test_racket_function('>=', ge_tests)
 
 # Check that 'math' rule can no longer be used in place of the individual operators
-totalFails += do_single_test_case('eval', 'math', '(+ 1 2)', ['Cannot evaluate an axiom'])
+totalFails += do_single_test_case('eval', 'math', '(+ 1 2)', ['Cannot evaluate advanced math'])
 totalFails += do_single_test_case('', 'math', '(+ 1 2)', ["Rule must start with 'eval' or 'apply'"])
 
 # Logic Function Tests
 print('\nTesting Logic Rules:\n')
 not_tests = [
-    ("(cons 1 null)", ['Cannot apply not rule to cons']),
-    ("(and #t #t)", ['Cannot apply not rule to and']),
+    ("(cons 1 null)", ["Cannot evaluate not on a 'cons' expression"]),
+    ("(and #t #t)", ["Cannot evaluate not on a 'and' expression"]),
     ("(not #t #t)", ['not only takes 1 arguments, but 2 were provided']),
     ("(not)", ['not only takes 1 arguments, but 0 were provided']),
     ("(not 1)", ["Cannot match argument out typeList ['INT'] with expected typeList ['BOOL']"]),
@@ -235,8 +244,8 @@ not_tests = [
 totalFails += test_racket_function('not', not_tests)
 
 and_tests = [
-    ("(cons 1 null)", ['Cannot apply and rule to cons']),
-    ("(or #t #f)", ['Cannot apply and rule to or']),
+    ("(cons 1 null)", ["Cannot evaluate and on a 'cons' expression"]),
+    ("(or #t #f)", ["Cannot evaluate and on a 'or' expression"]),
     ("(and #t #t #f)", ['and only takes 2 arguments, but 3 were provided']),
     ("(and #t)", ['and only takes 2 arguments, but 1 was provided']),
     ("(and 3)", ['and only takes 2 arguments, but 1 was provided']),
@@ -251,8 +260,8 @@ and_tests = [
 totalFails += test_racket_function('and', and_tests)
 
 or_tests = [
-    ("(cons 1 null)", ['Cannot apply or rule to cons']),
-    ("(and #t #t)", ['Cannot apply or rule to and']),
+    ("(cons 1 null)", ["Cannot evaluate or on a 'cons' expression"]),
+    ("(and #t #t)", ["Cannot evaluate or on a 'and' expression"]),
     ("(or #t #t #t)", ['or only takes 2 arguments, but 3 were provided']),
     ("(or #t)", ['or only takes 2 arguments, but 1 was provided']),
     ("(or 3)", ['or only takes 2 arguments, but 1 was provided']),
@@ -267,8 +276,8 @@ or_tests = [
 totalFails += test_racket_function('or', or_tests)
 
 xor_tests = [
-    ("(cons 1 null)", ['Cannot apply xor rule to cons']),
-    ("(and #t #t)", ['Cannot apply xor rule to and']),
+    ("(cons 1 null)", ["Cannot evaluate xor on a 'cons' expression"]),
+    ("(and #t #t)", ["Cannot evaluate xor on a 'and' expression"]),
     ("(xor #t #t #f)", ['xor only takes 2 arguments, but 3 were provided']),
     ("(xor #t)", ['xor only takes 2 arguments, but 1 was provided']),
     ("(xor 3)", ['xor only takes 2 arguments, but 1 was provided']),
@@ -282,8 +291,8 @@ xor_tests = [
 totalFails += test_racket_function('xor', xor_tests)
 
 implies_tests = [
-    ("(cons 1 null)", ['Cannot apply implies rule to cons']),
-    ("(and #t #t)", ['Cannot apply implies rule to and']),
+    ("(cons 1 null)", ["Cannot evaluate implies on a 'cons' expression"]),
+    ("(and #t #t)", ["Cannot evaluate implies on a 'and' expression"]),
     ("(implies #t #t #f)", ['implies only takes 2 arguments, but 3 were provided']),
     ("(implies #t)", ['implies only takes 2 arguments, but 1 was provided']),
     ("(implies #t 1)", [
@@ -298,6 +307,110 @@ totalFails += test_racket_function('implies', implies_tests)
 # Check that logic is no longer a valid rule
 totalFails += do_single_test_case('eval', 'logic', '(and #t #t)', ['Could not find rule associated with logic'])
 totalFails += do_single_test_case('', 'logic', '(and #t #t)', ["Rule must start with 'eval' or 'apply'"])
+
+# List function tests
+print('\nTesting List Function Rules...\n')
+cons_tests = [
+    ("(+ 1 2)", ["Cannot evaluate cons on a '+' expression"]),
+    ("(first '(9 8 7))", ["Cannot evaluate cons on a 'first' expression"]),
+    ("(cons 1 1)", ["Cannot match argument out typeList ['INT', 'INT'] with expected typeList ['ANY', 'LIST']"]),
+    ("(cons (+ 1 2) '(4 5))", ['insufficiently resolved arguments']),
+    ("(cons 1 (cons 2 null))", ['insufficiently resolved arguments']),
+    ("(cons null)", ['cons only takes 2 arguments, but 1 was provided']),
+    ("(cons 1 '(2 3) null)", ['cons only takes 2 arguments, but 3 were provided']),
+    ("(cons 1 null)", "'(1)"), # cons int to null
+    ("(cons 9 '(8 7))", "'(9 8 7)"), # cons int to non-null
+    ("(cons #t null)", "'(#t)"), # cons bool to null
+    ("(cons #t '(#f #t))", "'(#t #f #t)"), # cons bool to list of bools
+    ("(cons #t '(1 2))", "'(#t 1 2)"), # cons bool to list of ints
+    ("(cons '(1 2) '(3 4))", "'((1 2) 3 4)") # cons list to list
+]
+totalFails += test_racket_function('cons', cons_tests, appliable=True)
+totalFails += do_single_test_case('eval', 'consList', "(cons 1 null)", 
+                                  ['Could not find rule associated with consList']) # check consList no longer working
+
+first_tests = [
+    ("(+ 1 2)", ["Cannot evaluate first on a '+' expression"]),
+    ("(cons 1 null)", ["Cannot evaluate first on a 'cons' expression"]),
+    ("(first 1)", ["Cannot match argument out typeList ['INT'] with expected typeList ['LIST']"]),
+    ("(first)", ['first only takes 1 arguments, but 0 were provided']),
+    ("(first '(1 2) '(3 4))", ['first only takes 1 arguments, but 2 were provided']),
+    ("(first (cons 1 null))", ['insufficiently resolved list argument']), # error expected because the rule is 'eval first'
+    ("(first null)", ['first requires nonempty list']),
+    ("(first '(1 2 3))", "1"), # first for non-nested list
+    ("(first '((1 2) (3) (4)))", "'(1 2)") # first for nested list
+]
+totalFails += test_racket_function('first', first_tests, appliable=True)
+totalFails += do_single_test_case('eval', 'firstList', "(first '(1 2 3))",
+                                   ['Could not find rule associated with firstList'])
+
+rest_tests = [
+    ("(+ 1 2)", ["Cannot evaluate rest on a '+' expression"]),
+    ("(cons 1 null)", ["Cannot evaluate rest on a 'cons' expression"]),
+    ("(rest 1)", ["Cannot match argument out typeList ['INT'] with expected typeList ['LIST']"]),
+    ("(rest)", ['rest only takes 1 arguments, but 0 were provided']),
+    ("(rest '(1 2) '(3 4))", ['rest only takes 1 arguments, but 2 were provided']),
+    ("(rest (cons 1 null))", ['insufficiently resolved list argument']), # error expected because the rule is 'eval rest'
+    ("(rest null)", ['rest requires nonempty list']),
+    ("(rest '(1 2 3))", "'(2 3)"), # rest for non-nested list
+    ("(rest '((1 2) (3) (4)))", "'((3) (4))") # rest for nested list
+]
+totalFails += test_racket_function('rest', rest_tests, appliable=True)
+totalFails += do_single_test_case('eval', 'restList', "(rest '(1 2 3))",
+                                   ['Could not find rule associated with restList'])
+
+print("\nList Function Property Testing\n")
+cons_prop_tests = [
+    ("(+ 1 2)", ["Cannot apply cons-first-rest property to a '+' expression"]),
+    ("(cons 1 null)", 
+     ["Can only apply cons-first-rest property when first arg is a 'first' expression and second arg is a 'rest' expression"]),
+    ("(cons 1 (rest '(1 2)))", 
+     ["Can only apply cons-first-rest property when first arg is a 'first' expression and second arg is a 'rest' expression"]),
+    ("(cons (first '(1 2)) '(2))", 
+     ["Can only apply cons-first-rest property when first arg is a 'first' expression and second arg is a 'rest' expression"]),
+    ("(cons (first L) (rest M))", ["Cannot apply cons-first-rest property on two different lists"]),
+    ("(cons (first '(1 2)) (rest '(1 3)))", ["Cannot apply cons-first-rest property on two different lists"]),
+    ("(cons (first null) (rest null))", ["first requires nonempty list"]), # cannot apply property when list is null
+    ("(cons (first '(1 2)) (rest '()))", ["rest requires nonempty list"]), # '() instead of null
+    ("(cons (first 1) (rest '(1)))", ["Cannot match argument out typeList ['INT'] with expected typeList ['LIST']"]), # bad type in argument expression
+    ("(cons (first '(1 2) '(3)) (rest '(2 3)))", ["first only takes 1 arguments, but 2 were provided"]), # extra argument in argument expressions
+    ("(cons (first '(1 2)) (rest '(1) '(2)))", ["rest only takes 1 arguments, but 2 were provided"]),
+    ("(cons (first '(1 2)) (rest '(1 2)) null)", ["cons only takes 2 arguments, but 3 were provided"]), # extra argument in cons expression
+    ("(cons (first '(1 2)) (rest '(1 2)))", "'(1 2)"),
+    ("(cons (first (cons 2 null)) (rest (cons 2 null)))", "(cons 2 null)"), # list not completely resolved
+    ("(cons (first L) (rest L))", "L") # symbols
+]
+totalFails += test_list_func_props('cons', cons_prop_tests)
+
+first_prop_tests = [
+    ("(+ 1 2)", ["Cannot apply first-cons property to a '+' expression"]),
+    ("(first '(1 2))", ["Can only apply first-cons property when argument is a 'cons' expression"]),
+    ("(first (cons 1 1))", # bad type in argument expression
+     ["Cannot match argument out typeList ['INT', 'INT'] with expected typeList ['ANY', 'LIST']"]),
+    ("(first (cons 1 '(2 3) '(4 5)))", ["cons only takes 2 arguments, but 3 were provided"]), # extra argument in argument expression
+    ("(first (cons 1 null) null)", ["first only takes 1 arguments, but 2 were provided"]), # extra argument in argument expression
+    ("(first (cons 1 null))", "1"),
+    ("(first (cons 9 '(8 7)))", "9"),
+    ("(first (cons a L))", "a"), # symbolic
+    ("(first (cons (+ (* 4 5) (* 6 7)) null))", "(+ (* 4 5) (* 6 7))"), # first cons argument not completely simplified
+    ("(first (cons 46 (cons 2 null)))", "46") # second cons argument not completely simplified
+]
+totalFails += test_list_func_props('first', first_prop_tests)
+
+rest_prop_tests = [
+    ("(+ 1 2)", ["Cannot apply rest-cons property to a '+' expression"]),
+    ("(rest '(1 2))", ["Can only apply rest-cons property when argument is a 'cons' expression"]),
+    ("(rest (cons 1 1))", # bad type in argument expression
+     ["Cannot match argument out typeList ['INT', 'INT'] with expected typeList ['ANY', 'LIST']"]),
+    ("(rest (cons 1 '(2 3) '(4 5)))", ["cons only takes 2 arguments, but 3 were provided"]), # extra argument in argument expression
+    ("(rest (cons 1 null) null)", ["rest only takes 1 arguments, but 2 were provided"]), # extra argument in argument expression
+    ("(rest (cons 1 null))", "null"),
+    ("(rest (cons 9 '(8 7)))", "'(8 7)"),
+    ("(rest (cons a L))", "L"), # symbolic
+    ("(rest (cons (+ (* 4 5) (* 6 7)) null))", "null"), # first cons argument not completely simplified
+    ("(rest (cons 46 (cons 2 null)))", "(cons 2 null)") # second cons argument not completely simplified
+]
+totalFails += test_list_func_props('rest', rest_prop_tests)
 
 print("\nUDF testing:\n")
 udfProof = ERProof()

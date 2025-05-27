@@ -19,7 +19,7 @@ import { useCurrentRacketValues } from "../hooks/useCurrentRacketValues";
 import { useFormSubmit } from "../hooks/useFormSubmit";
 import "../scss/_forms.scss";
 import "../scss/_er-racket.scss";
-import { useExportToLocalMachine } from "../hooks/useExportToLocalMachine";
+import { exportToLocalMachine, readFromFile } from "../hooks/useExportToLocalMachine";
 import {
   Definitions,
   ProofComplete,
@@ -54,7 +54,7 @@ const ERRacket = () => {
     enhancedHandleChange,
     proofValidationMessage,
     clearProofValidationMessage,
-    loadRacket,
+    loadRacketGoal,
     jsonTreeRep
   ] = useGoalCheck(handleChange);
   const [startPosition, setStartPosition] = useState(0);
@@ -114,34 +114,46 @@ const ERRacket = () => {
   );
 
   /**
-   * Creates JSON object of the target incoming parameter (which should be a JavaScript Object)
-   */
-  const convertToJSON = (target) => {
-    return JSON.stringify(target);
-  };
-
-  /**
    * Returns a JSON object of the present form
    */
   const convertFormToJSON = () => {
-    //This is a Front End Proof Object placeholder
-    //In the future we will be using a Proof Object sent from the python-server
     let EquationalReasoningObject = {
       name: formValues.proofName,
+      tag: formValues.proofTag,
       leftRacketsAndRules: racketRuleFields.LHS,
-      rightRacketsAndRules: racketRuleFields.RHS
+      rightRacketsAndRules: racketRuleFields.RHS,
+      lHSGoal: formValues.lHSGoal,
+      rHSGoal: formValues.rHSGoal,
+      leftPremise,
+      rightPremise,
+      definitions: JSON.parse(sessionStorage.getItem("definitions") || "[]")
     };
-
-    return convertToJSON(EquationalReasoningObject);
+    // console.log("Equational Reasoning Object:", EquationalReasoningObject);
+    return JSON.stringify(EquationalReasoningObject);
   };
 
-  const exportJSON = useExportToLocalMachine(
-    formValues.proofName,
-    convertFormToJSON()
-  );
+  const exportJSON = () => {
+    if (!formValues.proofName || !formValues.proofTag || !formValues.lHSGoal || !formValues.rHSGoal) {
+      alert("Please fill out all required fields before exporting.");
+      return;
+    }
+    exportToLocalMachine(formValues.proofName, convertFormToJSON());
+  };
 
   const handleHighlight = (startPosition) => {
     setStartPosition(startPosition);
+  };
+
+  const handleFileUpload = async (file) => {
+    if (file) {
+      try {
+        const data = await readFromFile(file); // Parse the file
+        setLoadedProof( data);
+        } catch (error) {
+        console.error("Error reading file:", error.message);
+        alert("Failed to load the file. Please upload a valid .txt file.");
+      }
+    }
   };
 
   const saveProof = async () => {
@@ -272,18 +284,24 @@ const ERRacket = () => {
     if (loadedProof) {
       formValues.proofName = loadedProof.name;
       formValues.proofTag = loadedProof.tag;
-      formValues.lHSGoal = loadedProof.lhs;
-      formValues.rHSGoal = loadedProof.rhs;
-
-      loadRacketProof(loadedProof.proofLines, loadedProof.isComplete);
-      loadRacket();
+      formValues.lHSGoal = loadedProof.lHSGoal;
+      formValues.rHSGoal = loadedProof.rHSGoal;
+      
+      loadRacketGoal()
+      loadRacketProof(loadedProof);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadedProof, loadRacketProof]);
+  }, [loadedProof]);
+ 
+  // set startPosition upon switching sides
+  useEffect(() => {
+    const lastUnDeletedFieldIndex = racketRuleFields[showSide].filter(line => !line.deleted).length - 1;
+    setStartPosition(savedStartPositions.current[showSide][lastUnDeletedFieldIndex >= 0 ? lastUnDeletedFieldIndex : 0] ?? 0);
+  }, [showSide]);
 
   useEffect(() => {
-    const currentSideRackets = showSide === "LHS" ? racketRuleFields.LHS : racketRuleFields.RHS;
-    if (currentSideRackets.length === 0) {
+    const currentSideRackets = racketRuleFields[showSide];
+    if (currentSideRackets.length <= 1) {
       setCurrentRacket(formValues[`${showSide[0].toLowerCase()}HSGoal`]);
       return;
     }
@@ -396,6 +414,35 @@ const ERRacket = () => {
                   </Dropdown.Item>
                 </Dropdown.Menu>
               </Dropdown>
+
+              <Dropdown
+                      as={Col}
+                      className="d-inline proof-dropdown-btn proof-operations"
+                    >
+                      <Dropdown.Toggle id="dropdown-autoclose-true">
+                        File Operations
+                      </Dropdown.Toggle>
+
+                      <Dropdown.Menu>
+                        <Dropdown.Item onClick={exportJSON}>
+                          Download Proof
+                        </Dropdown.Item>
+                        <Dropdown.Item onClick={() => document.getElementById("uploadProofInput").click()}>
+                            Upload Proof
+                          </Dropdown.Item>
+                          <input
+                            id="uploadProofInput"
+                            type="file"
+                            accept=".json"
+                            style={{ display: "none" }}
+                            onChange={(e) => handleFileUpload(e.target.files[0])}
+                          />
+                        <Dropdown.Item onClick={saveProof}>
+                          Save Proof
+                        </Dropdown.Item>
+                        <Dropdown.Item href="#">Submit Proof</Dropdown.Item>
+                      </Dropdown.Menu>
+                    </Dropdown>
             </Row>
 
             <Row className="g-5">
@@ -840,25 +887,7 @@ const ERRacket = () => {
 
                 <div className="proof-opr-wrap">
                   <Row className="proof-oprs">
-                    <Dropdown
-                      as={Col}
-                      className="d-inline proof-dropdown-btn proof-operations"
-                    >
-                      <Dropdown.Toggle id="dropdown-autoclose-true">
-                        File Operations
-                      </Dropdown.Toggle>
-
-                      <Dropdown.Menu>
-                        <Dropdown.Item onClick={exportJSON}>
-                          Download Proof
-                        </Dropdown.Item>
-                        <Dropdown.Item href="#">Upload Proof</Dropdown.Item>
-                        <Dropdown.Item onClick={saveProof}>
-                          Save Proof
-                        </Dropdown.Item>
-                        <Dropdown.Item href="#">Submit Proof</Dropdown.Item>
-                      </Dropdown.Menu>
-                    </Dropdown>
+                    
                   </Row>
                 </div>
               </div>
