@@ -54,7 +54,7 @@ const ERRacket = () => {
     enhancedHandleChange,
     proofValidationMessage,
     clearProofValidationMessage,
-    loadRacket,
+    loadRacketGoal,
     jsonTreeRep
   ] = useGoalCheck(handleChange);
   const [startPosition, setStartPosition] = useState(0);
@@ -112,13 +112,6 @@ const ERRacket = () => {
     setAllTouched,
     handleERRacketSubmission
   );
-
-  /**
-   * Creates JSON object of the target incoming parameter (which should be a JavaScript Object)
-   */
-  const convertToJSON = (target) => {
-    return JSON.stringify(target);
-  };
 
   /**
    * Returns a JSON object of the present form
@@ -293,9 +286,8 @@ const ERRacket = () => {
       formValues.proofTag = loadedProof.tag;
       formValues.lHSGoal = loadedProof.lHSGoal;
       formValues.rHSGoal = loadedProof.rHSGoal;
-
-      setLeftPremise(loadedProof.leftPremise);
-      setRightPremise(loadedProof.rightPremise);
+      
+      loadRacketGoal()
       loadRacketProof(loadedProof);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

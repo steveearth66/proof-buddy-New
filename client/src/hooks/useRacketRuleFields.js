@@ -99,11 +99,43 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
    */
   const loadProofInServer = useCallback(
     async (loadedProof) => {
+
+      let currentRacket = loadedProof.lHSGoal
+      let startPosition = loadedProof.leftPremise["startPosition"]
+      let LHS = []
+      for(let i = 0; i < loadedProof.leftRacketsAndRules.length; i++){
+        LHS.push({ currentRacket, startPosition, "rule":loadedProof.leftRacketsAndRules[i]["rule"] })
+        if( i + 1 < loadedProof.leftRacketsAndRules.length){
+          currentRacket = loadedProof.leftRacketsAndRules[i]["racket"];
+          if (loadedProof.leftRacketsAndRules[i]["startPosition"]){
+            startPosition = loadedProof.leftRacketsAndRules[i]["startPosition"]
+          } else {
+            break;
+          }
+        }
+      }
+
+      currentRacket = loadedProof.rHSGoal
+      startPosition = loadedProof.rightPremise["startPosition"]
+      let RHS = []
+      for(let i = 0; i < loadedProof.rightRacketsAndRules.length; i++){
+        
+        LHS.push({ currentRacket, startPosition, "rule":loadedProof.rightRacketsAndRules[i]["rule"] })
+        if( i + 1 < loadedProof.rightRacketsAndRules.length){
+          currentRacket = loadedProof.rightRacketsAndRules[i]["racket"];
+          if (loadedProof.rightRacketsAndRules[i]["startPosition"]){
+            startPosition = loadedProof.rightRacketsAndRules[i]["startPosition"]
+          } else {
+            break;
+          }
+        }
+      }
+
       const payLoad = {
         "lHSGoal": loadedProof.lHSGoal,
         "rHSGoal": loadedProof.rHSGoal,
-        "LHS": loadedProof.leftRacketsAndRules,
-        "RHS": loadedProof.rightRacketsAndRules,
+        LHS,
+        RHS,
         "name": loadedProof.name,
         "tag": loadedProof.tag
       };
