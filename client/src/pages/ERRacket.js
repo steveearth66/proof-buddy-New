@@ -126,6 +126,7 @@ const ERRacket = () => {
       rHSGoal: formValues.rHSGoal,
       leftPremise,
       rightPremise,
+      startPositions: savedStartPositions.current,
       definitions: JSON.parse(sessionStorage.getItem("definitions") || "[]")
     };
     // console.log("Equational Reasoning Object:", EquationalReasoningObject);
@@ -289,8 +290,9 @@ const ERRacket = () => {
 
       setLeftPremise(loadedProof.leftPremise);
       setRightPremise(loadedProof.rightPremise);
+      savedStartPositions.current = loadedProof.startPositions;
       
-      loadRacketGoal(loadedProof)
+      loadRacketGoal(loadedProof);
       loadRacketProof(loadedProof);
 
       setEditableLineNums({ 
