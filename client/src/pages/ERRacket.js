@@ -286,9 +286,17 @@ const ERRacket = () => {
       formValues.proofTag = loadedProof.tag;
       formValues.lHSGoal = loadedProof.lHSGoal;
       formValues.rHSGoal = loadedProof.rHSGoal;
+
+      setLeftPremise(loadedProof.leftPremise);
+      setRightPremise(loadedProof.rightPremise);
       
-      loadRacketGoal()
+      loadRacketGoal(loadedProof)
       loadRacketProof(loadedProof);
+
+      setEditableLineNums({ 
+        LHS: loadedProof.leftRacketsAndRules.length ? loadedProof.leftRacketsAndRules.length - 1 : 0, 
+        RHS: loadedProof.rightRacketsAndRules.length ? loadedProof.rightRacketsAndRules.length - 1 : 0
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadedProof]);
@@ -613,7 +621,8 @@ const ERRacket = () => {
                             setLeftPremise({
                               racket: formValues.lHSGoal,
                               rule: "Premise",
-                              startPosition
+                              startPosition,
+                              jsonTree: jsonTreeRep.LHS
                             });
                           }}
                           side={showSide}
@@ -735,7 +744,8 @@ const ERRacket = () => {
                             setRightPremise({
                               racket: formValues.rHSGoal,
                               rule: "Premise",
-                              startPosition
+                              startPosition,
+                              jsonTree: jsonTreeRep.RHS
                             });
                           }}
                           side={showSide}

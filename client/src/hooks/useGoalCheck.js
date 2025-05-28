@@ -93,8 +93,18 @@ const useGoalCheck = (handleChange) => {
     }
   };
 
-  const loadRacketGoal = () => {
-    setIsGoalChecked({ LHS: true, RHS: true });
+  const loadRacketGoal = (loadedProof) => {
+    if (loadedProof.leftPremise.jsonTree) {
+      setIsGoalChecked({ LHS: true, RHS: false });
+      setJsonTreeRep({ LHS: loadedProof.leftPremise.jsonTree, RHS: {} });
+    } else {
+      setIsGoalChecked({ LHS: false, RHS: false });
+    }
+
+    if (loadedProof.rightPremise.jsonTree) {
+      setIsGoalChecked(prev => ({ ...prev, ["RHS"]: true }));
+      setJsonTreeRep(prev => ({ ...prev, ["RHS"]: loadedProof.rightPremise.jsonTree }));
+    }
   };
 
   return [

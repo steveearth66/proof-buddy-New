@@ -120,7 +120,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
       let RHS = []
       for(let i = 0; i < loadedProof.rightRacketsAndRules.length; i++){
         
-        LHS.push({ currentRacket, startPosition, "rule":loadedProof.rightRacketsAndRules[i]["rule"] })
+        RHS.push({ currentRacket, startPosition, "rule":loadedProof.rightRacketsAndRules[i]["rule"] })
         if( i + 1 < loadedProof.rightRacketsAndRules.length){
           currentRacket = loadedProof.rightRacketsAndRules[i]["racket"];
           if (loadedProof.rightRacketsAndRules[i]["startPosition"]){
