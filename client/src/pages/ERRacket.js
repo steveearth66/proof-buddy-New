@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import Dropdown from "react-bootstrap/Dropdown";
 import Button from "react-bootstrap/Button";
 import Container from "react-bootstrap/Container";
@@ -58,10 +58,6 @@ const ERRacket = () => {
     jsonTreeRep
   ] = useGoalCheck(handleChange);
   const [startPosition, setStartPosition] = useState(0);
-  const savedStartPositions = useRef({
-    LHS: [],
-    RHS: []
-  });
   const [currentRacket, setCurrentRacket] = useState("");
   const [
     racketRuleFields,
@@ -93,8 +89,16 @@ const ERRacket = () => {
     useDefinitionsWindow();
   const [showProofComplete, setShowProofComplete] = useState(false);
   const [proofComplete, setProofComplete] = useState(false);
-  const [leftPremise, setLeftPremise] = useState({});
-  const [rightPremise, setRightPremise] = useState({});
+  const [leftPremise, setLeftPremise] = useState({
+    racket: '',
+    rule: 'Premise',
+    startPosition: 0
+  });
+  const [rightPremise, setRightPremise] = useState({
+    racket: '',
+    rule: 'Premise',
+    startPosition: 0
+  });
   const [loadedProof, setLoadedProof] = useState(null);
   const location = useLocation();
   const [editableLineNums, setEditableLineNums] = useState({
@@ -124,9 +128,8 @@ const ERRacket = () => {
       rightRacketsAndRules: racketRuleFields.RHS,
       lHSGoal: formValues.lHSGoal,
       rHSGoal: formValues.rHSGoal,
-      leftPremise,
-      rightPremise,
-      startPositions: savedStartPositions.current,
+      leftPremise: { ...leftPremise, jsonTree: (isGoalChecked.LHS ? jsonTreeRep.LHS : null) },
+      rightPremise: { ...rightPremise, jsonTree: (isGoalChecked.RHS ? jsonTreeRep.RHS : null) },
       definitions: JSON.parse(sessionStorage.getItem("definitions") || "[]")
     };
     // console.log("Equational Reasoning Object:", EquationalReasoningObject);
@@ -193,19 +196,11 @@ const ERRacket = () => {
 
   useEffect(() => {
     if (formValues.rHSGoal !== "") {
-      setRightPremise({
-        racket: formValues.rHSGoal,
-        rule: "Premise",
-        startPosition: 0
-      });
+      setRightPremise(prev => ({ ...prev, racket: formValues.rHSGoal }));
     }
 
     if (formValues.lHSGoal !== "") {
-      setLeftPremise({
-        racket: formValues.lHSGoal,
-        rule: "Premise",
-        startPosition: 0
-      });
+      setLeftPremise(prev => ({ ...prev, racket: formValues.lHSGoal }));
     }
   }, [formValues.lHSGoal, formValues.rHSGoal]);
 
@@ -290,7 +285,6 @@ const ERRacket = () => {
 
       setLeftPremise(loadedProof.leftPremise);
       setRightPremise(loadedProof.rightPremise);
-      savedStartPositions.current = loadedProof.startPositions;
       
       loadRacketGoal(loadedProof);
       loadRacketProof(loadedProof);
@@ -305,8 +299,14 @@ const ERRacket = () => {
  
   // set startPosition upon switching sides
   useEffect(() => {
-    const lastUnDeletedFieldIndex = racketRuleFields[showSide].filter(line => !line.deleted).length - 1;
-    setStartPosition(savedStartPositions.current[showSide][lastUnDeletedFieldIndex >= 0 ? lastUnDeletedFieldIndex : 0] ?? 0);
+    const lastUndeletedFieldIndex = racketRuleFields[showSide].filter(line => !line.deleted).length - 2;
+    let correctStartPosition;
+    if (lastUndeletedFieldIndex >= 0)
+      correctStartPosition = racketRuleFields[showSide][lastUndeletedFieldIndex].startPosition;
+    else
+      correctStartPosition = showSide === 'LHS' ? leftPremise.startPosition : rightPremise.startPosition;
+    correctStartPosition = correctStartPosition ?? 0;
+    setStartPosition(correctStartPosition);
   }, [showSide]);
 
   useEffect(() => {
@@ -612,7 +612,6 @@ const ERRacket = () => {
                           equation={formValues.lHSGoal}
                           onHighlightChange={(startPosition) => {
                             handleHighlight(startPosition);
-                            savedStartPositions.current.LHS[0] = startPosition;
                             setCurrentRacket(formValues.lHSGoal);
                             handleChange({
                               target: {
@@ -620,19 +619,14 @@ const ERRacket = () => {
                                 value: formValues.lHSGoal
                               }
                             });
-                            setLeftPremise({
-                              racket: formValues.lHSGoal,
-                              rule: "Premise",
-                              startPosition,
-                              jsonTree: jsonTreeRep.LHS
-                            });
+                            setLeftPremise(prev => ({ ...prev, startPosition }));
                           }}
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial LHS
                           jsonTree={jsonTreeRep.LHS}
                           lineNum={0}
                           editableLineNum={editableLineNums[showSide]}
-                          startPosition = {savedStartPositions.current.LHS[0] ?? 0}
+                          startPosition = {leftPremise.startPosition ?? 0}
                         />
 
                         <Form.Group
@@ -668,7 +662,6 @@ const ERRacket = () => {
                               equation={field.racket}
                               onHighlightChange={(startPosition) => {
                                 handleHighlight(startPosition);
-                                savedStartPositions.current.LHS[index + 1] = startPosition;
                                 setCurrentRacket(
                                   racketRuleFields.LHS.slice(-2)[0].racket
                                 );
@@ -686,7 +679,7 @@ const ERRacket = () => {
                               jsonTree={racketRuleFields.LHS[index].jsonTree ? racketRuleFields.LHS[index].jsonTree : jsonTreeRep.LHS}
                               lineNum={index + 1}
                               editableLineNum={editableLineNums[showSide]}
-                              startPosition = {savedStartPositions.current.LHS[index + 1] ?? 0}
+                              startPosition = {field.startPosition ?? 0}
                             />
 
                             <Form.Group
@@ -735,7 +728,6 @@ const ERRacket = () => {
                           equation={formValues.rHSGoal}
                           onHighlightChange={(startPosition) => {
                             handleHighlight(startPosition);
-                            savedStartPositions.current.RHS[0] = startPosition;
                             setCurrentRacket(formValues.rHSGoal);
                             handleChange({
                               target: {
@@ -743,19 +735,14 @@ const ERRacket = () => {
                                 value: formValues.rHSGoal
                               }
                             });
-                            setRightPremise({
-                              racket: formValues.rHSGoal,
-                              rule: "Premise",
-                              startPosition,
-                              jsonTree: jsonTreeRep.RHS
-                            });
+                            setRightPremise(prev => ({ ...prev, startPosition }));
                           }}
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial RHS
                           jsonTree={jsonTreeRep.RHS}
                           lineNum={0}
                           editableLineNum={editableLineNums[showSide]}
-                          startPosition = {savedStartPositions.current.RHS[0] ?? 0}
+                          startPosition = {rightPremise.startPosition ?? 0}
                         />
 
                         <Form.Group
@@ -791,7 +778,6 @@ const ERRacket = () => {
                               equation={field.racket}
                               onHighlightChange={(startPosition) => {
                                 handleHighlight(startPosition);
-                                savedStartPositions.current.RHS[index + 1] = startPosition;
                                 setCurrentRacket(
                                   racketRuleFields.RHS.slice(-2)[0].racket
                                 );
@@ -809,7 +795,7 @@ const ERRacket = () => {
                               jsonTree={racketRuleFields.RHS[index].jsonTree ? racketRuleFields.RHS[index].jsonTree : jsonTreeRep.RHS}
                               lineNum={index + 1}
                               editableLineNum={editableLineNums[showSide]}
-                              startPosition = {savedStartPositions.current.RHS[index + 1] ?? 0}
+                              startPosition = {field.startPosition ?? 0}
                             />
 
                             <Form.Group

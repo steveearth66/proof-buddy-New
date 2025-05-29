@@ -107,7 +107,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
         LHS.push({ currentRacket, startPosition, "rule":loadedProof.leftRacketsAndRules[i]["rule"] })
         if( i + 1 < loadedProof.leftRacketsAndRules.length){
           currentRacket = loadedProof.leftRacketsAndRules[i]["racket"];
-          if (loadedProof.leftRacketsAndRules[i]["startPosition"]){
+          if (loadedProof.leftRacketsAndRules[i]["startPosition"] != null){
             startPosition = loadedProof.leftRacketsAndRules[i]["startPosition"]
           } else {
             break;
@@ -123,7 +123,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
         RHS.push({ currentRacket, startPosition, "rule":loadedProof.rightRacketsAndRules[i]["rule"] })
         if( i + 1 < loadedProof.rightRacketsAndRules.length){
           currentRacket = loadedProof.rightRacketsAndRules[i]["racket"];
-          if (loadedProof.rightRacketsAndRules[i]["startPosition"]){
+          if (loadedProof.rightRacketsAndRules[i]["startPosition"] != null){
             startPosition = loadedProof.rightRacketsAndRules[i]["startPosition"]
           } else {
             break;
@@ -147,7 +147,8 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
       } catch (error) {
         handleServerError(error);
       }
-    }
+    },
+    []
   );
 
   /**
@@ -192,6 +193,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
                     //console.log('tree1.5',racket.jsonTree);
                     return {
                       ...field,
+                      startPosition: 0,
                       racket: racket.racket,
                       jsonTree: racket.jsonTree // added new line to return jsonTree data
                     };
@@ -368,7 +370,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
       RHS: loadedProof.rightRacketsAndRules
     });
 
-    loadProofInServer(loadedProof)
+    loadProofInServer(loadedProof);
   }, []);
 
   return [
