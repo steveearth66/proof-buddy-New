@@ -146,7 +146,7 @@ def set_current_proof(request):
     
     # Add all LHS and RHS and validate
     for side in {"LHS", "RHS"}:
-        for line in json_data[side]:
+        for line in json_data[side][:-1]:
             errors, proof = add_proof_line(line, proof, side)
             save_proof_to_cache(user, proof)
             if not proof["isValid"]:
