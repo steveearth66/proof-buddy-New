@@ -45,7 +45,7 @@ def test_list_func_props(func: str, tests: list[tuple]) -> int:
     for trial in tests:
         expr, expected = trial
         fails += do_single_test_case('apply', func, expr, expected)
-    fails += do_single_test_case('apply', func + 'A', expr, [f'Could not find rule associated with {func + 'A'}'])
+    fails += do_single_test_case('apply', func + 'Prop', expr, [f'Could not find rule associated with {func + 'Prop'}'])
     return fails
 
 totalFails = 0
