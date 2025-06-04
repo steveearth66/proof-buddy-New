@@ -52,7 +52,7 @@ const ruleSet = () => {
         result: "#t"
       },
       {
-        procedure: "zero",
+        procedure: "zero?",
         highlight: "(zero? n), where n ≠ 0",
         result: "#f"
       },
@@ -84,7 +84,7 @@ const ruleSet = () => {
       {
         procedure: "+, -, *, =, <, >, <=, >=",
         highlight: "(<function> a b)",
-        result: "(a <function> b)"
+        result: "a <function> b"
       },
       {
         procedure: "quotient",
@@ -119,7 +119,7 @@ const ruleSet = () => {
         name: "rest",
         procedure: "rest-cons",
         highlight: "(rest (cons x L))",
-        result: "x"
+        result: "L"
       },
       {
         procedure: "<function name>",
