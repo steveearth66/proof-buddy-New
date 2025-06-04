@@ -12,6 +12,7 @@ from proofs.views import (
     load_proof,
     get_user_definitions,
     create_user_definition,
+    create_or_override_definition,
     get_definition,
     edit_definition,
     delete_definition,
@@ -107,60 +108,84 @@ def check_goal(request):
 
     return Response({"isValid": is_valid, "errors": errors, "jsonTree": jsonTree}, status=status.HTTP_200_OK)
 
+# Set the current definition based on the UI's import file. 
+# Any errors will result in the server proof state being unchanged EXCEPT for definitions
 @api_view(["POST"])
 def set_current_proof(request):
     user = request.user
     json_data = request.data
 
-    # clear working cache for the user
-    cache.delete(f"proofs_{user.username}")
-
-    # create a new working cache for the user
-    proof = get_or_set_proof(user)
+    # create a new proof!
+    proof = {
+        "proofOne": ERProof(),
+        "proofTwo": ERProof(),
+        "isValid": True,
+        "currentProof": None,
+        "definitions": [],
+    }
 
     proof_one: ERProof = proof["proofOne"]
     proof_two: ERProof = proof["proofTwo"]
 
-    # Set LHS and RHS goals
-    proof_one.addProofLine(json_data["lHSGoal"])
-    errors, proof = update_and_validate(proof, "LHS")
-    if not proof["isValid"]:
-        return Response(
-            {
-                "isValid": False,
-                "errors": errors,
-            },
-            status=status.HTTP_200_OK,
-        )
+    # set definitions. 
+    # NOTE- This will override definitions with the same labels created by the user even if there is an error at any point in the validation
+    errors = []
+    for definition in json_data["definitions"]:
+        saved_definition = create_or_override_definition(user, definition)
+        if not saved_definition:
+            errors.append("Unable to add definition with label " + definition["label"])
+        else:
+            label = saved_definition["label"]
+            def_type = saved_definition["def_type"]
+            expression = saved_definition["expression"]
+            saved_definition["applied"] = True
 
-    proof_two.addProofLine(json_data["rHSGoal"])
-    errors, proof = update_and_validate(proof, "RHS")
-    if not proof["isValid"]:
-        return Response(
-            {
-                "isValid": False,
-                "errors": errors,
-            },
-            status=status.HTTP_200_OK,
-        )
+            proof_one.addUDF(label, def_type, expression)
+            proof_two.addUDF(label, def_type, expression)
+            proof["definitions"].append(saved_definition)
+
+    if len(errors) > 0:
+        return get_error_response(errors)
+
+
+    # Set LHS and RHS goals
+    if json_data["lHSGoal"] and not json_data["lHSGoal"] == "":
+        proof_one.addProofLine(json_data["lHSGoal"])
+        errors, proof = update_and_validate(proof, "LHS")
+        if not proof["isValid"]:
+            return get_error_response(errors)
+
+    if json_data["rHSGoal"] and not json_data["rHSGoal"] == "":
+        proof_two.addProofLine(json_data["rHSGoal"])
+        errors, proof = update_and_validate(proof, "RHS")
+        if not proof["isValid"]:
+            return get_error_response(errors)
     
     # Add all LHS and RHS and validate
     for side in {"LHS", "RHS"}:
-        for line in json_data[side][:-1]:
+        for line in json_data[side]:
             errors, proof = add_proof_line(line, proof, side)
             save_proof_to_cache(user, proof)
             if not proof["isValid"]:
-                return Response(
-                    {
-                        "isValid": False,
-                        "errors": errors,
-                    },
-                    status=status.HTTP_200_OK,
-                )
+                return get_error_response(errors)
+            
+    # Import Successful! Let's officiall overrite the cache
+    # clear working cache for the user
+    cache.delete(f"proofs_{user.username}")
+    set_proof(user, proof)
 
     return Response(
         {"isValid": "True", "errors": []},
-        status=status.HTTP_200_OK,
+        status=status.HTTP_201_CREATED,
+    )
+
+def get_error_response(errors):
+    return Response(
+        {
+            "isValid": False,
+            "errors": errors,
+        },
+        status=status.HTTP_400_BAD_REQUEST,
     )
 
 def add_proof_line(line, proof, side):
@@ -168,7 +193,6 @@ def add_proof_line(line, proof, side):
     other = ("proofTwo" if side == "LHS" else "proofOne")
 
     current_proof: ERProof = proof[current]
-    
 
     if current_proof.getPrevRacket() != line["currentRacket"]:
         current_proof = proof[other]
@@ -493,3 +517,7 @@ def get_or_set_proof(user):
     user_proof = cache.get_or_set(f"proofs_{user.username}", cache_proofs)
     proof = loads(user_proof)
     return proof
+
+def set_proof(user, proof):
+    cache_proofs = dumps(proof)
+    cache.set(f"proofs_{user.username}", cache_proofs)

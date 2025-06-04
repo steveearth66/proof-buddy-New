@@ -130,11 +130,15 @@ const ERRacket = () => {
       rHSGoal: formValues.rHSGoal,
       leftPremise: { ...leftPremise, jsonTree: (isGoalChecked.LHS ? jsonTreeRep.LHS : null) },
       rightPremise: { ...rightPremise, jsonTree: (isGoalChecked.RHS ? jsonTreeRep.RHS : null) },
-      definitions: JSON.parse(sessionStorage.getItem("definitions") || "[]")
+      definitions: JSON.parse(sessionStorage.getItem("definitions") || "[]").filter(isApplied)
     };
     // console.log("Equational Reasoning Object:", EquationalReasoningObject);
     return JSON.stringify(EquationalReasoningObject);
-  };
+};
+
+  function isApplied(definition) {
+    return definition["applied"];
+  }
 
   const exportJSON = () => {
     if (!formValues.proofName || !formValues.proofTag || !formValues.lHSGoal || !formValues.rHSGoal) {
@@ -155,7 +159,7 @@ const ERRacket = () => {
         setLoadedProof( data);
         } catch (error) {
         console.error("Error reading file:", error.message);
-        alert("Failed to load the file. Please upload a valid .txt file.");
+        alert("Failed to load the file. Please upload a valid .json file.");
       }
     }
   };
@@ -253,7 +257,6 @@ const ERRacket = () => {
   useEffect(() => {
     const fetchProof = async (id) => {
       const proof = await erService.getRacketProof(id);
-      sessionStorage.setItem('definitions', JSON.stringify(proof.definitions));
       setLoadedProof(proof);
     };
 
@@ -285,7 +288,9 @@ const ERRacket = () => {
 
       setLeftPremise(loadedProof.leftPremise);
       setRightPremise(loadedProof.rightPremise);
-      
+
+      sessionStorage.setItem('definitions', JSON.stringify(loadedProof.definitions));
+
       loadRacketGoal(loadedProof);
       loadRacketProof(loadedProof);
 

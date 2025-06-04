@@ -303,6 +303,17 @@ def create_user_definition(user, data):
 
     return definition_serializer.data
 
+def create_or_override_definition(user, data):
+    definition = Definition.objects.filter(label=data["label"], created_by=user).first()
+
+    if not definition:
+        return create_user_definition(data)
+    else:
+        definition.def_type = data["type"]
+        definition.expression = data["expression"]
+        definition.notes = data["notes"]
+        definition.save()
+        return DefinitionSerializer(definition).data
 
 def get_definition(id):
     definition = Definition.objects.filter(id=id).first()
