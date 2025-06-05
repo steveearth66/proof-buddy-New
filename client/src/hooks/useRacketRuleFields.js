@@ -105,7 +105,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
       let LHS = []
       for(let i = 0; i < loadedProof.leftRacketsAndRules.length; i++){
         let rule = loadedProof.leftRacketsAndRules[i]["rule"]
-        if(rule == "" && i+1 == loadedProof.leftRacketsAndRules.length)
+        if (i+1 === loadedProof.leftRacketsAndRules.length)
           break;
         LHS.push({ currentRacket, startPosition, rule })
         currentRacket = loadedProof.leftRacketsAndRules[i]["racket"];
@@ -117,7 +117,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
       let RHS = []
       for(let i = 0; i < loadedProof.rightRacketsAndRules.length; i++){
         let rule = loadedProof.rightRacketsAndRules[i]["rule"]
-        if(rule == "" && i+1 == loadedProof.rightRacketsAndRules.length)
+        if (i+1 === loadedProof.rightRacketsAndRules.length)
           break;
         RHS.push({ currentRacket, startPosition, rule })
         currentRacket = loadedProof.rightRacketsAndRules[i]["racket"];
