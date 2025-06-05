@@ -298,6 +298,15 @@ const ERRacket = () => {
         LHS: loadedProof.leftRacketsAndRules.length ? loadedProof.leftRacketsAndRules.length - 1 : 0, 
         RHS: loadedProof.rightRacketsAndRules.length ? loadedProof.rightRacketsAndRules.length - 1 : 0
       });
+
+      let loadedStartPosition;
+      if (showSide === 'LHS')
+        loadedStartPosition = (loadedProof.leftRacketsAndRules.length > 1 ? 
+          loadedProof.leftRacketsAndRules.at(-2).startPosition : loadedProof.leftPremise.startPosition);
+      else
+        loadedStartPosition = (loadedProof.rightRacketsAndRules.length > 1 ? 
+          loadedProof.rightRacketsAndRules.at(-2).startPosition : loadedProof.rightPremise.startPosition);
+      setStartPosition(loadedStartPosition ?? 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadedProof]);
