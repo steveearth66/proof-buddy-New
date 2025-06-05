@@ -340,7 +340,7 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
     erService.getUserDefinitions().then((userDefinitions) => {
       let newDefinitions = [];
       userDefinitions.forEach((def) => {
-        const foundDef = definitions.find((d) => d.id === def.id);
+        const foundDef = definitions.find(d => d.label === def.label);
         if (foundDef) {
           foundDef.applied = foundDef.applied ? true : false;
           newDefinitions.push(foundDef);

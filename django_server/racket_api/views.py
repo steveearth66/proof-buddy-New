@@ -430,6 +430,7 @@ def use_definition(request, id):
         proof_two.addUDF(
             definition["label"], definition["type"], definition["expression"]
         )
+        definition["applied"] = True
         definitions.append(definition)
         save_proof_to_cache(user, proof)
 

@@ -307,7 +307,7 @@ def create_or_override_definition(user, data):
     definition = Definition.objects.filter(label=data["label"], created_by=user).first()
 
     if not definition:
-        return create_user_definition(data)
+        return create_user_definition(user, data)
     else:
         definition.def_type = data["type"]
         definition.expression = data["expression"]
