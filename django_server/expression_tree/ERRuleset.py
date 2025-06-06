@@ -56,7 +56,7 @@ class If(Rule):
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if (len(ruleNode.children) != 0 and ruleNode.children[0].data != 'if'):
-            return False, f'Cannot apply if rule to {ruleNode.children[0].data}'
+            return False, f'Cannot evaluate if on a {ruleNode.children[0].data} expression'
         elif (len(ruleNode.children) != 4):
             return False, f'If rule expects 3 arguments, but received {len(ruleNode.children)}'
         elif ruleNode.children[1].data not in ['#t', '#f']:
@@ -74,7 +74,7 @@ class If(Rule):
             return yNode
 
 
-class Cons(Rule):
+class ConsProp(Rule):
     def __init__(self):
         super().__init__('cons', isProperty=True)
 
@@ -98,7 +98,7 @@ class Cons(Rule):
         return lNode
 
 
-class First(Rule):
+class FirstProp(Rule):
     def __init__(self):
         super().__init__('first', isProperty=True)
 
@@ -115,7 +115,7 @@ class First(Rule):
         return xNode
 
 
-class Rest(Rule):
+class RestProp(Rule):
     def __init__(self):
         super().__init__('rest', isProperty=True)
 
@@ -296,12 +296,12 @@ class Math(Rule):
 '''
 class Symbolic(Rule, ABC):
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        if ruleNode.children[0].data != self.label:
+            return False, f"Cannot evaluate {self.label} on a '{ruleNode.children[0].data}' expression"
         #if (len(ruleNode.children[1].children) != 0 and ruleNode.children[1].data != "'(") or (len(ruleNode.children[2].children) != 0 and ruleNode.children[2].data != "'("):
         if True in map(lambda child: (len(child.children) != 0 and child.data != "'("), ruleNode.children[1:]):
             return False, 'insufficiently resolved arguments'
         # Check if the operator matches the rule label
-        if ruleNode.children[0].data != self.label:
-            return False, f"Cannot evaluate {self.label} on a '{ruleNode.children[0].data}' expression"
         return True, 'Symbolic.isApplicable() PASS'
         
     @abstractmethod
@@ -527,6 +527,24 @@ class FirstList(Rule):
         if origList.children[0].data == "(":
             origList.children[0].data = "'("
         return origList.children[0]
+
+class MinusPlus(Rule):
+    def __init__(self):
+        super().__init__('-+', isProperty=True)
+    
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        if ruleNode.children[0] != '-':
+            return False, f'Cannot apply -+ when the root operation is {ruleNode.children[0]}'
+        if ruleNode.children[1].data != '(' or ruleNode.children[1].children[0].data != '+':
+            return False, f'Cannot apply -+ when the first argument of - is not a + expression'
+        if ruleNode.children[2].data == '(' or ruleNode.children[1].children[2].data == '(':
+            return False, 'Insufficiently resolved arguments'
+        if ruleNode.children[2].data != ruleNode.children[1].children[2].data:
+            return False, "Cannot apply -+ when the second argument of - doesn't match the second argument of +"
+        return True, "MinusPlus.isApplicable() PASS"
+    
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        return ruleNode.children[1].children[1]
 
 class advMath(Rule):
     

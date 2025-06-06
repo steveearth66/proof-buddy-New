@@ -11,19 +11,23 @@ import Form from "react-bootstrap/Form";
 
 const OffcanvasRuleSet = ({ isActive, toggleFunction }) => {
   const [filteredRules, setFilteredRules] = useState(ruleSet());
+  const [evalRules, applyRules] = filteredRules;
   /* Present list of Rules for View Rule Set Offcanvas */
-  const rules = ruleSet();
 
   const onSearch = (e) => {
     const searchValue = e.target.value;
-    const filteredRules = rules.filter((rule) => {
-      return (
-        rule.toFrom.toLowerCase().includes(searchValue.toLowerCase()) ||
-        rule.fromTo.toLowerCase().includes(searchValue.toLowerCase()) ||
-        rule.name.toLowerCase().includes(searchValue.toLowerCase()) ||
-        rule.tags.toLowerCase().includes(searchValue.toLowerCase())
-      );
-    });
+    const rules = ruleSet();
+    const filteredRules = [];
+    rules.forEach(ruleSet => 
+      filteredRules.push(ruleSet.filter((rule) => {
+        return (
+          rule.name ? rule.name.toLowerCase().includes(searchValue.toLowerCase()) : false ||
+          rule.procedure.toLowerCase().includes(searchValue.toLowerCase()) ||
+          rule.highlight.toLowerCase().includes(searchValue.toLowerCase()) ||
+          rule.result.toLowerCase().includes(searchValue.toLowerCase())
+        );
+      }))
+    );
     setFilteredRules(filteredRules);
   };
 
@@ -43,22 +47,55 @@ const OffcanvasRuleSet = ({ isActive, toggleFunction }) => {
           className="search-input"
           onChange={onSearch}
         />
+        <p>
+          <strong>Rules must be in the form "<em>&lt;prefix&gt; &lt;name&gt;</em>", 
+          where <em>&lt;prefix&gt;</em> is the appropriate prefix (either "eval" or "apply")
+          and <em>&lt;name&gt;</em> is the rule name of the procedure.</strong><br />
+          <strong>Examples:</strong> "eval +", "apply first" 
+        </p>
+        <p>Note: any rule can be done in “reverse” (i.e. selecting result to get the highlight) by using the “Substitution” button</p>
+        <h3>"Eval" Procedures:</h3>
         <Table striped bordered hover>
           <thead>
             <tr>
-              <th>To/From</th>
-              <th>From/To</th>
-              <th>Name</th>
-              <th>Tag</th>
+              <th>Rule Name/Procedure</th>
+              <th>Highlight</th>
+              <th>Result</th>
             </tr>
           </thead>
           <tbody>
-            {filteredRules.map((rule, index) => (
+            {evalRules.map((rule, index) => (
               <tr key={index}>
-                <td>{rule.toFrom}</td>
-                <td>{rule.fromTo}</td>
-                <td>{rule.name}</td>
-                <td>{rule.tags}</td>
+                <td>{rule.procedure}</td>
+                <td>{rule.highlight}</td>
+                <td>{rule.result}</td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+        <h3>"Apply" Procedures:</h3>
+        <Table striped bordered hover>
+          <thead>
+            <tr>
+              <th style={{ width: "10%" }}>Rule Name</th>
+              <th style={{ width: "10%" }}>Procedure</th>
+              <th>Highlight</th>
+              <th>Result</th>
+            </tr>
+          </thead>
+          <tbody>
+            {applyRules.map((rule, index) => (
+              <tr key={index}>
+                {rule.name ? (
+                  <>
+                    <td>{rule.name}</td>
+                    <td>{rule.procedure}</td>
+                  </>
+                ) : (
+                  <td colSpan="2" align="center">{rule.procedure}</td>
+                )}
+                <td>{rule.highlight}</td>
+                <td>{rule.result}</td>
               </tr>
             ))}
           </tbody>

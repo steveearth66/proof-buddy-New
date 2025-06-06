@@ -104,36 +104,30 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
       let startPosition = loadedProof.leftPremise["startPosition"]
       let LHS = []
       for(let i = 0; i < loadedProof.leftRacketsAndRules.length; i++){
-        LHS.push({ currentRacket, startPosition, "rule":loadedProof.leftRacketsAndRules[i]["rule"] })
-        if( i + 1 < loadedProof.leftRacketsAndRules.length){
-          currentRacket = loadedProof.leftRacketsAndRules[i]["racket"];
-          if (loadedProof.leftRacketsAndRules[i]["startPosition"]){
-            startPosition = loadedProof.leftRacketsAndRules[i]["startPosition"]
-          } else {
-            break;
-          }
-        }
+        let rule = loadedProof.leftRacketsAndRules[i]["rule"]
+        if (i+1 === loadedProof.leftRacketsAndRules.length)
+          break;
+        LHS.push({ currentRacket, startPosition, rule })
+        currentRacket = loadedProof.leftRacketsAndRules[i]["racket"];
+        startPosition = loadedProof.leftRacketsAndRules[i]["startPosition"]
       }
 
       currentRacket = loadedProof.rHSGoal
       startPosition = loadedProof.rightPremise["startPosition"]
       let RHS = []
       for(let i = 0; i < loadedProof.rightRacketsAndRules.length; i++){
-        
-        LHS.push({ currentRacket, startPosition, "rule":loadedProof.rightRacketsAndRules[i]["rule"] })
-        if( i + 1 < loadedProof.rightRacketsAndRules.length){
-          currentRacket = loadedProof.rightRacketsAndRules[i]["racket"];
-          if (loadedProof.rightRacketsAndRules[i]["startPosition"]){
-            startPosition = loadedProof.rightRacketsAndRules[i]["startPosition"]
-          } else {
-            break;
-          }
-        }
+        let rule = loadedProof.rightRacketsAndRules[i]["rule"]
+        if (i+1 === loadedProof.rightRacketsAndRules.length)
+          break;
+        RHS.push({ currentRacket, startPosition, rule })
+        currentRacket = loadedProof.rightRacketsAndRules[i]["racket"];
+        startPosition = loadedProof.rightRacketsAndRules[i]["startPosition"]
       }
 
       const payLoad = {
         "lHSGoal": loadedProof.lHSGoal,
         "rHSGoal": loadedProof.rHSGoal,
+        "definitions": loadedProof.definitions,
         LHS,
         RHS,
         "name": loadedProof.name,
@@ -147,7 +141,8 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
       } catch (error) {
         handleServerError(error);
       }
-    }
+    },
+    []
   );
 
   /**
@@ -192,6 +187,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
                     //console.log('tree1.5',racket.jsonTree);
                     return {
                       ...field,
+                      startPosition: 0,
                       racket: racket.racket,
                       jsonTree: racket.jsonTree // added new line to return jsonTree data
                     };
@@ -368,7 +364,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
       RHS: loadedProof.rightRacketsAndRules
     });
 
-    loadProofInServer(loadedProof)
+    loadProofInServer(loadedProof);
   }, []);
 
   return [

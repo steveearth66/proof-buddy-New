@@ -27,12 +27,18 @@ def do_single_test_case(prefix: str, func: str, expr: str, expected, proof: ERPr
         print(f"FAIL! expected {word}: {expected} but got: {ans}\n")
         return 1
 
-def test_racket_function(func: str, tests: list[tuple], appliable=False) -> int:
-    # expects last test case to not have errors
+def run_test_cases(prefix: str, func: str, tests: list[tuple]) -> int:
     fails = 0
     for trial in tests:
         expr, expected = trial
-        fails += do_single_test_case('eval', func, expr, expected)
+        fails += do_single_test_case(prefix, func, expr, expected)
+    return fails
+
+def test_racket_function(func: str, tests: list[tuple], appliable=False) -> int:
+    # expects last test case to not have errors
+    fails = run_test_cases('eval', func, tests)
+
+    expr, _ = tests[-1]
     fails += do_single_test_case('', func, expr, 
                             expected=["Rule must start with 'eval' or 'apply'"])
     if not appliable:
@@ -41,11 +47,9 @@ def test_racket_function(func: str, tests: list[tuple], appliable=False) -> int:
     return fails
 
 def test_list_func_props(func: str, tests: list[tuple]) -> int:
-    fails = 0
-    for trial in tests:
-        expr, expected = trial
-        fails += do_single_test_case('apply', func, expr, expected)
-    fails += do_single_test_case('apply', func + 'A', expr, [f'Could not find rule associated with {func + 'A'}'])
+    fails = run_test_cases('apply', func, tests)
+    expr, _ = tests[-1]
+    fails += do_single_test_case('apply', func + 'Prop', expr, [f'Could not find rule associated with {func + 'Prop'}'])
     return fails
 
 totalFails = 0
@@ -411,6 +415,32 @@ rest_prop_tests = [
     ("(rest (cons 46 (cons 2 null)))", "(cons 2 null)") # second cons argument not completely simplified
 ]
 totalFails += test_list_func_props('rest', rest_prop_tests)
+
+minus_plus_tests = [
+    ("(cons 1 null)", ["Cannot apply -+ when the root operation is cons"]),
+    ("(- 2 1)", ["Cannot apply -+ when the first argument of - is not a + expression"]),
+    ("(- (* 2 2) 2)", ["Cannot apply -+ when the first argument of - is not a + expression"]),
+    # bad types
+    ("(- (+ null 1) 1)", ["Cannot match argument out typeList ['LIST', 'INT'] with expected typeList ['INT', 'INT']"]),
+    ("(- (+ 1 #f) #f)", 
+     ["Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['INT', 'INT']",
+    "Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['INT', 'INT']"]),
+    # too many arguments
+    ("(- (+ 1 2 3) 2)", ["+ only takes 2 arguments, but 3 were provided"]),
+    ("(- (+ k 1) 1 2)", ["- only takes 2 arguments, but 3 were provided"]),
+    # insufficiently resolved arguments
+    ("(- (+ 1 2) (+ 1 1))", ["Insufficiently resolved arguments"]),
+    ("(- (+ 1 (+ 1 1)) 2)", ["Insufficiently resolved arguments"]),
+    ("(- (+ 1 (+ 1 1)) (+ 1 1))", ["Insufficiently resolved arguments"]),
+    # arguments don't match
+    ("(- (+ k 2) 1)", ["Cannot apply -+ when the second argument of - doesn't match the second argument of +"]),
+    # valid
+    ("(- (+ 2 1) 1)", "2"),
+    ("(- (+ (* 8 8) 3) 3)", "(* 8 8)"),
+    ("(- (+ k 9) 9)", "k")
+]
+totalFails += run_test_cases("apply", "-+", minus_plus_tests)
+totalFails += do_single_test_case("eval", "-+", minus_plus_tests[-1][0], ["Cannot evaluate a property"])
 
 print("\nUDF testing:\n")
 udfProof = ERProof()

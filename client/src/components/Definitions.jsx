@@ -298,8 +298,8 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
     if (applied) {
       try {
         await toast.promise(erService.removeDefinition(id), {
-          pending: 'Removing definition...',
-          success: 'Definition removed successfully.',
+          pending: 'Disabling definition...',
+          success: 'Definition disabled successfully.',
           error: 'An error occurred. Please try again.'
         });
         setDefinitions((prev) => {
@@ -317,8 +317,8 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
     } else {
       try {
         await toast.promise(erService.useDefinition(id), {
-          pending: 'Applying definition...',
-          success: 'Definition applied successfully.',
+          pending: 'Enabling definition...',
+          success: 'Definition enabled successfully.',
           error: 'An error occurred. Please try again.'
         });
         setDefinitions((prev) => {
@@ -340,7 +340,7 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
     erService.getUserDefinitions().then((userDefinitions) => {
       let newDefinitions = [];
       userDefinitions.forEach((def) => {
-        const foundDef = definitions.find((d) => d.id === def.id);
+        const foundDef = definitions.find(d => d.label === def.label);
         if (foundDef) {
           foundDef.applied = foundDef.applied ? true : false;
           newDefinitions.push(foundDef);
@@ -417,7 +417,7 @@ function Definition({
               variant={`${definition.applied ? "outline-danger" : "outline-success"}`}
               onClick={() => applyDefinition(definition.id, definition.applied)}
             >
-              {definition.applied ? "Unapply" : "Apply"} Definition
+              {definition.applied ? "Disable" : "Enable"} Definition
             </Button>
             <Button
               variant="outline-primary"

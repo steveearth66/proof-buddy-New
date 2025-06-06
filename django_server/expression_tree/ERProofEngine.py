@@ -15,9 +15,9 @@ class ERProof:
             'cons': ConsList(),
             'rest': RestList(),
             'first': FirstList(),
-            'consA': Cons(),
-            'firstA': First(),
-            'restA': Rest(),
+            'consProp': ConsProp(),
+            'firstProp': FirstProp(),
+            'restProp': RestProp(),
             'null?': NullQ(),
             'cons?': ConsQ(),
             'zero?': ZeroQ(),
@@ -37,6 +37,7 @@ class ERProof:
             'not': Not(),
             'xor': Xor(),
             'implies': Implies(),
+            '-+': MinusPlus(),
             'math': advMath(),
             #'doubleFront': DoubleFront(),  # this is fake for demo. remove when UDF working
         }
@@ -173,25 +174,26 @@ class ERProofLine:
                 f'Could not find Token with starting index {startPos}')
         ruleCategory = rule.split(' ')[0]
         rule = rule.split(' ')[1:][-1] if rule.split(' ')[1:] != [] else ''
+
         if ruleCategory not in ('eval', 'apply'):
             self.errLog.append("Rule must start with 'eval' or 'apply'")
         elif rule == '':
             self.errLog.append('Rule must include the ' + 
                                ('function to be evaluated' if ruleCategory == 'eval'
                                else 'definition/property/lemma to be applied'))
-        elif rule not in ruleSet.keys() - {'consA', 'firstA', 'restA'}: # 'apply consA' is not valid
+        elif rule not in ruleSet.keys() - {'consProp', 'firstProp', 'restProp'}: # 'apply consProp' is not valid
             self.errLog.append(f'Could not find rule associated with {rule}')
         elif ruleCategory == 'apply' and rule in ('cons', 'first', 'rest'): # for cons, first, rest axioms
-            rule += 'A'
+            rule += 'Prop'
         elif ruleCategory == 'apply' and not (isinstance(ruleSet[rule], UDF) or ruleSet[rule].isProperty):
             self.errLog.append(f"Could not find UDF/lemma/property associated with {rule}")
         elif ruleCategory == 'eval' and isinstance(ruleSet[rule], UDF):
             self.errLog.append("Cannot evaluate a user-defined function")
-            self.errLog.append("Cannot evaluate a property")
         elif ruleCategory == 'eval' and rule == 'math':
             self.errLog.append("Cannot evaluate advanced math")
         elif ruleCategory == 'eval' and ruleSet[rule].isProperty:
             self.errLog.append("Cannot evaluate a property")
+        
         # checking to see if highlighted portion is within a quote
         if "'(" in targetNode.ancestors():
             self.errLog.append(f"Cannot apply rules within a quoted expression")
