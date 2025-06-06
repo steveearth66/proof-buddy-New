@@ -36,6 +36,14 @@ def preProcess(inputString: str, errLog: list[str] = None, debug=False,udf=False
     # remove consecutive spaces, strip whitespace from front & back of inputString
     inputString = " ".join(inputString.split())
 
+    # checking to make sure that only lists get quoted
+    nospace = inputString.replace(" ", "")
+    if nospace[-1]=="'":
+        errLog.append("cannot end an expression with a single quote")
+    for i in range(len(nospace)-1):
+        if nospace[i] == "'" and nospace[i+1] != "(":
+            errLog.append("only lists can be quoted")
+
     if inputString == "" and not udf:  # needed to avoid an issue in checking first character as (, udf's can be blank to be arbitrary
         # can't return the append directly since append changes in place and doesn't return a value!!
         errLog.append("no input detected")
@@ -51,14 +59,6 @@ def preProcess(inputString: str, errLog: list[str] = None, debug=False,udf=False
         # check if char is an allowed character
         if char not in AllowedChars:
             errLog.append(f"{char} not an allowed character")
-
-# checking to make sure that only lists get quoted
-        nospace = inputString.replace(" ", "")
-        if nospace[-1]=="'":
-            errLog.append("cannot end an expression with a single quote")
-        for i in range(len(nospace)-1):
-            if nospace[i] == "'" and nospace[i+1] != "(":
-                errLog.append("only lists can be quoted")
 
         # parenPairing should only return to 0 at the very end of the input string
         if char == '(':

@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import erService from '../services/erService';
 import { useServerError } from '../hooks/useServerError';
 import logger from '../utils/logger';
+//import { json } from 'react-router-dom';
 
 /**
  * A custom React hook designed to manage racket rule fields within a component.
@@ -35,10 +36,10 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
   const updateShowSubstitution = () => {
     setSubstitutionErrors([]);
 
-    if (startPosition < 1) {
+    /* if (startPosition < 1) {
       alert('Please select a keyword to substitute!');
       return;
-    }
+    } */
 
     const sideFields = racketRuleFields[side];
     const undeletedProofLines = sideFields.filter((line) => {
@@ -80,13 +81,68 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
 
       try {
         const response = await erService.racketGeneration(payLoad);
-
+        //console.log('line num (useRacketRuleFields.js)?:', response.lineNum); // test to see if lineNum shows up in the response
         if (response) return response;
       } catch (error) {
         handleServerError(error);
       }
     },
     [handleServerError, startPosition, currentRacket, name, tag, side]
+  );
+
+  /**
+   * A callback function to fetch a racket value for a given rule.
+   * Utilizes the custom service `erService` to make an external request.
+   *
+   * @param {string} ruleValue - The value of the rule for which to fetch the racket value.
+   * @returns {Promise<string|undefined>} A promise that resolves to the racket value or undefined if an error occurs.
+   */
+  const loadProofInServer = useCallback(
+    async (loadedProof) => {
+
+      let currentRacket = loadedProof.lHSGoal
+      let startPosition = loadedProof.leftPremise["startPosition"]
+      let LHS = []
+      for(let i = 0; i < loadedProof.leftRacketsAndRules.length; i++){
+        let rule = loadedProof.leftRacketsAndRules[i]["rule"]
+        if (i+1 === loadedProof.leftRacketsAndRules.length)
+          break;
+        LHS.push({ currentRacket, startPosition, rule })
+        currentRacket = loadedProof.leftRacketsAndRules[i]["racket"];
+        startPosition = loadedProof.leftRacketsAndRules[i]["startPosition"]
+      }
+
+      currentRacket = loadedProof.rHSGoal
+      startPosition = loadedProof.rightPremise["startPosition"]
+      let RHS = []
+      for(let i = 0; i < loadedProof.rightRacketsAndRules.length; i++){
+        let rule = loadedProof.rightRacketsAndRules[i]["rule"]
+        if (i+1 === loadedProof.rightRacketsAndRules.length)
+          break;
+        RHS.push({ currentRacket, startPosition, rule })
+        currentRacket = loadedProof.rightRacketsAndRules[i]["racket"];
+        startPosition = loadedProof.rightRacketsAndRules[i]["startPosition"]
+      }
+
+      const payLoad = {
+        "lHSGoal": loadedProof.lHSGoal,
+        "rHSGoal": loadedProof.rHSGoal,
+        "definitions": loadedProof.definitions,
+        LHS,
+        RHS,
+        "name": loadedProof.name,
+        "tag": loadedProof.tag
+      };
+
+      try {
+        const response = await erService.loadProof(payLoad);
+        //console.log('line num (useRacketRuleFields.js)?:', response.lineNum); // test to see if lineNum shows up in the response
+        if (response) return response;
+      } catch (error) {
+        handleServerError(error);
+      }
+    },
+    []
   );
 
   /**
@@ -119,30 +175,36 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
           try {
             const ruleValue = undeletedProofLines[lastUnDeletedFieldIndex].rule;
             const racket = await fetchRacketValue(ruleValue);
-
+            //window.sharedDict = racket.test_dict; // Steve's attempt to pass position dict to persistentPad
             if (racket.isValid) {
               setRacketErrors([]);
               clearServerError();
+              //console.log("log1", racketRuleFields); // added console.log to check
               setRacketRuleFields((prevFields) => ({
                 ...prevFields,
                 [side]: prevFields[side].map((field, index) => {
                   if (index === indexToUpdate) {
+                    //console.log('tree1.5',racket.jsonTree);
                     return {
                       ...field,
-                      racket: racket.racket
+                      startPosition: 0,
+                      racket: racket.racket,
+                      jsonTree: racket.jsonTree // added new line to return jsonTree data
                     };
                   }
+                  //console.log('tree2',racket.jsonTree);
                   return field;
                 })
               }));
+              //console.log("log2", racketRuleFields.LHS[0].jsonTree); // added console.log to check
               setRacketRuleFields((prevFields) => ({
                 ...prevFields,
                 [side]: [
                   ...prevFields[side],
-                  { racket: '', rule: '', deleted: false, errors: [] }
+                  { racket: '', jsonTree: {}, rule: '', deleted: false, errors: [] }
                 ]
               }));
-
+              
               setValidationErrors((prevErrors) => ({
                 ...prevErrors,
                 [side]: {}
@@ -161,15 +223,18 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
                 ...prevFields,
                 [side]: prevFields[side].map((field, index) => {
                   if (index === indexToUpdate) {
+                    //console.log('tree3',racket.jsonTree);
                     return {
                       ...field,
                       errors
                     };
                   }
+                  //console.log('tree4',racket.jsonTree);
                   return field;
                 })
               }));
             }
+            return racket;
           } catch (error) {
             logger.error('Failed to fetch racket value:', error);
           }
@@ -179,10 +244,11 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
           ...prevFields,
           [side]: [
             ...prevFields[side],
-            { racket: '', rule: '', deleted: false }
+            { racket: '', jsonTree: {}, rule: '', deleted: false }
           ]
         }));
       }
+      return null;
     },
     [fetchRacketValue, racketRuleFields, clearServerError]
   );
@@ -269,11 +335,12 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
             [side]: [
               ...prevFields[side].slice(0, -1),
               {
+                jsonTree: response.jsonTree,
                 racket: response.racket,
                 rule: rule + '(SUB)',
                 deleted: false
               },
-              { racket: '', rule: '', deleted: false }
+              { racket: '', jsonTree: {}, rule: '', deleted: false }
             ]
           }));
           closeSubstitution();
@@ -291,35 +358,13 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
     [currentRacket, side, startPosition]
   );
 
-  const loadRacketProof = useCallback((proofLines, isComplete) => {
-    const leftRackets = proofLines.filter((line) => line.leftSide === true);
-    const rightRackets = proofLines.filter((line) => line.leftSide === false);
-
-    const leftFields = leftRackets.map((line) => ({
-      racket: line.racket,
-      rule: line.rule,
-      deleted: line.deleted,
-      startPosition: line.startPosition,
-      errors: line.errors
-    }));
-
-    const rightFields = rightRackets.map((line) => ({
-      racket: line.racket,
-      rule: line.rule,
-      deleted: line.deleted,
-      startPosition: line.startPosition,
-      errors: line.errors
-    }));
-
-    if (!isComplete) {
-      leftFields.push({ racket: '', rule: '', deleted: false, errors: [] });
-      rightFields.push({ racket: '', rule: '', deleted: false, errors: [] });
-    }
-
+  const loadRacketProof = useCallback((loadedProof) => {
     setRacketRuleFields({
-      LHS: leftFields,
-      RHS: rightFields
+      LHS: loadedProof.leftRacketsAndRules,
+      RHS: loadedProof.rightRacketsAndRules
     });
+
+    loadProofInServer(loadedProof);
   }, []);
 
   return [

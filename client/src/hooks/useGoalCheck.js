@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import erService from '../services/erService';
 import logger from '../utils/logger';
+//import { json } from 'react-router-dom';
 
 /**
  * Custom React hook for checking if a goal (LHS or RHS) is valid.
@@ -17,6 +18,8 @@ const useGoalCheck = (handleChange) => {
   const [isGoalChecked, setIsGoalChecked] = useState({ LHS: false, RHS: false });
   const [goalValidationMessage, setGoalValidationMessage] = useState({ LHS: '', RHS: '' });
   const [proofValidationMessage, setProofValidationMessage] = useState({ name: '', tag: '' });
+  // adding new variable/function to grap the jsonTree
+  const [jsonTreeRep, setJsonTreeRep] = useState({ LHS: {}, RHS: {} });
 
   /**
    * Clears the validation message for a specific goal side (LHS or RHS).
@@ -74,6 +77,8 @@ const useGoalCheck = (handleChange) => {
         setIsGoalChecked({ ...isGoalChecked, [side]: true });
         setGoalValidationMessage({ ...goalValidationMessage, [side]: '' });
         setProofValidationMessage('');
+        // set jsonTreeRep from the result of checkGoal
+        setJsonTreeRep({ ...jsonTreeRep, [side]: result.jsonTree });
       } else {
         setIsGoalChecked({ ...isGoalChecked, [side]: false });
         const errorMessage = result.errors?.length ? result.errors.join('\n') : 'An unknown error occurred.';
@@ -88,8 +93,18 @@ const useGoalCheck = (handleChange) => {
     }
   };
 
-  const loadRacket = () => {
-    setIsGoalChecked({ LHS: true, RHS: true });
+  const loadRacketGoal = (loadedProof) => {
+    if (loadedProof.leftPremise.jsonTree) {
+      setIsGoalChecked({ LHS: true, RHS: false });
+      setJsonTreeRep({ LHS: loadedProof.leftPremise.jsonTree, RHS: {} });
+    } else {
+      setIsGoalChecked({ LHS: false, RHS: false });
+    }
+
+    if (loadedProof.rightPremise.jsonTree) {
+      setIsGoalChecked(prev => ({ ...prev, ["RHS"]: true }));
+      setJsonTreeRep(prev => ({ ...prev, ["RHS"]: loadedProof.rightPremise.jsonTree }));
+    }
   };
 
   return [
@@ -99,7 +114,8 @@ const useGoalCheck = (handleChange) => {
     enhancedHandleChange,
     proofValidationMessage,
     clearProofValidationMessage,
-    loadRacket
+    loadRacketGoal,
+    jsonTreeRep
   ];
 };
 

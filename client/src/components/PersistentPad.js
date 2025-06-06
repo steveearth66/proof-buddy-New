@@ -3,8 +3,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import useDoubleClick from "use-double-click";
 import Col from "react-bootstrap/Col";
 import { useCollapsing } from "../hooks/useCollapsing";
+import DivMakerComponent from "./divMaker"; // Steve's addition based on Galen's idea
 
-export default function PersistentPad({ equation, onHighlightChange, side }) {
+export default function PersistentPad({ equation, onHighlightChange, side, jsonTree, lineNum, editableLineNum, startPosition }) {
+  // attempting to console log the jsonTree
+  //console.log("jsonTree rep:", jsonTree)
   const [highlightedText, setHighlightedText] = useState("");
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
   const [controlPressed, setControlPressed] = useState(false);
@@ -24,7 +27,17 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     balanceParenthesis
   } = useCollapsing();
 
-  useDoubleClick({
+  // Steve's addition based on Galen's idea
+  //let [expr, setExpr] = useState(null);
+  //let [selected, setSelected] = useState(null);
+  const [isActive, setIsActive] = useState(false);
+  const [selected, setSelected] = useState(startPosition); // changing selected from node to it's ID
+
+  const lineNumRef = useRef(lineNum); // Store the initial lineNum in a ref
+
+  let origTree = jsonTree; // will this save tree? is having const bad if it changes later for next racket expr?
+
+/*    useDoubleClick({
     onSingleClick: (e) => {
       e.stopPropagation();
       e.preventDefault();
@@ -37,7 +50,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
       setRestoredPress(false);
       e.stopPropagation();
       e.preventDefault();
-      handelSelection();
+      handleSelection();
     },
     ref: padRef,
     latency: 250
@@ -72,7 +85,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     }
   };
 
-  const handelSelection = () => {
+  const handleSelection = () => {
     try {
       setHighlightedText("");
       const range = window.getSelection().getRangeAt(0);
@@ -80,7 +93,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
       const endOffset = range.endOffset;
 
       const selectionRange = { start: startOffset, end: endOffset };
-      handelHighlight(selectionRange);
+      handleHighlight(selectionRange);
     } catch (error) {
       console.error("Error while highlighting selection: ", error);
     }
@@ -89,13 +102,26 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
   const highlightWordOrNumber = () => {
     try {
       setHighlightedText("");
+      
+      // Check if there is a valid selection
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) {
+        console.warn("No valid text selection found or empty selection.");
+        return; // Exit if no valid range is found
+      }
+        
       const range = window.getSelection().getRangeAt(0);
       const startOffset = range.startOffset;
       const endOffset = range.endOffset;
-
       const selectionRange = { start: startOffset, end: endOffset };
       const start = selectionRange.start;
       const end = selectionRange.end;
+
+      // Ensure the selection is within the expected element (e.g., padRef)
+      if (!padRef.current.contains(range.commonAncestorContainer)) {
+        console.warn("Selection is outside the text container.");
+        return; // Exit if selection is not in the correct element
+        }
 
       let startWord = start;
       while (startWord > 0 && !returnedText[startWord - 1].match(/\s|\(/)) {
@@ -122,7 +148,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     }
   };
 
-  const handelHighlight = (selectionRange) => {
+  const handleHighlight = (selectionRange) => {
     const selectedPart = findSelectionParenthesis(returnedText, selectionRange);
     if (!checkParenthesisConsistency(selectedPart)) {
       const highlighted = checkAndGetQuotient(
@@ -152,6 +178,39 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
   const getEndIndex = (selectedText) => {
     return getStartIndex(selectedText) + selectedText.length;
   };
+  
+  const getEndIndex = useCallback(
+    (start) => {
+      if (returnedText[start] === "(") {
+        let stack = 1;
+        for (let i = start + 1; i < returnedText.length; i++) {
+          if (returnedText[i] === "(") stack++;
+          else if (returnedText[i] === ")") stack--;
+          if (stack === 0) return i;
+        }
+      }
+      if (returnedText[start] === "'") {
+        if (returnedText[start + 1] === "(") {
+          let stack = 1;
+          for (let i = start + 2; i < returnedText.length; i++) {
+            if (returnedText[i] === "(") stack++;
+            else if (returnedText[i] === ")") stack--;
+            if (stack === 0) return i;
+          }
+        }
+      }
+      if (/^[a-zA-Z0-9]+$/.test(returnedText.substring(start))) {
+        return returnedText.length - 1;
+      }
+      for (let i = start + 1; i < returnedText.length; i++) {
+        if (!/^[a-zA-Z0-9]$/.test(returnedText[i])) {
+          return i - 1;
+        }
+      }
+      return returnedText.length - 1;
+    },
+    [returnedText]
+  );
 
   const checkAndGetQuotient = (selectedText) => {
     const start = returnedText.indexOf(selectedText);
@@ -163,22 +222,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     } else {
       return selectedText;
     }
-  };
-
-  const clearHighlight = (e) => {
-    e.preventDefault();
-    setHighlightedText("");
-
-    onHighlightChange(-1);
-    const savedHighlights = JSON.parse(
-      sessionStorage.getItem("highlights") || "[]"
-    );
-    const newHighlights = savedHighlights.filter(
-      (highlight) =>
-        !(highlight.equation === equation && highlight.side === side)
-    );
-    sessionStorage.setItem("highlights", JSON.stringify(newHighlights));
-  };
+  };*/
 
   const replaceSelection = useCallback(
     (equation, selectionRange, replacement) => {
@@ -245,7 +289,7 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
         setRestoredPress(true);
       }
     };
-
+  
     const keyEventUp = (e) => {
       if (e.key === "Control") {
         setControlPressed(false);
@@ -254,15 +298,18 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
         setRestoredPress(false);
       }
     };
-
-    window.addEventListener("keydown", keyEvent);
-    window.addEventListener("keyup", keyEventUp);
-
-    return () => {
-      window.removeEventListener("keydown", keyEvent);
-      window.removeEventListener("keyup", keyEventUp);
-    };
-  }, []);
+  
+    // Ensure padRef.current is not null before adding event listeners
+    if (padRef.current) {
+      window.addEventListener("keydown", keyEvent);
+      window.addEventListener("keyup", keyEventUp);
+  
+      return () => {
+        window.removeEventListener("keydown", keyEvent);
+        window.removeEventListener("keyup", keyEventUp);
+      };
+    }
+  }, []);  
 
   useEffect(() => {
     if (collapsed === equation) {
@@ -296,16 +343,68 @@ export default function PersistentPad({ equation, onHighlightChange, side }) {
     collapsedSelection
   ]);
 
-  return (
-    <Col xs={8}>
-      <p
-        ref={padRef}
-        onContextMenu={clearHighlight}
-        dangerouslySetInnerHTML={{
-          __html: returnedText
-        }}
-        className="pad"
-      />
-    </Col>
-  );
+//should no longer need ID2Node with the new jsonTree dictionary structure
+//so this is the attempted rewrite with the new jsonTree dictionary structure
+//newSelected will be the ID of the next node, 
+const handleKeyDown = useCallback((e) => {
+	// if (!selected) return;
+  if (!isActive) return; // Only run if this pad is active
+
+	let newSelected = selected; //defaulting to currNode
+
+  if (e.key === "ArrowUp") {
+    e.preventDefault();
+    newSelected = origTree[newSelected].parent ?? newSelected;
+  } else if (e.key === "ArrowDown") {
+    e.preventDefault();
+    newSelected = origTree[newSelected].children[0] ?? newSelected;
+  } else if (e.key === "ArrowLeft") {
+    newSelected = origTree[newSelected].leftSib ?? newSelected;
+  } else if (e.key === "ArrowRight") {
+    newSelected = origTree[newSelected].rightSib ?? newSelected;
+  }
+
+	setSelected(newSelected);
+  onHighlightChange(newSelected);
+}, [isActive, selected, origTree]);
+
+useEffect(() => {
+  const padElement = padRef.current;
+
+  const handleKeyDownWrapper = (e) => {
+    if (isActive) {
+      handleKeyDown(e); // Call your existing keydown logic
+    }
+  };
+
+  if (padElement) {
+    padElement.addEventListener("keydown", handleKeyDownWrapper);
+  }
+
+  return () => {
+    if (padElement) {
+      padElement.removeEventListener("keydown", handleKeyDownWrapper);
+    }
+  };
+}, [isActive, handleKeyDown]);
+
+return (
+  <Col xs={8}>
+    <div
+      ref={padRef}
+      id={`persistent-pad-${lineNumRef.current}`}
+      tabIndex={lineNumRef.current === editableLineNum ? 0 : -1} // Make the div focusable
+      onFocus={() => {
+        if (lineNumRef.current === editableLineNum) setIsActive(true)
+      }} // Mark as active on focus
+      onBlur={() => setIsActive(false)} // Mark as inactive on blur
+      onClick={() => {
+        if (lineNumRef.current === editableLineNum) setIsActive(true);
+      }} // Mark as active on click
+      // onKeyDown={(e) => handleKeyDown(e)} // Handle keypresses directly
+    >
+      <DivMakerComponent expr={jsonTree} selected={selected} origTree={origTree} lineNumber={lineNumRef.current} />
+    </div>
+  </Col>
+);
 }

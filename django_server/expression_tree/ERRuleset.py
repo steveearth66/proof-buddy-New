@@ -27,10 +27,10 @@ def isMatch(xNode: Node, yNode: Node) -> bool:
         sofar &= isMatch(xNode.children[i], yNode.children[i])
     return sofar
 
-
 class Rule(ABC):
-    def __init__(self, label):
+    def __init__(self, label, isProperty=False):
         self.label = label
+        self.isProperty = isProperty
 
     @property
     def label(self):
@@ -56,7 +56,7 @@ class If(Rule):
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if (len(ruleNode.children) != 0 and ruleNode.children[0].data != 'if'):
-            return False, f'Cannot apply if rule to {ruleNode.children[0].data}'
+            return False, f'Cannot evaluate if on a {ruleNode.children[0].data} expression'
         elif (len(ruleNode.children) != 4):
             return False, f'If rule expects 3 arguments, but received {len(ruleNode.children)}'
         elif ruleNode.children[1].data not in ['#t', '#f']:
@@ -74,18 +74,22 @@ class If(Rule):
             return yNode
 
 
-class Cons(Rule):
+class ConsProp(Rule):
     def __init__(self):
-        super().__init__('cons')
+        super().__init__('cons', isProperty=True)
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'cons':
-            return False, f'Cannot apply cons rule to {ruleNode.children[0].data}'
+            return False, f"Cannot apply cons-first-rest property to a '{ruleNode.children[0].data}' expression"
         elif len(ruleNode.children[1].children) == 0 or len(ruleNode.children[2].children) == 0 or \
         ruleNode.children[1].children[0].data != 'first' or ruleNode.children[2].children[0].data != 'rest':
-            return False, f'Can only apply the cons rule to first and rest'
+            return False, "Can only apply cons-first-rest property when first arg is a 'first' expression and second arg is a 'rest' expression"
+        elif ruleNode.children[1].children[1].data == 'null':
+            return False, "first requires nonempty list"
+        elif ruleNode.children[2].children[1].data == 'null':
+            return False, "rest requires nonempty list"
         elif not isMatch(ruleNode.children[1].children[1], ruleNode.children[2].children[1]):
-            return False, f'Cannot apply cons rule on two different lists'
+            return False, f'Cannot apply cons-first-rest property on two different lists'
         # string should not print out if debug=False
         return True, 'Cons.isApplicable() PASS'
 
@@ -94,15 +98,15 @@ class Cons(Rule):
         return lNode
 
 
-class First(Rule):
+class FirstProp(Rule):
     def __init__(self):
-        super().__init__('first')
+        super().__init__('first', isProperty=True)
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'first':
-            return False, f'Cannot apply first rule to {ruleNode.children[0].data}'
+            return False, f"Cannot apply first-cons property to a '{ruleNode.children[0].data}' expression"
         elif len(ruleNode.children[1].children) == 0 or ruleNode.children[1].children[0].data != 'cons':
-            return False, f'first rule can only be applied with a cons'
+            return False, "Can only apply first-cons property when argument is a 'cons' expression"
         # string should not print out if debug=False
         return True, 'First.isApplicable() PASS'
 
@@ -111,15 +115,15 @@ class First(Rule):
         return xNode
 
 
-class Rest(Rule):
+class RestProp(Rule):
     def __init__(self):
-        super().__init__('rest')
+        super().__init__('rest', isProperty=True)
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'rest':
-            return False, f'Cannot apply rest rule to {ruleNode.children[0].data}'
+            return False, f"Cannot apply rest-cons property to a '{ruleNode.children[0].data}' expression"
         elif len(ruleNode.children[1].children) == 0 or ruleNode.children[1].children[0].data != 'cons':
-            return False, f'rest rule can only be applied with a cons'
+            return False, "Can only apply rest-cons property when argument is a 'cons' expression"
         # string should not print out if debug=False
         return True, 'Rest.isApplicable() PASS'
 
@@ -213,15 +217,15 @@ class ConsList(Rule):
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.data != "(":
-            return False, "must select entire expression to apply consList rule"
+            return False, "must select entire expression to evaluate cons"
         elif len(ruleNode.children) == 0 or ruleNode.children[0].data != 'cons':
-            return False, 'operator must be cons to apply consList rule'
+            return False, f"Cannot evaluate cons on a '{ruleNode.children[0].data}' expression"
         elif num :=(len(ruleNode.children)) != 3: #NOTE: this case should have been caught earlier in buildtree, but just to be safe
             return False, f'cons expects 2 arguments, but you provided {num-1}'
         elif (ruleNode.children[1].data) =="(":
-            return False, 'insufficiently resolved first argument'
+            return False, 'insufficiently resolved arguments'
         elif (ruleNode.children[2].data) not in ("null", "'("):
-            return False, 'insufficiently resolved second argument, which must be a list'
+            return False, 'insufficiently resolved arguments'
         return True, "ConsList.isApplicable() PASS"  # string should not print out if debug=False
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
@@ -250,7 +254,7 @@ class ConsList(Rule):
         return lNode
 
 # TODO: this needs to be generalized to use a python math library and normal forms, and not just the 4 basic operations
-
+'''
 class Math(Rule):
     def __init__(self):
         super().__init__('math')
@@ -289,9 +293,123 @@ class Math(Rule):
             newdata = str(newname)
             newtype = RacType((None, Type.INT))
         return Node(data=newdata, tokenType=newtype, name=newname)  # converting node
+'''
+class Symbolic(Rule, ABC):
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        if ruleNode.children[0].data != self.label:
+            return False, f"Cannot evaluate {self.label} on a '{ruleNode.children[0].data}' expression"
+        #if (len(ruleNode.children[1].children) != 0 and ruleNode.children[1].data != "'(") or (len(ruleNode.children[2].children) != 0 and ruleNode.children[2].data != "'("):
+        if True in map(lambda child: (len(child.children) != 0 and child.data != "'("), ruleNode.children[1:]):
+            return False, 'insufficiently resolved arguments'
+        # Check if the operator matches the rule label
+        return True, 'Symbolic.isApplicable() PASS'
+        
+    @abstractmethod
+    def getStdExpr(self, ruleNode: Node) -> str:
+        pass
 
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        try:
+            symbolicExpr = sp.simplify(sp.sympify(self.getStdExpr(ruleNode)))
+            
+            # Determine the type of the result (e.g., INT or BOOL)
+            if symbolicExpr.is_Boolean:
+                newtype = RacType((None, Type.BOOL))
+                newname = "#t" if symbolicExpr else "#f"
+            elif symbolicExpr.is_Integer:
+                newtype = RacType((None, Type.INT))
+                newname = int(symbolicExpr)
+            else:
+                newtype = RacType((None, Type.ANY))
+                newname = str(symbolicExpr)
+            
+            newdata = str(newname)
 
-class Logic(Rule):
+            # Create a new node with the simplified expression
+            return Node(data=newdata, tokenType=newtype, name=newname)
+        except Exception as e:
+            raise ValueError(f"Error in insertSubstitution: {str(e)}")
+
+class Math(Symbolic):
+    def getStdExpr(self, ruleNode: Node) -> str:
+        return ruleNode.mathStr()
+
+class Plus(Math):
+    def __init__(self):
+        super().__init__('+')
+
+class Minus(Math):
+    def __init__(self):
+        super().__init__('-')
+
+class Times(Math):
+    def __init__(self):
+        super().__init__('*')
+
+class Quotient(Math):
+    def __init__(self):
+        super().__init__('quotient')
+    
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        passed, errMsg = super().isApplicable(ruleNode)
+        if not passed:
+            return False, errMsg
+        if int(ruleNode.children[-1].data) == 0:
+            return False, "denominator can't be zero"
+        return True, errMsg
+
+class Remainder(Math):
+    def __init__(self):
+        super().__init__('remainder')
+    
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        passed, errMsg = super().isApplicable(ruleNode)
+        if not passed:
+            return False, errMsg
+        if int(ruleNode.children[-1].data) == 0:
+            return False, "denominator can't be zero"
+        return True, errMsg
+
+class Expt(Math):
+    def __init__(self):
+        super().__init__('expt')
+    
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        passed, errMsg = super().isApplicable(ruleNode)
+        if not passed:
+            return False, errMsg
+        if int(ruleNode.children[1].data) == 0 and int(ruleNode.children[2].data) == 0:
+            return False, '0^0 is undefined'
+        if int(ruleNode.children[2].data) < 0:
+            return False, f'{ruleNode.children[2]} contains illegal character'
+        return True, errMsg
+        
+class Equals(Math):
+    def __init__(self):
+        super().__init__('=')
+
+    def insertSubstitution(self, ruleNode):
+        argOne = str(ruleNode.children[1])
+        argTwo = str(ruleNode.children[2])
+        return Node(data="#t" if argOne == argTwo else "#f", tokenType=RacType((None, Type.BOOL)), name=argOne == argTwo)  # converting node
+
+class LessThan(Math):
+    def __init__(self):
+        super().__init__('<')
+
+class LessOrEqual(Math):
+    def __init__(self):
+        super().__init__('<=')
+
+class GreaterThan(Math):
+    def __init__(self):
+        super().__init__('>')
+
+class GreaterOrEqual(Math):
+    def __init__(self):
+        super().__init__('>=')
+
+""" class Logic(Rule):
     def __init__(self):
         super().__init__('logic')
 
@@ -315,9 +433,31 @@ class Logic(Rule):
         newname = self.logicDict[ruleNode.children[0].data](argOne, argTwo)
         newdata = "#t" if newname else "#f"  # convert to racket bool
         newtype = RacType((None, Type.BOOL))
-        return Node(data=newdata, tokenType=newtype, name=newname)  # converting node
+        return Node(data=newdata, tokenType=newtype, name=newname)  # converting node """
 
+class Logic(Symbolic):
+    def getStdExpr(self, ruleNode: Node) -> str:
+        return ruleNode.logicStr()
+    
+class And(Logic):
+    def __init__(self):
+        super().__init__('and')
 
+class Or(Logic):
+    def __init__(self):
+        super().__init__('or')
+
+class Not(Logic):
+    def __init__(self):
+        super().__init__('not')
+
+class Xor(Logic):
+    def __init__(self):
+        super().__init__('xor')
+
+class Implies(Logic):
+    def __init__(self):
+        super().__init__('implies')
 class UDF(Rule):
     def __init__(self, label, filledBodyNode, racTypeObj, paramsList):
         super().__init__(label)
@@ -350,11 +490,11 @@ class RestList(Rule):
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:  # presumes buildtree checked types/qty already
         if ruleNode.data != "(" or len(ruleNode.children) != 2 or ruleNode.children[0].data != "rest":
-            return False, f'restList rule requires calling rest function'
+            return False, f"Cannot evaluate rest on a '{ruleNode.children[0].data}' expression"
         if len(ruleNode.children[1].children) ==0: #this handles (rest null), (rest '()) :
-            return False, f'restList rule requires nonempty list'
+            return False, f'rest requires nonempty list'
         if ruleNode.children[1].data != "'(":
-            return False, f'restList rule requires explicit list'  # null case already handled. e.g. (rest L)
+            return False, f'insufficiently resolved list argument'  # null case already handled. e.g. (rest L)
         return True, "RestList.isApplicable() PASS"
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
@@ -375,11 +515,11 @@ class FirstList(Rule):
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:  # presumes buildtree checked types/qty already
         if ruleNode.data != "(" or len(ruleNode.children) != 2 or ruleNode.children[0].data != "first":
-            return False, f'firstList rule requires calling rest function'
+            return False, f"Cannot evaluate first on a '{ruleNode.children[0].data}' expression"
         if len(ruleNode.children[1].children) ==0: #this handles (rest null), (rest '()) :
-            return False, f'firstList rule requires nonempty list'
+            return False, f'first requires nonempty list'
         if ruleNode.children[1].data != "'(":
-            return False, f'firstList rule requires explicit list'  # null case already handled. e.g. (rest L)
+            return False, f'insufficiently resolved list argument'  # null case already handled. e.g. (rest L)
         return True, "RestList.isApplicable() PASS"
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
@@ -388,10 +528,28 @@ class FirstList(Rule):
             origList.children[0].data = "'("
         return origList.children[0]
 
+class MinusPlus(Rule):
+    def __init__(self):
+        super().__init__('-+', isProperty=True)
+    
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        if ruleNode.children[0] != '-':
+            return False, f'Cannot apply -+ when the root operation is {ruleNode.children[0]}'
+        if ruleNode.children[1].data != '(' or ruleNode.children[1].children[0].data != '+':
+            return False, f'Cannot apply -+ when the first argument of - is not a + expression'
+        if ruleNode.children[2].data == '(' or ruleNode.children[1].children[2].data == '(':
+            return False, 'Insufficiently resolved arguments'
+        if ruleNode.children[2].data != ruleNode.children[1].children[2].data:
+            return False, "Cannot apply -+ when the second argument of - doesn't match the second argument of +"
+        return True, "MinusPlus.isApplicable() PASS"
+    
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        return ruleNode.children[1].children[1]
+
 class advMath(Rule):
     
     def __init__(self):
-        super().__init__('advMath')
+        super().__init__('advMath', isProperty=True)
 
 # presumes buildtree checked types/qty already for main node and the subnode
 # "subnode" is the exptree created by the user in the Substitution pane.

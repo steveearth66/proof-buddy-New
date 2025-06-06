@@ -3,6 +3,20 @@ import { handleServiceError } from "../utils/serviceErrorHandling";
 
 const API_GATEWAY = "/api/v1/proof";
 
+// this function used to convert children list to id list rather than nodes
+/*
+const subChildIDS = (expr) => {
+  if (expr === null || expr === undefined || expr === "") {
+    return;
+  }
+  for (let i = 0; i < expr.children.length; i++) {
+    let child = expr.children[i];
+    expr.children[i] = child.startPosition;
+    subChildIDS(child);
+  }
+};
+*/
+
 /**
  * Check the proof goal.
  *
@@ -15,6 +29,9 @@ const checkGoal = async (goal) => {
       `${API_GATEWAY}/check-goal`,
       goal
     );
+    //console.log("before", response.data); // checking to see if we can change nodes to id's here
+    //subChildIDS(response.data.jsonTree);
+    //console.log("after", response.data); // checking to see if backend successfully changed children to id's
     return response.data;
   } catch (error) {
     handleServiceError(error, "Error during goal validation:");
@@ -29,11 +46,34 @@ const checkGoal = async (goal) => {
  * @returns {Promise<Object>} - The response data from the server.
  */
 const racketGeneration = async (payLoad) => {
+  //console.log("Payload sent to backend (erService.js):", payLoad); // DEBUG REMOVE
   try {
     const response = await axiosInstance.post(
       `${API_GATEWAY}/er-generate`,
       payLoad
     );
+    //console.log("line num?(erService.js):", response.data.lineNum); // test to see if lineNum shows up in the response
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during racket generation:");
+    throw error;
+  }
+};
+
+/**
+ * Generate the racket for the provided rule.
+ *
+ * @param {Object} payLoad - The object contains proof rule & start position of highlight.
+ * @returns {Promise<Object>} - The response data from the server.
+ */
+const loadProof = async (payLoad) => {
+  //console.log("Payload sent to backend (erService.js):", payLoad); // DEBUG REMOVE
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/set-proof`,
+      payLoad
+    );
+    //console.log("line num?(erService.js):", response.data.lineNum); // test to see if lineNum shows up in the response
     return response.data;
   } catch (error) {
     handleServiceError(error, "Error during racket generation:");
@@ -208,6 +248,7 @@ const deleteLine = async (side) => {
 
 const erService = {
   checkGoal,
+  loadProof,
   racketGeneration,
   createDefinition,
   completeProof,

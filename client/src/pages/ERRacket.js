@@ -19,7 +19,7 @@ import { useCurrentRacketValues } from "../hooks/useCurrentRacketValues";
 import { useFormSubmit } from "../hooks/useFormSubmit";
 import "../scss/_forms.scss";
 import "../scss/_er-racket.scss";
-import { useExportToLocalMachine } from "../hooks/useExportToLocalMachine";
+import { exportToLocalMachine, readFromFile } from "../hooks/useExportToLocalMachine";
 import {
   Definitions,
   ProofComplete,
@@ -54,7 +54,8 @@ const ERRacket = () => {
     enhancedHandleChange,
     proofValidationMessage,
     clearProofValidationMessage,
-    loadRacket
+    loadRacketGoal,
+    jsonTreeRep
   ] = useGoalCheck(handleChange);
   const [startPosition, setStartPosition] = useState(0);
   const [currentRacket, setCurrentRacket] = useState("");
@@ -88,10 +89,22 @@ const ERRacket = () => {
     useDefinitionsWindow();
   const [showProofComplete, setShowProofComplete] = useState(false);
   const [proofComplete, setProofComplete] = useState(false);
-  const [leftPremise, setLeftPremise] = useState({});
-  const [rightPremise, setRightPremise] = useState({});
+  const [leftPremise, setLeftPremise] = useState({
+    racket: '',
+    rule: 'Premise',
+    startPosition: 0
+  });
+  const [rightPremise, setRightPremise] = useState({
+    racket: '',
+    rule: 'Premise',
+    startPosition: 0
+  });
   const [loadedProof, setLoadedProof] = useState(null);
   const location = useLocation();
+  const [editableLineNums, setEditableLineNums] = useState({
+    LHS: 0,
+    RHS: 0
+  });
 
   const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
@@ -105,34 +118,50 @@ const ERRacket = () => {
   );
 
   /**
-   * Creates JSON object of the target incoming parameter (which should be a JavaScript Object)
-   */
-  const convertToJSON = (target) => {
-    return JSON.stringify(target);
-  };
-
-  /**
    * Returns a JSON object of the present form
    */
   const convertFormToJSON = () => {
-    //This is a Front End Proof Object placeholder
-    //In the future we will be using a Proof Object sent from the python-server
     let EquationalReasoningObject = {
       name: formValues.proofName,
+      tag: formValues.proofTag,
       leftRacketsAndRules: racketRuleFields.LHS,
-      rightRacketsAndRules: racketRuleFields.RHS
+      rightRacketsAndRules: racketRuleFields.RHS,
+      lHSGoal: formValues.lHSGoal,
+      rHSGoal: formValues.rHSGoal,
+      leftPremise: { ...leftPremise, jsonTree: (isGoalChecked.LHS ? jsonTreeRep.LHS : null) },
+      rightPremise: { ...rightPremise, jsonTree: (isGoalChecked.RHS ? jsonTreeRep.RHS : null) },
+      definitions: JSON.parse(sessionStorage.getItem("definitions") || "[]").filter(isApplied)
     };
+    // console.log("Equational Reasoning Object:", EquationalReasoningObject);
+    return JSON.stringify(EquationalReasoningObject);
+};
 
-    return convertToJSON(EquationalReasoningObject);
+  function isApplied(definition) {
+    return definition["applied"];
+  }
+
+  const exportJSON = () => {
+    if (!formValues.proofName || !formValues.proofTag || !formValues.lHSGoal || !formValues.rHSGoal) {
+      alert("Please fill out all required fields before exporting.");
+      return;
+    }
+    exportToLocalMachine(formValues.proofName, convertFormToJSON());
   };
-
-  const exportJSON = useExportToLocalMachine(
-    formValues.proofName,
-    convertFormToJSON()
-  );
 
   const handleHighlight = (startPosition) => {
     setStartPosition(startPosition);
+  };
+
+  const handleFileUpload = async (file) => {
+    if (file) {
+      try {
+        const data = await readFromFile(file); // Parse the file
+        setLoadedProof( data);
+        } catch (error) {
+        console.error("Error reading file:", error.message);
+        alert("Failed to load the file. Please upload a valid .json file.");
+      }
+    }
   };
 
   const saveProof = async () => {
@@ -171,19 +200,11 @@ const ERRacket = () => {
 
   useEffect(() => {
     if (formValues.rHSGoal !== "") {
-      setRightPremise({
-        racket: formValues.rHSGoal,
-        rule: "Premise",
-        startPosition: 0
-      });
+      setRightPremise(prev => ({ ...prev, racket: formValues.rHSGoal }));
     }
 
     if (formValues.lHSGoal !== "") {
-      setLeftPremise({
-        racket: formValues.lHSGoal,
-        rule: "Premise",
-        startPosition: 0
-      });
+      setLeftPremise(prev => ({ ...prev, racket: formValues.lHSGoal }));
     }
   }, [formValues.lHSGoal, formValues.rHSGoal]);
 
@@ -211,7 +232,7 @@ const ERRacket = () => {
     };
 
     if (lhsValue !== "" && rhsValue !== "" && currentLHS !== "") {
-      if (currentLHS === currentRHS || currentLHS === rhsValue) {
+      if (currentLHS === currentRHS) {
         removeBlankRackets();
         setShowProofComplete(true);
         setProofComplete(true);
@@ -236,7 +257,6 @@ const ERRacket = () => {
   useEffect(() => {
     const fetchProof = async (id) => {
       const proof = await erService.getRacketProof(id);
-      sessionStorage.setItem('definitions', JSON.stringify(proof.definitions));
       setLoadedProof(proof);
     };
 
@@ -245,22 +265,67 @@ const ERRacket = () => {
     }
   }, [location]);
 
+  /*
+  useEffect(() => {
+    console.log("lineNum updated in ERRacket.js:", lineNum); // Logs the correct value after the state update
+  }, [lineNum]);
+
+  useEffect(() => {
+    console.log("startPosition updated in ERRacket.js", startPosition); // Logs the correct value after the state update
+  }, [startPosition]);
+
+  useEffect(() => {
+    console.log("editableLineNum updated in ERRacket.js:", editableLineNum); // Logs the correct value after the state update
+  }, [editableLineNum]);
+  */
+
   useEffect(() => {
     if (loadedProof) {
       formValues.proofName = loadedProof.name;
       formValues.proofTag = loadedProof.tag;
-      formValues.lHSGoal = loadedProof.lhs;
-      formValues.rHSGoal = loadedProof.rhs;
+      formValues.lHSGoal = loadedProof.lHSGoal;
+      formValues.rHSGoal = loadedProof.rHSGoal;
 
-      loadRacketProof(loadedProof.proofLines, loadedProof.isComplete);
-      loadRacket();
+      setLeftPremise(loadedProof.leftPremise);
+      setRightPremise(loadedProof.rightPremise);
+
+      sessionStorage.setItem('definitions', JSON.stringify(loadedProof.definitions));
+
+      loadRacketGoal(loadedProof);
+      loadRacketProof(loadedProof);
+
+      setEditableLineNums({ 
+        LHS: loadedProof.leftRacketsAndRules.length ? loadedProof.leftRacketsAndRules.length - 1 : 0, 
+        RHS: loadedProof.rightRacketsAndRules.length ? loadedProof.rightRacketsAndRules.length - 1 : 0
+      });
+
+      let loadedStartPosition;
+      if (showSide === 'LHS')
+        loadedStartPosition = (loadedProof.leftRacketsAndRules.length > 1 ? 
+          loadedProof.leftRacketsAndRules.at(-2).startPosition : loadedProof.leftPremise.startPosition);
+      else
+        loadedStartPosition = (loadedProof.rightRacketsAndRules.length > 1 ? 
+          loadedProof.rightRacketsAndRules.at(-2).startPosition : loadedProof.rightPremise.startPosition);
+      setStartPosition(loadedStartPosition ?? 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadedProof, loadRacketProof]);
+  }, [loadedProof]);
+ 
+  // set startPosition upon switching sides
+  useEffect(() => {
+    const lastUndeletedFieldIndex = racketRuleFields[showSide].filter(line => !line.deleted).length - 2;
+    let correctStartPosition;
+    if (lastUndeletedFieldIndex >= 0)
+      correctStartPosition = racketRuleFields[showSide][lastUndeletedFieldIndex].startPosition;
+    else
+      correctStartPosition = showSide === 'LHS' ? leftPremise.startPosition : rightPremise.startPosition;
+    correctStartPosition = correctStartPosition ?? 0;
+    setStartPosition(correctStartPosition);
+  }, [showSide]);
 
   useEffect(() => {
-    const currentSideRackets = showSide === "LHS" ? racketRuleFields.LHS : racketRuleFields.RHS;
-    if (currentSideRackets.length === 0) {
+    const currentSideRackets = racketRuleFields[showSide];
+    if (currentSideRackets.length <= 1) {
       setCurrentRacket(formValues[`${showSide[0].toLowerCase()}HSGoal`]);
       return;
     }
@@ -373,6 +438,35 @@ const ERRacket = () => {
                   </Dropdown.Item>
                 </Dropdown.Menu>
               </Dropdown>
+
+              <Dropdown
+                      as={Col}
+                      className="d-inline proof-dropdown-btn proof-operations"
+                    >
+                      <Dropdown.Toggle id="dropdown-autoclose-true">
+                        File Operations
+                      </Dropdown.Toggle>
+
+                      <Dropdown.Menu>
+                        <Dropdown.Item onClick={exportJSON}>
+                          Download Proof
+                        </Dropdown.Item>
+                        <Dropdown.Item onClick={() => document.getElementById("uploadProofInput").click()}>
+                            Upload Proof
+                          </Dropdown.Item>
+                          <input
+                            id="uploadProofInput"
+                            type="file"
+                            accept=".json"
+                            style={{ display: "none" }}
+                            onChange={(e) => handleFileUpload(e.target.files[0])}
+                          />
+                        <Dropdown.Item onClick={saveProof}>
+                          Save Proof
+                        </Dropdown.Item>
+                        <Dropdown.Item href="#">Submit Proof</Dropdown.Item>
+                      </Dropdown.Menu>
+                    </Dropdown>
             </Row>
 
             <Row className="g-5">
@@ -539,13 +633,14 @@ const ERRacket = () => {
                                 value: formValues.lHSGoal
                               }
                             });
-                            setLeftPremise({
-                              racket: formValues.lHSGoal,
-                              rule: "Premise",
-                              startPosition
-                            });
+                            setLeftPremise(prev => ({ ...prev, startPosition }));
                           }}
                           side={showSide}
+                          //attempting to pass jsonTree to Persistent Pad to initial LHS
+                          jsonTree={jsonTreeRep.LHS}
+                          lineNum={0}
+                          editableLineNum={editableLineNums[showSide]}
+                          startPosition = {leftPremise.startPosition ?? 0}
                         />
 
                         <Form.Group
@@ -571,7 +666,7 @@ const ERRacket = () => {
                       </Row>
 
                       {/* Dynamically Added Racket and Rule Fields */}
-                      {racketRuleFields.LHS.map((field, index) =>
+                      {racketRuleFields.LHS.map((field, index) => 
                         field.deleted ? null : (
                           <Row
                             className="racket-rule-row"
@@ -593,6 +688,12 @@ const ERRacket = () => {
                                 );
                               }}
                               side={showSide}
+                              //attempting to pass jsonTree to Persistent Pad
+                              //temporarily adding LHS[index] assuming that will give us the current line
+                              jsonTree={racketRuleFields.LHS[index].jsonTree ? racketRuleFields.LHS[index].jsonTree : jsonTreeRep.LHS}
+                              lineNum={index + 1}
+                              editableLineNum={editableLineNums[showSide]}
+                              startPosition = {field.startPosition ?? 0}
                             />
 
                             <Form.Group
@@ -648,13 +749,14 @@ const ERRacket = () => {
                                 value: formValues.rHSGoal
                               }
                             });
-                            setRightPremise({
-                              racket: formValues.rHSGoal,
-                              rule: "Premise",
-                              startPosition
-                            });
+                            setRightPremise(prev => ({ ...prev, startPosition }));
                           }}
                           side={showSide}
+                          //attempting to pass jsonTree to Persistent Pad to initial RHS
+                          jsonTree={jsonTreeRep.RHS}
+                          lineNum={0}
+                          editableLineNum={editableLineNums[showSide]}
+                          startPosition = {rightPremise.startPosition ?? 0}
                         />
 
                         <Form.Group
@@ -702,6 +804,12 @@ const ERRacket = () => {
                                 );
                               }}
                               side={showSide}
+                              //attempting to pass jsonTree to Persistent Pad
+                              //temporarily adding RHS[index] assuming that will give us the current line
+                              jsonTree={racketRuleFields.RHS[index].jsonTree ? racketRuleFields.RHS[index].jsonTree : jsonTreeRep.RHS}
+                              lineNum={index + 1}
+                              editableLineNum={editableLineNums[showSide]}
+                              startPosition = {field.startPosition ?? 0}
                             />
 
                             <Form.Group
@@ -745,18 +853,31 @@ const ERRacket = () => {
                 <div className="button-row-wrap">
                   <Row className="button-row">
                     <Col md="8">
-                      <Button
+                  {/* <Button
                         className="orange-btn delete-btn"
                         onClick={() => deleteLastLine(showSide)}
                       >
                         Delete Line
-                      </Button>
+                      </Button> */}
                     </Col>
                     <Col md="4" className="rules-btn-grp">
                       <Button
                         className="orange-btn green-btn"
-                        onClick={() => {
-                          addFieldWithApiCheck(showSide);
+                        onClick={async () => {
+                          const fullRacket = await addFieldWithApiCheck(showSide);
+                          try {
+                            if (fullRacket.isValid) {
+                              setEditableLineNums((prevEditableLineNums) => ({ ...prevEditableLineNums,
+                                [showSide]: (fullRacket.lineNum < 1 || fullRacket.lineNum === null ? 0 : fullRacket.lineNum) }));
+                              if (racketRuleFields[showSide].filter(line => !line.deleted).length != 0) {
+                                setStartPosition(0);
+                              }
+                            }
+                          } catch (error) {
+                            //console.log("Null because on premise, don't worry about it");
+                          }
+                          //console.log("current line? (ERRacket.js):", lineNum);
+                          //racketRuleFields?.LHS[0]?.jsonTree && console.log("the tree is: ", racketRuleFields.LHS[0].jsonTree);                          
                           if (showSide === "LHS") {
                             setLhsValue(formValues.lHSGoal);
                           } else {
@@ -778,25 +899,7 @@ const ERRacket = () => {
 
                 <div className="proof-opr-wrap">
                   <Row className="proof-oprs">
-                    <Dropdown
-                      as={Col}
-                      className="d-inline proof-dropdown-btn proof-operations"
-                    >
-                      <Dropdown.Toggle id="dropdown-autoclose-true">
-                        File Operations
-                      </Dropdown.Toggle>
-
-                      <Dropdown.Menu>
-                        <Dropdown.Item onClick={exportJSON}>
-                          Download Proof
-                        </Dropdown.Item>
-                        <Dropdown.Item href="#">Upload Proof</Dropdown.Item>
-                        <Dropdown.Item onClick={saveProof}>
-                          Save Proof
-                        </Dropdown.Item>
-                        <Dropdown.Item href="#">Submit Proof</Dropdown.Item>
-                      </Dropdown.Menu>
-                    </Dropdown>
+                    
                   </Row>
                 </div>
               </div>

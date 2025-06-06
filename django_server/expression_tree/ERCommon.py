@@ -2,8 +2,9 @@ from typing import Union, Tuple, List
 from enum import Enum
 
 # special math characters. any other math uses ascii, such as expt, quotient, remainder. Note: "/" not permitted
-ARITHMETIC = ["+", "*", "-", "=", ">", "<"]
+ARITHMETIC = {"+", "*", "-", "=", ">", "<", "<=", ">="}
 MathSet = {"+","-","*","expt", "quotient","remainder"}
+LogicSet = {'and', 'or', 'not', 'xor', 'implies'}
 class Type(Enum):
     TEMP = 'TEMP'
     BOOL = 'BOOL'
@@ -79,7 +80,9 @@ class RacType:
         return [RacType(x) for x in self.value[0]]
 
     def getRange(self) -> RacType:
-        return RacType(self.value[1])
+        if isinstance(self.value[1], tuple):
+            return RacType(self.value[1])
+        return RacType((None, self.value[1]))
 
     def isType(self, typeStr)->bool:
         return str(self.getType()) == typeStr
@@ -245,7 +248,7 @@ class Node:
     
      #checks if node is all math functions
     def allMath(self)->bool:
-        return self.funcSet().issubset(MathSet)
+        return self.funcSet().issubset(MathSet | ARITHMETIC)
     
     #gives the non-racket infix string representation of a math expression
     #note: this could include an outermost parens, but that won't effect equality check
@@ -255,9 +258,11 @@ class Node:
         if self.data == "expt":
             return "**"
         if self.data == "quotient":
-            return "/"
+            return "//"
         if self.data == "remainder":
             return "%"
+        if self.data == "=":
+            return "=="
         if self.children==[]: #just a single int, symbol, or +,-,*
             return self.data
         # only case left should be a parenthesized expression, but just in case:
@@ -266,6 +271,23 @@ class Node:
         return "("+self.children[1].mathStr()+self.children[0].mathStr()+\
             self.children[2].mathStr()+")"
 
+    def logicStr(self) -> str:
+        if self.data == None or self.data == '' or not self.funcSet().issubset(LogicSet):
+            return 'ERROR'
+        if self.data == '#t':
+            return 'True'
+        if self.data == '#f':
+            return 'False'
+        if self.children == []:
+            return self.data
+        if self.data != '(':
+            return 'ERROR'
+        if self.children[0].data in ('xor', 'implies'):
+            return f'({self.children[0].logicStr().capitalize()}({self.children[1].logicStr()}, {self.children[2].logicStr()}))'
+        elif self.children[0].data in ('and', 'or'):
+            return f'({self.children[1].logicStr()} {self.children[0].logicStr()} {self.children[2].logicStr()})'
+        else:
+            return f'({self.children[0].logicStr()} {self.children[1].logicStr()})'
 
     def replaceWith(self, newNode):
         self.data = newNode.data
@@ -329,3 +351,72 @@ def findNode(tree:Node, target:int,errLog:list[str],found=None)->Node:
         if not found:
             found.extend(findNode(child, target, errLog,found))
     return found
+
+
+
+# takes in an expression tree and returns a dictionary representation of it in Json format
+def Node2Dict(ractree:Node)->dict:
+    if ractree == None or ractree.data == None or ractree.data == "":
+        return dict() #just in case of an error
+    resdict = dict()
+    #note: None becomes "null" when converted to json
+    resdict["data"] = ractree.data # stop processing ( and '( as None to differentiate between them on the frontend
+    resdict["children"]=[]
+    resdict["startPosition"]=ractree.startPosition # this might not be necessary since it just replicates the key
+    for child in ractree.children:
+        #resdict["children"].append(makeJson(child))
+        resdict["children"].append(child.startPosition)
+    return resdict
+
+# takes the json tree representation of the expression and adds parent, left/right siblings
+def addParent(jsontree:dict)->None:
+    if jsontree == None or len(jsontree) == 0:
+        return jsontree
+    for nodeID, attribs in jsontree.items():
+        for child in attribs["children"]:
+                jsontree[child]["parent"] = nodeID
+
+def addChildren(ractree:Node)->dict:
+    if ractree == None or ractree.data == None or ractree.data == "":
+        return dict() #just in case of an error
+    resdict = dict()
+    resdict[ractree.startPosition] = Node2Dict(ractree)
+    for child in ractree.children:
+        resdict.update(addChildren(child))
+    return resdict
+
+def addSibs(jsontree:dict)->None:
+    if jsontree == None or len(jsontree) == 0:
+        return jsontree
+    for nodeID, attribs in jsontree.items():
+        if nodeID == 0: # root node has no siblings
+            attribs["leftSib"] = None
+            attribs["rightSib"] = None
+        else:
+            parentID = attribs["parent"]
+            parent = jsontree[parentID]
+            children = parent["children"]
+            index = children.index(nodeID)
+            attribs["leftSib"] = None if index == 0 else children[index-1]
+            attribs["rightSib"] = None if index == len(children)-1 else children[index+1]
+        
+# takes in an expression tree and returns a dictionary representation of it in Json format
+# the key is the start position of the node in the original string, and the values are dictionaries of the node's data, children, and start position
+# e.g. myDict[6]["children"] = [8, 12] where the children are identified by their start positions (essentially acting as node IDs)
+def makeJson(ractree:Node)->dict:
+    if ractree == None or ractree.data == None or ractree.data == "":
+        return dict() #fixed by Jerry
+    jsontree = addChildren(ractree)
+
+    if jsontree == {}:
+        return jsontree
+    
+    jsontree[0]["parent"] = None
+    addParent(jsontree)
+    addSibs(jsontree)
+    return jsontree
+
+
+
+
+

@@ -12,18 +12,33 @@ class ERProof:
     def __init__(self, debug=False):
         self.ruleSet = {
             'if': If(),
-            'cons': Cons(),
-            'first': First(),
-            'rest': Rest(),
+            'cons': ConsList(),
+            'rest': RestList(),
+            'first': FirstList(),
+            'consProp': ConsProp(),
+            'firstProp': FirstProp(),
+            'restProp': RestProp(),
             'null?': NullQ(),
             'cons?': ConsQ(),
             'zero?': ZeroQ(),
-            'consList': ConsList(),
-            'math': Math(),
-            'logic': Logic(),
-            'restList': RestList(),
-            'firstList': FirstList(),
-            'advMath': advMath(),
+            '+': Plus(),
+            '-': Minus(),
+            '*': Times(),
+            'quotient': Quotient(),
+            'remainder': Remainder(),
+            'expt': Expt(),
+            '=': Equals(),
+            '<': LessThan(),
+            '<=': LessOrEqual(),
+            '>': GreaterThan(),
+            '>=': GreaterOrEqual(),
+            'and': And(),
+            'or': Or(),
+            'not': Not(),
+            'xor': Xor(),
+            'implies': Implies(),
+            '-+': MinusPlus(),
+            'math': advMath(),
             #'doubleFront': DoubleFront(),  # this is fake for demo. remove when UDF working
         }
         self.proofLines = []
@@ -64,6 +79,8 @@ class ERProof:
         self.proofLines.pop()
 
     def getPrevRacket(self):
+        if len(self.proofLines) == 0: #sometimes the proof is empty for some reason??
+            return ""
         return str(self.proofLines[-1].exprTree)
 
     def addUDF(self, label, typeStr, body):
@@ -134,10 +151,12 @@ class ERProofLine:
 
         if self.errLog == []:
             decTree, self.errLog = Decorator.decorateTree(labeledTree, self.errLog)
+        #if self.errLog == []: #added userType in case of UDF
+        #    decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog, theRuleDict=ruleDict, userType=udfType)
+        if self.errLog == []:
+            self.errLog = Decorator.remTemps(decTree, self.errLog, theRuleDict=ruleDict)
         if self.errLog == []: #added userType in case of UDF
             decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog, theRuleDict=ruleDict, userType=udfType)
-        if self.errLog == []:
-            self.errLog = Decorator.remTemps(labeledTree, self.errLog, theRuleDict=ruleDict)
         if self.errLog == []:
             self.exprTree = decTree
         if self.errLog == []: #makes the positions dict for arrow key navigation
@@ -153,14 +172,35 @@ class ERProofLine:
         if targetNode == None:
             self.errLog.append(
                 f'Could not find Token with starting index {startPos}')
-        if not (rule in ruleSet.keys()):
+        ruleCategory = rule.split(' ')[0]
+        rule = rule.split(' ')[1:][-1] if rule.split(' ')[1:] != [] else ''
+
+        if ruleCategory not in ('eval', 'apply'):
+            self.errLog.append("Rule must start with 'eval' or 'apply'")
+        elif rule == '':
+            self.errLog.append('Rule must include the ' + 
+                               ('function to be evaluated' if ruleCategory == 'eval'
+                               else 'definition/property/lemma to be applied'))
+        elif rule not in ruleSet.keys() - {'consProp', 'firstProp', 'restProp'}: # 'apply consProp' is not valid
             self.errLog.append(f'Could not find rule associated with {rule}')
+        elif ruleCategory == 'apply' and rule in ('cons', 'first', 'rest'): # for cons, first, rest axioms
+            rule += 'Prop'
+        elif ruleCategory == 'apply' and not (isinstance(ruleSet[rule], UDF) or ruleSet[rule].isProperty):
+            self.errLog.append(f"Could not find UDF/lemma/property associated with {rule}")
+        elif ruleCategory == 'eval' and isinstance(ruleSet[rule], UDF):
+            self.errLog.append("Cannot evaluate a user-defined function")
+        elif ruleCategory == 'eval' and rule == 'math':
+            self.errLog.append("Cannot evaluate advanced math")
+        elif ruleCategory == 'eval' and ruleSet[rule].isProperty:
+            self.errLog.append("Cannot evaluate a property")
+        
         # checking to see if highlighted portion is within a quote
         if "'(" in targetNode.ancestors():
             self.errLog.append(f"Cannot apply rules within a quoted expression")
+            
         if self.errLog == []:       
             selectedRule = ruleSet[rule]
-            if rule == 'advMath':
+            if rule == 'math':
                 isApplicable, error = selectedRule.isApplicable(targetNode, subNode)
                 if isApplicable:
                     newNode = selectedRule.insertSubstitution(
@@ -184,8 +224,8 @@ class ERProofLine:
         if targetNode == None:
             self.errLog.append(
                 f'Could not find Token with starting index {startPos}')
-        if not (rule in ruleSet.keys()):
-            self.errLog.append(f'Could not find rule associated with {rule}')
+        #if not (rule in ruleSet.keys()):
+            #self.errLog.append(f'Could not find rule associated with {rule}')
         # checking to see if highlighted portion is within a quote
         if "'(" in targetNode.ancestors():
             self.errLog.append(f"Cannot apply rules within a quoted expression")
