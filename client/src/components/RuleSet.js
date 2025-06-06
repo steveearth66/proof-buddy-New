@@ -137,6 +137,11 @@ const ruleSet = () => {
         result: "<IH RHS>"
       },
       {
+        procedure: "-+",
+        highlight: "(- (+ k a) a), where a is any integer",
+        result: <>k <em>(Note: this is just a special case of math)</em></>
+      },
+      {
         procedure: "math",
         highlight: "<mathematical expression>",
         result: "<equivalent mathematical expression>"

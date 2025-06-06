@@ -528,6 +528,24 @@ class FirstList(Rule):
             origList.children[0].data = "'("
         return origList.children[0]
 
+class MinusPlus(Rule):
+    def __init__(self):
+        super().__init__('-+', isProperty=True)
+    
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        if ruleNode.children[0] != '-':
+            return False, f'Cannot apply -+ when the root operation is {ruleNode.children[0]}'
+        if ruleNode.children[1].data != '(' or ruleNode.children[1].children[0].data != '+':
+            return False, f'Cannot apply -+ when the first argument of - is not a + expression'
+        if ruleNode.children[2].data == '(' or ruleNode.children[1].children[2].data == '(':
+            return False, 'Insufficiently resolved arguments'
+        if ruleNode.children[2].data != ruleNode.children[1].children[2].data:
+            return False, "Cannot apply -+ when the second argument of - doesn't match the second argument of +"
+        return True, "MinusPlus.isApplicable() PASS"
+    
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        return ruleNode.children[1].children[1]
+
 class advMath(Rule):
     
     def __init__(self):

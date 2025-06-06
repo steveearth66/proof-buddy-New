@@ -37,6 +37,7 @@ class ERProof:
             'not': Not(),
             'xor': Xor(),
             'implies': Implies(),
+            '-+': MinusPlus(),
             'math': advMath(),
             #'doubleFront': DoubleFront(),  # this is fake for demo. remove when UDF working
         }
@@ -183,7 +184,7 @@ class ERProofLine:
         elif rule not in ruleSet.keys() - {'consProp', 'firstProp', 'restProp'}: # 'apply consProp' is not valid
             self.errLog.append(f'Could not find rule associated with {rule}')
         elif ruleCategory == 'apply' and rule in ('cons', 'first', 'rest'): # for cons, first, rest axioms
-            rule += 'A'
+            rule += 'Prop'
         elif ruleCategory == 'apply' and not (isinstance(ruleSet[rule], UDF) or ruleSet[rule].isProperty):
             self.errLog.append(f"Could not find UDF/lemma/property associated with {rule}")
         elif ruleCategory == 'eval' and isinstance(ruleSet[rule], UDF):
