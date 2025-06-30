@@ -35,6 +35,7 @@ const SignUpUser = ({ role }) => {
   const [validationMessages, handleBlur, setAllTouched, isFormValid] =
     useFormValidation(formValues, validateField);
   const [validated, setValidated] = useState(false);
+  const [accountCreated, setAccountCreated] = useState(false); // NOTE: remove after permanent email verification solution is found
   const navigate = useNavigate();
 
   const handleSignUpUser = async () => {
@@ -49,7 +50,9 @@ const SignUpUser = ({ role }) => {
       setServerError(null);
       const response = await authService.registerUser(userData);
       if (response.message === "Account created!") {
-        navigate("/verify-email", { state: { email: formValues.email } });
+        // NOTE: uncomment after permanent email verification solution is found
+        //navigate("/verify-email", { state: { email: formValues.email } });
+        setAccountCreated(true); // NOTE: remove after permanent email verification solution is found
       }
     } catch (error) {
       setServerError(error.response.data.message);
@@ -62,6 +65,13 @@ const SignUpUser = ({ role }) => {
     setAllTouched,
     handleSignUpUser
   );
+
+  // NOTE: remove after permanent email verification solution is found
+  if (accountCreated) {
+    setTimeout(() => {
+      navigate("/");
+    }, 3000);
+  }
 
   return (
     <MainLayout>
@@ -78,6 +88,16 @@ const SignUpUser = ({ role }) => {
                 There was an error creating your account
               </Alert>
             )}
+
+            {/*NOTE: remove after email verification solution is found*/}
+            {
+              accountCreated && (
+                <Alert variant={"success"}>
+                  Account created! Redirecting to home page...
+                </Alert>
+              )
+            }
+
             <Form noValidate validated={validated} onSubmit={handleSubmit}>
               <Form.Group className="signup-username">
                 <Form.Floating className="mb-3">
