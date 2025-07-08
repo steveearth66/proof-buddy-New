@@ -447,7 +447,13 @@ udfProof = ERProof()
 udfProof.addUDF("(f x y)", "(INT,INT)>INT", "(* x y)")
 totalFails += do_single_test_case('', 'f', "(f 3 4)", ["Rule must start with 'eval' or 'apply'"], udfProof)
 totalFails += do_single_test_case('eval', 'f',  "(f 3 4)", ['Cannot evaluate a user-defined function'], udfProof)
-totalFails += do_single_test_case('apply', 'f', "(f 3 4)", "(* 3 4)", udfProof)
+totalFails += do_single_test_case('apply', 'f', "(f 3 4)", ['Not enough arguments given for f. f requires 2 '
+                                                            'arguments, while you gave 0'],
+                                  udfProof)
+totalFails += do_single_test_case('apply', 'f x=3, y=4, z=5', "(f 3 4)", ['Too many arguments given for f. f '
+                                                                          'requires 2 arguments, while you gave 3'],
+                                  udfProof)
+totalFails += do_single_test_case('apply', 'f x=3, y=4', "(f 3 4)", "(* 3 4)", udfProof)
 
 #node method tests for funcset, ancestor, allMath, mathstr, logicStr: method, expr, expected
 methTests = [

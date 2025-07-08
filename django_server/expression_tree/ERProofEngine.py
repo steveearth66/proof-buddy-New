@@ -3,6 +3,7 @@ from .ERRuleset import *
 import expression_tree.Parser as Parser
 import expression_tree.Labeler as Labeler
 import expression_tree.Decorator as Decorator
+import re
 
 reservedLabels = ["cons", "if", "first", "rest", "null?", "cons?", "zero?", "consList", "expt", "quotient",
                   "remainder", "and", "or", "not", "implies", "nand", "iff", "nor", "xor", ">", "<", "+", "-", "*"]
@@ -172,8 +173,19 @@ class ERProofLine:
         if targetNode == None:
             self.errLog.append(
                 f'Could not find Token with starting index {startPos}')
-        ruleCategory = rule.split(' ')[0]
-        rule = rule.split(' ')[1:][-1] if rule.split(' ')[1:] != [] else ''
+        # rule = rule.split(' ')[1:][-1] if rule.split(' ')[1:] != [] else ''
+        parts = rule.split()
+        ruleCategory = parts[0]
+        rule = parts[1] if len(parts) > 1 else ''  # takes rule being eval'd or applied
+        ruleParams = ' '.join(parts[2:]) if len(parts) > 2 else ''  # everything after 'f'
+        ruleParams = [m.group(0).strip() for m in re.finditer(r"\w+=.*?(?=,\s*\w+=|$)", ruleParams)]
+        '''
+        regex explanation:
+        \w+         # key (e.g., x, y, z)
+        =           # equals sign
+        .*?         # non-greedy match for the value
+        (?=,\s*\w+=|$)  # lookahead for next ", key=" OR end of string
+        '''
 
         if ruleCategory not in ('eval', 'apply'):
             self.errLog.append("Rule must start with 'eval' or 'apply'")
@@ -187,6 +199,14 @@ class ERProofLine:
             rule += 'Prop'
         elif ruleCategory == 'apply' and not (isinstance(ruleSet[rule], UDF) or ruleSet[rule].isProperty):
             self.errLog.append(f"Could not find UDF/lemma/property associated with {rule}")
+        elif ruleCategory == 'apply' and isinstance(ruleSet[rule], UDF) and len(ruleSet[rule].params) > len(
+                ruleParams):
+            self.errLog.append(
+                f"Not enough arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} arguments, while you gave {len(ruleParams)}")
+        elif ruleCategory == 'apply' and isinstance(ruleSet[rule], UDF) and len(ruleSet[rule].params) < len(
+                ruleParams):
+            self.errLog.append(
+                f"Too many arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} arguments, while you gave {len(ruleParams)}")
         elif ruleCategory == 'eval' and isinstance(ruleSet[rule], UDF):
             self.errLog.append("Cannot evaluate a user-defined function")
         elif ruleCategory == 'eval' and rule == 'math':
