@@ -445,6 +445,8 @@ totalFails += do_single_test_case("eval", "-+", minus_plus_tests[-1][0], ["Canno
 print("\nUDF testing:\n")
 udfProof = ERProof()
 udfProof.addUDF("(f x y)", "(INT,INT)>INT", "(* x y)")
+udfProof.addUDF("(g x)", "INT>BOOL", "(< x 5)")
+# 2 arguments
 totalFails += do_single_test_case('', 'f', "(f 3 4)", ["Rule must start with 'eval' or 'apply'"], udfProof)
 totalFails += do_single_test_case('eval', 'f',  "(f 3 4)", ['Cannot evaluate a user-defined function'], udfProof)
 totalFails += do_single_test_case('apply', 'f', "(f 3 4)", ['Not enough arguments given for f. f requires 2 '
@@ -453,7 +455,18 @@ totalFails += do_single_test_case('apply', 'f', "(f 3 4)", ['Not enough argument
 totalFails += do_single_test_case('apply', 'f x=3, y=4, z=5', "(f 3 4)", ['Too many arguments given for f. f '
                                                                           'requires 2 arguments, while you gave 3'],
                                   udfProof)
+totalFails += do_single_test_case('apply', 'f x=3 y=4', "(f 3 4)", ['Too many assignments for a given argument \'x=3 '
+                                                                    'y=4\'. Did you forget a comma?'], udfProof)
 totalFails += do_single_test_case('apply', 'f x=3, y=4', "(f 3 4)", "(* 3 4)", udfProof)
+
+# 1 argument
+totalFails += do_single_test_case('', 'g x=3', "(g 3)", ["Rule must start with 'eval' or 'apply'"], udfProof)
+totalFails += do_single_test_case('eval', 'g x=3', "(g 3)", ['Cannot evaluate a user-defined function'], udfProof)
+totalFails += do_single_test_case('apply', 'g', "(g 3)", ['Not enough arguments given for g. g requires 1 arguments, '
+                                                          'while you gave 0'], udfProof)
+totalFails += do_single_test_case('apply', 'g x=3, y=4', "(g 3)", ['Too many arguments given for g. g requires 1 '
+                                                                   'arguments, while you gave 2'], udfProof)
+totalFails += do_single_test_case('apply', 'g x=3', "(g 3)", "(< 3 5)", udfProof)
 
 #node method tests for funcset, ancestor, allMath, mathstr, logicStr: method, expr, expected
 methTests = [

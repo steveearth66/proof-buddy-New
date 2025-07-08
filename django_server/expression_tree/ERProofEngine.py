@@ -199,14 +199,19 @@ class ERProofLine:
             rule += 'Prop'
         elif ruleCategory == 'apply' and not (isinstance(ruleSet[rule], UDF) or ruleSet[rule].isProperty):
             self.errLog.append(f"Could not find UDF/lemma/property associated with {rule}")
-        elif ruleCategory == 'apply' and isinstance(ruleSet[rule], UDF) and len(ruleSet[rule].params) > len(
-                ruleParams):
-            self.errLog.append(
-                f"Not enough arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} arguments, while you gave {len(ruleParams)}")
-        elif ruleCategory == 'apply' and isinstance(ruleSet[rule], UDF) and len(ruleSet[rule].params) < len(
-                ruleParams):
-            self.errLog.append(
-                f"Too many arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} arguments, while you gave {len(ruleParams)}")
+        elif ruleCategory == 'apply' and isinstance(ruleSet[rule], UDF):
+            stop_error = False
+            for arg in ruleParams:
+                if arg.count('=') > 1:
+                    self.errLog.append(f"Too many assignments for a given argument '{arg}'. Did you forget a comma?")
+                    stop_error = True
+            if not stop_error:
+                if len(ruleSet[rule].params) > len(ruleParams):
+                    self.errLog.append(
+                        f"Not enough arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} arguments, while you gave {len(ruleParams)}")
+                elif len(ruleSet[rule].params) < len(ruleParams):
+                    self.errLog.append(
+                        f"Too many arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} arguments, while you gave {len(ruleParams)}")
         elif ruleCategory == 'eval' and isinstance(ruleSet[rule], UDF):
             self.errLog.append("Cannot evaluate a user-defined function")
         elif ruleCategory == 'eval' and rule == 'math':
