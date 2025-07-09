@@ -201,17 +201,29 @@ class ERProofLine:
             self.errLog.append(f"Could not find UDF/lemma/property associated with {rule}")
         elif ruleCategory == 'apply' and isinstance(ruleSet[rule], UDF):
             stop_error = False
+            given_args = []
             for arg in ruleParams:
-                if arg.count('=') > 1:
+                if '=' not in arg:
+                    self.errLog.append(f"Argument '{arg}' does not have an assignment. Did you forget an equals sign?")
+                    stop_error = True
+                    continue
+                elif arg.count('=') > 1:
                     self.errLog.append(f"Too many assignments for a given argument '{arg}'. Did you forget a comma?")
                     stop_error = True
-            if not stop_error:
-                if len(ruleSet[rule].params) > len(ruleParams):
+                    continue
+                var = arg.split('=', 1)[0].strip()
+                given_args.append(var)
+            if not stop_error and len(given_args) != len(ruleSet[rule].params):
+                if len(ruleSet[rule].params) > len(given_args):
                     self.errLog.append(
-                        f"Not enough arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} arguments, while you gave {len(ruleParams)}")
-                elif len(ruleSet[rule].params) < len(ruleParams):
+                        f"Not enough arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} "
+                        f"arguments, while you gave {len(given_args)}")
+                else:
                     self.errLog.append(
-                        f"Too many arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} arguments, while you gave {len(ruleParams)}")
+                        f"Too many arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} arguments, while you gave {len(given_args)}")
+            for i, (arg, expected) in enumerate(zip(given_args, ruleSet[rule].params)):
+                if arg != expected:
+                    self.errLog.append(f"Argument '{arg}' is in position {i + 1} but expected '{expected}' for {rule}")
         elif ruleCategory == 'eval' and isinstance(ruleSet[rule], UDF):
             self.errLog.append("Cannot evaluate a user-defined function")
         elif ruleCategory == 'eval' and rule == 'math':
