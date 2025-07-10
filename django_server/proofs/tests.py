@@ -446,6 +446,8 @@ print("\nUDF testing:\n")
 udfProof = ERProof()
 udfProof.addUDF("(f x y)", "(INT,INT)>INT", "(* x y)")
 udfProof.addUDF("(g x)", "INT>BOOL", "(< x 5)")
+udfProof.addUDF("(h x y)", "(LIST,LIST)>LIST", "(cons (first x) (cons (first y) null))")
+udfProof.addUDF("(i x)", "LIST>BOOL", "(zero? (first x))")
 # udfProof.addUDF("(h)", "()>INT", "5") TODO: need to implement 0 argument UDFs
 # udfProof.addUDF("i", "INT", "3") TODO need to implement 0 argument UDFs
 # 2 arguments
@@ -472,6 +474,9 @@ totalFails += do_single_test_case('apply', 'f x=#t, y=4', "(f 3 4)", ["Type mism
 totalFails += do_single_test_case('apply', "f x=3, y='(1 2 3)", "(f 3 4)", ["Type mismatch in argument 'y='(1 2 3)': "
                                                                             "expected "
                                                                             "INT, got LIST"], udfProof)
+totalFails += do_single_test_case('apply', 'f x=4, y=5', "(f 3 4)", ["Value mismatch in argument 'x': expected 3, "
+                                                                     "got 4", "Value mismatch in argument 'y': "
+                                                                              "expected 4, got 5"], udfProof)
 totalFails += do_single_test_case('apply', 'f x=3, y=4', "(f 3 4)", "(* 3 4)", udfProof)
 
 # 1 argument
@@ -485,7 +490,53 @@ totalFails += do_single_test_case('apply', 'g y=3', "(g 3)", ["Argument 'y' is i
                                   udfProof)
 totalFails += do_single_test_case('apply', 'g x=#t', "(g 3)", ["Type mismatch in argument 'x=#t': expected INT, "
                                                                "got BOOL"], udfProof)
+totalFails += do_single_test_case('apply', 'g x=3', "(g 4)", ["Value mismatch in argument 'x': expected 4, got 3"],
+                                  udfProof)
 totalFails += do_single_test_case('apply', 'g x=3', "(g 3)", "(< 3 5)", udfProof)
+
+# 2 list argument
+totalFails += do_single_test_case('apply', 'h', "(h '(1 2 3) '(4 5 6))", ['Not enough arguments given for h. h '
+                                                                          'requires 2 arguments, while you gave 0'],
+                                  udfProof)
+totalFails += do_single_test_case('apply', "h x='(1 2 3), y='(4 5 6), z='(7 8 9)", "(h '(1 2 3) '(4 5 6))", ['Too many '
+                                                                                                             'arguments given for h. h requires 2 arguments, while you gave 3'],
+                                  udfProof)
+totalFails += do_single_test_case('apply', "h x='(1 2 3) y='(4 5 6)", "(h '(1 2 3) '(4 5 6))",
+                                  ["Too many assignments for a given argument 'x='(1 2 3) y='(4 5 6)'. Did you forget a comma?"],
+                                  udfProof)
+totalFails += do_single_test_case('apply', "h z='(1 2 3), y='(4 5 6)", "(h '(1 2 3) '(4 5 6))",
+                                  ["Argument 'z' is in position 1 but expected 'x' for h"],
+                                  udfProof)
+totalFails += do_single_test_case('apply', "h x='(1 2 3), z='(4 5 6)", "(h '(1 2 3) '(4 5 6))",
+                                  ["Argument 'z' is in position 2 but expected 'y' for h"],
+                                  udfProof)
+totalFails += do_single_test_case('apply', "h y='(4 5 6), x='(1 2 3)", "(h '(1 2 3) '(4 5 6))",
+                                  ["Argument 'y' is in position 1 but expected 'x' for h",
+                                   "Argument 'x' is in position 2 but expected 'y' for h"],
+                                  udfProof)
+totalFails += do_single_test_case('apply', "h x='(1 2 3), y=#t", "(h '(1 2 3) '(4 5 6))",
+                                  ["Type mismatch in argument 'y=#t': expected LIST, got BOOL"],
+                                  udfProof)
+totalFails += do_single_test_case('apply', "h x='(1 2 3), y='(4 5 6)", "(h '(3 2 1) '(6 5 4))",
+                                  ["Value mismatch in argument 'x': expected '(3 2 1), got '(1 2 3)",
+                                   "Value mismatch in argument 'y': expected '(6 5 4), got '(4 5 6)"],
+                                  udfProof)
+totalFails += do_single_test_case('apply', "h x='(1 2 3), y='(4 5 6)", "(h '(1 2 3) '(4 5 6))",
+                                  "(cons (first '(1 2 3)) (cons (first '(4 5 6)) null))", udfProof)
+
+# 1 list argument
+totalFails += do_single_test_case('apply', 'i', "(i '(0 1 2))", ['Not enough arguments given for i. i requires 1 '
+                                                                 'arguments, while you gave 0'], udfProof)
+totalFails += do_single_test_case('apply', "i x='(0 1 2), y='(3 4 5)", "(i '(0 1 2))", ['Too many arguments given for '
+                                                                                        'i. i requires 1 arguments, while you gave 2'],
+                                  udfProof)
+totalFails += do_single_test_case('apply', "i y='(0 1 2)", "(i '(0 1 2))",
+                                  ["Argument 'y' is in position 1 but expected 'x' for i"], udfProof)
+totalFails += do_single_test_case('apply', "i x=#t", "(i '(0 1 2))", ["Type mismatch in argument 'x=#t': expected "
+                                                                      "LIST, got BOOL"], udfProof)
+totalFails += do_single_test_case('apply', "i x='(0 1 2)", "(i '(3 4 5))",
+                                  ["Value mismatch in argument 'x': expected '(3 4 5), got '(0 1 2)"], udfProof)
+totalFails += do_single_test_case('apply', "i x='(0 1 2)", "(i '(0 1 2))", "(zero? (first '(0 1 2)))", udfProof)
 
 #node method tests for funcset, ancestor, allMath, mathstr, logicStr: method, expr, expected
 methTests = [

@@ -218,9 +218,11 @@ class ERProofLine:
                     self.errLog.append(
                         f"Not enough arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} "
                         f"arguments, while you gave {len(given_args)}")
+                    stop_error = True
                 else:
                     self.errLog.append(
                         f"Too many arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} arguments, while you gave {len(given_args)}")
+                    stop_error = True
             for i, (arg, expected) in enumerate(zip(given_args, ruleSet[rule].params)):
                 if arg != expected:
                     self.errLog.append(f"Argument '{arg}' is in position {i + 1} but expected '{expected}' for {rule}")
@@ -255,6 +257,14 @@ class ERProofLine:
                             f"Type mismatch in argument '{arg_str}': expected {expected_type_unwrapped}, got {provided_type}"
                         )
                         stop_error = True
+                if not stop_error:
+                    arg_values = [arg.split('=', 1)[1].strip() for arg in ruleParams]
+                    target_values = [str(child) for child in targetNode.children[1:]]  # skip the first child which
+                    # is the UDF label
+                    for i, (user_val, target_val) in enumerate(zip(arg_values, target_values)):
+                        if user_val != target_val:
+                            self.errLog.append(
+                                f"Value mismatch in argument '{ruleSet[rule].params[i]}': expected {target_val}, got {user_val}")
 
         elif ruleCategory == 'eval' and isinstance(ruleSet[rule], UDF):
             self.errLog.append("Cannot evaluate a user-defined function")
