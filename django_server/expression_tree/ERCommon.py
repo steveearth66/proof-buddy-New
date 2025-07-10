@@ -68,11 +68,16 @@ class RacType:
         if self.getType() in FLEX_TYPES or other.getType() in FLEX_TYPES:
             return True
         return str(self) == str(other) #checking string rather than direct type comparison to avoid potential bugs
-    
+
     def getType(self) -> RacType:
-        if self.value[0]==None:
-            return self.value[1]
-        return Type.FUNCTION
+        if isinstance(self.value, tuple) and len(self.value) == 2:
+            if self.value[0] is None:
+                return self.value[1]
+            return Type.FUNCTION
+        elif isinstance(self.value, RacType):
+            return self.value  # fallback if it's already a RacType
+        else:
+            return FAIL_TYPES[0]  # fallback for unknown format
 
     def getDomain(self):
         if self.getType() != Type.FUNCTION:

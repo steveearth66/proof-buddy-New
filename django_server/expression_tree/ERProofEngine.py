@@ -224,6 +224,38 @@ class ERProofLine:
             for i, (arg, expected) in enumerate(zip(given_args, ruleSet[rule].params)):
                 if arg != expected:
                     self.errLog.append(f"Argument '{arg}' is in position {i + 1} but expected '{expected}' for {rule}")
+                    stop_error = True
+            if not stop_error:
+                expected_types = ruleSet[rule].racType.getDomain()
+                for i, (arg_str, expected_type) in enumerate(zip(ruleParams, expected_types)):
+                    arg_name, arg_value_str = arg_str.split('=', 1)
+                    arg_tokens, tempErrLog = Parser.preProcess(arg_value_str, errLog=[], debug=self.debug)
+                    if tempErrLog:
+                        self.errLog.extend([f"In argument '{arg_str}': {err}" for err in tempErrLog])
+                        stop_error = True
+                        continue
+                    ast = Parser.buildTree(arg_tokens, debug=self.debug)[0]
+                    if ast is None:
+                        self.errLog.append(f"Failed to build AST from value '{arg_value_str}' in argument '{arg_str}'")
+                        stop_error = True
+                        continue
+                    labeled_ast = Labeler.labelTree(ast, ruleDict=ruleSet)
+                    typed_ast, _ = Decorator.decorateTree(labeled_ast, [])
+                    provided_type = typed_ast.type
+                    try:
+                        expected_type_unwrapped = expected_type.getType()
+                    except Exception as e:
+                        self.errLog.append(
+                            f"Type mismatch in argument '{arg_str}': expected err: {e}, got {provided_type}")
+                        stop_error = True
+                        continue
+
+                    if provided_type != expected_type_unwrapped:
+                        self.errLog.append(
+                            f"Type mismatch in argument '{arg_str}': expected {expected_type_unwrapped}, got {provided_type}"
+                        )
+                        stop_error = True
+
         elif ruleCategory == 'eval' and isinstance(ruleSet[rule], UDF):
             self.errLog.append("Cannot evaluate a user-defined function")
         elif ruleCategory == 'eval' and rule == 'math':

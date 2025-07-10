@@ -467,6 +467,11 @@ totalFails += do_single_test_case('apply', 'f x=3, z=4', "(f 3 4)",
 totalFails += do_single_test_case('apply', 'f y=4, x=3', "(f 3 4)", ["Argument 'y' is in position 1 but expected 'x' "
                                                                      "for f", "Argument 'x' is in position 2 but "
                                                                               "expected 'y' for f"], udfProof)
+totalFails += do_single_test_case('apply', 'f x=#t, y=4', "(f 3 4)", ["Type mismatch in argument 'x=#t': expected "
+                                                                      "INT, got BOOL"], udfProof)
+totalFails += do_single_test_case('apply', "f x=3, y='(1 2 3)", "(f 3 4)", ["Type mismatch in argument 'y='(1 2 3)': "
+                                                                            "expected "
+                                                                            "INT, got LIST"], udfProof)
 totalFails += do_single_test_case('apply', 'f x=3, y=4', "(f 3 4)", "(* 3 4)", udfProof)
 
 # 1 argument
@@ -478,6 +483,8 @@ totalFails += do_single_test_case('apply', 'g x=3, y=4', "(g 3)", ['Too many arg
                                                                    'arguments, while you gave 2'], udfProof)
 totalFails += do_single_test_case('apply', 'g y=3', "(g 3)", ["Argument 'y' is in position 1 but expected 'x' for g"],
                                   udfProof)
+totalFails += do_single_test_case('apply', 'g x=#t', "(g 3)", ["Type mismatch in argument 'x=#t': expected INT, "
+                                                               "got BOOL"], udfProof)
 totalFails += do_single_test_case('apply', 'g x=3', "(g 3)", "(< 3 5)", udfProof)
 
 #node method tests for funcset, ancestor, allMath, mathstr, logicStr: method, expr, expected
