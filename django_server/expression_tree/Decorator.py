@@ -1,6 +1,6 @@
 # This file is intended to complete the AST creation process and find some more errors through restrictions like type checking, and adding other details
 
-from .ERCommon import Node, Type, RacType, TypeList
+from .ERCommon import Node, Type, RacType, FAIL_TYPES, FLEX_TYPES, TypeList
 # brings in ERobject whose attributes will be used to decorate the tree
 from .ERobj import pdict
 
@@ -92,8 +92,9 @@ def remTemps(inputTree: Node, errLog=None, debug=False, theRuleDict=None) -> lis
         errLog.append(f"argument #1 of an if function must be Boolean but {str(inputTree.children[1].type.getType())} was provided")
         return errLog
     n1, n2 = inputTree.children[2], inputTree.children[3] #note, even if these are ifs, they'll have been designated types in the recursive call
-    if (t1 := n1.type.getType()) != (t2 := n2.type.getType()):
-        errLog.append(f"final arguments of an if function must match but {str(t1)} and {str(t2)} were provided")
+    if not ((t1 := n1.type.getType()) == (t2 := n2.type.getType())):
+        if not (t1 in FLEX_TYPES or t2 in FLEX_TYPES):  # TODO temporary fix for if functions with different types
+            errLog.append(f"final arguments of an if function must match but {str(t1)} and {str(t2)} were provided")
         return errLog
     inputTree.type = n1.type #setting the if expression list type to the type of the output branches
     return errLog

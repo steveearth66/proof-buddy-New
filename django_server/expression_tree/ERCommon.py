@@ -19,6 +19,15 @@ class Type(Enum):
     def __str__(self):
         return self.value
 
+
+'''
+    def __eq__(self, other):
+        if not isinstance(other, Type) or self in FAIL_TYPES or other in FAIL_TYPES:
+            return False
+        if self in FLEX_TYPES or other in FLEX_TYPES:
+            return True
+        return str(self) == str(other)  # checking string rather than direct type comparison to avoid potential bugs'''
+
 RacType = Union[Tuple[None, Type], Tuple[Tuple['RacType', ...], Type]]
 
 class TypeList:
