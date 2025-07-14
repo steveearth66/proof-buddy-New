@@ -1,0 +1,13 @@
+{
+        // See https://go.microsoft.com/fwlink/?LinkId=733558
+        // for the documentation about the tasks.json format
+        "version": "2.0.0",
+        "tasks": [
+                {
+                "label": "djangoSetup", // Keep the capital 'S'
+                "type": "shell",
+                "command": "cd django_server; python manage.py migrate; python manage.py createcachetable",
+                "problemMatcher": []
+                }
+        ]
+    }
