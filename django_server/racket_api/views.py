@@ -99,6 +99,9 @@ def check_goal(request):
     proof_two: ERProof = proof["proofTwo"]
     current_proof = proof_one if is_p_one_active else proof_two
 
+    if len(current_proof.proofLines) != 0:
+        current_proof.proofLines.clear()
+    
     current_proof.addProofLine(json_data["goal"])
 
     errors, proof = update_and_validate(proof, json_data["side"])
