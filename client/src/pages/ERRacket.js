@@ -722,14 +722,21 @@ const ERRacket = () => {
                                   type="text"
                                   placeholder="LHS Rule"
                                   value={field.rule}
-                                  onChange={(e) =>
+                                  onChange={(e) => {
+                                    const raw = e.target.value;
+                                    let mapped;
+                                    if (raw.split(" ")[0] !== "eval") {
+                                      mapped = raw.replace(/=/g, "\u21A6");
+                                    } else {
+                                      mapped = raw
+                                    }
                                     handleFieldChange(
-                                      showSide,
-                                      index,
-                                      "rule",
-                                      e.target.value
-                                    )
-                                  }
+                                        showSide,
+                                        index,
+                                        "rule",
+                                        mapped
+                                    );
+                                  }}
                                   isInvalid={!!validationErrors.LHS[index]}
                                   required
                                 />
@@ -838,14 +845,21 @@ const ERRacket = () => {
                                   type="text"
                                   placeholder="RHS Rule"
                                   value={field.rule}
-                                  onChange={(e) =>
+                                  onChange={(e) => {
+                                    const raw = e.target.value;
+                                    let mapped;
+                                    if (raw.split(" ")[0] !== "eval") {
+                                      mapped = raw.replace(/=/g, "\u21A6");
+                                    } else {
+                                      mapped = raw
+                                    }
                                     handleFieldChange(
-                                      showSide,
-                                      index,
-                                      "rule",
-                                      e.target.value
-                                    )
-                                  }
+                                        showSide,
+                                        index,
+                                        "rule",
+                                        mapped
+                                    );
+                                  }}
                                   isInvalid={!!validationErrors.RHS[index]}
                                   required
                                 />
@@ -881,8 +895,10 @@ const ERRacket = () => {
                           const fullRacket = await addFieldWithApiCheck(showSide);
                           try {
                             if (fullRacket.isValid) {
+                              const i = fullRacket.lineNum;
                               setEditableLineNums((prevEditableLineNums) => ({ ...prevEditableLineNums,
-                                [showSide]: (fullRacket.lineNum < 1 || fullRacket.lineNum === null ? 0 : fullRacket.lineNum) }));
+                                [showSide]: (i < 1 || i === null ? 0 : i)
+                              }));
                               if (racketRuleFields[showSide].filter(line => !line.deleted).length != 0) {
                                 setStartPosition(0);
                               }
@@ -893,17 +909,18 @@ const ERRacket = () => {
                                 //setRhsValue(fullRacket.racket);
                                 setCurrentRHS(fullRacket.racket);
                               }
+                              /*
+                              const mapped = racketRuleFields[showSide][i - 1]?.rule.replace(/=/g, "\u21A6");
+                              if (mapped && mapped !== racketRuleFields[showSide][i - 1].rule) {
+                                handleFieldChange(showSide, i - 1, "rule", mapped);
+                              }*/
                             }
                           } catch (error) {
                             //console.log("Null because on premise, don't worry about it");
-                            if (showSide === "LHS") {
-                              //setLhsValue(formValues.lHSGoal);
-                            } else {
-                              //setRhsValue(formValues.rHSGoal);
-                            }
                           }
                           //console.log("current line? (ERRacket.js):", lineNum);
                           //racketRuleFields?.LHS[0]?.jsonTree && console.log("the tree is: ", racketRuleFields.LHS[0].jsonTree);
+
                         }}
                       >
                         Generate & Check
