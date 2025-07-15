@@ -152,13 +152,13 @@ def set_current_proof(request):
 
 
     # Set LHS and RHS goals
-    if json_data["lHSGoal"] and not json_data["lHSGoal"] == "":
+    if json_data["leftGoalChecked"]:
         proof_one.addProofLine(json_data["lHSGoal"])
         errors, proof = update_and_validate(proof, "LHS")
         if not proof["isValid"]:
             return get_error_response(errors)
 
-    if json_data["rHSGoal"] and not json_data["rHSGoal"] == "":
+    if json_data["rightGoalChecked"]:
         proof_two.addProofLine(json_data["rHSGoal"])
         errors, proof = update_and_validate(proof, "RHS")
         if not proof["isValid"]:
