@@ -41,6 +41,8 @@ const ERRacket = () => {
     lHSGoal: "",
     rHSGoal: ""
   };
+  const rowObject = { num: "", expression: "", rule: "", validity: false };
+  const [userRow, setUserRow] = useState({ ...rowObject });
 
   const [showSide, toggleSide] = useToggleSide();
   const [formValues, handleChange] = useInputState(initialValues);
@@ -105,6 +107,7 @@ const ERRacket = () => {
     LHS: 0,
     RHS: 0
   });
+  const [isBound, setIsBound] = useState(false); // State to track if the num field is bound
 
   const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
@@ -134,7 +137,7 @@ const ERRacket = () => {
     };
     // console.log("Equational Reasoning Object:", EquationalReasoningObject);
     return JSON.stringify(EquationalReasoningObject);
-};
+  };
 
   function isApplied(definition) {
     return definition["applied"];
@@ -156,8 +159,8 @@ const ERRacket = () => {
     if (file) {
       try {
         const data = await readFromFile(file); // Parse the file
-        setLoadedProof( data);
-        } catch (error) {
+        setLoadedProof(data);
+      } catch (error) {
         console.error("Error reading file:", error.message);
         alert("Failed to load the file. Please upload a valid .json file.");
       }
@@ -294,8 +297,8 @@ const ERRacket = () => {
       loadRacketGoal(loadedProof);
       loadRacketProof(loadedProof);
 
-      setEditableLineNums({ 
-        LHS: loadedProof.leftRacketsAndRules.length ? loadedProof.leftRacketsAndRules.length - 1 : 0, 
+      setEditableLineNums({
+        LHS: loadedProof.leftRacketsAndRules.length ? loadedProof.leftRacketsAndRules.length - 1 : 0,
         RHS: loadedProof.rightRacketsAndRules.length ? loadedProof.rightRacketsAndRules.length - 1 : 0
       });
 
@@ -310,7 +313,7 @@ const ERRacket = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadedProof]);
- 
+
   // set startPosition upon switching sides
   useEffect(() => {
     const lastUndeletedFieldIndex = racketRuleFields[showSide].filter(line => !line.deleted).length - 2;
@@ -440,33 +443,33 @@ const ERRacket = () => {
               </Dropdown>
 
               <Dropdown
-                      as={Col}
-                      className="d-inline proof-dropdown-btn proof-operations"
-                    >
-                      <Dropdown.Toggle id="dropdown-autoclose-true">
-                        File Operations
-                      </Dropdown.Toggle>
+                as={Col}
+                className="d-inline proof-dropdown-btn proof-operations"
+              >
+                <Dropdown.Toggle id="dropdown-autoclose-true">
+                  File Operations
+                </Dropdown.Toggle>
 
-                      <Dropdown.Menu>
-                        <Dropdown.Item onClick={exportJSON}>
-                          Download Proof
-                        </Dropdown.Item>
-                        <Dropdown.Item onClick={() => document.getElementById("uploadProofInput").click()}>
-                            Upload Proof
-                          </Dropdown.Item>
-                          <input
-                            id="uploadProofInput"
-                            type="file"
-                            accept=".json"
-                            style={{ display: "none" }}
-                            onChange={(e) => handleFileUpload(e.target.files[0])}
-                          />
-                        <Dropdown.Item onClick={saveProof}>
-                          Save Proof
-                        </Dropdown.Item>
-                        <Dropdown.Item href="#">Submit Proof</Dropdown.Item>
-                      </Dropdown.Menu>
-                    </Dropdown>
+                <Dropdown.Menu>
+                  <Dropdown.Item onClick={exportJSON}>
+                    Download Proof
+                  </Dropdown.Item>
+                  <Dropdown.Item onClick={() => document.getElementById("uploadProofInput").click()}>
+                    Upload Proof
+                  </Dropdown.Item>
+                <input
+                    id="uploadProofInput"
+                    type="file"
+                    accept=".json"
+                    style={{ display: "none" }}
+                    onChange={(e) => handleFileUpload(e.target.files[0])}
+                  />
+                  <Dropdown.Item onClick={saveProof}>
+                    Save Proof
+                  </Dropdown.Item>
+                  <Dropdown.Item href="#">Submit Proof</Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown>
             </Row>
 
             <Row className="g-5">
@@ -621,7 +624,13 @@ const ERRacket = () => {
                     <div className="racket-rule-lhs" id="racket-rule-lhs">
                       {/* Static Row Always Present */}
                       {/* When a saved proof is loaded a static premise should not be rendered. I suggest having a checker and only call this code if it returns true. */}
-                      <Row className="racket-rule-row">
+                      <Row className="racket-rule-row" id="racket-row-0">
+                        <Col md="1">
+                              <div className="main-grid-column">
+                                {(0).toString().padStart(3, "0")}
+                              </div>
+                            </Col>
+                        <Col md="5">
                         <PersistentPad
                           equation={formValues.lHSGoal}
                           onHighlightChange={(startPosition) => {
@@ -640,13 +649,13 @@ const ERRacket = () => {
                           jsonTree={jsonTreeRep.LHS}
                           lineNum={0}
                           editableLineNum={editableLineNums[showSide]}
-                          startPosition = {leftPremise.startPosition ?? 0}
-                        />
+                          startPosition={leftPremise.startPosition ?? 0}
+                        /></Col>
 
                         <Form.Group
                           as={Col}
                           md="4"
-                          className="er-proof-premise"
+                          className="er-proof-rule"
                         >
                           <Form.Floating className="mb-3">
                             <Form.Control
@@ -666,12 +675,19 @@ const ERRacket = () => {
                       </Row>
 
                       {/* Dynamically Added Racket and Rule Fields */}
-                      {racketRuleFields.LHS.map((field, index) => 
+                      {racketRuleFields.LHS.map((field, index) =>
                         field.deleted ? null : (
                           <Row
                             className="racket-rule-row"
-                            key={`LHS-field-${index}`}
+                            id={`racket-row-${index+1}`}
+                            key={`LHS-field-${index+1}`}
                           >
+                            <Col md="1">
+                              <div className="main-grid-column">
+                                {(index + 1).toString().padStart(3, "0")}
+                              </div>
+                            </Col>
+                            <Col md="5">
                             <PersistentPad
                               equation={field.racket}
                               onHighlightChange={(startPosition) => {
@@ -693,8 +709,8 @@ const ERRacket = () => {
                               jsonTree={racketRuleFields.LHS[index].jsonTree ? racketRuleFields.LHS[index].jsonTree : jsonTreeRep.LHS}
                               lineNum={index + 1}
                               editableLineNum={editableLineNums[showSide]}
-                              startPosition = {field.startPosition ?? 0}
-                            />
+                              startPosition={field.startPosition ?? 0}
+                            /></Col>
 
                             <Form.Group
                               as={Col}
@@ -756,13 +772,13 @@ const ERRacket = () => {
                           jsonTree={jsonTreeRep.RHS}
                           lineNum={0}
                           editableLineNum={editableLineNums[showSide]}
-                          startPosition = {rightPremise.startPosition ?? 0}
+                          startPosition={rightPremise.startPosition ?? 0}
                         />
 
                         <Form.Group
                           as={Col}
                           md="4"
-                          className="er-proof-premise"
+                          className="er-proof-rule"
                         >
                           <Form.Floating className="mb-3">
                             <Form.Control
@@ -809,7 +825,7 @@ const ERRacket = () => {
                               jsonTree={racketRuleFields.RHS[index].jsonTree ? racketRuleFields.RHS[index].jsonTree : jsonTreeRep.RHS}
                               lineNum={index + 1}
                               editableLineNum={editableLineNums[showSide]}
-                              startPosition = {field.startPosition ?? 0}
+                              startPosition={field.startPosition ?? 0}
                             />
 
                             <Form.Group
@@ -853,7 +869,7 @@ const ERRacket = () => {
                 <div className="button-row-wrap">
                   <Row className="button-row">
                     <Col md="8">
-                  {/* <Button
+                      {/* <Button
                         className="orange-btn delete-btn"
                         onClick={() => deleteLastLine(showSide)}
                       >
@@ -861,14 +877,157 @@ const ERRacket = () => {
                       </Button> */}
                     </Col>
                     <Col md="4" className="rules-btn-grp">
+                      
+                    </Col>
+                  </Row>
+                </div>
+
+                <div className="proof-opr-wrap">
+                  <Row className="proof-oprs">
+
+                  </Row>
+                </div>
+              </div>
+            )}
+          </div>
+        </Form>
+      </Container>
+      <div className="floating-footer">
+            <Row className="input-row">
+              {/* Column 1: Num */}
+              <Col md="1">
+                <Form.Floating className="mb-3">
+                  <Form.Control
+                    id="userRowNum"
+                    name="userRowNum"
+                    type="text"
+                    placeholder="Num"
+                    value={userRow.num}
+                    onChange={(e) =>
+                      setUserRow({ ...userRow, num: e.target.value })
+                    }
+                    disabled={isBound} // Disable the field when isBound is true
+                  />
+                  <label htmlFor="userRowNum">Num</label>
+                </Form.Floating>
+              </Col>
+
+              {/* Column 2: Expression */}
+              <Col>
+                {userRow.num === "000" && showSide === "LHS" && isBound && (
+                        <PersistentPad
+                          equation={formValues.lHSGoal}
+                          onHighlightChange={(startPosition) => {
+                            handleHighlight(startPosition);
+                            setCurrentRacket(formValues.lHSGoal);
+                            handleChange({
+                              target: {
+                                name: "proofCurrentLHSGoal",
+                                value: formValues.lHSGoal
+                              }
+                            });
+                            setLeftPremise(prev => ({ ...prev, startPosition }));
+                          }}
+                          side={showSide}
+                          //attempting to pass jsonTree to Persistent Pad to initial LHS
+                          jsonTree={jsonTreeRep.LHS}
+                          lineNum={0}
+                          editableLineNum={editableLineNums[showSide]}
+                          startPosition={leftPremise.startPosition ?? 0}
+                        />)}
+                {userRow.num === "000" && showSide === "RHS" && isBound && (
+                  <PersistentPad
+                          equation={formValues.rHSGoal}
+                          onHighlightChange={(startPosition) => {
+                            handleHighlight(startPosition);
+                            setCurrentRacket(formValues.rHSGoal);
+                            handleChange({
+                              target: {
+                                name: "proofCurrentRHSGoal",
+                                value: formValues.rHSGoal
+                              }
+                            });
+                            setRightPremise(prev => ({ ...prev, startPosition }));
+                          }}
+                          side={showSide}
+                          //attempting to pass jsonTree to Persistent Pad to initial RHS
+                          jsonTree={jsonTreeRep.RHS}
+                          lineNum={0}
+                          editableLineNum={editableLineNums[showSide]}
+                          startPosition={rightPremise.startPosition ?? 0}
+                        />)}
+              </Col>
+
+              {/* Column 3: Rule */}
+              <Col md="2">
+                <Form.Floating className="mb-3">
+                  <Form.Control
+                    id="userRowRule"
+                    name="userRowRule"
+                    type="text"
+                    placeholder="Rule"
+                    value={userRow.rule}
+                    onChange={(e) => {
+                      const updatedRule = e.target.value;
+                      setUserRow({ ...userRow, rule: updatedRule });
+
+                      // Automatically update the corresponding row in the grid
+                      const rowIndex = parseInt(userRow.num, 10) - 1;
+                      // if (isBound && rowIndex >= 0 && rowIndex < rows.length) {
+                      //   const updatedRows = [...rows];
+                      //   updatedRows[rowIndex].rule = updatedRule;
+                      //   setRows(updatedRows);
+                      // }
+                    }}
+                  />
+                  <label htmlFor="userRowRule">Rule</label>
+                </Form.Floating>
+                </Col>
+              {/* Column 6: Button */}
+              <Col md="2" className="d-flex align-items-center">
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    if (isBound) {
+                      // Unbind mode
+                      setUserRow({
+                        num: "",
+                        expression: "",
+                        rule: ""
+                      });
+                      setIsBound(false); // Switch back to Fill Values mode
+                    } else {
+                      const userIndex = parseInt(userRow.num, 10);
+                      const matchingRow = document.getElementById("racket-row-"+userIndex)
+                      if (matchingRow) {
+                        setUserRow({
+                          num: userRow.num,
+                          rule: matchingRow.getElementsByClassName("er-proof-rule")[0].getElementsByTagName("input")[0].value
+                        });
+                        setIsBound(true); // Switch to Unbind mode
+                      } else {
+                        alert("No matching row found!");
+                      }
+                    }
+                  }}
+                >
+                  {isBound ? "Unbind" : "Fill Values"}
+                </Button>
+              </Col>
+            </Row>
+            <Row className="button-row">
+                    <Col md="5"></Col>
+                    <Col md="3" className="rules-btn-grp">
                       <Button
                         className="orange-btn green-btn"
                         onClick={async () => {
                           const fullRacket = await addFieldWithApiCheck(showSide);
                           try {
                             if (fullRacket.isValid) {
-                              setEditableLineNums((prevEditableLineNums) => ({ ...prevEditableLineNums,
-                                [showSide]: (fullRacket.lineNum < 1 || fullRacket.lineNum === null ? 0 : fullRacket.lineNum) }));
+                              setEditableLineNums((prevEditableLineNums) => ({
+                                ...prevEditableLineNums,
+                                [showSide]: (fullRacket.lineNum < 1 || fullRacket.lineNum === null ? 0 : fullRacket.lineNum)
+                              }));
                               if (racketRuleFields[showSide].filter(line => !line.deleted).length != 0) {
                                 setStartPosition(0);
                               }
@@ -895,18 +1054,7 @@ const ERRacket = () => {
                       </Button>
                     </Col>
                   </Row>
-                </div>
-
-                <div className="proof-opr-wrap">
-                  <Row className="proof-oprs">
-                    
-                  </Row>
-                </div>
-              </div>
-            )}
           </div>
-        </Form>
-      </Container>
     </MainLayout>
   );
 };
