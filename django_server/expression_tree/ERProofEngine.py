@@ -178,6 +178,7 @@ class ERProofLine:
         ruleCategory = parts[0]
         rule = parts[1] if len(parts) > 1 else ''  # takes rule being eval'd or applied
         ruleParams = ' '.join(parts[2:]) if len(parts) > 2 else ''  # everything after 'f'
+        ruleParams = ruleParams.replace("\u21A6", "=")  # replace the arrow with an equals sign
         ruleParams = [m.group(0).strip() for m in re.finditer(r"\w+=.*?(?=,\s*\w+=|$)", ruleParams)]
         '''
         regex explanation:
