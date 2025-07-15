@@ -81,9 +81,11 @@ const ERRacket = () => {
     formValues.proofTag,
     showSide
   );
-  const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields);
-  const [lhsValue, setLhsValue] = useState("");
-  const [rhsValue, setRhsValue] = useState("");
+  //const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields);
+  const [currentLHS, setCurrentLHS] = useState("");
+  const [currentRHS, setCurrentRHS] = useState("");
+  //const [lhsValue, setLhsValue] = useState("");
+  //const [rhsValue, setRhsValue] = useState("");
   const [isOffcanvasActive, toggleOffcanvas] = useOffcanvas();
   const [showDefinitionsWindow, toggleDefinitionsWindow] =
     useDefinitionsWindow();
@@ -231,7 +233,9 @@ const ERRacket = () => {
       }
     };
 
-    if (lhsValue !== "" && rhsValue !== "" && currentLHS !== "") {
+    //if (lhsValue !== "" && rhsValue !== "" && currentLHS !== "") {
+    if (formValues.lHSGoal !== "" && formValues.rHSGoal !== "" && currentLHS !== "") {
+      //if (currentLHS === currentRHS || currentLHS === formValues.rHSGoal || currentRHS === formValues.lHSGoal) {
       if (currentLHS === currentRHS) {
         removeBlankRackets();
         setShowProofComplete(true);
@@ -246,8 +250,8 @@ const ERRacket = () => {
     currentLHS,
     currentRHS,
     racketRuleFields,
-    lhsValue,
-    rhsValue,
+    //lhsValue,
+    //rhsValue,
     formValues,
     leftPremise,
     rightPremise,
@@ -529,7 +533,8 @@ const ERRacket = () => {
                     name="proofCurrentLHS"
                     type="text"
                     placeholder="Current LHS"
-                    value={currentLHS === "" ? lhsValue : currentLHS}
+                      //value={currentLHS === "" ? lhsValue : currentLHS}
+                    value={currentLHS}
                     readOnly
                   />
                   <label htmlFor="eRProofCurrentLHS">Current LHS</label>
@@ -547,7 +552,8 @@ const ERRacket = () => {
                     name="proofCurrentRHS"
                     type="text"
                     placeholder="Current RHS"
-                    value={currentRHS === "" ? rhsValue : currentRHS}
+                      //value={currentRHS === "" ? rhsValue : currentRHS}
+                    value={currentRHS}
                     readOnly
                   />
                   <label htmlFor="eRProofCurrentRHS">Current RHS</label>
@@ -582,7 +588,7 @@ const ERRacket = () => {
               <Row className="goal-btn-wrap">
                 <Button
                   className="orange-btn"
-                  onClick={() =>
+                  onClick={() => {
                     checkGoal(
                       showSide,
                       formValues[`${showSide[0].toLowerCase()}HSGoal`],
@@ -591,6 +597,14 @@ const ERRacket = () => {
                       formValues.lHSGoal,
                       formValues.rHSGoal
                     )
+                    if (showSide === "LHS") {
+                      //setLhsValue(formValues.lHSGoal)
+                      setCurrentLHS(formValues.lHSGoal);
+                    } else {
+                      //setRhsValue(formValues.rHSGoal)
+                      setCurrentRHS(formValues.rHSGoal);
+                    }
+                  }
                   }
                 >
                   Check {showSide} Goal
@@ -872,17 +886,24 @@ const ERRacket = () => {
                               if (racketRuleFields[showSide].filter(line => !line.deleted).length != 0) {
                                 setStartPosition(0);
                               }
+                              if (showSide === "LHS") {
+                                //setLhsValue(fullRacket.racket);
+                                setCurrentLHS(fullRacket.racket);
+                              } else {
+                                //setRhsValue(fullRacket.racket);
+                                setCurrentRHS(fullRacket.racket);
+                              }
                             }
                           } catch (error) {
                             //console.log("Null because on premise, don't worry about it");
+                            if (showSide === "LHS") {
+                              //setLhsValue(formValues.lHSGoal);
+                            } else {
+                              //setRhsValue(formValues.rHSGoal);
+                            }
                           }
                           //console.log("current line? (ERRacket.js):", lineNum);
-                          //racketRuleFields?.LHS[0]?.jsonTree && console.log("the tree is: ", racketRuleFields.LHS[0].jsonTree);                          
-                          if (showSide === "LHS") {
-                            setLhsValue(formValues.lHSGoal);
-                          } else {
-                            setRhsValue(formValues.rHSGoal);
-                          }
+                          //racketRuleFields?.LHS[0]?.jsonTree && console.log("the tree is: ", racketRuleFields.LHS[0].jsonTree);
                         }}
                       >
                         Generate & Check
