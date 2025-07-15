@@ -481,6 +481,7 @@ const ERRacket = () => {
                     name="lHSGoal"
                     type="text"
                     placeholder="LHS Goal"
+                    readOnly={isGoalChecked.LHS}
                     value={formValues.lHSGoal}
                     onBlur={() => handleBlur("lHSGoal")}
                     onChange={enhancedHandleChange}
@@ -504,6 +505,7 @@ const ERRacket = () => {
                     name="rHSGoal"
                     type="text"
                     placeholder="RHS Goal"
+                    readOnly={isGoalChecked.RHS}
                     value={formValues.rHSGoal}
                     onBlur={() => handleBlur("rHSGoal")}
                     onChange={enhancedHandleChange}
@@ -731,6 +733,7 @@ const ERRacket = () => {
                                     )
                                   }
                                   isInvalid={!!validationErrors.LHS[index]}
+                                  readOnly={editableLineNums.LHS !== index}
                                   required
                                 />
                                 <label htmlFor={`eRProofLHSRule-${index}`}>
@@ -847,6 +850,7 @@ const ERRacket = () => {
                                     )
                                   }
                                   isInvalid={!!validationErrors.RHS[index]}
+                                  readOnly={editableLineNums.RHS !== index}
                                   required
                                 />
                                 <label htmlFor={`eRProofRHSRule-${index}`}>
