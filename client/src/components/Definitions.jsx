@@ -419,7 +419,7 @@ function Definition({
             >
               {definition.applied ? "Disable" : "Enable"} Definition
             </Button>
-            {/* Commented out edit and delete buttons for Lab 8
+            {/* TODO: Commented out edit and delete buttons for Lab 8
             <Button
               variant="outline-primary"
               onClick={() => updateEdit(definition)}
