@@ -99,6 +99,9 @@ def check_goal(request):
     proof_two: ERProof = proof["proofTwo"]
     current_proof = proof_one if is_p_one_active else proof_two
 
+    if len(current_proof.proofLines) != 0:
+        current_proof.proofLines.clear()
+    
     current_proof.addProofLine(json_data["goal"])
 
     errors, proof = update_and_validate(proof, json_data["side"])
@@ -149,13 +152,13 @@ def set_current_proof(request):
 
 
     # Set LHS and RHS goals
-    if json_data["lHSGoal"] and not json_data["lHSGoal"] == "":
+    if json_data["leftGoalChecked"]:
         proof_one.addProofLine(json_data["lHSGoal"])
         errors, proof = update_and_validate(proof, "LHS")
         if not proof["isValid"]:
             return get_error_response(errors)
 
-    if json_data["rHSGoal"] and not json_data["rHSGoal"] == "":
+    if json_data["rightGoalChecked"]:
         proof_two.addProofLine(json_data["rHSGoal"])
         errors, proof = update_and_validate(proof, "RHS")
         if not proof["isValid"]:
