@@ -299,6 +299,20 @@ const ERRacket = () => {
       loadRacketGoal(loadedProof);
       loadRacketProof(loadedProof);
 
+      if (loadedProof.leftRacketsAndRules.length > 1)
+        setCurrentLHS(loadedProof.leftRacketsAndRules.at(-2).racket)
+      else if (loadedProof.leftRacketsAndRules.length === 1)
+        setCurrentLHS(loadedProof.lHSGoal);
+      else
+        setCurrentLHS("");
+
+      if (loadedProof.rightRacketsAndRules.length > 1)
+        setCurrentRHS(loadedProof.rightRacketsAndRules.at(-2).racket)
+      else if (loadedProof.rightRacketsAndRules.length === 1)
+        setCurrentRHS(loadedProof.rHSGoal);
+      else
+        setCurrentRHS("");
+
       setEditableLineNums({ 
         LHS: loadedProof.leftRacketsAndRules.length ? loadedProof.leftRacketsAndRules.length - 1 : 0, 
         RHS: loadedProof.rightRacketsAndRules.length ? loadedProof.rightRacketsAndRules.length - 1 : 0
