@@ -132,7 +132,8 @@ const ERRacket = () => {
       rHSGoal: formValues.rHSGoal,
       leftPremise: { ...leftPremise, jsonTree: (isGoalChecked.LHS ? jsonTreeRep.LHS : null) },
       rightPremise: { ...rightPremise, jsonTree: (isGoalChecked.RHS ? jsonTreeRep.RHS : null) },
-      definitions: JSON.parse(sessionStorage.getItem("definitions") || "[]").filter(isApplied)
+      definitions: JSON.parse(sessionStorage.getItem("definitions") || "[]").filter(isApplied),
+      loadedInServer: false
     };
     // console.log("Equational Reasoning Object:", EquationalReasoningObject);
     return JSON.stringify(EquationalReasoningObject);
@@ -174,8 +175,8 @@ const ERRacket = () => {
       rightRacketsAndRules: racketRuleFields.RHS,
       lHSGoal: formValues.lHSGoal,
       rHSGoal: formValues.rHSGoal,
-      leftPremise,
-      rightPremise
+      leftPremise: { ...leftPremise, checked: isGoalChecked.LHS },
+      rightPremise: { ...rightPremise, checked: isGoalChecked.RHS }
     };
 
     try {

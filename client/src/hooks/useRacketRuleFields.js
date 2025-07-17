@@ -372,8 +372,9 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
       LHS: loadedProof.leftRacketsAndRules,
       RHS: loadedProof.rightRacketsAndRules
     });
-
-    loadProofInServer(loadedProof);
+    
+    if (!loadedProof.loadedInServer)
+      loadProofInServer(loadedProof);
   }, []);
 
   return [

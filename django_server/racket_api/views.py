@@ -396,12 +396,59 @@ def get_proof(request, proof_id):
     user = request.user
     proof_data = user_proof(user, proof_id)
     proof = load_proof(proof_data)
-    proof_data["proofLines"] = [
-        line for line in proof_data["proofLines"] if line["rule"] != "Premise"
-    ]
+
+    frontend_json = {
+        "name": proof_data["name"],
+        "tag": proof_data["tag"],
+        "lHSGoal": proof_data["lhs"],
+        "rHSGoal": proof_data["rhs"],
+        "leftRacketsAndRules": [],
+        "rightRacketsAndRules": [],
+        "definitions": proof_data["definitions"],
+        "loadedInServer": True
+    }
+
+    leftIndex = rightIndex = 0
+    for line in proof_data["proofLines"]:
+        if line.pop("leftSide"):
+            line["jsonTree"] = makeJson(proof["proofOne"].proofLines[leftIndex].exprTree)
+            if line["rule"] == "Premise":
+                frontend_json["leftPremise"] = line
+                frontend_json["lHSGoal"] = line["racket"]
+            else:
+                frontend_json["leftRacketsAndRules"].append(line)
+            leftIndex += 1
+        else:
+            line["jsonTree"] = makeJson(proof["proofTwo"].proofLines[rightIndex].exprTree)
+            if line["rule"] == "Premise":
+                frontend_json["rightPremise"] = line
+                frontend_json["rHSGoal"] = line["racket"]
+            else:
+                frontend_json["rightRacketsAndRules"].append(line)
+            rightIndex += 1
+    
+    for side in ("left", "right"):
+        if frontend_json.get(side + "Premise") is not None:
+            frontend_json[side + "RacketsAndRules"].append(
+                {
+                    "racket": "",
+                    "jsonTree": {},
+                    "rule": "",
+                    "deleted": False,
+                    "errors": []
+                }
+            )
+        else:
+            frontend_json[side + "Premise"] = {
+                "racket": proof_data["lhs"] if side == "left" else proof_data["rhs"],
+                "rule": "Premise",
+                "startPosition": 0
+            }
+            
+
     save_proof_to_cache(user, proof)
 
-    return Response(proof_data, status=status.HTTP_200_OK)
+    return Response(frontend_json, status=status.HTTP_200_OK)
 
 
 @api_view(["GET"])
