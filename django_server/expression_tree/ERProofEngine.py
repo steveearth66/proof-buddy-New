@@ -270,7 +270,7 @@ class ERProofLine:
         elif ruleCategory == 'eval' and isinstance(ruleSet[rule], UDF):
             self.errLog.append("Cannot evaluate a user-defined function")
         elif ruleCategory == 'eval' and rule == 'math':
-            self.errLog.append("Cannot evaluate advanced math")
+            self.errLog.append("Could not find built-in Racket procedure associated with 'math'")
         elif ruleCategory == 'eval' and ruleSet[rule].isProperty:
             self.errLog.append("Cannot evaluate a property")
         

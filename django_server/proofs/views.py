@@ -59,38 +59,37 @@ def create_proof_lines(lines, left_side, proof):
 def add_data_to_proof(json_data, proof, definitions, user):
     try:
         left_premise_data = json_data["leftPremise"]
-        left_premise_data = {
-            "left_side": True,
-            "racket": left_premise_data["racket"],
-            "rule": left_premise_data["rule"],
-            "start_position": left_premise_data["startPosition"],
-        }
+        if left_premise_data["checked"]:
+            left_premise_data = {
+                "left_side": True,
+                "racket": left_premise_data["racket"],
+                "rule": left_premise_data["rule"],
+                "start_position": left_premise_data["startPosition"],
+            }
+            left_premise = ProofLineSerializer(data=left_premise_data)
+            if not left_premise.is_valid():
+                return Response(left_premise.errors, status=status.HTTP_400_BAD_REQUEST)
+            left_premise.save(proof=proof)
+            
         right_premise_data = json_data["rightPremise"]
-        right_premise_data = {
-            "left_side": False,
-            "racket": right_premise_data["racket"],
-            "rule": right_premise_data["rule"],
-            "start_position": right_premise_data["startPosition"],
-        }
+        if right_premise_data["checked"]:
+            right_premise_data = {
+                "left_side": False,
+                "racket": right_premise_data["racket"],
+                "rule": right_premise_data["rule"],
+                "start_position": right_premise_data["startPosition"],
+            }
+            right_premise = ProofLineSerializer(data=right_premise_data)
+            if not right_premise.is_valid():
+                return Response(right_premise.errors, status=status.HTTP_400_BAD_REQUEST)
+            right_premise.save(proof=proof)
+
         left_rackets_and_rules = json_data["leftRacketsAndRules"]
         right_rackets_and_rules = json_data["rightRacketsAndRules"]
-
-        left_premise = ProofLineSerializer(data=left_premise_data)
-        right_premise = ProofLineSerializer(data=right_premise_data)
-
-        if not left_premise.is_valid():
-            return Response(left_premise.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        if not right_premise.is_valid():
-            return Response(right_premise.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        left_premise.save(proof=proof)
-        right_premise.save(proof=proof)
-
         create_proof_lines(left_rackets_and_rules, True, proof)
         create_proof_lines(right_rackets_and_rules, False, proof)
         add_definitions(definitions, proof, user)
-    except:
+    except Exception:
         proof.delete()
         raise Exception("Error adding data to proof")
 
