@@ -8,12 +8,12 @@ const ruleSet = () => {
     [
       {
         procedure: "first",
-        highlight: "(first '(a b c…z))",
+        highlight: "(first '(a b c … z))",
         result: "a"
       },
       {
         procedure: "rest",
-        highlight: "(first '(a b c … z))",
+        highlight: "(rest '(a b c … z))",
         result: "'(b c … z)"
       },
       {
