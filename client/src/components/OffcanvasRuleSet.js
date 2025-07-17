@@ -22,9 +22,9 @@ const OffcanvasRuleSet = ({ isActive, toggleFunction }) => {
       filteredRules.push(ruleSet.filter((rule) => {
         return (
           rule.name ? rule.name.toLowerCase().includes(searchValue.toLowerCase()) : false ||
-          rule.procedure.toLowerCase().includes(searchValue.toLowerCase()) ||
-          rule.highlight.toLowerCase().includes(searchValue.toLowerCase()) ||
-          rule.result.toLowerCase().includes(searchValue.toLowerCase())
+              String(rule.procedure).toLowerCase().includes(searchValue.toLowerCase()) ||
+              String(rule.highlight).toLowerCase().includes(searchValue.toLowerCase()) ||
+              String(rule.result).toLowerCase().includes(searchValue.toLowerCase())
         );
       }))
     );

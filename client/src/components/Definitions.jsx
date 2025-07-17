@@ -419,6 +419,7 @@ function Definition({
             >
               {definition.applied ? "Disable" : "Enable"} Definition
             </Button>
+            {/* TODO: Commented out edit and delete buttons for Lab 8
             <Button
               variant="outline-primary"
               onClick={() => updateEdit(definition)}
@@ -430,7 +431,7 @@ function Definition({
               onClick={() => deleteDefinition(definition.id)}
             >
               Delete
-            </Button>
+            </Button>*/}
           </div>
         </Accordion.Body>
       </Accordion.Item>
