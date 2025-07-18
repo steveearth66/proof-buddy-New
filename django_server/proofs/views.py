@@ -315,8 +315,11 @@ def create_or_override_definition(user, data):
         definition.save()
         return DefinitionSerializer(definition).data
 
-def get_definition(id):
-    definition = Definition.objects.filter(id=id).first()
+
+# def get_definition(id):
+def get_definition(label):
+    # definition = Definition.objects.filter(id=id).first()
+    definition = Definition.objects.filter(label=label).first()
     definition_data = {
         "id": definition.id,
         "label": definition.label,
@@ -344,8 +347,10 @@ def edit_definition(user, id, data):
     return definition_data
 
 
-def delete_definition(user, id):
-    definition = Definition.objects.filter(id=id, created_by=user).first()
+# def delete_definition(user, id):
+def delete_definition(user, label):
+    # definition = Definition.objects.filter(id=id, created_by=user).first()
+    definition = Definition.objects.filter(label=label, created_by=user).first()
 
     if not definition:
         return False

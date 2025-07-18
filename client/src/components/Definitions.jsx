@@ -105,7 +105,7 @@ function CreateDefinition({
     }
 
     definitions.forEach((def) => {
-      if (def.label === definition.label) {
+      if (def.label.split(" ")[0] === definition.label.split(" ")[0]) {
         setErrors(['Definition with this label already exists.']);
         exists = true;
       }
@@ -258,12 +258,13 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
   const [definitionToEdit, setDefinitionToEdit] = useState({});
   const [edit, setEdit] = useState(false);
 
-  const deleteDefinition = async (id) => {
+  //const deleteDefinition = async (id) => {
+  const deleteDefinition = async (label) => {
     const confirm = window.confirm(
       'Are you sure you want to delete this definition?'
     );
     if (!confirm) return;
-    const deleted = await toast.promise(erService.deleteDefinition(id), {
+    const deleted = await toast.promise(erService.deleteDefinition(label), {
       pending: 'Deleting definition...',
       success: 'Definition deleted successfully.',
       error: 'An error occurred. Please try again.'
@@ -272,7 +273,7 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
     if (!deleted) return;
 
     const definitions = JSON.parse(sessionStorage.getItem('definitions')) || [];
-    const updatedDefinitions = definitions.filter((def) => def.id !== id);
+    const updatedDefinitions = definitions.filter((def) => def.label !== label);
     sessionStorage.setItem('definitions', JSON.stringify(updatedDefinitions));
     setDefinitions(updatedDefinitions);
   };
@@ -294,17 +295,20 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
     setEdit(true);
   };
 
-  const applyDefinition = async (id, applied) => {
+  //const applyDefinition = async (id, applied) => {
+  const applyDefinition = async (label, applied) => {
     if (applied) {
       try {
-        await toast.promise(erService.removeDefinition(id), {
+        //await toast.promise(erService.removeDefinition(id), {
+        await toast.promise(erService.removeDefinition(label), {
           pending: 'Disabling definition...',
           success: 'Definition disabled successfully.',
           error: 'An error occurred. Please try again.'
         });
         setDefinitions((prev) => {
           return prev.map((def) => {
-            if (def.id === id) {
+            //if (def.id === id) {
+            if (def.label === label) {
               def.applied = false;
             }
             return def;
@@ -316,14 +320,16 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
       }
     } else {
       try {
-        await toast.promise(erService.useDefinition(id), {
+        //await toast.promise(erService.useDefinition(id), {
+        await toast.promise(erService.useDefinition(label), {
           pending: 'Enabling definition...',
           success: 'Definition enabled successfully.',
           error: 'An error occurred. Please try again.'
         });
         setDefinitions((prev) => {
           return prev.map((def) => {
-            if (def.id === id) {
+            //if (def.id === id) {
+            if (def.label === label) {
               def.applied = true;
             }
             return def;
@@ -415,7 +421,8 @@ function Definition({
           <div className="def-buttons">
             <Button
               variant={`${definition.applied ? "outline-danger" : "outline-success"}`}
-              onClick={() => applyDefinition(definition.id, definition.applied)}
+                //onClick={() => applyDefinition(definition.id, definition.applied)}
+              onClick={() => applyDefinition(definition.label, definition.applied)}
             >
               {definition.applied ? "Disable" : "Enable"} Definition
             </Button>
@@ -428,7 +435,8 @@ function Definition({
             </Button>
             <Button
               variant="outline-danger"
-              onClick={() => deleteDefinition(definition.id)}
+              //onClick={() => deleteDefinition(definition.id)}
+              onClick={() => deleteDefinition(definition.label)}
             >
               Delete
             </Button>*/}
