@@ -225,31 +225,29 @@ def add_definitions(request):
     definitions = proof["definitions"]
 
     try:
-        if json_data["label"] not in proof_one.ruleSet.keys():
-            proof_one.addUDF(
-                json_data["label"], json_data["type"], json_data["expression"]
-            )
+        proof_one.addUDF(json_data["label"], json_data["type"], json_data["expression"])
+        proof_two.addUDF(json_data["label"], json_data["type"], json_data["expression"])
 
-        if json_data["label"] not in proof_two.ruleSet.keys():
-            proof_two.addUDF(
-                json_data["label"], json_data["type"], json_data["expression"]
-            )
     except:
         return Response(
             {"message": "Error adding definition"}, status=status.HTTP_400_BAD_REQUEST
         )
 
+    if proof_one.errLog or proof_two.errLog:
+        if proof["currentProof"] == proof_one or not proof["currentProof"]:
+            errors = copy.deepcopy(proof_one.errLog)
+        else:
+            errors = copy.deepcopy(proof_two.errLog)
+        proof_one.errLog.clear()
+        proof_two.errLog.clear()
+        return Response(
+            {"message": errors}, status=status.HTTP_400_BAD_REQUEST)
+
     definition = create_user_definition(user, json_data)
-
-    if definition:
-        definition["applied"] = True
-        definitions.append(definition)
-        save_proof_to_cache(user, proof)
-        return Response(definition, status=status.HTTP_201_CREATED)
-
-    return Response(
-        {"message": "Error adding definition"}, status=status.HTTP_400_BAD_REQUEST
-    )
+    definition["applied"] = True
+    definitions.append(definition)
+    save_proof_to_cache(user, proof)
+    return Response(definition, status=status.HTTP_201_CREATED)
 
 
 @api_view(["DELETE"])

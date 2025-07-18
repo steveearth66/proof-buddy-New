@@ -98,7 +98,11 @@ function CreateDefinition({
           notes: newDefinition.notes
         });
       } catch (error) {
-        setErrors(['An error occurred. Please try again.']);
+        if (error.response && error.response.data && error.response.data.message) {
+          setErrors(error.response.data.message);
+        } else {
+          setErrors(['An error occurred. Please try again.']); // generic error message
+        }
         setValidated(false);
       }
       return;
@@ -127,7 +131,11 @@ function CreateDefinition({
           setValidated(false);
         }
       } catch (error) {
-        setErrors(['An error occurred. Please try again.']);
+        if (error.response && error.response.data && error.response.data.message) {
+          setErrors(error.response.data.message);
+        } else {
+          setErrors(['An error occurred. Please try again.']); // generic error message
+        }
         setValidated(false);
       }
     }
