@@ -6,6 +6,7 @@ import Form from "react-bootstrap/Form";
 import Col from "react-bootstrap/Col";
 import Row from "react-bootstrap/Row";
 import Alert from "react-bootstrap/Alert";
+import Spinner from "react-bootstrap/Spinner";
 import MainLayout from "../layouts/MainLayout";
 import authService from "../services/authService";
 import validateField from "../utils/formValidationUtils";
@@ -70,14 +71,14 @@ const SignUpUser = ({ role }) => {
   if (accountCreated) {
     setTimeout(() => {
       navigate("/");
-    }, 3000);
+    }, 2500);
   }
 
   return (
     <MainLayout>
       <Container className="signup-container">
         <Row className="justify-content-md-center">
-          <Col xs={12} md={8} lg={4}>
+          <Col xs={15} md={10} lg={5}>
             <h1>
               Sign up as {role === "student" ? "a" : "an"} {role}
             </h1>
@@ -94,6 +95,7 @@ const SignUpUser = ({ role }) => {
               accountCreated && (
                 <Alert variant={"success"}>
                   Account created! Redirecting to home page...
+                  <Spinner className="float-end" animation="border"/>
                 </Alert>
               )
             }
