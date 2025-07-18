@@ -118,7 +118,7 @@ class ERProof:
         if bodyNode.errLog != []:
             self.errLog.extend(bodyNode.errLog)
         # if not (udfLabel not in self.ruleSet.keys() and udfLabel not in reservedLabels):
-        if udfLabel in self.ruleSet.keys() or udfLabel in reservedLabels:
+        if udfLabel in self.ruleSet.keys() or udfLabel in reservedLabels or not udfLabel.isalpha():
             self.errLog.append(
                 f"'{udfLabel}' is an invalid label for your Definition")
         if racTypeObj.getDomain() != None:
