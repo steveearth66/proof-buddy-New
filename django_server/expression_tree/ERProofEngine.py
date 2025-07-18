@@ -117,7 +117,8 @@ class ERProof:
         )
         if bodyNode.errLog != []:
             self.errLog.extend(bodyNode.errLog)
-        if not (udfLabel not in self.ruleSet.keys() and udfLabel not in reservedLabels):
+        # if not (udfLabel not in self.ruleSet.keys() and udfLabel not in reservedLabels):
+        if udfLabel in self.ruleSet.keys() or udfLabel in reservedLabels or not udfLabel.isalpha():
             self.errLog.append(
                 f"'{udfLabel}' is an invalid label for your Definition")
         if racTypeObj.getDomain() != None:
@@ -129,6 +130,13 @@ class ERProof:
                 param2TypeDict[paramsList[j]] = RacType(racTypeObj.getDomain()[j]) #got rid of getDomain here and switched to value[0]
             filledBodyNode = fillBody(bodyNode.exprTree, udfLabel, racTypeObj, param2TypeDict)
             self.ruleSet[udfLabel] = UDF(udfLabel, filledBodyNode, racTypeObj, paramsList)
+
+    def removeUDF(self, label):
+        label = label.split()[0][1:]
+        if label in self.ruleSet.keys():
+            del self.ruleSet[label]
+        else:
+            self.errLog.append(f"Could not find UDF with label '{label}'")
 
 class ERProofLine:
     def __init__(self, goal, debug=False, ruleDict=None, udfType=None,isUdf=False): #added optional pointer to parent proof's ruleset

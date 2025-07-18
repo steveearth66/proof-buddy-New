@@ -36,7 +36,8 @@ class DefinitionSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         label = validated_data.pop("label")
         def_type = validated_data.pop("def_type")
+        user = validated_data.pop("created_by")
         definition, created = Definition.objects.update_or_create(
-            label=label, def_type=def_type, defaults=validated_data
+            label=label, created_by=user, def_type=def_type, defaults=validated_data
         )
         return definition

@@ -17,6 +17,9 @@ class Definition(models.Model):
         'accounts.Account', related_name='definitions', on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        unique_together = ('label', 'created_by')
+
     def get_tag(self):
         return self.label
 

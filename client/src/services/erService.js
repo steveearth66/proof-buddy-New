@@ -176,10 +176,11 @@ const getUserDefinitions = async () => {
   }
 };
 
-const useDefinition = async (id) => {
+//const useDefinition = async (id) => {
+const useDefinition = async (label) => {
   return new Promise((resolve, reject) => {
     axiosInstance
-      .get(`${API_GATEWAY}/use-definition/${id}`)
+        .get(`${API_GATEWAY}/use-definition/${label}`)
       .then((response) => {
         resolve(response.data);
       })
@@ -190,10 +191,11 @@ const useDefinition = async (id) => {
   });
 };
 
-const removeDefinition = async (id) => {
+//const removeDefinition = async (id) => {
+const removeDefinition = async (label) => {
   return new Promise((resolve, reject) => {
     axiosInstance
-      .delete(`${API_GATEWAY}/remove-definition/${id}/`)
+        .delete(`${API_GATEWAY}/remove-definition/${label}/`)
       .then(() => {
         resolve(true);
       })
@@ -218,10 +220,10 @@ const editDefinition = async (definition) => {
   });
 };
 
-const deleteDefinition = async (id) => {
+const deleteDefinition = async (label) => {
   return new Promise((resolve, reject) => {
     axiosInstance
-      .delete(`${API_GATEWAY}/delete-definition/${id}/`)
+        .delete(`${API_GATEWAY}/delete-definition/${label}/`)
       .then(() => {
         resolve(true);
       })
