@@ -122,7 +122,13 @@ EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 EMAIL_USE_TLS = True
 
-CORS_ORIGIN_ALLOW_ALL = True
+CORS_ALLOW_ALL_ORIGINS = False
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "https://proofbuddy.net",
+    "https://learn.dcollege.net"
+]
 CSRF_TRUSTED_ORIGINS = [f"{os.getenv('BACKEND_URL')}"]
 
 # Password validation
