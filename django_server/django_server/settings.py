@@ -111,6 +111,7 @@ CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.db.DatabaseCache",
         "LOCATION": "proofs_cache",
+        "TIMEOUT": 1800,  # 30 minutes
     }
 }
 
