@@ -54,7 +54,7 @@ const useGoalCheck = (handleChange) => {
    * @param {string} side - The side of the goal (LHS or RHS) to validate.
    * @param {string} goalValue - The value of the goal to validate.
    */
-  const checkGoal = async (side, goalValue, name, tag, lHSGoal, rHSGoal) => {
+  const checkGoal = async (side, goalValue, name, tag, lHSGoal, rHSGoal, loadedProofId) => {
     if (!name) {
       setProofValidationMessage({ name: 'Please provide a name.' });
       return;
@@ -72,7 +72,7 @@ const useGoalCheck = (handleChange) => {
     }
 
     try {
-      const result = await erService.checkGoal({ goal: goalValue, name, tag, lHSGoal, rHSGoal, side });
+      const result = await erService.checkGoal({ goal: goalValue, name, tag, lHSGoal, rHSGoal, side, loadedProofId });
       if (result.isValid) {
         setIsGoalChecked({ ...isGoalChecked, [side]: true });
         setGoalValidationMessage({ ...goalValidationMessage, [side]: '' });

@@ -85,7 +85,7 @@ def check_goal(request):
         created_by=user, name=json_data["name"], tag=json_data["tag"]
     ).first()
 
-    if user_proof:
+    if user_proof and user_proof.id != json_data["loadedProofId"]:
         return Response(
             {
                 "isValid": False,

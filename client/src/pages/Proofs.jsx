@@ -92,12 +92,11 @@ function ProofCard(proof) {
       <p>
         <b>Completed:</b> {proof.isComplete ? 'True' : 'False'}
       </p>
-      {/* TODO: Commented out for Lab 8 due to button causing site to hang
       <Link to={`/er-racket`} state={{ id: proof.id }}>
         <Button variant="outline-secondary" style={{ width: '100%' }}>
           View Proof
         </Button>
-      </Link> */}
+      </Link>
     </div>
   );
 }
