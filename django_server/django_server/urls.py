@@ -22,6 +22,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/v1/auth/", include("accounts.urls")),
     path("api/v1/proof/", include("racket_api.urls")),
+    path("api/v1/proofs", include("proofs.urls")),
     path("api/v1/induction/", include("induction_api.urls")),
     path("api/v1/assignments/", include("assignments.urls")),
 ]

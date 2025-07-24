@@ -19,6 +19,7 @@ class ERProof:
             'consProp': ConsProp(),
             'firstProp': FirstProp(),
             'restProp': RestProp(),
+            'null?-cons': NullQCons(),
             'null?': NullQ(),
             'cons?': ConsQ(),
             'zero?': ZeroQ(),

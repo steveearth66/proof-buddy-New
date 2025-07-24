@@ -612,7 +612,8 @@ const ERRacket = () => {
                       formValues.proofName,
                       formValues.proofTag,
                       formValues.lHSGoal,
-                      formValues.rHSGoal
+                      formValues.rHSGoal,
+                      location?.state?.id ?? -1
                     )
                     if (showSide === "LHS") {
                       //setLhsValue(formValues.lHSGoal)
