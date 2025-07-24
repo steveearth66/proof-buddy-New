@@ -4,7 +4,39 @@ from rest_framework import status
 from .models import Proof, ProofLine, Definition
 from expression_tree.ERProofEngine import ERProof
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from rest_framework.decorators import api_view
 
+@api_view(["DELETE"])
+def delete_proof(request, id):
+    try:
+        proof = Proof.objects.get(id=id)
+        proof.delete()
+        return Response(
+                { "message": "Proof successfully deleted"}, status=status.HTTP_200_OK
+            )
+    except Proof.DoesNotExist:
+        return Response(
+                { "message": "Proof does not exist"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+@api_view(["PUT"])
+def edit_proof(request, id):
+    try:
+        proof = Proof.objects.get(id=id)
+        serializer = ProofSerializer(proof, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                    { "message": "Proof successfully updated"}, status=status.HTTP_200_OK
+                )
+        else:
+            return Response(
+                    { "message": "New name or tag is invalid"}, status=status.HTTP_400_BAD_REQUEST
+                )
+    except Proof.DoesNotExist:
+        return Response(
+                { "message": "Proof does not exist"}, status=status.HTTP_404_NOT_FOUND
+            )
 
 def get_or_create_proof(data, user, definitions):
     proof_data = {
