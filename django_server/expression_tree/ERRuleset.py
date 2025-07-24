@@ -131,7 +131,6 @@ class RestProp(Rule):
         lNode = ruleNode.children[1].children[2]
         return lNode
 
-
 class NullQ(Rule):
     def __init__(self):
         super().__init__('null?')
@@ -157,7 +156,20 @@ class NullQ(Rule):
             return Node(data='#t', tokenType=RacType((None, Type.BOOL)), name=True)
         return Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
 
-
+class NullQCons(Rule):
+    def __init__(self):
+        super().__init__('null?-cons', isProperty=True)
+    
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        if ruleNode.children[0].data != 'null?':
+            return False, f"Cannot apply null?-cons property when root operation is '{ruleNode.children[0].data}'"
+        if ruleNode.children[1].data != '(' or ruleNode.children[1].children[0].data != 'cons':
+            return False, f"Cannot apply null?-cons property when argument is not a 'cons' expression"
+        return True, "NullQCons.isApplicable() PASS"
+    
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        return Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
+    
 class ConsQ(Rule):
     def __init__(self):
         super().__init__('cons?')

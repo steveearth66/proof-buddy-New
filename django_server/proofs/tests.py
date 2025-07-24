@@ -230,7 +230,7 @@ ge_tests = [
 totalFails += test_racket_function('>=', ge_tests)
 
 # Check that 'math' rule can no longer be used in place of the individual operators
-totalFails += do_single_test_case('eval', 'math', '(+ 1 2)', ['Cannot evaluate advanced math'])
+totalFails += do_single_test_case('eval', 'math', '(+ 1 2)', ["Could not find built-in Racket procedure associated with 'math'"])
 totalFails += do_single_test_case('', 'math', '(+ 1 2)', ["Rule must start with 'eval' or 'apply'"])
 
 # Logic Function Tests
@@ -441,6 +441,19 @@ minus_plus_tests = [
 ]
 totalFails += run_test_cases("apply", "-+", minus_plus_tests)
 totalFails += do_single_test_case("eval", "-+", minus_plus_tests[-1][0], ["Cannot evaluate a property"])
+
+nullQCons_tests = [
+    ("(cons 1 null)", ["Cannot apply null?-cons property when root operation is 'cons'"]),
+    ("(+ 1 2)", ["Cannot apply null?-cons property when root operation is '+'"]),
+    ("(null? null)", ["Cannot apply null?-cons property when argument is not a 'cons' expression"]),
+    ("(null? '(1 2 3))", ["Cannot apply null?-cons property when argument is not a 'cons' expression"]),
+    ("(null? (cons 1 null) null)", ["null? only takes 1 arguments, but 2 were provided"]),
+    ("(null? (cons x L))", "#f"), # symbolic
+    ("(null? (cons (+ 1 2) (cons null null)))", "#f"), # not fully resolved
+    ("(null? (cons 1 null))", "#f")
+]
+totalFails += run_test_cases("apply", "null?-cons", nullQCons_tests)
+totalFails += do_single_test_case("eval", "null?-cons", nullQCons_tests[-1][0], ["Cannot evaluate a property"])
 
 print("\nUDF testing:\n")
 udfProof = ERProof()
