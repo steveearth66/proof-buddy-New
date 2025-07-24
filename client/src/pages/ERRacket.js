@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Dropdown from "react-bootstrap/Dropdown";
 import Button from "react-bootstrap/Button";
 import Container from "react-bootstrap/Container";
@@ -31,6 +31,8 @@ import erService from "../services/erService";
 import { useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
 
+const WARNING_THRESHOLD_MS = 25 * 60 * 1000; // 25 minutes in milliseconds
+const EXPIRED_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes in milliseconds
 /**
  * ERRacket component facilitates the Equational Reasoning Racket.
  */
@@ -42,6 +44,9 @@ const ERRacket = () => {
     rHSGoal: ""
   };
 
+  const [status, setStatus] = useState("active");
+  const warningTimerRef = useRef(null);
+  const expiredTimerRef = useRef(null);
   const [showSide, toggleSide] = useToggleSide();
   const [formValues, handleChange] = useInputState(initialValues);
   const [validationMessages, handleBlur, setAllTouched, isFormValid] =
@@ -198,6 +203,31 @@ const ERRacket = () => {
     };
 
     clearProof();
+  }, []);
+
+  const resetTimer = () => {
+    if (warningTimerRef.current) {
+      clearTimeout(warningTimerRef.current);
+    }
+    if (expiredTimerRef.current) {
+      clearTimeout(expiredTimerRef.current);
+    }
+    warningTimerRef.current = setTimeout(() => {
+      setStatus("warning");
+    }, WARNING_THRESHOLD_MS);
+    expiredTimerRef.current = setTimeout(() => {
+      setStatus("expired");
+    }, EXPIRED_THRESHOLD_MS);
+    sessionStorage.setItem("proofStartTime", Date.now());
+    setStatus("active");
+  }
+
+  useEffect(() => {
+    resetTimer();
+    return () => {
+      clearTimeout(warningTimerRef.current);
+      clearTimeout(expiredTimerRef.current);
+    }
   }, []);
 
   useEffect(() => {
@@ -569,6 +599,16 @@ const ERRacket = () => {
           </div>
 
           <div className="form-bottom-part">
+            {status === "expired" && (
+                <Alert variant="danger">Your proof has expired; work has been lost. Please reload the page to start
+                  over.</Alert>
+            )}
+            {status === "warning" && (
+                <Alert variant="warning">You have 5 minutes remaining of the 30 minute idle period. Please make a
+                  change, save, or
+                  download your proof to prevent
+                  loss of work.</Alert>
+            )}
             <Row className="switch-btn-wrap">
               <Col>
                 <Button
@@ -589,6 +629,7 @@ const ERRacket = () => {
                 <Button
                   className="orange-btn"
                   onClick={() => {
+                    resetTimer();
                     checkGoal(
                       showSide,
                       formValues[`${showSide[0].toLowerCase()}HSGoal`],
@@ -892,6 +933,7 @@ const ERRacket = () => {
                       <Button
                         className="orange-btn green-btn"
                         onClick={async () => {
+                          resetTimer();
                           const fullRacket = await addFieldWithApiCheck(showSide);
                           try {
                             if (fullRacket.isValid) {
