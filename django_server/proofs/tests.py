@@ -442,18 +442,20 @@ minus_plus_tests = [
 totalFails += run_test_cases("apply", "-+", minus_plus_tests)
 totalFails += do_single_test_case("eval", "-+", minus_plus_tests[-1][0], ["Cannot evaluate a property"])
 
-nullQCons_tests = [
+nullQ_cons_tests = [
     ("(cons 1 null)", ["Cannot apply null?-cons property when root operation is 'cons'"]),
     ("(+ 1 2)", ["Cannot apply null?-cons property when root operation is '+'"]),
     ("(null? null)", ["Cannot apply null?-cons property when argument is not a 'cons' expression"]),
     ("(null? '(1 2 3))", ["Cannot apply null?-cons property when argument is not a 'cons' expression"]),
     ("(null? (cons 1 null) null)", ["null? only takes 1 arguments, but 2 were provided"]),
+    ("(null? (cons 1 1))", ["Cannot match argument out typeList ['INT', 'INT'] with expected typeList ['ANY', 'LIST']"]), # bad type in cons
+    ("(null? (cons 1 1 null))", ["cons only takes 2 arguments, but 3 were provided"]), # too many arguments in cons
     ("(null? (cons x L))", "#f"), # symbolic
     ("(null? (cons (+ 1 2) (cons null null)))", "#f"), # not fully resolved
     ("(null? (cons 1 null))", "#f")
 ]
-totalFails += run_test_cases("apply", "null?-cons", nullQCons_tests)
-totalFails += do_single_test_case("eval", "null?-cons", nullQCons_tests[-1][0], ["Cannot evaluate a property"])
+totalFails += run_test_cases("apply", "null?-cons", nullQ_cons_tests)
+totalFails += do_single_test_case("eval", "null?-cons", nullQ_cons_tests[-1][0], ["Cannot evaluate a property"])
 
 print("\nUDF testing:\n")
 udfProof = ERProof()
