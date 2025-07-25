@@ -363,6 +363,19 @@ totalFails += test_racket_function('rest', rest_tests, appliable=True)
 totalFails += do_single_test_case('eval', 'restList', "(rest '(1 2 3))",
                                    ['Could not find rule associated with restList'])
 
+zeroQ_tests = [
+    ("(+ 1 2)", ["Cannot evaluate zero? on a '+' expression"]),
+    ("(cons 1 null)", ["Cannot evaluate zero? on a 'cons' expression"]),
+    ("(zero? 1 2)", ["zero? only takes 1 arguments, but 2 were provided"]),
+    ("(zero? (+ 1 2))", ["Insufficiently resolved arguments"]),
+    ("(zero? (- 1 2))", ["Insufficiently resolved arguments"]),
+    ("(zero? #f)", '#f'),
+    ("(zero? '(1 2))", '#f'),
+    ("(zero? 0)", '#t'),
+    ("(zero? 1)", '#f')
+]
+totalFails += test_racket_function('zero?', zeroQ_tests)
+
 print("\nList Function Property Testing\n")
 cons_prop_tests = [
     ("(+ 1 2)", ["Cannot apply cons-first-rest property to a '+' expression"]),

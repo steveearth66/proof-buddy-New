@@ -187,26 +187,16 @@ class ConsQ(Rule):
             (None, Type.BOOL)), name=True)
         return trueNode
 
-
 class ZeroQ(Rule):
     def __init__(self):
         super().__init__('zero?')
-        self.racType = str2Type("ANY>BOOL")
+        self.racType = str2Type("ANY>BOOL") # TODO: should be (INT>BOOL) instead?
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'zero?':
-            return False, f'Cannot apply zero rule to {ruleNode.children[0].data}'
-        elif len(ruleNode.children[1].children) > 0:
-            if ruleNode.children[1].children[0].data != '+':
-                return False, f'zero? can only be applied with a +'
-            else:
-                try:
-                    argOne = int(ruleNode.children[1].children[1].data)
-                    argTwo = int(ruleNode.children[1].children[2].data)
-                except:
-                    return False, "ValueError in ZeroQ - argument(s) for + not a valid int"
-        elif ruleNode.children[1].type.getType() != Type.INT:
-            return False, f'zero? can only be applied to int type'
+            return False, f"Cannot evaluate zero? on a '{ruleNode.children[0].data}' expression"
+        if ruleNode.children[1].data == '(':
+            return False, "Insufficiently resolved arguments"
         return True, 'ZeroQ.isApplicable() PASS'  # string should not print out if debug=False
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
@@ -214,13 +204,10 @@ class ZeroQ(Rule):
             (None, Type.BOOL)), name=True)
         falseNode = Node(data='#f', tokenType=RacType(
             (None, Type.BOOL)), name=False)
-        if ruleNode.children[1].children ==[] and ruleNode.children[1].type.getType() == Type.INT:
-            return trueNode if ruleNode.children[1].data == '0' else falseNode
-
-        argOne = int(ruleNode.children[1].children[1].data)
-        argTwo = int(ruleNode.children[1].children[2].data)
-        return trueNode if (argOne >= 0 and argTwo >= 0) or (argOne + argTwo > 0) else falseNode
-
+        try:
+            return trueNode if int(ruleNode.children[1].data) == 0 else falseNode
+        except ValueError:
+            return falseNode
 
 class ConsList(Rule):
     def __init__(self):
