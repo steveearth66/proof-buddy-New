@@ -478,16 +478,19 @@ class UDF(Rule):
         self.params = paramsList
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
-        if ruleNode.children[0].data != self.label:
-            return False, f'Cannot apply {self.label} definition to {ruleNode.children[0].data}'
-        if len(ruleNode.children[1:]) != len(self.racType.getDomain()):
-            return False, f"{self.label} must take {len(self.racType.getDomain())} inputs"
-        
-        providedIns = [c.type for c in ruleNode.children[1:]]
-        #needs to be x.value for x in func.type.value[0] when in main rackexpr, but just func.type.value[0] for UDF checking
-        expectedIns = [x if isinstance(x,RacType) else RacType(x) for x in self.racType.value[0]] # tricky since value[1] could be tuple or could be RacType
-        if not all(x==y for x, y in zip(providedIns, expectedIns)):
-            return [False, f'Cannot match argument out typeList {[str(x) for x in providedIns]} with expected typeList {[str(x) for x in expectedIns]}']    
+        if ruleNode.children != []:
+            if ruleNode.children[0].data != self.label:
+                return False, f'Cannot apply {self.label} definition to {ruleNode.children[0].data}'
+            if len(ruleNode.children[1:]) != len(self.racType.getDomain()):
+                return False, f"{self.label} must take {len(self.racType.getDomain())} inputs"
+
+            providedIns = [c.type for c in ruleNode.children[1:]]
+            # needs to be x.value for x in func.type.value[0] when in main rackexpr, but just func.type.value[0] for UDF checking
+            expectedIns = [x if isinstance(x, RacType) else RacType(x) for x in
+                           self.racType.value[0]]  # tricky since value[1] could be tuple or could be RacType
+            if not all(x == y for x, y in zip(providedIns, expectedIns)):
+                return [False,
+                        f'Cannot match argument out typeList {[str(x) for x in providedIns]} with expected typeList {[str(x) for x in expectedIns]}']
         return True, f"{self.label.capitalize()}.isApplicable() PASS"  # string should not print out if debug=False
 
     def insertSubstitution(self, ruleNode: Node) -> Node:

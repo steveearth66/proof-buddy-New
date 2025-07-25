@@ -212,69 +212,74 @@ class ERProofLine:
         elif ruleCategory == 'apply' and isinstance(ruleSet[rule], UDF):
             stop_error = False
             given_args = []
-            for arg in ruleParams:
-                if '=' not in arg:
-                    self.errLog.append(f"Argument '{arg}' does not have an assignment. Did you forget an equals sign?")
-                    stop_error = True
-                    continue
-                elif arg.count('=') > 1:
-                    self.errLog.append(f"Too many assignments for a given argument '{arg}'. Did you forget a comma?")
-                    stop_error = True
-                    continue
-                var = arg.split('=', 1)[0].strip()
-                given_args.append(var)
-            if not stop_error and len(given_args) != len(ruleSet[rule].params):
-                if len(ruleSet[rule].params) > len(given_args):
-                    self.errLog.append(
-                        f"Not enough arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} "
-                        f"arguments, while you gave {len(given_args)}")
-                    stop_error = True
-                else:
-                    self.errLog.append(
-                        f"Too many arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} arguments, while you gave {len(given_args)}")
-                    stop_error = True
-            for i, (arg, expected) in enumerate(zip(given_args, ruleSet[rule].params)):
-                if arg != expected:
-                    self.errLog.append(f"Argument '{arg}' is in position {i + 1} but expected '{expected}' for {rule}")
-                    stop_error = True
-            if not stop_error:
-                expected_types = ruleSet[rule].racType.getDomain()
-                for i, (arg_str, expected_type) in enumerate(zip(ruleParams, expected_types)):
-                    arg_name, arg_value_str = arg_str.split('=', 1)
-                    arg_tokens, tempErrLog = Parser.preProcess(arg_value_str, errLog=[], debug=self.debug)
-                    if tempErrLog:
-                        self.errLog.extend([f"In argument '{arg_str}': {err}" for err in tempErrLog])
-                        stop_error = True
-                        continue
-                    ast = Parser.buildTree(arg_tokens, debug=self.debug)[0]
-                    if ast is None:
-                        self.errLog.append(f"Failed to build AST from value '{arg_value_str}' in argument '{arg_str}'")
-                        stop_error = True
-                        continue
-                    labeled_ast = Labeler.labelTree(ast, ruleDict=ruleSet)
-                    typed_ast, _ = Decorator.decorateTree(labeled_ast, [])
-                    provided_type = typed_ast.type
-                    try:
-                        expected_type_unwrapped = expected_type.getType()
-                    except Exception as e:
+            if len(ruleSet[rule].params) != 0:
+                for arg in ruleParams:
+                    if '=' not in arg:
                         self.errLog.append(
-                            f"Type mismatch in argument '{arg_str}': expected err: {e}, got {provided_type}")
+                            f"Argument '{arg}' does not have an assignment. Did you forget an equals sign?")
                         stop_error = True
                         continue
-
-                    if provided_type != expected_type_unwrapped:
+                    elif arg.count('=') > 1:
                         self.errLog.append(
-                            f"Type mismatch in argument '{arg_str}': expected {expected_type_unwrapped}, got {provided_type}"
-                        )
+                            f"Too many assignments for a given argument '{arg}'. Did you forget a comma?")
+                        stop_error = True
+                        continue
+                    var = arg.split('=', 1)[0].strip()
+                    given_args.append(var)
+                if not stop_error and len(given_args) != len(ruleSet[rule].params):
+                    if len(ruleSet[rule].params) > len(given_args):
+                        self.errLog.append(
+                            f"Not enough arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} "
+                            f"arguments, while you gave {len(given_args)}")
+                        stop_error = True
+                    else:
+                        self.errLog.append(
+                            f"Too many arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} arguments, while you gave {len(given_args)}")
+                        stop_error = True
+                for i, (arg, expected) in enumerate(zip(given_args, ruleSet[rule].params)):
+                    if arg != expected:
+                        self.errLog.append(
+                            f"Argument '{arg}' is in position {i + 1} but expected '{expected}' for {rule}")
                         stop_error = True
                 if not stop_error:
-                    arg_values = [arg.split('=', 1)[1].strip() for arg in ruleParams]
-                    target_values = [str(child) for child in targetNode.children[1:]]  # skip the first child which
-                    # is the UDF label
-                    for i, (user_val, target_val) in enumerate(zip(arg_values, target_values)):
-                        if user_val != target_val:
+                    expected_types = ruleSet[rule].racType.getDomain()
+                    for i, (arg_str, expected_type) in enumerate(zip(ruleParams, expected_types)):
+                        arg_name, arg_value_str = arg_str.split('=', 1)
+                        arg_tokens, tempErrLog = Parser.preProcess(arg_value_str, errLog=[], debug=self.debug)
+                        if tempErrLog:
+                            self.errLog.extend([f"In argument '{arg_str}': {err}" for err in tempErrLog])
+                            stop_error = True
+                            continue
+                        ast = Parser.buildTree(arg_tokens, debug=self.debug)[0]
+                        if ast is None:
                             self.errLog.append(
-                                f"Value mismatch in argument '{ruleSet[rule].params[i]}': expected {target_val}, got {user_val}")
+                                f"Failed to build AST from value '{arg_value_str}' in argument '{arg_str}'")
+                            stop_error = True
+                            continue
+                        labeled_ast = Labeler.labelTree(ast, ruleDict=ruleSet)
+                        typed_ast, _ = Decorator.decorateTree(labeled_ast, [])
+                        provided_type = typed_ast.type
+                        try:
+                            expected_type_unwrapped = expected_type.getType()
+                        except Exception as e:
+                            self.errLog.append(
+                                f"Type mismatch in argument '{arg_str}': expected err: {e}, got {provided_type}")
+                            stop_error = True
+                            continue
+
+                        if provided_type != expected_type_unwrapped:
+                            self.errLog.append(
+                                f"Type mismatch in argument '{arg_str}': expected {expected_type_unwrapped}, got {provided_type}"
+                            )
+                            stop_error = True
+                    if not stop_error:
+                        arg_values = [arg.split('=', 1)[1].strip() for arg in ruleParams]
+                        target_values = [str(child) for child in targetNode.children[1:]]  # skip the first child which
+                        # is the UDF label
+                        for i, (user_val, target_val) in enumerate(zip(arg_values, target_values)):
+                            if user_val != target_val:
+                                self.errLog.append(
+                                    f"Value mismatch in argument '{ruleSet[rule].params[i]}': expected {target_val}, got {user_val}")
 
         elif ruleCategory == 'eval' and isinstance(ruleSet[rule], UDF):
             self.errLog.append("Cannot evaluate a user-defined function")
