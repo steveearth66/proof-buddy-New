@@ -41,9 +41,9 @@ const ERRacket = () => {
     lHSGoal: "",
     rHSGoal: ""
   };
-  const rowObject = { num: "", rule: "", validity: false };
-  const [userRow, setUserRow] = useState({ ...rowObject });
 
+  const [footerRule, setFooterRule] = useState("");
+  const [userRow, setUserRow] = useState({ num: "" });
   const [showSide, toggleSide] = useToggleSide();
   const [formValues, handleChange] = useInputState(initialValues);
   const [validationMessages, handleBlur, setAllTouched, isFormValid] =
@@ -115,7 +115,7 @@ const ERRacket = () => {
 
   const lhsPadRefs = useRef({});
   const rhsPadRefs = useRef({});
-  const expressionRef = useRef(null);
+  const footerPadRef = useRef(null);
 
   const { handleSubmit } = useFormSubmit(
     isFormValid,
@@ -213,7 +213,17 @@ const ERRacket = () => {
       setLeftPremise(prev => ({ ...prev, racket: formValues.lHSGoal }));
     }
   }, [formValues.lHSGoal, formValues.rHSGoal]);
-
+  useEffect(() => {
+    if (isBound && userRow.num !== "000") {
+      const padIndex = parseInt(userRow.num, 10);
+      const padRefs = showSide === "LHS" ? lhsPadRefs : rhsPadRefs;
+      const mainPadRef = padRefs.current[padIndex];
+      setFooterRule(mainPadRef?.getRuleValue() || "");
+    }
+    if (!isBound) {
+      setFooterRule("");
+    }
+  }, [isBound, userRow.num, showSide]);
   useEffect(() => {
     const removeBlankRackets = () => {
       racketRuleFields.LHS.splice(-1);
@@ -694,29 +704,30 @@ const ERRacket = () => {
                 const padIndex = userRow.num === "000" ? 0 : parseInt(userRow.num, 10);
                 const padRefs = showSide === "LHS" ? lhsPadRefs : rhsPadRefs;
                 const key = e.key;
-
                 if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(key)) {
                   e.preventDefault();
                   const direction = key.replace("Arrow", "").toLowerCase();
 
-                  if (expressionRef.current) {
-                    expressionRef.current.moveSelection(direction);
+                  if (footerPadRef.current) {
+                    footerPadRef.current.moveSelection(direction);
                   }
                   if (padRefs.current[padIndex]) {
                     padRefs.current[padIndex].moveSelection(direction);
                   }
                 }
               };
-              let padIndex, equation, jsonTree, startPos, onHighlightChange, ruleValue, onRuleChange, isRuleReadOnly;
 
-              if (userRow.num === "000")  {
-               padIndex = 0;
+              let padIndex, equation, jsonTree, startPos, onHighlightChange, ruleValue, onRuleChange, isRuleReadOnly;
+              const padRefs = showSide === "LHS" ? lhsPadRefs : rhsPadRefs;
+
+              if (userRow.num === "000") {
+                padIndex = 0;
                 equation = showSide === "LHS" ? leftPremise.racket : rightPremise.racket;
                 jsonTree = jsonTreeRep[showSide];
                 startPos = showSide === "LHS" ? leftPremise.startPosition ?? 0 : rightPremise.startPosition ?? 0;
                 ruleValue = "Premise";
                 isRuleReadOnly = true;
-                onRuleChange = () => {};
+                onRuleChange = () => { };
                 onHighlightChange = (newStartPosition) => {
                   if (showSide === "LHS") {
                     setLeftPremise(prev => ({ ...prev, startPosition: newStartPosition }));
@@ -731,20 +742,26 @@ const ERRacket = () => {
                 equation = field.racket;
                 jsonTree = field.jsonTree || jsonTreeRep[showSide];
                 startPos = field.startPosition ?? 0;
-                ruleValue = userRow.rule;
+                const mainPadRef = padRefs.current[padIndex];
                 isRuleReadOnly = false;
+                ruleValue = footerRule;
                 onRuleChange = (e) => {
-                  const updatedRule = e.target.value;
-                  setUserRow({ ...userRow, rule: updatedRule });
-                  handleFieldChange(showSide, padIndex - 1, "rule", updatedRule);
+                  setFooterRule(e.target.value);
+                  const padIndex = parseInt(userRow.num, 10);
+                  handleFieldChange(showSide, padIndex - 1, "rule", e.target.value);
+                  // Optionally, also update the main grid PersistentPad ref:
+                  const padRefs = showSide === "LHS" ? lhsPadRefs : rhsPadRefs;
+                  const mainPadRef = padRefs.current[padIndex];
+                  mainPadRef?.setRuleValue(e.target.value);
                 };
                 onHighlightChange = (newStartPosition) => {
                   handleFieldChange(showSide, padIndex - 1, "racket", field.racket, newStartPosition);
                 };
               }
+
               return (
                 <PersistentPad
-                  ref={expressionRef}
+                  ref={footerPadRef}
                   equation={equation}
                   onHighlightChange={onHighlightChange}
                   side={showSide}
@@ -758,6 +775,7 @@ const ERRacket = () => {
                   onRuleChange={onRuleChange}
                   isRuleReadOnly={isRuleReadOnly}
                   rulePlaceholder="Rule"
+                  isEditRow={true}
                 />
               );
             })()}
@@ -769,8 +787,7 @@ const ERRacket = () => {
               onClick={() => {
                 if (isBound) {
                   setUserRow({
-                    num: "",
-                    rule: ""
+                    num: ""
                   });
                   setIsBound(false);
                 } else {
@@ -782,7 +799,7 @@ const ERRacket = () => {
                     });
                     setIsBound(true);
                     setTimeout(() => {
-                      expressionRef.current?.focus();
+                      footerPadRef.current?.focus();
                     }, 0);
                   } else {
                     alert("No matching row found!");
@@ -855,7 +872,7 @@ function renderPersistentPadRow({
   handleChange,
   validationErrors
 }) {
-    // Compute values based on side and isPremise
+  // Compute values based on side and isPremise
   const isLHS = side === "LHS";
   const padIndex = isPremise ? 0 : index + 1;
   const equation = isPremise
@@ -870,13 +887,9 @@ function renderPersistentPadRow({
     ? (isLHS ? leftPremise.startPosition : rightPremise.startPosition) ?? 0
     : field.startPosition ?? 0;
   const ruleValue = isPremise ? "Premise" : field.rule;
-  const isRuleReadOnly = isPremise;
-  const onRuleChange = isPremise
-    ? () => {}
-    : e => handleFieldChange(side, index, "rule", e.target.value);
   const rulePlaceholder = isPremise ? `${side} Premise` : `${side} Rule`;
   const isRuleInvalid = !isPremise && !!validationErrors[side][index];
-    const ruleValidationError = validationErrors[side][index];
+  const ruleValidationError = validationErrors[side][index];
 
   return (
     <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? "premise" : `${side}-field-${padIndex}`}>
@@ -904,13 +917,14 @@ function renderPersistentPadRow({
             } else {
               handleFieldChange(side, index, "racket", field.racket, startPosition);
             }
-            }}
+          }}
           ruleValue={ruleValue}
-          onRuleChange={onRuleChange}
-          isRuleReadOnly={isRuleReadOnly}
+          onRuleChange={() => { }}
+          isRuleReadOnly={true}
           rulePlaceholder={rulePlaceholder}
           isRuleInvalid={isRuleInvalid}
           ruleValidationError={ruleValidationError}
+          isEditRow={false}
         />
       </Col>
     </Row>

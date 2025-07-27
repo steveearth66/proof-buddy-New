@@ -21,6 +21,7 @@ const PersistentPad = forwardRef(function PersistentPad(
     rulePlaceholder,
     isRuleInvalid,
     ruleValidationError,
+    isEditRow,
     ...props
   },
   ref
@@ -28,16 +29,19 @@ const PersistentPad = forwardRef(function PersistentPad(
   const [highlightedText, setHighlightedText] = useState("");
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
   const [selected, setSelected] = useState(startPosition);
-
+  const [rule, setRule] = useState(ruleValue);
+  useEffect(() => { setRule(ruleValue); }, [ruleValue]);
   const lineNumRef = useRef(lineNum);
   let origTree = jsonTree;
 
   // Expose moveSelection and focus to parent
   const padDivRef = useRef(null);
-  useImperativeHandle(ref, () => ({
-    moveSelection,
-    focus: () => padDivRef.current && padDivRef.current.focus()
-  }));
+useImperativeHandle(ref, () => ({
+  moveSelection,
+  focus: () => padDivRef.current && padDivRef.current.focus(),
+  getRuleValue: () => rule,
+  setRuleValue: (val) => setRule(val)
+}));
 
   useEffect(() => {
     const saveHighlightToSession = (highlightedText) => {
@@ -119,11 +123,15 @@ const PersistentPad = forwardRef(function PersistentPad(
         <Form.Floating className="mb-3">
           <Form.Control
             type="text"
-            value={ruleValue}
+            value={rule}
             placeholder={rulePlaceholder}
-            onChange={onRuleChange}
+            onChange={e => {
+              setRule(e.target.value);
+              onRuleChange && onRuleChange(e);
+            }}
             readOnly={isRuleReadOnly}
             isInvalid={isRuleInvalid}
+            disabled={!isEditRow}
           />
           <label>{rulePlaceholder}</label>
           {isRuleInvalid && (
