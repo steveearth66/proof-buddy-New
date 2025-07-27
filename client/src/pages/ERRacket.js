@@ -707,13 +707,16 @@ const ERRacket = () => {
                   }
                 }
               };
-              let padIndex, equation, jsonTree, startPos, onHighlightChange;
+              let padIndex, equation, jsonTree, startPos, onHighlightChange, ruleValue, onRuleChange, isRuleReadOnly;
 
-              if (userRow.num === "000") {
-                padIndex = 0;
+              if (userRow.num === "000")  {
+               padIndex = 0;
                 equation = showSide === "LHS" ? leftPremise.racket : rightPremise.racket;
                 jsonTree = jsonTreeRep[showSide];
                 startPos = showSide === "LHS" ? leftPremise.startPosition ?? 0 : rightPremise.startPosition ?? 0;
+                ruleValue = "Premise";
+                isRuleReadOnly = true;
+                onRuleChange = () => {};
                 onHighlightChange = (newStartPosition) => {
                   if (showSide === "LHS") {
                     setLeftPremise(prev => ({ ...prev, startPosition: newStartPosition }));
@@ -728,6 +731,13 @@ const ERRacket = () => {
                 equation = field.racket;
                 jsonTree = field.jsonTree || jsonTreeRep[showSide];
                 startPos = field.startPosition ?? 0;
+                ruleValue = userRow.rule;
+                isRuleReadOnly = false;
+                onRuleChange = (e) => {
+                  const updatedRule = e.target.value;
+                  setUserRow({ ...userRow, rule: updatedRule });
+                  handleFieldChange(showSide, padIndex - 1, "rule", updatedRule);
+                };
                 onHighlightChange = (newStartPosition) => {
                   handleFieldChange(showSide, padIndex - 1, "racket", field.racket, newStartPosition);
                 };
@@ -744,27 +754,13 @@ const ERRacket = () => {
                   startPosition={startPos}
                   tabIndex={0}
                   onKeyDown={handleFooterKeyDown}
+                  ruleValue={ruleValue}
+                  onRuleChange={onRuleChange}
+                  isRuleReadOnly={isRuleReadOnly}
+                  rulePlaceholder="Rule"
                 />
               );
             })()}
-          </Col>
-
-          {/* Column 3: Rule */}
-          <Col md="2">
-            <Form.Floating className="mb-3">
-              <Form.Control
-                id="userRowRule"
-                name="userRowRule"
-                type="text"
-                placeholder="Rule"
-                value={userRow.rule}
-                onChange={(e) => {
-                  const updatedRule = e.target.value;
-                  setUserRow({ ...userRow, rule: updatedRule });
-                }}
-              />
-              <label htmlFor="userRowRule">Rule</label>
-            </Form.Floating>
           </Col>
           {/* Column 6: Button */}
           <Col md="2" className="d-flex align-items-center">
@@ -782,8 +778,7 @@ const ERRacket = () => {
                   const matchingRow = document.getElementById("racket-row-" + userIndex)
                   if (matchingRow) {
                     setUserRow({
-                      num: userRow.num,
-                      rule: matchingRow.getElementsByClassName("er-proof-rule")[0].getElementsByTagName("input")[0].value
+                      num: userRow.num
                     });
                     setIsBound(true);
                     setTimeout(() => {
@@ -860,7 +855,7 @@ function renderPersistentPadRow({
   handleChange,
   validationErrors
 }) {
-  // Compute values based on side and isPremise
+    // Compute values based on side and isPremise
   const isLHS = side === "LHS";
   const padIndex = isPremise ? 0 : index + 1;
   const equation = isPremise
@@ -875,13 +870,13 @@ function renderPersistentPadRow({
     ? (isLHS ? leftPremise.startPosition : rightPremise.startPosition) ?? 0
     : field.startPosition ?? 0;
   const ruleValue = isPremise ? "Premise" : field.rule;
-  const ruleId = isPremise
-    ? `eRProof${side}Premise`
-    : `eRProof${side}Rule-${index}`;
-  const ruleName = isPremise
-    ? `proofeRProof${side}Premise`
-    : `eRProof${side}Rule_${index}`;
-  const placeholder = isPremise ? `${side} Premise` : `${side} Rule`;
+  const isRuleReadOnly = isPremise;
+  const onRuleChange = isPremise
+    ? () => {}
+    : e => handleFieldChange(side, index, "rule", e.target.value);
+  const rulePlaceholder = isPremise ? `${side} Premise` : `${side} Rule`;
+  const isRuleInvalid = !isPremise && !!validationErrors[side][index];
+    const ruleValidationError = validationErrors[side][index];
 
   return (
     <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? "premise" : `${side}-field-${padIndex}`}>
@@ -909,34 +904,15 @@ function renderPersistentPadRow({
             } else {
               handleFieldChange(side, index, "racket", field.racket, startPosition);
             }
-          }}
+            }}
+          ruleValue={ruleValue}
+          onRuleChange={onRuleChange}
+          isRuleReadOnly={isRuleReadOnly}
+          rulePlaceholder={rulePlaceholder}
+          isRuleInvalid={isRuleInvalid}
+          ruleValidationError={ruleValidationError}
         />
       </Col>
-      <Form.Group as={Col} md="4" className="er-proof-rule">
-        <Form.Floating className="mb-3">
-          <Form.Control
-            id={ruleId}
-            name={ruleName}
-            type="text"
-            value={ruleValue}
-            placeholder={placeholder}
-            onChange={
-              isPremise
-                ? handleChange
-                : e => handleFieldChange(side, index, "rule", e.target.value)
-            }
-            readOnly={isPremise}
-            isInvalid={!isPremise && !!validationErrors[side][index]}
-            required
-          />
-          <label htmlFor={ruleId}>{placeholder}</label>
-          {!isPremise && (
-            <Form.Control.Feedback type="invalid" tooltip>
-              {validationErrors[side][index]}
-            </Form.Control.Feedback>
-          )}
-        </Form.Floating>
-      </Form.Group>
     </Row>
   );
 }
