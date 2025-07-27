@@ -1,5 +1,6 @@
 import "../scss/_persistent-pad.scss";
 import { useState, useEffect, useRef, useCallback } from "react";
+import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import Form from "react-bootstrap/Form";
 import DivMakerComponent from "./divMaker";
@@ -98,20 +99,24 @@ const PersistentPad = forwardRef(function PersistentPad(
   );
 
   return (
-    <Col xs={12}>
-      <div
-        id={`persistent-pad-${lineNumRef.current}`}
-        ref={padDivRef}
-        tabIndex={0}
-        {...props}
-      >
-        <DivMakerComponent
-          expr={jsonTree}
-          selected={selected}
-          origTree={origTree}
-          lineNumber={lineNumRef.current}
-        />
-        <Form.Floating className="mb-3" style={{ marginTop: "1rem" }}>
+    <Row className="persistent-pad-row" style={{ alignItems: "center" }}>
+      <Col>
+        <div
+          id={`persistent-pad-${lineNumRef.current}`}
+          ref={padDivRef}
+          tabIndex={0}
+          {...props}
+        >
+          <DivMakerComponent
+            expr={jsonTree}
+            selected={selected}
+            origTree={origTree}
+            lineNumber={lineNumRef.current}
+          />
+        </div>
+      </Col>
+      <Col md="5">
+        <Form.Floating className="mb-3">
           <Form.Control
             type="text"
             value={ruleValue}
@@ -127,8 +132,8 @@ const PersistentPad = forwardRef(function PersistentPad(
             </Form.Control.Feedback>
           )}
         </Form.Floating>
-      </div>
-    </Col>
+      </Col>
+    </Row>
   );
 });
 
