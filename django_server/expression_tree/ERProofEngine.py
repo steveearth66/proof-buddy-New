@@ -133,7 +133,8 @@ class ERProof:
             self.ruleSet[udfLabel] = UDF(udfLabel, filledBodyNode, racTypeObj, paramsList)
 
     def removeUDF(self, label):
-        label = label.split()[0][1:]
+        if len(label) != 1:
+            label = label.split()[0][1:]
         if label in self.ruleSet.keys():
             del self.ruleSet[label]
         else:
@@ -206,6 +207,8 @@ class ERProofLine:
         elif rule not in ruleSet.keys() - {'consProp', 'firstProp', 'restProp'}: # 'apply consProp' is not valid
             self.errLog.append(f'Could not find rule associated with {rule}')
         elif ruleCategory == 'apply' and rule in ('cons', 'first', 'rest'): # for cons, first, rest axioms
+            if targetNode.children[1].children[1].data not in ruleSet.keys():
+                self.errLog.append(f"No definition found for label '{targetNode.children[1].children[1].data}'")
             rule += 'Prop'
         elif ruleCategory == 'apply' and not (isinstance(ruleSet[rule], UDF) or ruleSet[rule].isProperty):
             self.errLog.append(f"Could not find UDF/lemma/property associated with {rule}")

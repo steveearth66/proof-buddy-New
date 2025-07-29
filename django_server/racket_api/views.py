@@ -497,7 +497,7 @@ def use_definition(request, label):
 def update_definition(request):
     user = request.user
     json_data = request.data
-    definition = edit_definition(user, json_data["id"], json_data)
+    definition = edit_definition(user, json_data["label"], json_data)
 
     if not definition:
         return Response(status=status.HTTP_400_BAD_REQUEST)
