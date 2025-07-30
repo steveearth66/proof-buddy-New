@@ -157,6 +157,7 @@ const ERRacket = () => {
   };
 
   const handleHighlight = (startPosition) => {
+    if (proofComplete) return;
     setStartPosition(startPosition);
   };
 
@@ -267,7 +268,7 @@ const ERRacket = () => {
     //if (lhsValue !== "" && rhsValue !== "" && currentLHS !== "") {
     if (formValues.lHSGoal !== "" && formValues.rHSGoal !== "" && currentLHS !== "") {
       //if (currentLHS === currentRHS || currentLHS === formValues.rHSGoal || currentRHS === formValues.lHSGoal) {
-      if (currentLHS === currentRHS) {
+      if (currentLHS === currentRHS && !proofComplete) {
         removeBlankRackets();
         setShowProofComplete(true);
         setProofComplete(true);
@@ -697,17 +698,20 @@ const ERRacket = () => {
                       <Row className="racket-rule-row">
                         <PersistentPad
                           equation={formValues.lHSGoal}
-                          onHighlightChange={(startPosition) => {
-                            handleHighlight(startPosition);
-                            setCurrentRacket(formValues.lHSGoal);
-                            handleChange({
-                              target: {
-                                name: "proofCurrentLHSGoal",
-                                value: formValues.lHSGoal
-                              }
-                            });
-                            setLeftPremise(prev => ({ ...prev, startPosition }));
-                          }}
+                          onHighlightChange={
+                            proofComplete ? () => {
+                            } : (startPosition) => {
+                              handleHighlight(startPosition);
+                              setCurrentRacket(formValues.lHSGoal);
+                              handleChange({
+                                target: {
+                                  name: "proofCurrentLHSGoal",
+                                  value: formValues.lHSGoal
+                                }
+                              });
+                              setLeftPremise(prev => ({ ...prev, startPosition }));
+                            }
+                          }
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial LHS
                           jsonTree={jsonTreeRep.LHS}
@@ -747,19 +751,22 @@ const ERRacket = () => {
                           >
                             <PersistentPad
                               equation={field.racket}
-                              onHighlightChange={(startPosition) => {
-                                handleHighlight(startPosition);
-                                setCurrentRacket(
-                                  racketRuleFields.LHS.slice(-2)[0].racket
-                                );
-                                handleFieldChange(
-                                  showSide,
-                                  index,
-                                  "racket",
-                                  field.racket,
-                                  startPosition
-                                );
-                              }}
+                              onHighlightChange={
+                                proofComplete ? () => {
+                                } : (startPosition) => {
+                                  handleHighlight(startPosition);
+                                  setCurrentRacket(
+                                      racketRuleFields.LHS.slice(-2)[0].racket
+                                  );
+                                  handleFieldChange(
+                                      showSide,
+                                      index,
+                                      "racket",
+                                      field.racket,
+                                      startPosition
+                                  );
+                                }
+                              }
                               side={showSide}
                               //attempting to pass jsonTree to Persistent Pad
                               //temporarily adding LHS[index] assuming that will give us the current line
@@ -821,17 +828,20 @@ const ERRacket = () => {
                       <Row className="racket-rule-row">
                         <PersistentPad
                           equation={formValues.rHSGoal}
-                          onHighlightChange={(startPosition) => {
-                            handleHighlight(startPosition);
-                            setCurrentRacket(formValues.rHSGoal);
-                            handleChange({
-                              target: {
-                                name: "proofCurrentRHSGoal",
-                                value: formValues.rHSGoal
-                              }
-                            });
-                            setRightPremise(prev => ({ ...prev, startPosition }));
-                          }}
+                          onHighlightChange={
+                            proofComplete ? () => {
+                            } : (startPosition) => {
+                              handleHighlight(startPosition);
+                              setCurrentRacket(formValues.rHSGoal);
+                              handleChange({
+                                target: {
+                                  name: "proofCurrentRHSGoal",
+                                  value: formValues.rHSGoal
+                                }
+                              });
+                              setRightPremise(prev => ({ ...prev, startPosition }));
+                            }
+                          }
                           side={showSide}
                           //attempting to pass jsonTree to Persistent Pad to initial RHS
                           jsonTree={jsonTreeRep.RHS}
@@ -871,19 +881,22 @@ const ERRacket = () => {
                           >
                             <PersistentPad
                               equation={field.racket}
-                              onHighlightChange={(startPosition) => {
-                                handleHighlight(startPosition);
-                                setCurrentRacket(
-                                  racketRuleFields.RHS.slice(-2)[0].racket
-                                );
-                                handleFieldChange(
-                                  showSide,
-                                  index,
-                                  "racket",
-                                  field.racket,
-                                  startPosition
-                                );
-                              }}
+                              onHighlightChange={
+                                proofComplete ? () => {
+                                } : (startPosition) => {
+                                  handleHighlight(startPosition);
+                                  setCurrentRacket(
+                                      racketRuleFields.RHS.slice(-2)[0].racket
+                                  );
+                                  handleFieldChange(
+                                      showSide,
+                                      index,
+                                      "racket",
+                                      field.racket,
+                                      startPosition
+                                  );
+                                }
+                              }
                               side={showSide}
                               //attempting to pass jsonTree to Persistent Pad
                               //temporarily adding RHS[index] assuming that will give us the current line
