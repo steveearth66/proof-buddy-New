@@ -76,7 +76,7 @@ class If(Rule):
 
 class ConsProp(Rule):
     def __init__(self):
-        super().__init__('cons', isProperty=True)
+        super().__init__('cons-first-rest', isProperty=True)
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'cons':
@@ -100,7 +100,7 @@ class ConsProp(Rule):
 
 class FirstProp(Rule):
     def __init__(self):
-        super().__init__('first', isProperty=True)
+        super().__init__('first-cons', isProperty=True)
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'first':
@@ -117,7 +117,7 @@ class FirstProp(Rule):
 
 class RestProp(Rule):
     def __init__(self):
-        super().__init__('rest', isProperty=True)
+        super().__init__('rest-cons', isProperty=True)
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'rest':

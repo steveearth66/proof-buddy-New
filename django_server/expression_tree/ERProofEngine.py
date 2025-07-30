@@ -6,7 +6,8 @@ import expression_tree.Decorator as Decorator
 import re
 
 reservedLabels = ["cons", "if", "first", "rest", "null?", "cons?", "zero?", "consList", "expt", "quotient",
-                  "remainder", "and", "or", "not", "implies", "nand", "iff", "nor", "xor", ">", "<", "+", "-", "*"]
+                  "remainder", "and", "or", "not", "implies", "nand", "iff", "nor", "xor", ">", "<", "+", "-", "*",
+                  "null", "=", "-+", "math", "cons-first-rest", "first-cons", "rest-cons", "null?-cons"]
 
 
 class ERProof:
@@ -16,9 +17,9 @@ class ERProof:
             'cons': ConsList(),
             'rest': RestList(),
             'first': FirstList(),
-            'consProp': ConsProp(),
-            'firstProp': FirstProp(),
-            'restProp': RestProp(),
+            'cons-first-rest': ConsProp(),
+            'first-cons': FirstProp(),
+            'rest-cons': RestProp(),
             'null?-cons': NullQCons(),
             'null?': NullQ(),
             'cons?': ConsQ(),
@@ -198,18 +199,23 @@ class ERProofLine:
         (?=,\s*\w+=|$)  # lookahead for next ", key=" OR end of string
         '''
 
-        if ruleCategory not in ('eval', 'apply'):
-            self.errLog.append("Rule must start with 'eval' or 'apply'")
+        if ruleCategory not in ('eval', 'apply', 'rewrite'):
+            self.errLog.append("Rule must start with 'eval', 'apply', or 'rewrite'")
         elif rule == '':
-            self.errLog.append('Rule must include the ' + 
-                               ('function to be evaluated' if ruleCategory == 'eval'
-                               else 'definition/property/lemma to be applied'))
+            errStr = "Rule must include the "
+            if ruleCategory == 'eval':
+                errStr += "function to be evaluated"
+            elif ruleCategory == 'apply':
+                errStr += "definition/lemma to be applied"
+            else:
+                errStr += "property to be rewritten"
+            self.errLog.append(errStr)
         elif rule not in ruleSet.keys() - {'consProp', 'firstProp', 'restProp'}: # 'apply consProp' is not valid
             self.errLog.append(f'Could not find rule associated with {rule}')
-        elif ruleCategory == 'apply' and rule in ('cons', 'first', 'rest'):  # for cons, first, rest axioms
-            rule += 'Prop'
         elif ruleCategory == 'apply' and not (isinstance(ruleSet[rule], UDF) or ruleSet[rule].isProperty):
-            self.errLog.append(f"Could not find UDF/lemma/property associated with {rule}")
+            self.errLog.append(f"Could not find UDF/lemma associated with {rule}")
+        elif ruleCategory == 'rewrite' and not ruleSet[rule].isProperty:
+            self.errLog.append(f"Cannot rewrite {rule} as it is not a property")
         elif ruleCategory == 'apply' and isinstance(ruleSet[rule], UDF):
             stop_error = False
             given_args = []
@@ -288,6 +294,8 @@ class ERProofLine:
             self.errLog.append("Could not find built-in Racket procedure associated with 'math'")
         elif ruleCategory == 'eval' and ruleSet[rule].isProperty:
             self.errLog.append("Cannot evaluate a property")
+        elif ruleCategory == 'apply' and ruleSet[rule].isProperty:
+            self.errLog.append("Cannot apply a property")
         else:
             def find_unidentified_UDFs(node: Node):
                 unidentified_UDFs = []

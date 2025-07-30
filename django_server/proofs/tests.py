@@ -39,17 +39,18 @@ def test_racket_function(func: str, tests: list[tuple], appliable=False) -> int:
     fails = run_test_cases('eval', func, tests)
 
     expr, _ = tests[-1]
-    fails += do_single_test_case('', func, expr, 
-                            expected=["Rule must start with 'eval' or 'apply'"])
+    fails += do_single_test_case('', func, expr,
+                                 expected=["Rule must start with 'eval', 'apply', or 'rewrite'"])
     if not appliable:
         fails += do_single_test_case('apply', func, expr,
-                                expected=[f'Could not find UDF/lemma/property associated with {func}'])
+                                     expected=[f'Could not find UDF/lemma associated with {func}'])
     return fails
 
 def test_list_func_props(func: str, tests: list[tuple]) -> int:
-    fails = run_test_cases('apply', func, tests)
+    fails = run_test_cases('rewrite', func, tests)
     expr, _ = tests[-1]
-    fails += do_single_test_case('apply', func + 'Prop', expr, [f'Could not find rule associated with {func + 'Prop'}'])
+    fails += do_single_test_case('rewrite', func + 'Prop', expr, [f'Could not find rule associated with'
+                                                                  f' {func + 'Prop'}'])
     return fails
 
 totalFails = 0
@@ -231,7 +232,7 @@ totalFails += test_racket_function('>=', ge_tests)
 
 # Check that 'math' rule can no longer be used in place of the individual operators
 totalFails += do_single_test_case('eval', 'math', '(+ 1 2)', ["Could not find built-in Racket procedure associated with 'math'"])
-totalFails += do_single_test_case('', 'math', '(+ 1 2)', ["Rule must start with 'eval' or 'apply'"])
+totalFails += do_single_test_case('', 'math', '(+ 1 2)', ["Rule must start with 'eval', 'apply', or 'rewrite'"])
 
 # Logic Function Tests
 print('\nTesting Logic Rules:\n')
@@ -310,7 +311,7 @@ totalFails += test_racket_function('implies', implies_tests)
 
 # Check that logic is no longer a valid rule
 totalFails += do_single_test_case('eval', 'logic', '(and #t #t)', ['Could not find rule associated with logic'])
-totalFails += do_single_test_case('', 'logic', '(and #t #t)', ["Rule must start with 'eval' or 'apply'"])
+totalFails += do_single_test_case('', 'logic', '(and #t #t)', ["Rule must start with 'eval', 'apply', or 'rewrite'"])
 
 # List function tests
 print('\nTesting List Function Rules...\n')
@@ -384,7 +385,7 @@ cons_prop_tests = [
     ("(cons (first (cons 2 null)) (rest (cons 2 null)))", "(cons 2 null)"), # list not completely resolved
     ("(cons (first L) (rest L))", "L") # symbols
 ]
-totalFails += test_list_func_props('cons', cons_prop_tests)
+totalFails += test_list_func_props('cons-first-rest', cons_prop_tests)
 
 first_prop_tests = [
     ("(+ 1 2)", ["Cannot apply first-cons property to a '+' expression"]),
@@ -399,7 +400,7 @@ first_prop_tests = [
     ("(first (cons (+ (* 4 5) (* 6 7)) null))", "(+ (* 4 5) (* 6 7))"), # first cons argument not completely simplified
     ("(first (cons 46 (cons 2 null)))", "46") # second cons argument not completely simplified
 ]
-totalFails += test_list_func_props('first', first_prop_tests)
+totalFails += test_list_func_props('first-cons', first_prop_tests)
 
 rest_prop_tests = [
     ("(+ 1 2)", ["Cannot apply rest-cons property to a '+' expression"]),
@@ -414,7 +415,7 @@ rest_prop_tests = [
     ("(rest (cons (+ (* 4 5) (* 6 7)) null))", "null"), # first cons argument not completely simplified
     ("(rest (cons 46 (cons 2 null)))", "(cons 2 null)") # second cons argument not completely simplified
 ]
-totalFails += test_list_func_props('rest', rest_prop_tests)
+totalFails += test_list_func_props('rest-cons', rest_prop_tests)
 
 minus_plus_tests = [
     ("(cons 1 null)", ["Cannot apply -+ when the root operation is cons"]),
@@ -439,8 +440,9 @@ minus_plus_tests = [
     ("(- (+ (* 8 8) 3) 3)", "(* 8 8)"),
     ("(- (+ k 9) 9)", "k")
 ]
-totalFails += run_test_cases("apply", "-+", minus_plus_tests)
+totalFails += run_test_cases("rewrite", "-+", minus_plus_tests)
 totalFails += do_single_test_case("eval", "-+", minus_plus_tests[-1][0], ["Cannot evaluate a property"])
+totalFails += do_single_test_case("apply", "-+", minus_plus_tests[-1][0], ["Cannot apply a property"])
 
 nullQCons_tests = [
     ("(cons 1 null)", ["Cannot apply null?-cons property when root operation is 'cons'"]),
@@ -452,8 +454,9 @@ nullQCons_tests = [
     ("(null? (cons (+ 1 2) (cons null null)))", "#f"), # not fully resolved
     ("(null? (cons 1 null))", "#f")
 ]
-totalFails += run_test_cases("apply", "null?-cons", nullQCons_tests)
+totalFails += run_test_cases("rewrite", "null?-cons", nullQCons_tests)
 totalFails += do_single_test_case("eval", "null?-cons", nullQCons_tests[-1][0], ["Cannot evaluate a property"])
+totalFails += do_single_test_case("apply", "null?-cons", nullQCons_tests[-1][0], ["Cannot apply a property"])
 
 print("\nUDF testing:\n")
 udfProof = ERProof()
@@ -464,7 +467,7 @@ udfProof.addUDF("(i x)", "LIST>BOOL", "(zero? (first x))")
 # udfProof.addUDF("(h)", "()>INT", "5") TODO: need to implement 0 argument UDFs
 # udfProof.addUDF("i", "INT", "3") TODO need to implement 0 argument UDFs
 # 2 arguments
-totalFails += do_single_test_case('', 'f', "(f 3 4)", ["Rule must start with 'eval' or 'apply'"], udfProof)
+totalFails += do_single_test_case('', 'f', "(f 3 4)", ["Rule must start with 'eval', 'apply', or 'rewrite'"], udfProof)
 totalFails += do_single_test_case('eval', 'f',  "(f 3 4)", ['Cannot evaluate a user-defined function'], udfProof)
 totalFails += do_single_test_case('apply', 'f', "(f 3 4)", ['Not enough arguments given for f. f requires 2 '
                                                             'arguments, while you gave 0'],
@@ -493,7 +496,8 @@ totalFails += do_single_test_case('apply', 'f x=4, y=5', "(f 3 4)", ["Value mism
 totalFails += do_single_test_case('apply', 'f x=3, y=4', "(f 3 4)", "(* 3 4)", udfProof)
 
 # 1 argument
-totalFails += do_single_test_case('', 'g x=3', "(g 3)", ["Rule must start with 'eval' or 'apply'"], udfProof)
+totalFails += do_single_test_case('', 'g x=3', "(g 3)", ["Rule must start with 'eval', 'apply', or 'rewrite'"],
+                                  udfProof)
 totalFails += do_single_test_case('eval', 'g x=3', "(g 3)", ['Cannot evaluate a user-defined function'], udfProof)
 totalFails += do_single_test_case('apply', 'g', "(g 3)", ['Not enough arguments given for g. g requires 1 arguments, '
                                                           'while you gave 0'], udfProof)
