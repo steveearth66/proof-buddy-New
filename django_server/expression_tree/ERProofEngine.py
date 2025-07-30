@@ -135,7 +135,8 @@ class ERProof:
             self.ruleSet[udfLabel] = UDF(udfLabel, filledBodyNode, racTypeObj, paramsList)
 
     def removeUDF(self, label):
-        label = label.split()[0][1:]
+        if len(label) != 1:
+            label = label.split()[0][1:]
         if label in self.ruleSet.keys():
             del self.ruleSet[label]
         else:
@@ -226,76 +227,81 @@ class ERProofLine:
                                else 'definition/property/lemma to be applied'))
         elif rule not in ruleSet.keys() - {'consProp', 'firstProp', 'restProp'}: # 'apply consProp' is not valid
             self.errLog.append(f'Could not find rule associated with {rule}')
-        elif ruleCategory == 'apply' and rule in ('cons', 'first', 'rest'): # for cons, first, rest axioms
+        elif ruleCategory == 'apply' and rule in ('cons', 'first', 'rest'):  # for cons, first, rest axioms
             rule += 'Prop'
         elif ruleCategory == 'apply' and not (isinstance(ruleSet[rule], UDF) or ruleSet[rule].isProperty):
             self.errLog.append(f"Could not find UDF/lemma/property associated with {rule}")
         elif ruleCategory == 'apply' and isinstance(ruleSet[rule], UDF):
             stop_error = False
             given_args = []
-            for arg in ruleParams:
-                if '=' not in arg:
-                    self.errLog.append(f"Argument '{arg}' does not have an assignment. Did you forget an equals sign?")
-                    stop_error = True
-                    continue
-                elif arg.count('=') > 1:
-                    self.errLog.append(f"Too many assignments for a given argument '{arg}'. Did you forget a comma?")
-                    stop_error = True
-                    continue
-                var = arg.split('=', 1)[0].strip()
-                given_args.append(var)
-            if not stop_error and len(given_args) != len(ruleSet[rule].params):
-                if len(ruleSet[rule].params) > len(given_args):
-                    self.errLog.append(
-                        f"Not enough arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} "
-                        f"arguments, while you gave {len(given_args)}")
-                    stop_error = True
-                else:
-                    self.errLog.append(
-                        f"Too many arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} arguments, while you gave {len(given_args)}")
-                    stop_error = True
-            for i, (arg, expected) in enumerate(zip(given_args, ruleSet[rule].params)):
-                if arg != expected:
-                    self.errLog.append(f"Argument '{arg}' is in position {i + 1} but expected '{expected}' for {rule}")
-                    stop_error = True
-            if not stop_error:
-                expected_types = ruleSet[rule].racType.getDomain()
-                for i, (arg_str, expected_type) in enumerate(zip(ruleParams, expected_types)):
-                    arg_name, arg_value_str = arg_str.split('=', 1)
-                    arg_tokens, tempErrLog = Parser.preProcess(arg_value_str, errLog=[], debug=self.debug)
-                    if tempErrLog:
-                        self.errLog.extend([f"In argument '{arg_str}': {err}" for err in tempErrLog])
-                        stop_error = True
-                        continue
-                    ast = Parser.buildTree(arg_tokens, debug=self.debug)[0]
-                    if ast is None:
-                        self.errLog.append(f"Failed to build AST from value '{arg_value_str}' in argument '{arg_str}'")
-                        stop_error = True
-                        continue
-                    labeled_ast = Labeler.labelTree(ast, ruleDict=ruleSet)
-                    typed_ast, _ = Decorator.decorateTree(labeled_ast, [])
-                    provided_type = typed_ast.type
-                    try:
-                        expected_type_unwrapped = expected_type.getType()
-                    except Exception as e:
+            if len(ruleSet[rule].params) != 0:
+                for arg in ruleParams:
+                    if '=' not in arg:
                         self.errLog.append(
-                            f"Type mismatch in argument '{arg_str}': expected err: {e}, got {provided_type}")
+                            f"Argument '{arg}' does not have an assignment. Did you forget an equals sign?")
                         stop_error = True
                         continue
-
-                    if provided_type != expected_type_unwrapped:
+                    elif arg.count('=') > 1:
                         self.errLog.append(
-                            f"Type mismatch in argument '{arg_str}': expected {expected_type_unwrapped}, got {provided_type}"
-                        )
+                            f"Too many assignments for a given argument '{arg}'. Did you forget a comma?")
+                        stop_error = True
+                        continue
+                    var = arg.split('=', 1)[0].strip()
+                    given_args.append(var)
+                if not stop_error and len(given_args) != len(ruleSet[rule].params):
+                    if len(ruleSet[rule].params) > len(given_args):
+                        self.errLog.append(
+                            f"Not enough arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} "
+                            f"arguments, while you gave {len(given_args)}")
+                        stop_error = True
+                    else:
+                        self.errLog.append(
+                            f"Too many arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} arguments, while you gave {len(given_args)}")
+                        stop_error = True
+                for i, (arg, expected) in enumerate(zip(given_args, ruleSet[rule].params)):
+                    if arg != expected:
+                        self.errLog.append(
+                            f"Argument '{arg}' is in position {i + 1} but expected '{expected}' for {rule}")
                         stop_error = True
                 if not stop_error:
-                    arg_values = [arg.split('=', 1)[1].strip() for arg in ruleParams]
-                    target_values = [str(child) for child in targetNode.children[1:]]  # skip the first child which
-                    # is the UDF label
-                    for i, (user_val, target_val) in enumerate(zip(arg_values, target_values)):
-                        if user_val != target_val:
+                    expected_types = ruleSet[rule].racType.getDomain()
+                    for i, (arg_str, expected_type) in enumerate(zip(ruleParams, expected_types)):
+                        arg_name, arg_value_str = arg_str.split('=', 1)
+                        arg_tokens, tempErrLog = Parser.preProcess(arg_value_str, errLog=[], debug=self.debug)
+                        if tempErrLog:
+                            self.errLog.extend([f"In argument '{arg_str}': {err}" for err in tempErrLog])
+                            stop_error = True
+                            continue
+                        ast = Parser.buildTree(arg_tokens, debug=self.debug)[0]
+                        if ast is None:
                             self.errLog.append(
-                                f"Value mismatch in argument '{ruleSet[rule].params[i]}': expected {target_val}, got {user_val}")
+                                f"Failed to build AST from value '{arg_value_str}' in argument '{arg_str}'")
+                            stop_error = True
+                            continue
+                        labeled_ast = Labeler.labelTree(ast, ruleDict=ruleSet)
+                        typed_ast, _ = Decorator.decorateTree(labeled_ast, [])
+                        provided_type = typed_ast.type
+                        try:
+                            expected_type_unwrapped = expected_type.getType()
+                        except Exception as e:
+                            self.errLog.append(
+                                f"Type mismatch in argument '{arg_str}': expected err: {e}, got {provided_type}")
+                            stop_error = True
+                            continue
+
+                        if provided_type != expected_type_unwrapped:
+                            self.errLog.append(
+                                f"Type mismatch in argument '{arg_str}': expected {expected_type_unwrapped}, got {provided_type}"
+                            )
+                            stop_error = True
+                    if not stop_error:
+                        arg_values = [arg.split('=', 1)[1].strip() for arg in ruleParams]
+                        target_values = [str(child) for child in targetNode.children[1:]]  # skip the first child which
+                        # is the UDF label
+                        for i, (user_val, target_val) in enumerate(zip(arg_values, target_values)):
+                            if user_val != target_val:
+                                self.errLog.append(
+                                    f"Value mismatch in argument '{ruleSet[rule].params[i]}': expected {target_val}, got {user_val}")
 
         elif ruleCategory == 'eval' and isinstance(ruleSet[rule], UDF):
             self.errLog.append("Cannot evaluate a user-defined function")
@@ -303,7 +309,21 @@ class ERProofLine:
             self.errLog.append("Could not find built-in Racket procedure associated with 'math'")
         elif ruleCategory == 'eval' and ruleSet[rule].isProperty:
             self.errLog.append("Cannot evaluate a property")
-        
+        else:
+            def find_unidentified_UDFs(node: Node):
+                unidentified_UDFs = []
+                for child in node.children:
+                    if child.data[0] == "'" or child.data[0] == "(":
+                        nested_children = find_unidentified_UDFs(child)
+                        if nested_children:
+                            unidentified_UDFs.append(nested_children)
+                    elif child.data not in ruleSet.keys() and child.data not in reservedLabels and child.data.isalpha():
+                        unidentified_UDFs.append(child.data)
+                return unidentified_UDFs
+
+            unidentified_UDFs = find_unidentified_UDFs(targetNode)
+            for label in unidentified_UDFs:
+                self.errLog.append(f"No definition found for label '{label}'")
         # checking to see if highlighted portion is within a quote
         if "'(" in targetNode.ancestors():
             self.errLog.append(f"Cannot apply rules within a quoted expression")

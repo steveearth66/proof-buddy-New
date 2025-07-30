@@ -361,8 +361,9 @@ def get_definition(label):
     return definition_data
 
 
-def edit_definition(user, id, data):
-    definition = Definition.objects.filter(id=id, created_by=user).first()
+# def edit_definition(user, id, data):
+def edit_definition(user, label, data):
+    definition = Definition.objects.filter(label=label, created_by=user).first()
 
     if not definition:
         return False

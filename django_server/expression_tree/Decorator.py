@@ -30,9 +30,9 @@ def decorateTree(inputTree: Node, errLog, generics=None, debug=False) -> tuple[N
     if inputTree.name in generics.keys():
         inputTree.name = generics[inputTree.name]
     elif not inputTree.type.isType("FUNCTION"):
-        if inputTree.type.isType("LIST"):
-            erObj = pdict[inputTree.data]
-            inputTree.length = erObj.length
+        if inputTree.type.isType("LIST") and not inputTree.children:
+            if inputTree.data in pdict:
+                inputTree.length = pdict[inputTree.data].length
         elif inputTree.type.isType("INT"):
             try:
                 inputTree.name = int(inputTree.data)
