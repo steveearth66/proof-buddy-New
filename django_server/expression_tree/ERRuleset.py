@@ -584,6 +584,7 @@ def recursiveReplaceNodes(node: Node, params: list, values: list) -> None:
     if node.data in params:
         index = params.index(node.data)
         node.replaceWith(values[index])
+        return  # no need to check children if we replaced the node
     for child in node.children:
         recursiveReplaceNodes(child, params, values)
 

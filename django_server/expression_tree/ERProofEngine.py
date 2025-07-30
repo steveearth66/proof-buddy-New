@@ -206,9 +206,7 @@ class ERProofLine:
                                else 'definition/property/lemma to be applied'))
         elif rule not in ruleSet.keys() - {'consProp', 'firstProp', 'restProp'}: # 'apply consProp' is not valid
             self.errLog.append(f'Could not find rule associated with {rule}')
-        elif ruleCategory == 'apply' and rule in ('cons', 'first', 'rest'): # for cons, first, rest axioms
-            if targetNode.children[1].children[1].data not in ruleSet.keys():
-                self.errLog.append(f"No definition found for label '{targetNode.children[1].children[1].data}'")
+        elif ruleCategory == 'apply' and rule in ('cons', 'first', 'rest'):  # for cons, first, rest axioms
             rule += 'Prop'
         elif ruleCategory == 'apply' and not (isinstance(ruleSet[rule], UDF) or ruleSet[rule].isProperty):
             self.errLog.append(f"Could not find UDF/lemma/property associated with {rule}")
@@ -290,7 +288,21 @@ class ERProofLine:
             self.errLog.append("Could not find built-in Racket procedure associated with 'math'")
         elif ruleCategory == 'eval' and ruleSet[rule].isProperty:
             self.errLog.append("Cannot evaluate a property")
-        
+        else:
+            def find_unidentified_UDFs(node: Node):
+                unidentified_UDFs = []
+                for child in node.children:
+                    if child.data[0] == "'" or child.data[0] == "(":
+                        nested_children = find_unidentified_UDFs(child)
+                        if nested_children:
+                            unidentified_UDFs.append(nested_children)
+                    elif child.data not in ruleSet.keys() and child.data not in reservedLabels and child.data.isalpha():
+                        unidentified_UDFs.append(child.data)
+                return unidentified_UDFs
+
+            unidentified_UDFs = find_unidentified_UDFs(targetNode)
+            for label in unidentified_UDFs:
+                self.errLog.append(f"No definition found for label '{label}'")
         # checking to see if highlighted portion is within a quote
         if "'(" in targetNode.ancestors():
             self.errLog.append(f"Cannot apply rules within a quoted expression")
