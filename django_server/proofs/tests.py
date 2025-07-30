@@ -27,11 +27,11 @@ def do_single_test_case(prefix: str, func: str, expr: str, expected, proof: ERPr
         print(f"FAIL! expected {word}: {expected} but got: {ans}\n")
         return 1
 
-def run_test_cases(prefix: str, func: str, tests: list[tuple]) -> int:
+def run_test_cases(prefix: str, func: str, tests: list[tuple], proof: ERProof = None) -> int:
     fails = 0
     for trial in tests:
         expr, expected = trial
-        fails += do_single_test_case(prefix, func, expr, expected)
+        fails += do_single_test_case(prefix, func, expr, expected, proof)
     return fails
 
 def test_racket_function(func: str, tests: list[tuple], appliable=False) -> int:
@@ -469,6 +469,24 @@ nullQ_cons_tests = [
 ]
 totalFails += run_test_cases("apply", "null?-cons", nullQ_cons_tests)
 totalFails += do_single_test_case("eval", "null?-cons", nullQ_cons_tests[-1][0], ["Cannot evaluate a property"])
+
+zeroQ_plus_tests = [
+    ("(zero? (+ 0 1))", '#f'),
+    ("(zero? (+ 1 0))", '#f'),
+    ("(zero? (+ x a))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
+    ("(zero? (+ x b))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
+    ("(zero? (+ a x))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
+    ("(zero? (+ a 0))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
+    ("(zero? (+ b 0))", '#f'),
+    ("(zero? (+ a b))", '#f')
+]
+propertyProof = ERProof()
+propertyProof.addGeneric('x', 'int', {'assumption': 'None'})
+propertyProof.addGeneric('a', 'int', {'assumption': 'Non-negative'})
+propertyProof.addGeneric('b', 'int', {'assumption': 'Positive'})
+totalFails += run_test_cases("apply", "zero?+", zeroQ_plus_tests, propertyProof)
+totalFails += do_single_test_case("eval", "zero?+", zeroQ_plus_tests[-1][0], ["Cannot evaluate a property"], propertyProof)
+
 
 print("\nUDF testing:\n")
 udfProof = ERProof()

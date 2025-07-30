@@ -1,9 +1,11 @@
 from abc import ABC, abstractmethod
 from .ERCommon import *
+from .Generics import Generic
 import copy
 from .Parser import buildTree, preProcess
 from .Labeler import labelTree  # , fillPositions
 from .Decorator import decorateTree, remTemps, checkFunctions
+from typing import Dict
 import sympy as sp
 
 # recursively check if two nodes are identical
@@ -27,6 +29,13 @@ def isMatch(xNode: Node, yNode: Node) -> bool:
         sofar &= isMatch(xNode.children[i], yNode.children[i])
     return sofar
 
+def hasGenerics(ruleNode: Node, generics: Dict[str, Generic]) -> bool:
+    for child in ruleNode.children[1:]:
+        if child.data in generics.keys():
+            return True
+    return False
+
+# TODO: modify rules to support generics
 class Rule(ABC):
     def __init__(self, label, isProperty=False):
         self.label = label
@@ -41,20 +50,19 @@ class Rule(ABC):
         self._label = newLabel
 
     @abstractmethod
-    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:
         pass
 
     @abstractmethod
-    def insertSubstitution(self, ruleNode: Node) -> Node:
+    def insertSubstitution(self, ruleNode: Node, generics: Dict[str, Generic]) -> Node:
         pass
-
 
 class If(Rule):
     def __init__(self):
         super().__init__('if')
         self.racType = str2Type("(BOOL,ANY,ANY)>ANY")
 
-    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:
         if (len(ruleNode.children) != 0 and ruleNode.children[0].data != 'if'):
             return False, f'Cannot evaluate if on a {ruleNode.children[0].data} expression'
         elif (len(ruleNode.children) != 4):
@@ -64,7 +72,7 @@ class If(Rule):
         # string should not print out if debug=False
         return True, 'If.isApplicable() PASS'
 
-    def insertSubstitution(self, ruleNode: Node) -> Node:
+    def insertSubstitution(self, ruleNode: Node, generics: Dict[str, Generic]) -> Node:
         condition = ruleNode.children[1]
         xNode = ruleNode.children[2]
         yNode = ruleNode.children[3]
@@ -78,7 +86,7 @@ class ConsProp(Rule):
     def __init__(self):
         super().__init__('cons', isProperty=True)
 
-    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'cons':
             return False, f"Cannot apply cons-first-rest property to a '{ruleNode.children[0].data}' expression"
         elif len(ruleNode.children[1].children) == 0 or len(ruleNode.children[2].children) == 0 or \
@@ -93,7 +101,7 @@ class ConsProp(Rule):
         # string should not print out if debug=False
         return True, 'Cons.isApplicable() PASS'
 
-    def insertSubstitution(self, ruleNode: Node) -> Node:
+    def insertSubstitution(self, ruleNode: Node, generics: Dict[str, Generic]) -> Node:
         lNode = ruleNode.children[1].children[1]
         return lNode
 
@@ -102,7 +110,7 @@ class FirstProp(Rule):
     def __init__(self):
         super().__init__('first', isProperty=True)
 
-    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'first':
             return False, f"Cannot apply first-cons property to a '{ruleNode.children[0].data}' expression"
         elif len(ruleNode.children[1].children) == 0 or ruleNode.children[1].children[0].data != 'cons':
@@ -110,7 +118,7 @@ class FirstProp(Rule):
         # string should not print out if debug=False
         return True, 'First.isApplicable() PASS'
 
-    def insertSubstitution(self, ruleNode: Node) -> Node:
+    def insertSubstitution(self, ruleNode: Node, generics: Dict[str, Generic]) -> Node:
         xNode = ruleNode.children[1].children[1]
         return xNode
 
@@ -119,7 +127,7 @@ class RestProp(Rule):
     def __init__(self):
         super().__init__('rest', isProperty=True)
 
-    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'rest':
             return False, f"Cannot apply rest-cons property to a '{ruleNode.children[0].data}' expression"
         elif len(ruleNode.children[1].children) == 0 or ruleNode.children[1].children[0].data != 'cons':
@@ -127,7 +135,7 @@ class RestProp(Rule):
         # string should not print out if debug=False
         return True, 'Rest.isApplicable() PASS'
 
-    def insertSubstitution(self, ruleNode: Node) -> Node:
+    def insertSubstitution(self, ruleNode: Node, generics: Dict[str, Generic]) -> Node:
         lNode = ruleNode.children[1].children[2]
         return lNode
 
@@ -136,7 +144,7 @@ class NullQ(Rule):
         super().__init__('null?')
         self.racType = str2Type("ANY>BOOL")
 
-    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'null?':
             return False, f'Cannot apply null rule to {ruleNode.children[0].data}'
         if str(ruleNode.children[1].type) not in ["LIST", "ANY", "TEMP"]:
@@ -148,7 +156,7 @@ class NullQ(Rule):
         # string should not print out if debug=False
         return True, 'NullQ.isApplicable() PASS'
 
-    def insertSubstitution(self, ruleNode: Node) -> Node:
+    def insertSubstitution(self, ruleNode: Node, generics: Dict[str, Generic]) -> Node:
         if not ruleNode.children[1].type.isType("LIST"):
             return Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
         # must check nonlists first to avoid thinking no children is a null list
@@ -160,14 +168,14 @@ class NullQCons(Rule):
     def __init__(self):
         super().__init__('null?-cons', isProperty=True)
     
-    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'null?':
             return False, f"Cannot apply null?-cons property when root operation is '{ruleNode.children[0].data}'"
         if ruleNode.children[1].data != '(' or ruleNode.children[1].children[0].data != 'cons':
             return False, f"Cannot apply null?-cons property when argument is not a 'cons' expression"
         return True, "NullQCons.isApplicable() PASS"
     
-    def insertSubstitution(self, ruleNode: Node) -> Node:
+    def insertSubstitution(self, ruleNode: Node, generics: Dict[str, Generic]) -> Node:
         return Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
     
 class ConsQ(Rule):
@@ -175,14 +183,14 @@ class ConsQ(Rule):
         super().__init__('cons?')
         self.racType = str2Type("ANY>BOOL")
 
-    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'cons?':
             return False, f'Cannot apply cons? rule to {ruleNode.children[0].data}'
         elif ruleNode.children[1].children[0].data != 'cons':
             return False, f'cons? can only be applied with a cons'
         return True, 'ConsQ.isApplicable() PASS'  # string should not print out if debug=False
 
-    def insertSubstitution(self, ruleNode: Node) -> Node:
+    def insertSubstitution(self, ruleNode: Node, generics: Dict[str, Generic]) -> Node:
         trueNode = Node(data='#t', tokenType=RacType(
             (None, Type.BOOL)), name=True)
         return trueNode
@@ -192,29 +200,54 @@ class ZeroQ(Rule):
         super().__init__('zero?')
         self.racType = str2Type("ANY>BOOL") # TODO: should be (INT>BOOL) instead?
 
-    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'zero?':
             return False, f"Cannot evaluate zero? on a '{ruleNode.children[0].data}' expression"
         if ruleNode.children[1].data == '(':
             return False, "Insufficiently resolved arguments"
         return True, 'ZeroQ.isApplicable() PASS'  # string should not print out if debug=False
 
-    def insertSubstitution(self, ruleNode: Node) -> Node:
+    def insertSubstitution(self, ruleNode: Node, generics: Dict[str, Generic]) -> Node:
         trueNode = Node(data='#t', tokenType=RacType(
             (None, Type.BOOL)), name=True)
         falseNode = Node(data='#f', tokenType=RacType(
             (None, Type.BOOL)), name=False)
-        try:
-            return trueNode if int(ruleNode.children[1].data) == 0 else falseNode
-        except ValueError:
-            return falseNode
+        return trueNode if ruleNode.children[1].data == '0' else falseNode
+
+class ZeroQPlus(Rule):
+    def __init__(self):
+        super().__init__("zero?+", isProperty=True)
+    
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:
+        if ruleNode.children[0].data != 'zero?':
+            return False, f"Cannot apply zero?+ property when root operation is '{ruleNode.children[0].data}'"
+        if ruleNode.children[1].data != '(' or ruleNode.children[1].children[0].data != '+':
+            return False, f"Can only apply zero?+ property when argument of zero? is a '+' expression"
+        plusArgs = []
+        for i in (1, 2):
+            argData = ruleNode.children[1].children[i].data
+            try:
+                plusArgs.append(int(argData))
+            except:
+                if argData not in generics.keys():
+                    return False, f"Cannot find generic with label '{argData}'"
+                else:
+                    plusArgs.append(generics[argData])
+        
+        if not(plusArgs[0] >= 0) or not(plusArgs[1] >= 0)  or not(plusArgs[0] != 0 or plusArgs[1] != 0):
+            return False, 'Can only apply zero?+ property when one argument of + is positive and the other is nonnegative'
+        
+        return True, "ZeroQPlus.isApplicable() PASS"
+    
+    def insertSubstitution(self, ruleNode: Node, generics: Dict[str, Generic]) -> Node:
+        return Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
 
 class ConsList(Rule):
     def __init__(self):
         super().__init__('consList')
         self.racType = str2Type("(ANY,LIST)>LIST")
 
-    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:
         if ruleNode.data != "(":
             return False, "must select entire expression to evaluate cons"
         elif len(ruleNode.children) == 0 or ruleNode.children[0].data != 'cons':
@@ -227,7 +260,7 @@ class ConsList(Rule):
             return False, 'insufficiently resolved arguments'
         return True, "ConsList.isApplicable() PASS"  # string should not print out if debug=False
 
-    def insertSubstitution(self, ruleNode: Node) -> Node:
+    def insertSubstitution(self, ruleNode: Node, generics: Dict[str, Generic]) -> Node:
         if ruleNode.children[2].data =="null":
             ruleNode.children[2].data = "'("  # changing null to '( to make consistent case handling
         # at this point the second argument is definitely '( although possibly with no children/entries
@@ -263,7 +296,7 @@ class Math(Rule):
         self.mathDict = {"+":lambda x,y: x+y, "-":lambda x,y: x-y, "*":lambda x,y: x*y, "expt":lambda x,y: x**y, "=":lambda x,y: x ==y, ">":lambda x,y: x>y, \
                   ">=":lambda x,y: x >=y, "<":lambda x,y: x<y, "<=":lambda x,y: x<=y, "quotient":lambda x,y: x//y, "remainder":lambda x,y: x%y}
 
-    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:
         # note: no need to check argument types or number of arguments, since that is done in buildTree
         if (len(ruleNode.children) != 0 and ruleNode.children[0].data not in self.mathSymbols):
             return False, f'Cannot apply math rule to {ruleNode.children[0].data}'
@@ -281,7 +314,7 @@ class Math(Rule):
             return False, "0^0 is undefined"
         return True, "Math.isApplicable() PASS"  # string should not print out if debug=False
 
-    def insertSubstitution(self, ruleNode: Node) -> Node:
+    def insertSubstitution(self, ruleNode: Node, generics: Dict[str, Generic]) -> Node:
         argOne = ruleNode.children[1].name
         argTwo = ruleNode.children[2].name
         newname = self.mathDict[ruleNode.children[0].data](argOne, argTwo)  # compute the result
@@ -294,7 +327,7 @@ class Math(Rule):
         return Node(data=newdata, tokenType=newtype, name=newname)  # converting node
 '''
 class Symbolic(Rule, ABC):
-    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:
         if ruleNode.children[0].data != self.label:
             return False, f"Cannot evaluate {self.label} on a '{ruleNode.children[0].data}' expression"
         #if (len(ruleNode.children[1].children) != 0 and ruleNode.children[1].data != "'(") or (len(ruleNode.children[2].children) != 0 and ruleNode.children[2].data != "'("):
@@ -307,7 +340,7 @@ class Symbolic(Rule, ABC):
     def getStdExpr(self, ruleNode: Node) -> str:
         pass
 
-    def insertSubstitution(self, ruleNode: Node) -> Node:
+    def insertSubstitution(self, ruleNode: Node, generics: Dict[str, Generic]) -> Node:
         try:
             symbolicExpr = sp.simplify(sp.sympify(self.getStdExpr(ruleNode)))
             
@@ -349,8 +382,8 @@ class Quotient(Math):
     def __init__(self):
         super().__init__('quotient')
     
-    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
-        passed, errMsg = super().isApplicable(ruleNode)
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:
+        passed, errMsg = super().isApplicable(ruleNode, generics)
         if not passed:
             return False, errMsg
         if int(ruleNode.children[-1].data) == 0:
@@ -361,8 +394,8 @@ class Remainder(Math):
     def __init__(self):
         super().__init__('remainder')
     
-    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
-        passed, errMsg = super().isApplicable(ruleNode)
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:
+        passed, errMsg = super().isApplicable(ruleNode, generics)
         if not passed:
             return False, errMsg
         if int(ruleNode.children[-1].data) == 0:
@@ -373,8 +406,8 @@ class Expt(Math):
     def __init__(self):
         super().__init__('expt')
     
-    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
-        passed, errMsg = super().isApplicable(ruleNode)
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:
+        passed, errMsg = super().isApplicable(ruleNode, generics)
         if not passed:
             return False, errMsg
         if int(ruleNode.children[1].data) == 0 and int(ruleNode.children[2].data) == 0:
@@ -387,7 +420,7 @@ class Equals(Math):
     def __init__(self):
         super().__init__('=')
 
-    def insertSubstitution(self, ruleNode):
+    def insertSubstitution(self, ruleNode: Node, generics: Dict[str, Generic]|None):
         argOne = str(ruleNode.children[1])
         argTwo = str(ruleNode.children[2])
         return Node(data="#t" if argOne == argTwo else "#f", tokenType=RacType((None, Type.BOOL)), name=argOne == argTwo)  # converting node
@@ -417,7 +450,7 @@ class GreaterOrEqual(Math):
                     "implies": lambda x,y: (not x) or y} # not set up for "iff":lambda x,y: x==y, "nor":lambda x,y: not(x or y), "nand":lambda x,y: not(x and y) 
     # note: no need to check argument types or number of arguments, since that is done in buildTree
 
-    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:
         if (len(ruleNode.children) != 0 and ruleNode.children[0].data not in self.logicDict.keys()):
             return False, f'Cannot apply logic rule to {ruleNode.children[0].data}'
         elif len(ruleNode.children[1:]) < 2 and ruleNode.children[0].data !="not":
@@ -426,7 +459,7 @@ class GreaterOrEqual(Math):
             return False, "insufficiently resolved arguments"
         return True, "Logic.isApplicable() PASS"  # string should not print out if debug=False
 
-    def insertSubstitution(self, ruleNode: Node) -> Node:
+    def insertSubstitution(self, ruleNode: Node, generics: Dict[str, Generic]) -> Node:
         argOne = ruleNode.children[1].name
         argTwo = (True if ruleNode.children[0].data == "not" else ruleNode.children[2].name) #y=True isn't used for "not" lambda operation, 2 params for consistency
         newname = self.logicDict[ruleNode.children[0].data](argOne, argTwo)
@@ -464,7 +497,7 @@ class UDF(Rule):
         self.racType = racTypeObj
         self.params = paramsList
 
-    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:
         if ruleNode.children[0].data != self.label:
             return False, f'Cannot apply {self.label} definition to {ruleNode.children[0].data}'
         if len(ruleNode.children[1:]) != len(self.racType.getDomain()):
@@ -477,7 +510,7 @@ class UDF(Rule):
             return [False, f'Cannot match argument out typeList {[str(x) for x in providedIns]} with expected typeList {[str(x) for x in expectedIns]}']    
         return True, f"{self.label.capitalize()}.isApplicable() PASS"  # string should not print out if debug=False
 
-    def insertSubstitution(self, ruleNode: Node) -> Node:
+    def insertSubstitution(self, ruleNode: Node, generics: Dict[str, Generic]) -> Node:
         expCopy = copy.deepcopy(self.body)
         recursiveReplaceNodes(expCopy, self.params, ruleNode.children[1:])
         return expCopy
@@ -487,7 +520,7 @@ class RestList(Rule):
     def __init__(self):
         super().__init__('restList')
 
-    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:  # presumes buildtree checked types/qty already
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:  # presumes buildtree checked types/qty already
         if ruleNode.data != "(" or len(ruleNode.children) != 2 or ruleNode.children[0].data != "rest":
             return False, f"Cannot evaluate rest on a '{ruleNode.children[0].data}' expression"
         if len(ruleNode.children[1].children) ==0: #this handles (rest null), (rest '()) :
@@ -496,7 +529,7 @@ class RestList(Rule):
             return False, f'insufficiently resolved list argument'  # null case already handled. e.g. (rest L)
         return True, "RestList.isApplicable() PASS"
 
-    def insertSubstitution(self, ruleNode: Node) -> Node:
+    def insertSubstitution(self, ruleNode: Node, generics: Dict[str, Generic]) -> Node:
         origList = ruleNode.children[1]
         if (n :=len(origList.children)) == 1:
             return Node(data="null", tokenType=RacType((None, Type.LIST)), name=[])
@@ -512,7 +545,7 @@ class FirstList(Rule):
     def __init__(self):
         super().__init__('firstList')
 
-    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:  # presumes buildtree checked types/qty already
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:  # presumes buildtree checked types/qty already
         if ruleNode.data != "(" or len(ruleNode.children) != 2 or ruleNode.children[0].data != "first":
             return False, f"Cannot evaluate first on a '{ruleNode.children[0].data}' expression"
         if len(ruleNode.children[1].children) ==0: #this handles (rest null), (rest '()) :
@@ -521,7 +554,7 @@ class FirstList(Rule):
             return False, f'insufficiently resolved list argument'  # null case already handled. e.g. (rest L)
         return True, "RestList.isApplicable() PASS"
 
-    def insertSubstitution(self, ruleNode: Node) -> Node:
+    def insertSubstitution(self, ruleNode: Node, generics: Dict[str, Generic]) -> Node:
         origList = copy.deepcopy(ruleNode.children[1])
         if origList.children[0].data == "(":
             origList.children[0].data = "'("
@@ -531,7 +564,7 @@ class MinusPlus(Rule):
     def __init__(self):
         super().__init__('-+', isProperty=True)
     
-    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:
         if ruleNode.children[0] != '-':
             return False, f'Cannot apply -+ when the root operation is {ruleNode.children[0]}'
         if ruleNode.children[1].data != '(' or ruleNode.children[1].children[0].data != '+':
@@ -542,7 +575,7 @@ class MinusPlus(Rule):
             return False, "Cannot apply -+ when the second argument of - doesn't match the second argument of +"
         return True, "MinusPlus.isApplicable() PASS"
     
-    def insertSubstitution(self, ruleNode: Node) -> Node:
+    def insertSubstitution(self, ruleNode: Node, generics: Dict[str, Generic]) -> Node:
         return ruleNode.children[1].children[1]
 
 class advMath(Rule):
@@ -576,13 +609,13 @@ class AdvMath(Rule):
     def __init__(self):
         super().__init__('advMath')
 
-    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+    def isApplicable(self, ruleNode: Node, generics: Dict[str, Generic]) -> tuple[bool, str]:
         if ruleNode.isArith():
             return True, "AdvMath.isApplicable() PASS"
         else:
             return False, "Cannot apply advMath rule to non-arithmetic expression" #TODO temp
         
-    def insertSubstitution(self, ruleNode: Node) -> Node:
+    def insertSubstitution(self, ruleNode: Node, generics: Dict[str, Generic]) -> Node:
         for child in ruleNode.children:
             if Math.isApplicable(child):
                 child = AdvMath().insertSubstitution(child)

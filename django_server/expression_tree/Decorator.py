@@ -5,10 +5,13 @@ from .ERCommon import Node, Type, RacType, FAIL_TYPES, FLEX_TYPES, TypeList
 from .ERobj import pdict
 
 # decorate non-function type Nodes in the AST
-def decorateTree(inputTree: Node, errLog, debug=False) -> tuple[Node, list[str]]:
+def decorateTree(inputTree: Node, errLog, generics=None, debug=False) -> tuple[Node, list[str]]:
     # just return if there is not AST to decorate
     if inputTree == None:
         return inputTree, errLog
+    
+    if generics is None:
+        generics = dict()
 
     # check if parameter name is legal
     if inputTree.type.getType() == Type.PARAM and not inputTree.data.isalpha():
@@ -24,7 +27,9 @@ def decorateTree(inputTree: Node, errLog, debug=False) -> tuple[Node, list[str]]
     inputTree.name = inputTree.data
 
     # decorate the Node objects
-    if not inputTree.type.isType("FUNCTION"):
+    if inputTree.name in generics.keys():
+        inputTree.name = generics[inputTree.name]
+    elif not inputTree.type.isType("FUNCTION"):
         if inputTree.type.isType("LIST"):
             erObj = pdict[inputTree.data]
             inputTree.length = erObj.length

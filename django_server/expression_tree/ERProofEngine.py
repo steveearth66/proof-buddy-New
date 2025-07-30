@@ -1,5 +1,6 @@
 from .ERCommon import *
 from .ERRuleset import *
+from .Generics import Generic, GenericInt, GenericBool, GenericList
 import expression_tree.Parser as Parser
 import expression_tree.Labeler as Labeler
 import expression_tree.Decorator as Decorator
@@ -7,7 +8,6 @@ import re
 
 reservedLabels = ["cons", "if", "first", "rest", "null?", "cons?", "zero?", "consList", "expt", "quotient",
                   "remainder", "and", "or", "not", "implies", "nand", "iff", "nor", "xor", ">", "<", "+", "-", "*"]
-
 
 class ERProof:
     def __init__(self, debug=False):
@@ -23,6 +23,7 @@ class ERProof:
             'null?': NullQ(),
             'cons?': ConsQ(),
             'zero?': ZeroQ(),
+            'zero?+': ZeroQPlus(),
             '+': Plus(),
             '-': Minus(),
             '*': Times(),
@@ -43,6 +44,7 @@ class ERProof:
             'math': advMath(),
             #'doubleFront': DoubleFront(),  # this is fake for demo. remove when UDF working
         }
+        self.generics = {}
         self.proofLines = []
         self.errLog = []
         self.debug = debug
@@ -61,7 +63,7 @@ class ERProof:
                 if substitution!=None:
                     proofLine.applySubstitution(self.ruleSet, ruleStr, highlightPos, subLine)
                 else:
-                    proofLine.applyRule(self.ruleSet, ruleStr, highlightPos)
+                    proofLine.applyRule(self.ruleSet, ruleStr, highlightPos, self.generics)
             if proofLine.errLog != []:
                 self.errLog.extend(proofLine.errLog)
         else:
@@ -119,7 +121,7 @@ class ERProof:
         if bodyNode.errLog != []:
             self.errLog.extend(bodyNode.errLog)
         # if not (udfLabel not in self.ruleSet.keys() and udfLabel not in reservedLabels):
-        if udfLabel in self.ruleSet.keys() or udfLabel in reservedLabels or not udfLabel.isalpha():
+        if udfLabel in self.ruleSet.keys() or udfLabel in reservedLabels or udfLabel in self.generics.keys() or not udfLabel.isalpha():
             self.errLog.append(
                 f"'{udfLabel}' is an invalid label for your Definition")
         if racTypeObj.getDomain() != None:
@@ -138,6 +140,25 @@ class ERProof:
             del self.ruleSet[label]
         else:
             self.errLog.append(f"Could not find UDF with label '{label}'")
+
+    def addGeneric(self, label: str, type: str, restrictions: dict | None = None):
+        if label in reservedLabels or label in self.ruleSet.keys() or label in self.generics.keys() or not label.isalpha():
+            self.errLog.append(f"Could not create generic with label '{label}': label is already being used")
+            type = type.lower()
+            if type == 'int' and restrictions is None:
+                self.generics[label] = GenericInt()
+            elif type == 'int':
+                self.generics[label] = GenericInt(restrictions['assumption'])
+            elif type == 'list' and restrictions is None:
+                self.generics[label] = GenericList()
+            elif type == 'list':
+                self.generics[label] = GenericList(restrictions['neverNull'])
+            elif type == 'bool':
+                self.generics[label] = GenericBool()
+            elif type == 'any':
+                self.generics[label] = Generic()
+            else:
+                raise ValueError('Invalid type string')
 
 class ERProofLine:
     def __init__(self, goal, debug=False, ruleDict=None, udfType=None,isUdf=False): #added optional pointer to parent proof's ruleset
@@ -177,7 +198,7 @@ class ERProofLine:
 
 
 
-    def applyRule(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subNode:Node=None):
+    def applyRule(self, ruleSet: dict[str, Rule], rule: str, startPos: int, generics: Dict[str, Generic], subNode:Node=None):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
         if targetNode == None:
             self.errLog.append(
@@ -299,10 +320,10 @@ class ERProofLine:
                 else:
                     self.errLog.append(error)
             else:
-                isApplicable, error = selectedRule.isApplicable(targetNode)
+                isApplicable, error = selectedRule.isApplicable(targetNode, generics)
                 if isApplicable:
                     newNode = selectedRule.insertSubstitution(
-                        targetNode)  # copy information to targetNode
+                        targetNode, generics)  # copy information to targetNode
                     targetNode.replaceWith(newNode)
                     updatePositions(self.exprTree)
                 else:

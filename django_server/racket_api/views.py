@@ -225,8 +225,12 @@ def add_definitions(request):
     definitions = proof["definitions"]
 
     try:
-        proof_one.addUDF(json_data["label"], json_data["type"], json_data["expression"])
-        proof_two.addUDF(json_data["label"], json_data["type"], json_data["expression"])
+        if json_data["expression"]:
+            proof_one.addUDF(json_data["label"], json_data["type"], json_data["expression"])
+            proof_two.addUDF(json_data["label"], json_data["type"], json_data["expression"])
+        else:
+            proof_one.addGeneric(json_data["label"], json_data["type"])
+            proof_two.addGeneric(json_data["label"], json_data["type"])
 
     except:
         return Response(

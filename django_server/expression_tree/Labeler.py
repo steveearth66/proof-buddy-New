@@ -30,13 +30,15 @@ BUILT_IN_FUNCTIONS = ['if', 'cons', 'first', 'rest', 'null?', '+', '-', '*', 'qu
                       "expt", "=", "<=", ">=", "<", ">", "and", "or", "not", "xor", "implies", "list?", "int?"]
 
 # give every Node object in the AST an initial type (ifs will be done later in remTemps since their range varies)
-def labelTree(inputTree: Node, ruleDict=None) -> Node:
+def labelTree(inputTree: Node, ruleDict=None, generics=None) -> Node:
     # if inputTree is empty, return the empty list
     if inputTree == []:
         return
     if ruleDict == None:
         ruleDict = dict()
-
+    if generics is None:
+        generics = dict()
+        
     # get the token in the Node
     root = inputTree
     data = root.data
@@ -60,6 +62,8 @@ def labelTree(inputTree: Node, ruleDict=None) -> Node:
         inputTree.type = ruleDict[inputTree.data].racType
         if inputTree.type.isType("FUNCTION"):
             inputTree.numArgs = len(inputTree.type.getDomain())
+    elif inputTree.data in generics.keys():
+        inputTree.type = generics[inputTree.data].racType
     else:
 
         # check if the token matches a label regex
