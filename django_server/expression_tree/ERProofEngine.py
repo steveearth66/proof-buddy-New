@@ -1,6 +1,6 @@
 from .ERCommon import *
 from .ERRuleset import *
-from .Generics import Generic, GenericInt, GenericBool, GenericList
+from .Generics import GenericInt, GenericBool, GenericList, GenericAny
 import expression_tree.Parser as Parser
 import expression_tree.Labeler as Labeler
 import expression_tree.Decorator as Decorator
@@ -159,7 +159,7 @@ class ERProof:
         elif type == 'bool':
             self.generics[label] = GenericBool()
         elif type == 'any':
-            self.generics[label] = Generic()
+            self.generics[label] = GenericAny()
         else:
             raise ValueError('Invalid type string')
 
@@ -184,7 +184,7 @@ class ERProofLine:
             labeledTree, _ = updatePositions(labeledTree)
 
         if self.errLog == []:
-            decTree, self.errLog = Decorator.decorateTree(labeledTree, self.errLog)
+            decTree, self.errLog = Decorator.decorateTree(labeledTree, self.errLog, generics=generics)
         #if self.errLog == []: #added userType in case of UDF
         #    decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog, theRuleDict=ruleDict, userType=udfType)
         if self.errLog == []:
