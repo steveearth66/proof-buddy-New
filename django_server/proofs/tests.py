@@ -27,11 +27,11 @@ def do_single_test_case(prefix: str, func: str, expr: str, expected, proof: ERPr
         print(f"FAIL! expected {word}: {expected} but got: {ans}\n")
         return 1
 
-def run_test_cases(prefix: str, func: str, tests: list[tuple]) -> int:
+def run_test_cases(prefix: str, func: str, tests: list[tuple], proof: ERProof = None) -> int:
     fails = 0
     for trial in tests:
         expr, expected = trial
-        fails += do_single_test_case(prefix, func, expr, expected)
+        fails += do_single_test_case(prefix, func, expr, expected, proof)
     return fails
 
 def test_racket_function(func: str, tests: list[tuple], appliable=False) -> int:
@@ -364,6 +364,19 @@ totalFails += test_racket_function('rest', rest_tests, appliable=True)
 totalFails += do_single_test_case('eval', 'restList', "(rest '(1 2 3))",
                                    ['Could not find rule associated with restList'])
 
+zeroQ_tests = [
+    ("(+ 1 2)", ["Cannot evaluate zero? on a '+' expression"]),
+    ("(cons 1 null)", ["Cannot evaluate zero? on a 'cons' expression"]),
+    ("(zero? 1 2)", ["zero? only takes 1 arguments, but 2 were provided"]),
+    ("(zero? (+ 1 2))", ["Insufficiently resolved arguments"]),
+    ("(zero? (- 1 2))", ["Insufficiently resolved arguments"]),
+    ("(zero? #f)", '#f'),
+    ("(zero? '(1 2))", '#f'),
+    ("(zero? 0)", '#t'),
+    ("(zero? 1)", '#f')
+]
+totalFails += test_racket_function('zero?', zeroQ_tests)
+
 print("\nList Function Property Testing\n")
 cons_prop_tests = [
     ("(+ 1 2)", ["Cannot apply cons-first-rest property to a '+' expression"]),
@@ -444,19 +457,39 @@ totalFails += run_test_cases("rewrite", "-+", minus_plus_tests)
 totalFails += do_single_test_case("eval", "-+", minus_plus_tests[-1][0], ["Cannot evaluate a property"])
 totalFails += do_single_test_case("apply", "-+", minus_plus_tests[-1][0], ["Cannot apply a property"])
 
-nullQCons_tests = [
+nullQ_cons_tests = [
     ("(cons 1 null)", ["Cannot apply null?-cons property when root operation is 'cons'"]),
     ("(+ 1 2)", ["Cannot apply null?-cons property when root operation is '+'"]),
     ("(null? null)", ["Cannot apply null?-cons property when argument is not a 'cons' expression"]),
     ("(null? '(1 2 3))", ["Cannot apply null?-cons property when argument is not a 'cons' expression"]),
     ("(null? (cons 1 null) null)", ["null? only takes 1 arguments, but 2 were provided"]),
+    ("(null? (cons 1 1))", ["Cannot match argument out typeList ['INT', 'INT'] with expected typeList ['ANY', 'LIST']"]), # bad type in cons
+    ("(null? (cons 1 1 null))", ["cons only takes 2 arguments, but 3 were provided"]), # too many arguments in cons
     ("(null? (cons x L))", "#f"), # symbolic
     ("(null? (cons (+ 1 2) (cons null null)))", "#f"), # not fully resolved
     ("(null? (cons 1 null))", "#f")
 ]
-totalFails += run_test_cases("rewrite", "null?-cons", nullQCons_tests)
-totalFails += do_single_test_case("eval", "null?-cons", nullQCons_tests[-1][0], ["Cannot evaluate a property"])
-totalFails += do_single_test_case("apply", "null?-cons", nullQCons_tests[-1][0], ["Cannot apply a property"])
+totalFails += run_test_cases("apply", "null?-cons", nullQ_cons_tests)
+totalFails += do_single_test_case("eval", "null?-cons", nullQ_cons_tests[-1][0], ["Cannot evaluate a property"])
+
+zeroQ_plus_tests = [
+    ("(zero? (+ 0 1))", '#f'),
+    ("(zero? (+ 1 0))", '#f'),
+    ("(zero? (+ x a))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
+    ("(zero? (+ x b))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
+    ("(zero? (+ a x))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
+    ("(zero? (+ a 0))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
+    ("(zero? (+ b 0))", '#f'),
+    ("(zero? (+ a b))", '#f')
+]
+propertyProof = ERProof()
+propertyProof.addGeneric('x', 'int', {'assumption': 'None'})
+propertyProof.addGeneric('a', 'int', {'assumption': 'Non-negative'})
+propertyProof.addGeneric('b', 'int', {'assumption': 'Positive'})
+totalFails += run_test_cases("rewrite", "zero?+", zeroQ_plus_tests, propertyProof)
+totalFails += do_single_test_case("eval", "zero?+", zeroQ_plus_tests[-1][0], ["Cannot evaluate a property"], propertyProof)
+totalFails += do_single_test_case("apply", "zero?+", zeroQ_plus_tests[-1][0], ["Cannot apply a property"],
+                                  propertyProof)
 
 print("\nUDF testing:\n")
 udfProof = ERProof()
