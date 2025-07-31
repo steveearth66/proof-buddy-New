@@ -40,6 +40,8 @@ def run_test_cases(prefix: str, func: str, tests: list[tuple], proof: ERProof = 
             proof.addGeneric('p', 'bool')
         if 'L' not in proof.generics.keys():
             proof.addGeneric('L', 'list')
+        if 'M' not in proof.generics.keys():
+            proof.addGeneric('M', 'list')
         if 'x' not in proof.generics.keys():
             proof.addGeneric('x', 'any')
     fails = 0
@@ -392,7 +394,8 @@ zeroQ_tests = [
 totalFails += test_racket_function('zero?', zeroQ_tests)
 
 print('\nTest Undefined Labels\n')
-totalFails += do_single_test_case('apply', 'cons', '(cons (first L) (rest L))', ["No definition found for label '['L']'"])
+totalFails += do_single_test_case('rewrite', 'cons-first-rest', '(cons (first L) (rest L))', ["No definition found for "
+                                                                                              "label '['L']'"])
 
 axiomProof = ERProof()
 axiomProof.addGeneric('a', 'int', {'assumption': 'None'})
@@ -490,7 +493,7 @@ nullQ_cons_tests = [
     ("(null? (cons (+ 1 2) (cons null null)))", "#f"), # not fully resolved
     ("(null? (cons 1 null))", "#f")
 ]
-totalFails += run_test_cases("apply", "null?-cons", nullQ_cons_tests)
+totalFails += run_test_cases("rewrite", "null?-cons", nullQ_cons_tests)
 totalFails += do_single_test_case("eval", "null?-cons", nullQ_cons_tests[-1][0], ["Cannot evaluate a property"])
 
 zeroQ_plus_tests = [
@@ -504,7 +507,7 @@ zeroQ_plus_tests = [
     ("(zero? (+ b x))", "#f"), # using GenericAny (should be treated as a nonnegative int)
     ("(zero? (+ b k))", '#f')
 ]
-totalFails += run_test_cases("apply", "zero?+", zeroQ_plus_tests, axiomProof)
+totalFails += run_test_cases("rewrite", "zero?+", zeroQ_plus_tests, axiomProof)
 totalFails += do_single_test_case("eval", "zero?+", zeroQ_plus_tests[-1][0], ["Cannot evaluate a property"], axiomProof)
 totalFails += do_single_test_case("apply", "zero?+", zeroQ_plus_tests[-1][0], ["Cannot apply a property"], axiomProof)
 

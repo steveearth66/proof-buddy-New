@@ -64,7 +64,7 @@ class ERProof:
                 if substitution!=None:
                     proofLine.applySubstitution(self.ruleSet, ruleStr, highlightPos, subLine)
                 else:
-                    proofLine.applyRule(self.ruleSet, ruleStr, highlightPos)
+                    proofLine.applyRule(self.ruleSet, ruleStr, highlightPos, self.generics)
             if proofLine.errLog != []:
                 self.errLog.extend(proofLine.errLog)
         else:
@@ -196,12 +196,8 @@ class ERProofLine:
         if self.errLog == []: #makes the positions dict for arrow key navigation
             self.positions = Decorator.makePosDict(self.exprTree, self.positions)
         #checks to make sure that there are no nested quotes
-        
-                
 
-
-
-    def applyRule(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subNode:Node=None):
+    def applyRule(self, ruleSet: dict[str, Rule], rule: str, startPos: int, generics=None, subNode: Node = None):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
         if targetNode == None:
             self.errLog.append(
@@ -235,7 +231,7 @@ class ERProofLine:
         elif rule not in ruleSet.keys() - {'consProp', 'firstProp', 'restProp'}: # 'apply consProp' is not valid
             self.errLog.append(f'Could not find rule associated with {rule}')
         elif ruleCategory == 'apply' and not (isinstance(ruleSet[rule], UDF) or ruleSet[rule].isProperty):
-            self.errLog.append(f"Could not find UDF/lemma associated with {rule}")
+            self.errLog.append(f"Could not find definition/lemma associated with {rule}")
         elif ruleCategory == 'rewrite' and not ruleSet[rule].isProperty:
             self.errLog.append(f"Cannot rewrite {rule} as it is not a property")
         elif ruleCategory == 'apply' and isinstance(ruleSet[rule], UDF):
@@ -324,12 +320,14 @@ class ERProofLine:
                 for child in node.children:
                     if child.data[0] == "'" or child.data[0] == "(":
                         nested_children = find_undefined_labels(child)
-                        if nested_children:
-                            unidentified_UDFs.append(nested_children)
-                    elif (child.data not in ruleSet.keys() and child.data not in reservedLabels and
-                          child.data.isalpha()): #TODO: change to checking if type PARAM when we fix that
-                        unidentified_UDFs.append(child.data)
-                return unidentified_UDFs
+                        if nested_children and nested_children not in undefined_labels:
+                            # Avoid adding duplicates
+                            undefined_labels.append(nested_children)
+                    elif (child.data not in ruleSet.keys() and child.data not in reservedLabels and child.data not in
+                          generics.keys() and child.data.isalpha()):  # TODO: change to checking if type PARAM when
+                        # we fix that
+                        undefined_labels.append(child.data)
+                return undefined_labels
 
             undefined_labels = find_undefined_labels(targetNode)
             for label in undefined_labels:
