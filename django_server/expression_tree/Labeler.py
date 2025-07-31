@@ -82,7 +82,7 @@ def labelTree(inputTree: Node, ruleDict=None, generics=None) -> Node:
 
     # label the children of the root Node
     for child in root.children:
-        labelTree(child, ruleDict)
+        labelTree(child, ruleDict, generics)
 
     # return the tree
     return root

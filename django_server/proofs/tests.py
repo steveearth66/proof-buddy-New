@@ -27,14 +27,21 @@ def do_single_test_case(prefix: str, func: str, expr: str, expected, proof: ERPr
         print(f"FAIL! expected {word}: {expected} but got: {ans}\n")
         return 1
 
-def run_test_cases(prefix: str, func: str, tests: list[tuple], proof: ERProof = None) -> int:
+def run_test_cases(prefix: str, func: str, tests: list[tuple], proof: ERProof = None, defaultGenerics=True) -> int:
+    if proof is None:
+        proof = ERProof()
+    if defaultGenerics:
+        proof.addGeneric('k', 'int')
+        proof.addGeneric('p', 'bool')
+        proof.addGeneric('L', 'list')
+        proof.addGeneric('x', 'any')
     fails = 0
     for trial in tests:
         expr, expected = trial
         fails += do_single_test_case(prefix, func, expr, expected, proof)
     return fails
 
-def test_racket_function(func: str, tests: list[tuple], appliable=False) -> int:
+def test_racket_function(func: str, tests: list[tuple], allowGenerics=False, appliable=False) -> int:
     # expects last test case to not have errors
     fails = run_test_cases('eval', func, tests)
 
@@ -43,7 +50,7 @@ def test_racket_function(func: str, tests: list[tuple], appliable=False) -> int:
                                  expected=["Rule must start with 'eval', 'apply', or 'rewrite'"])
     if not appliable:
         fails += do_single_test_case('apply', func, expr,
-                                     expected=[f'Could not find UDF/lemma associated with {func}'])
+                                expected=[f'Could not find definition/lemma associated with {func}'])
     return fails
 
 def test_list_func_props(func: str, tests: list[tuple]) -> int:
@@ -377,6 +384,9 @@ zeroQ_tests = [
 ]
 totalFails += test_racket_function('zero?', zeroQ_tests)
 
+print('\nTest Undefined Labels\n')
+totalFails += do_single_test_case('apply', 'cons', '(cons (first L) (rest L))', ["No definition found for label '['L']'"])
+
 print("\nList Function Property Testing\n")
 cons_prop_tests = [
     ("(+ 1 2)", ["Cannot apply cons-first-rest property to a '+' expression"]),
@@ -409,7 +419,7 @@ first_prop_tests = [
     ("(first (cons 1 null) null)", ["first only takes 1 arguments, but 2 were provided"]), # extra argument in argument expression
     ("(first (cons 1 null))", "1"),
     ("(first (cons 9 '(8 7)))", "9"),
-    ("(first (cons a L))", "a"), # symbolic
+    ("(first (cons x L))", "a"), # symbolic
     ("(first (cons (+ (* 4 5) (* 6 7)) null))", "(+ (* 4 5) (* 6 7))"), # first cons argument not completely simplified
     ("(first (cons 46 (cons 2 null)))", "46") # second cons argument not completely simplified
 ]
@@ -424,7 +434,7 @@ rest_prop_tests = [
     ("(rest (cons 1 null) null)", ["rest only takes 1 arguments, but 2 were provided"]), # extra argument in argument expression
     ("(rest (cons 1 null))", "null"),
     ("(rest (cons 9 '(8 7)))", "'(8 7)"),
-    ("(rest (cons a L))", "L"), # symbolic
+    ("(rest (cons x L))", "L"), # symbolic
     ("(rest (cons (+ (* 4 5) (* 6 7)) null))", "null"), # first cons argument not completely simplified
     ("(rest (cons 46 (cons 2 null)))", "(cons 2 null)") # second cons argument not completely simplified
 ]
@@ -483,8 +493,7 @@ zeroQ_plus_tests = [
     ("(zero? (+ a b))", '#f')
 ]
 propertyProof = ERProof()
-propertyProof.addGeneric('x', 'int', {'assumption': 'None'})
-propertyProof.addGeneric('a', 'int', {'assumption': 'Non-negative'})
+propertyProof.addGeneric('a', 'int', {'assumption': 'None'})
 propertyProof.addGeneric('b', 'int', {'assumption': 'Positive'})
 totalFails += run_test_cases("rewrite", "zero?+", zeroQ_plus_tests, propertyProof)
 totalFails += do_single_test_case("eval", "zero?+", zeroQ_plus_tests[-1][0], ["Cannot evaluate a property"], propertyProof)

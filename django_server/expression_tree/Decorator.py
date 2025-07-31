@@ -44,7 +44,7 @@ def decorateTree(inputTree: Node, errLog, generics=None, debug=False) -> tuple[N
 
     # decorate the children if there are any
     for c in inputTree.children:
-        decorateTree(c, errLog, debug)
+        decorateTree(c, errLog, generics, debug)
 
     # return a decorated AST and the status of the error log
     return inputTree, errLog
