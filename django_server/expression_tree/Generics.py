@@ -2,7 +2,7 @@ from .ERCommon import Type, RacType
 import sympy as sp
 
 class Generic:
-    def __init__(self, type: RacType = RacType((None, Type.ANY))):
+    def __init__(self, type):
         self._racType = type
     
     @property
@@ -12,65 +12,93 @@ class Generic:
 class GenericInt(Generic):
     def __init__(self, assumption: str = 'Non-negative'):
         super().__init__(RacType((None, Type.INT)))
-        self.__assumption = assumption
-        match self.__assumption:
+        self._assumption = assumption
+        match self._assumption:
             case 'Positive':
-                self.__minVal = 1
-                self.__maxVal = float('inf')
+                self._minVal = 1
+                self._maxVal = float('inf')
             case 'Non-negative':
-                self.__minVal = 0
-                self.__maxVal = float('inf')
+                self._minVal = 0
+                self._maxVal = float('inf')
             case 'Non-positive':
-                self.__minVal = float('-inf')
-                self.__maxVal = 0
+                self._minVal = float('-inf')
+                self._maxVal = 0
             case 'Negative':
-                self.__minVal = float('-inf')
-                self.__maxVal = -1
+                self._minVal = float('-inf')
+                self._maxVal = -1
             case 'None':
-                self.__minVal = float('-inf')
-                self.__maxVal = float('inf')    
+                self._minVal = float('-inf')
+                self._maxVal = float('inf')    
+    
+    @property
+    def assumption(self):
+        return self._assumption
+    
+    @property
+    def minVal(self):
+        return self._minVal
+    
+    @property
+    def maxVal(self):
+        return self._maxVal
     
     def __lt__(self, other):
         if isinstance(other, GenericInt):
-            return self.__maxVal < other.__minVal
+            return self.maxVal < other.minVal
         if isinstance(other, int):
-            return self.__maxVal < other
+            return self.maxVal < other
     
     def __le__(self, other):
         if isinstance(other, GenericInt):
-            return self.__maxVal <= other.__minVal
+            return self.maxVal <= other.minVal
         if isinstance(other, int):
-            return self.__maxVal <= other
+            return self.maxVal <= other
     
     def __gt__(self, other):
         if isinstance(other, GenericInt):
-            return self.__minVal > other.maxVal
+            return self.minVal > other.maxVal
         if isinstance(other, int):
-            return self.__minVal > other
+            return self.minVal > other
     
     def __ge__(self, other):
         if isinstance(other, GenericInt):
-            return self.__minVal >= other.maxVal
+            return self.minVal >= other.maxVal
         if isinstance(other, int):
-            return self.__minVal >= other
+            return self.minVal >= other
     
     def __eq__(self, other):
         if isinstance(other, GenericInt):
-            return self.__minVal == other.__minVal == self.__maxVal == other.__maxVal
+            return self.minVal == other.minVal == self.maxVal == other.maxVal
         if isinstance(other, int):
-            return self.__minVal == other and self.__maxVal == other
+            return self.minVal == other and self.maxVal == other
     
     def __ne__(self, other):
         if isinstance(other, GenericInt):
-            return self.__maxVal < other.__minVal or self.__minVal > other.__maxVal
+            return self.maxVal < other.minVal or self.minVal > other.maxVal
         if isinstance(other, int):
-            return self.__minVal > other or self.__maxVal < other
+            return self.minVal > other or self.maxVal < other
 
 class GenericBool(Generic):
     def __init__(self):
         super().__init__(RacType((None, Type.BOOL)))
 
 class GenericList(Generic):
-    def __init__(self, neverNull: bool = False):
+    def __init__(self, neverNull: bool = True):
         super().__init__(RacType((None, Type.LIST)))
-        self.neverNull = neverNull
+        self._neverNull = neverNull
+    
+    @property
+    def neverNull(self):
+        return self._neverNull
+class GenericAny(Generic):
+    def __init__(self):
+        super().__init__(RacType((None, Type.ANY)))
+    
+    def treatAsInt(self):
+        return GenericInt()
+    
+    def treatAsBool(self):
+        return GenericBool()
+    
+    def treatAsList(self):
+        return GenericList()
