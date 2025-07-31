@@ -52,9 +52,9 @@ class ERProof:
     def addProofLine(self, lineStr, ruleStr=None, highlightPos=0, substitution=None):
         # prooflines now contain pointers to their proof's ruleset so they can refer to UDFs
         if substitution != None:
-            subLine = ERProofLine(substitution, self.debug, self.ruleSet) 
+            subLine = ERProofLine(substitution, self.debug, self.ruleSet, generics=self.generics) 
 
-        proofLine = ERProofLine(lineStr, self.debug, self.ruleSet) 
+        proofLine = ERProofLine(lineStr, self.debug, self.ruleSet, generics=self.generics) 
 
         if proofLine.errLog == None:
             proofLine.errLog = []
@@ -63,7 +63,7 @@ class ERProof:
                 if substitution!=None:
                     proofLine.applySubstitution(self.ruleSet, ruleStr, highlightPos, subLine)
                 else:
-                    proofLine.applyRule(self.ruleSet, ruleStr, highlightPos, self.generics)
+                    proofLine.applyRule(self.ruleSet, ruleStr, highlightPos)
             if proofLine.errLog != []:
                 self.errLog.extend(proofLine.errLog)
         else:
@@ -117,6 +117,7 @@ class ERProof:
             ruleDict=self.ruleSet,
             udfType=racTypeObj,
             isUdf=True,
+            generics=self.generics
         )
         if bodyNode.errLog != []:
             self.errLog.extend(bodyNode.errLog)
@@ -145,24 +146,24 @@ class ERProof:
     def addGeneric(self, label: str, type: str, restrictions: dict | None = None):
         if label in reservedLabels or label in self.ruleSet.keys() or label in self.generics.keys() or not label.isalpha():
             self.errLog.append(f"Could not create generic with label '{label}': label is already being used")
-            type = type.lower()
-            if type == 'int' and restrictions is None:
-                self.generics[label] = GenericInt()
-            elif type == 'int':
-                self.generics[label] = GenericInt(restrictions['assumption'])
-            elif type == 'list' and restrictions is None:
-                self.generics[label] = GenericList()
-            elif type == 'list':
-                self.generics[label] = GenericList(restrictions['neverNull'])
-            elif type == 'bool':
-                self.generics[label] = GenericBool()
-            elif type == 'any':
-                self.generics[label] = Generic()
-            else:
-                raise ValueError('Invalid type string')
+        type = type.lower()
+        if type == 'int' and restrictions is None:
+            self.generics[label] = GenericInt()
+        elif type == 'int':
+            self.generics[label] = GenericInt(restrictions['assumption'])
+        elif type == 'list' and restrictions is None:
+            self.generics[label] = GenericList()
+        elif type == 'list':
+            self.generics[label] = GenericList(restrictions['neverNull'])
+        elif type == 'bool':
+            self.generics[label] = GenericBool()
+        elif type == 'any':
+            self.generics[label] = Generic()
+        else:
+            raise ValueError('Invalid type string')
 
 class ERProofLine:
-    def __init__(self, goal, debug=False, ruleDict=None, udfType=None,isUdf=False): #added optional pointer to parent proof's ruleset
+    def __init__(self, goal, debug=False, ruleDict=None, udfType=None,isUdf=False, generics=None): #added optional pointer to parent proof's ruleset
         self.exprTree = None
         self.errLog = []
         self.debug = debug
@@ -178,7 +179,7 @@ class ERProofLine:
             if self.errLog == []:
                 if Parser.checkQuotes(tree):
                     self.errLog.append(f"Cannot have nested quotes")
-            labeledTree = Labeler.labelTree(tree, ruleDict)
+            labeledTree = Labeler.labelTree(tree, ruleDict, generics)
             labeledTree, _ = updatePositions(labeledTree)
 
         if self.errLog == []:
@@ -199,7 +200,7 @@ class ERProofLine:
 
 
 
-    def applyRule(self, ruleSet: dict[str, Rule], rule: str, startPos: int, generics: Dict[str, Generic], subNode:Node=None):
+    def applyRule(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subNode:Node=None):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
         if targetNode == None:
             self.errLog.append(
@@ -230,7 +231,7 @@ class ERProofLine:
         elif ruleCategory == 'apply' and rule in ('cons', 'first', 'rest'):  # for cons, first, rest axioms
             rule += 'Prop'
         elif ruleCategory == 'apply' and not (isinstance(ruleSet[rule], UDF) or ruleSet[rule].isProperty):
-            self.errLog.append(f"Could not find UDF/lemma/property associated with {rule}")
+            self.errLog.append(f"Could not find definition/lemma associated with {rule}")
         elif ruleCategory == 'apply' and isinstance(ruleSet[rule], UDF):
             stop_error = False
             given_args = []
@@ -309,20 +310,20 @@ class ERProofLine:
             self.errLog.append("Could not find built-in Racket procedure associated with 'math'")
         elif ruleCategory == 'eval' and ruleSet[rule].isProperty:
             self.errLog.append("Cannot evaluate a property")
-        else:
-            def find_unidentified_UDFs(node: Node):
-                unidentified_UDFs = []
+        if self.errLog == []:
+            def find_undefined_labels(node: Node):
+                undefined_labels = []
                 for child in node.children:
                     if child.data[0] == "'" or child.data[0] == "(":
-                        nested_children = find_unidentified_UDFs(child)
+                        nested_children = find_undefined_labels(child)
                         if nested_children:
-                            unidentified_UDFs.append(nested_children)
-                    elif child.data not in ruleSet.keys() and child.data not in reservedLabels and child.data.isalpha():
-                        unidentified_UDFs.append(child.data)
-                return unidentified_UDFs
+                            undefined_labels.append(nested_children)
+                    elif child.type.getType() == Type.PARAM:
+                        undefined_labels.append(child.data)
+                return undefined_labels
 
-            unidentified_UDFs = find_unidentified_UDFs(targetNode)
-            for label in unidentified_UDFs:
+            undefined_labels = find_undefined_labels(targetNode)
+            for label in undefined_labels:
                 self.errLog.append(f"No definition found for label '{label}'")
         # checking to see if highlighted portion is within a quote
         if "'(" in targetNode.ancestors():
@@ -340,10 +341,10 @@ class ERProofLine:
                 else:
                     self.errLog.append(error)
             else:
-                isApplicable, error = selectedRule.isApplicable(targetNode, generics)
+                isApplicable, error = selectedRule.isApplicable(targetNode)
                 if isApplicable:
                     newNode = selectedRule.insertSubstitution(
-                        targetNode, generics)  # copy information to targetNode
+                        targetNode)  # copy information to targetNode
                     targetNode.replaceWith(newNode)
                     updatePositions(self.exprTree)
                 else:
