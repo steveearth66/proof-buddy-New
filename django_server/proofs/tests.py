@@ -28,13 +28,20 @@ def do_single_test_case(prefix: str, func: str, expr: str, expected, proof: ERPr
         return 1
 
 def run_test_cases(prefix: str, func: str, tests: list[tuple], proof: ERProof = None, defaultGenerics=True) -> int:
+    '''Runs test cases with a single rule
+    
+    defaultGenerics specifies whether or not to use the default generics k (int), p (bool), L (list), and x (any)'''
     if proof is None:
         proof = ERProof()
     if defaultGenerics:
-        proof.addGeneric('k', 'int')
-        proof.addGeneric('p', 'bool')
-        proof.addGeneric('L', 'list')
-        proof.addGeneric('x', 'any')
+        if 'k' not in proof.generics.keys():
+            proof.addGeneric('k', 'int')
+        if 'p' not in proof.generics.keys():
+            proof.addGeneric('p', 'bool')
+        if 'L' not in proof.generics.keys():
+            proof.addGeneric('L', 'list')
+        if 'x' not in proof.generics.keys():
+            proof.addGeneric('x', 'any')
     fails = 0
     for trial in tests:
         expr, expected = trial
@@ -53,8 +60,8 @@ def test_racket_function(func: str, tests: list[tuple], allowGenerics=False, app
                                 expected=[f'Could not find definition/lemma associated with {func}'])
     return fails
 
-def test_list_func_props(func: str, tests: list[tuple]) -> int:
-    fails = run_test_cases('apply', func, tests)
+def test_list_func_props(func: str, tests: list[tuple], proof: ERProof = None) -> int:
+    fails = run_test_cases('apply', func, tests, proof)
     expr, _ = tests[-1]
     fails += do_single_test_case('apply', func + 'Prop', expr, [f'Could not find rule associated with {func + 'Prop'}'])
     return fails
@@ -384,8 +391,13 @@ zeroQ_tests = [
 totalFails += test_racket_function('zero?', zeroQ_tests)
 
 print('\nTest Undefined Labels\n')
-totalFails += do_single_test_case('apply', 'cons', '(cons (first L) (rest L))', ["No definition found for label '['L']'"])
+totalFails += do_single_test_case('apply', 'cons', '(cons (first L) (rest L))', 
+                                  ["No definition found for label '['L']'", "No definition found for label '['L']'"])
 
+axiomProof = ERProof()
+axiomProof.addGeneric('a', 'int', {'assumption': 'None'})
+axiomProof.addGeneric('b', 'int', {'assumption': 'Positive'})
+axiomProof.addGeneric('M', 'list')
 print("\nList Function Property Testing\n")
 cons_prop_tests = [
     ("(+ 1 2)", ["Cannot apply cons-first-rest property to a '+' expression"]),
@@ -407,7 +419,7 @@ cons_prop_tests = [
     ("(cons (first (cons 2 null)) (rest (cons 2 null)))", "(cons 2 null)"), # list not completely resolved
     ("(cons (first L) (rest L))", "L") # symbols
 ]
-totalFails += test_list_func_props('cons', cons_prop_tests)
+totalFails += test_list_func_props('cons', cons_prop_tests, axiomProof)
 
 first_prop_tests = [
     ("(+ 1 2)", ["Cannot apply first-cons property to a '+' expression"]),
@@ -418,7 +430,7 @@ first_prop_tests = [
     ("(first (cons 1 null) null)", ["first only takes 1 arguments, but 2 were provided"]), # extra argument in argument expression
     ("(first (cons 1 null))", "1"),
     ("(first (cons 9 '(8 7)))", "9"),
-    ("(first (cons x L))", "a"), # symbolic
+    ("(first (cons x L))", "x"), # symbolic
     ("(first (cons (+ (* 4 5) (* 6 7)) null))", "(+ (* 4 5) (* 6 7))"), # first cons argument not completely simplified
     ("(first (cons 46 (cons 2 null)))", "46") # second cons argument not completely simplified
 ]
@@ -483,18 +495,16 @@ totalFails += do_single_test_case("eval", "null?-cons", nullQ_cons_tests[-1][0],
 zeroQ_plus_tests = [
     ("(zero? (+ 0 1))", '#f'),
     ("(zero? (+ 1 0))", '#f'),
-    ("(zero? (+ x a))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
-    ("(zero? (+ x b))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
-    ("(zero? (+ a x))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
-    ("(zero? (+ a 0))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
+    ("(zero? (+ a k))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
+    ("(zero? (+ a b))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
+    ("(zero? (+ k a))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
+    ("(zero? (+ k 0))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
     ("(zero? (+ b 0))", '#f'),
-    ("(zero? (+ a b))", '#f')
+    ("(zero? (+ b x))", "#f"), # using GenericAny (should be treated as a nonnegative int)
+    ("(zero? (+ b k))", '#f')
 ]
-propertyProof = ERProof()
-propertyProof.addGeneric('a', 'int', {'assumption': 'None'})
-propertyProof.addGeneric('b', 'int', {'assumption': 'Positive'})
-totalFails += run_test_cases("apply", "zero?+", zeroQ_plus_tests, propertyProof)
-totalFails += do_single_test_case("eval", "zero?+", zeroQ_plus_tests[-1][0], ["Cannot evaluate a property"], propertyProof)
+totalFails += run_test_cases("apply", "zero?+", zeroQ_plus_tests, axiomProof)
+totalFails += do_single_test_case("eval", "zero?+", zeroQ_plus_tests[-1][0], ["Cannot evaluate a property"], axiomProof)
 
 
 print("\nUDF testing:\n")
