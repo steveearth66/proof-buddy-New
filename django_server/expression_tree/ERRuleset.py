@@ -79,6 +79,8 @@ class If(Rule):
 class ConsProp(Rule):
     def __init__(self):
         super().__init__('cons-first-rest', isProperty=True)
+        self.params = ['f', 'r']
+        self.racType = str2Type("(ANY, LIST)>ANY")
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'cons':
@@ -102,6 +104,8 @@ class ConsProp(Rule):
 class FirstProp(Rule):
     def __init__(self):
         super().__init__('first-cons', isProperty=True)
+        self.params = ['L']
+        self.racType = str2Type("LIST>ANY")
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'first':
@@ -119,6 +123,8 @@ class FirstProp(Rule):
 class RestProp(Rule):
     def __init__(self):
         super().__init__('rest-cons', isProperty=True)
+        self.params = ['L']
+        self.racType = str2Type("LIST>ANY")
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'rest':
@@ -160,6 +166,8 @@ class NullQ(Rule):
 class NullQCons(Rule):
     def __init__(self):
         super().__init__('null?-cons', isProperty=True)
+        self.params = ['L']
+        self.racType = str2Type("LIST>BOOL")
     
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'null?':
@@ -210,6 +218,8 @@ class ZeroQ(Rule):
 class ZeroQPlus(Rule):
     def __init__(self):
         super().__init__("zero?+", isProperty=True)
+        self.params = ['k']
+        self.racType = str2Type("INT>BOOL")
     
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'zero?':
@@ -233,6 +243,58 @@ class ZeroQPlus(Rule):
     
     def insertSubstitution(self, ruleNode: Node) -> Node:
         return Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
+
+
+class AndProp(Rule):
+    def __init__(self):
+        super().__init__("and", isProperty=True)
+        self.params = ['x', 'y']
+        self.racType = str2Type("(BOOL,BOOL)>BOOL")
+
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        if ruleNode.children[0].data != 'and':
+            return False, f"Cannot rewrite 'and' property on a '{ruleNode.children[0].data}' expression"
+        if ruleNode.children[1].data != '#f' and ruleNode.children[2].data != '#f':
+            return False, "Can only rewrite 'and' property when one argument is '#f'"
+        return True, 'AndProp.isApplicable() PASS'
+
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        return Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
+
+
+class OrProp(Rule):
+    def __init__(self):
+        super().__init__("or", isProperty=True)
+        self.params = ['x', 'y']
+        self.racType = str2Type("(BOOL,BOOL)>BOOL")
+
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        if ruleNode.children[0].data != 'or':
+            return False, f"Cannot rewrite 'or' property on a '{ruleNode.children[0].data}' expression"
+        if ruleNode.children[1].data != '#t' and ruleNode.children[2].data != '#t':
+            return False, "Can only rewrite 'or' property when one argument is '#t'"
+        return True, 'OrProp.isApplicable() PASS'
+
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        return Node(data='#t', tokenType=RacType((None, Type.BOOL)), name=False)
+
+
+class ImpliesProp(Rule):
+    def __init__(self):
+        super().__init__("implies", isProperty=True)
+        self.params = ['x', 'y']
+        self.racType = str2Type("(BOOL,ANY)>BOOL")
+
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        if ruleNode.children[0].data != 'implies':
+            return False, f"Cannot rewrite 'implies' property on a '{ruleNode.children[0].data}' expression"
+        if ruleNode.children[1].data != '#f':
+            return False, "Can only rewrite 'implies' property when first argument is '#f'"
+        return True, 'ImpliesProp.isApplicable() PASS'
+
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        return Node(data='#t', tokenType=RacType((None, Type.BOOL)), name=True)
+
 
 class ConsList(Rule):
     def __init__(self):
@@ -558,6 +620,8 @@ class FirstList(Rule):
 class MinusPlus(Rule):
     def __init__(self):
         super().__init__('-+', isProperty=True)
+        self.params = ['x', 'y']
+        self.racType = str2Type("(INT,INT)>INT")
     
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0] != '-':
