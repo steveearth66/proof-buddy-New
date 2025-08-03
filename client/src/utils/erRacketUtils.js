@@ -18,11 +18,6 @@ export const INITIAL_PREMISE_STATE = {
   startPosition: 0
 };
 
-export const INITIAL_EDITABLE_LINE_NUMS = {
-  LHS: 0,
-  RHS: 0
-};
-
 // Helper functions
 export const getPadRefs = (side, lhsPadRefs, rhsPadRefs) => 
   side === "LHS" ? lhsPadRefs : rhsPadRefs;
@@ -37,7 +32,7 @@ export const isFormComplete = (formValues) =>
   formValues.proofName && formValues.proofTag && formValues.lHSGoal && formValues.rHSGoal;
 
 // Proof data conversion
-export const convertFormToJSON = (formValues, racketRuleFields, leftPremise, rightPremise, isGoalChecked, jsonTreeRep) => {
+export const convertFormToJSON = (formValues, racketRuleFields, leftPremise, rightPremise, isGoalChecked, jsonTreeRep, startPosition, showSide) => {
   const definitions = JSON.parse(sessionStorage.getItem("definitions") || "[]").filter(isApplied);
   
   return JSON.stringify({
@@ -49,7 +44,11 @@ export const convertFormToJSON = (formValues, racketRuleFields, leftPremise, rig
     rHSGoal: formValues.rHSGoal,
     leftPremise: { ...leftPremise, jsonTree: isGoalChecked.LHS ? jsonTreeRep.LHS : null },
     rightPremise: { ...rightPremise, jsonTree: isGoalChecked.RHS ? jsonTreeRep.RHS : null },
-    definitions
+    definitions,
+    // Additional UI state for proper import
+    startPosition,
+    showSide,
+    isGoalChecked
   });
 };
 

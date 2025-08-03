@@ -34,7 +34,6 @@ import {
   ARROW_KEYS,
   INITIAL_FORM_VALUES,
   INITIAL_PREMISE_STATE,
-  INITIAL_EDITABLE_LINE_NUMS,
   getPadRefs,
   getPadIndex,
   isApplied,
@@ -125,7 +124,6 @@ const ERRacket = () => {
   const [rightPremise, setRightPremise] = useState(INITIAL_PREMISE_STATE);
   const [loadedProof, setLoadedProof] = useState(null);
   const location = useLocation();
-  const [editableLineNums, setEditableLineNums] = useState(INITIAL_EDITABLE_LINE_NUMS);
   const [isBound, setIsBound] = useState(false);
 
   const handleERRacketSubmission = async () => {
@@ -272,11 +270,6 @@ const ERRacket = () => {
           return fields;
         });
         
-        setEditableLineNums((prevEditableLineNums) => ({
-          ...prevEditableLineNums,
-          [showSide]: (fullRacket.lineNum < 1 || fullRacket.lineNum === null ? 0 : fullRacket.lineNum)
-        }));
-        
         if (racketRuleFields[showSide].filter(line => !line.deleted).length != 0) {
           setStartPosition(0);
         }
@@ -302,7 +295,7 @@ const ERRacket = () => {
   );
 
   const convertFormToJSONWrapper = () =>
-    convertFormToJSON(formValues, racketRuleFields, leftPremise, rightPremise, isGoalChecked, jsonTreeRep);
+    convertFormToJSON(formValues, racketRuleFields, leftPremise, rightPremise, isGoalChecked, jsonTreeRep, startPosition, showSide);
 
   const exportJSON = () => {
     if (!isFormComplete(formValues)) {
@@ -400,12 +393,12 @@ const ERRacket = () => {
       loadRacketGoal(loadedProof);
       loadRacketProof(loadedProof);
 
-      setEditableLineNums({
-        LHS: loadedProof.leftRacketsAndRules.length ? loadedProof.leftRacketsAndRules.length - 1 : 0,
-        RHS: loadedProof.rightRacketsAndRules.length ? loadedProof.rightRacketsAndRules.length - 1 : 0
-      });
-
-      setStartPosition(getStartPosition(loadedProof, showSide) ?? 0);
+      setStartPosition(loadedProof.startPosition ?? getStartPosition(loadedProof, loadedProof.showSide || showSide) ?? 0);
+      
+      // Restore showSide if available
+      if (loadedProof.showSide && loadedProof.showSide !== showSide) {
+        toggleSide();
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadedProof]);
@@ -502,7 +495,6 @@ const ERRacket = () => {
           side={showSide}
           jsonTree={jsonTreeRep[showSide]}
           lineNum={padIndex}
-          editableLineNum={editableLineNums[showSide]}
           startPosition={startPos}
           tabIndex={0}
           ruleValue="Premise"
@@ -526,7 +518,6 @@ const ERRacket = () => {
           side={showSide}
           jsonTree={field.jsonTree || jsonTreeRep[showSide]}
           lineNum={padIndex}
-          editableLineNum={editableLineNums[showSide]}
           startPosition={field.startPosition ?? 0}
           tabIndex={0}
           ruleValue={footerRule}
@@ -838,7 +829,6 @@ const ERRacket = () => {
                       padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
                       formValues,
                       jsonTreeRep,
-                      editableLineNums,
                       leftPremise,
                       rightPremise,
                       handleHighlight,
@@ -861,7 +851,6 @@ const ERRacket = () => {
                           padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
                           formValues,
                           jsonTreeRep,
-                          editableLineNums,
                           leftPremise,
                           rightPremise,
                           handleHighlight,
@@ -952,7 +941,6 @@ function renderPersistentPadRow({
   padRefs,
   formValues,
   jsonTreeRep,
-  editableLineNums,
   leftPremise,
   rightPremise,
   handleHighlight,
@@ -975,7 +963,6 @@ function renderPersistentPadRow({
     ? jsonTreeRep[side]
     : field.jsonTree || jsonTreeRep[side];
   const lineNum = isPremise ? 0 : index + 1;
-  const editableLineNum = editableLineNums[side];
   const startPosition = isPremise
     ? (isLHS ? leftPremise.startPosition : rightPremise.startPosition) ?? 0
     : field.startPosition ?? 0;
@@ -1002,7 +989,6 @@ function renderPersistentPadRow({
           equation={equation}
           jsonTree={jsonTree}
           lineNum={lineNum}
-          editableLineNum={editableLineNum}
           startPosition={startPosition}
           onHighlightChange={startPosition => {
             handleHighlight(startPosition);
