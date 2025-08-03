@@ -68,13 +68,11 @@ const ERRacket = () => {
   ] = useGoalCheck(handleChange);
   const [startPosition, setStartPosition] = useState(0);
   const [currentRacket, setCurrentRacket] = useState("");
-  // Temporary racketRuleFields state to prevent null errors during transition
   const [racketRuleFields, setRacketRuleFields] = useState({
     LHS: [{ racket: '', jsonTree: {}, rule: '', deleted: false }],
     RHS: [{ racket: '', jsonTree: {}, rule: '', deleted: false }]
   });
 
-  // Temporary handleFieldChange function to prevent null errors during transition
   const handleFieldChange = useCallback((side, index, fieldName, value, startPosition) => {
     setRacketRuleFields((prevFields) => {
       const fieldsCopy = { ...prevFields };
@@ -89,7 +87,6 @@ const ERRacket = () => {
     });
   }, []);
 
-  // Temporary loadRacketProof function to prevent null errors during transition
   const loadRacketProof = useCallback((loadedProof) => {
     if (loadedProof) {
       setRacketRuleFields({
@@ -100,9 +97,9 @@ const ERRacket = () => {
   }, []);
 
   const [
-    , // racketRuleFields removed from hook
+    ,
     addFieldWithApiCheck,
-    , // handleFieldChange removed from hook
+    ,
     validationErrors,
     serverError,
     racketErrors,
@@ -112,7 +109,6 @@ const ERRacket = () => {
     closeSubstitution,
     substituteFieldWithApiCheck,
     substitutionErrors
-     // loadRacketProof removed
   ] = useRacketRuleFields(
     startPosition,
     currentRacket,
@@ -140,6 +136,59 @@ const ERRacket = () => {
   const rhsPadRefs = useRef({});
   const footerPadRef = useRef(null);
   const isProcessingRef = useRef(false);
+
+  const bindFooterToRow = useCallback((rowNum) => {
+    const paddedRowNum = rowNum.toString().padStart(3, "0");
+    const userIndex = getPadIndex(paddedRowNum);
+    const matchingRow = document.getElementById("racket-row-" + userIndex);
+    
+    if (!matchingRow) {
+      alert("No matching row found!");
+      return false;
+    }
+
+    setUserRow({ num: paddedRowNum });
+    setIsBound(true);
+
+    // Set footer rule initially to what the pad ref row has
+    if (paddedRowNum !== "000") {
+      const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
+      const mainPadRef = padRefs.current[userIndex];
+      setFooterRule(mainPadRef?.getRuleValue() || "");
+    } else {
+      setFooterRule("Premise");
+    }
+
+    setTimeout(() => {
+      const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
+      // Focus on the previous row to match arrow key control
+      // But don't try to focus on negative index if binding to premise
+      if (paddedRowNum === "000") {
+        // When binding to premise (000), focus stays on premise
+        padRefs.current[userIndex]?.focus();
+      } else {
+        // For other rows, focus on the previous row
+        const previousRowIndex = userIndex - 1;
+        if (previousRowIndex >= 0) {
+          padRefs.current[previousRowIndex]?.focus();
+        }
+      }
+    }, 0);
+
+    return true;
+  }, [showSide, lhsPadRefs, rhsPadRefs]);
+
+  const unbindFooter = useCallback(() => {
+    setUserRow({ num: "" });
+    setIsBound(false);
+  }, []);
+
+  const handleRowNumberClick = (rowNum) => {
+    // Only allow binding if footer is currently unbound
+    if (!isBound) {
+      bindFooterToRow(rowNum);
+    }
+  };
 
   const handleGenerateAndCheck = async () => {
     // Prevent duplicate execution
@@ -234,8 +283,7 @@ const ERRacket = () => {
 
         // Unbind the footer after successful generate and check
         if (isBound) {
-          setUserRow({ num: "" });
-          setIsBound(false);
+          unbindFooter();
         }
       }
     } catch (error) {
@@ -432,6 +480,64 @@ const ERRacket = () => {
       document.removeEventListener('keydown', handleGlobalKeyDown);
     };
   }, [isBound, userRow.num, showSide, lhsPadRefs, rhsPadRefs]);
+
+  const renderFooterPad = () => {
+    const padIndex = getPadIndex(userRow.num);
+    
+    if (userRow.num === "000") {
+      const equation = showSide === "LHS" ? leftPremise.racket : rightPremise.racket;
+      const startPos = showSide === "LHS" ? leftPremise.startPosition ?? 0 : rightPremise.startPosition ?? 0;
+      
+      return (
+        <PersistentPad
+          ref={footerPadRef}
+          equation={equation}
+          onHighlightChange={newStartPosition => {
+            if (showSide === "LHS") {
+              setLeftPremise(prev => ({ ...prev, startPosition: newStartPosition }));
+            } else {
+              setRightPremise(prev => ({ ...prev, startPosition: newStartPosition }));
+            }
+          }}
+          side={showSide}
+          jsonTree={jsonTreeRep[showSide]}
+          lineNum={padIndex}
+          editableLineNum={editableLineNums[showSide]}
+          startPosition={startPos}
+          tabIndex={0}
+          ruleValue="Premise"
+          onRuleChange={() => {}}
+          isRuleReadOnly={true}
+          rulePlaceholder="Rule"
+          isEditRow={true}
+        />
+      );
+    } else {
+      const field = racketRuleFields[showSide][padIndex - 1];
+      if (!field) return null;
+      
+      return (
+        <PersistentPad
+          ref={footerPadRef}
+          equation={field.racket}
+          onHighlightChange={newStartPosition => {
+            handleFieldChange(showSide, padIndex - 1, "racket", field.racket, newStartPosition);
+          }}
+          side={showSide}
+          jsonTree={field.jsonTree || jsonTreeRep[showSide]}
+          lineNum={padIndex}
+          editableLineNum={editableLineNums[showSide]}
+          startPosition={field.startPosition ?? 0}
+          tabIndex={0}
+          ruleValue={footerRule}
+          onRuleChange={e => setFooterRule(e.target.value.trim())}
+          isRuleReadOnly={false}
+          rulePlaceholder="Rule"
+          isEditRow={true}
+        />
+      );
+    }
+  };
 
   return (
     <MainLayout>
@@ -741,7 +847,9 @@ const ERRacket = () => {
                       setRightPremise,
                       handleFieldChange,
                       handleChange,
-                      validationErrors
+                      validationErrors,
+                      isBound,
+                      handleRowNumberClick
                     })}
                     {racketRuleFields[showSide].map((field, index) =>
                       field.deleted
@@ -762,7 +870,9 @@ const ERRacket = () => {
                           setRightPremise,
                           handleFieldChange,
                           handleChange,
-                          validationErrors
+                          validationErrors,
+                          isBound,
+                          handleRowNumberClick
                         })
                     )}
                   </>
@@ -794,61 +904,7 @@ const ERRacket = () => {
 
           {/* Column 2: Expression */}
           <Col>
-            {isBound && (() => {
-              const padIndex = getPadIndex(userRow.num);
-              const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
-
-              let equation, jsonTree, startPos, onHighlightChange, ruleValue, onRuleChange, isRuleReadOnly;
-
-              if (userRow.num === "000") {
-                equation = showSide === "LHS" ? leftPremise.racket : rightPremise.racket;
-                jsonTree = jsonTreeRep[showSide];
-                startPos = showSide === "LHS" ? leftPremise.startPosition ?? 0 : rightPremise.startPosition ?? 0;
-                ruleValue = "Premise";
-                isRuleReadOnly = true;
-                onRuleChange = () => { };
-                onHighlightChange = newStartPosition => {
-                  if (showSide === "LHS") {
-                    setLeftPremise(prev => ({ ...prev, startPosition: newStartPosition }));
-                  } else {
-                    setRightPremise(prev => ({ ...prev, startPosition: newStartPosition }));
-                  }
-                };
-              } else {
-                const field = racketRuleFields[showSide][padIndex - 1];
-                if (!field) return null;
-                equation = field.racket;
-                jsonTree = field.jsonTree || jsonTreeRep[showSide];
-                startPos = field.startPosition ?? 0;
-                isRuleReadOnly = false;
-                ruleValue = footerRule;
-                onRuleChange = e => {
-                  setFooterRule(e.target.value);
-                };
-                onHighlightChange = newStartPosition => {
-                  handleFieldChange(showSide, padIndex - 1, "racket", field.racket, newStartPosition);
-                };
-              }
-
-              return (
-                <PersistentPad
-                  ref={footerPadRef}
-                  equation={equation}
-                  onHighlightChange={onHighlightChange}
-                  side={showSide}
-                  jsonTree={jsonTree}
-                  lineNum={padIndex}
-                  editableLineNum={editableLineNums[showSide]}
-                  startPosition={startPos}
-                  tabIndex={0}
-                  ruleValue={ruleValue}
-                  onRuleChange={onRuleChange}
-                  isRuleReadOnly={isRuleReadOnly}
-                  rulePlaceholder="Rule"
-                  isEditRow={true}
-                />
-              );
-            })()}
+            {isBound && renderFooterPad()}
           </Col>
           {/* Column 6: Button */}
           <Col md="2" className="d-flex align-items-center">
@@ -856,46 +912,9 @@ const ERRacket = () => {
               variant="primary"
               onClick={() => {
                 if (isBound) {
-                  setUserRow({
-                    num: ""
-                  });
-                  setIsBound(false);
+                  unbindFooter();
                 } else {
-                  const userIndex = getPadIndex(userRow.num);
-                  const matchingRow = document.getElementById("racket-row-" + userIndex)
-                  if (matchingRow) {
-                    setUserRow({
-                      num: userRow.num
-                    });
-                    setIsBound(true);
-
-                    // Set footer rule initially to what the pad ref row has
-                    if (userRow.num !== "000") {
-                      const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
-                      const mainPadRef = padRefs.current[userIndex];
-                      setFooterRule(mainPadRef?.getRuleValue() || "");
-                    } else {
-                      setFooterRule("Premise");
-                    }
-
-                    setTimeout(() => {
-                      const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
-                      // Focus on the previous row to match arrow key control
-                      // But don't try to focus on negative index if binding to premise
-                      if (userRow.num === "000") {
-                        // When binding to premise (000), focus stays on premise
-                        padRefs.current[userIndex]?.focus();
-                      } else {
-                        // For other rows, focus on the previous row
-                        const previousRowIndex = userIndex - 1;
-                        if (previousRowIndex >= 0) {
-                          padRefs.current[previousRowIndex]?.focus();
-                        }
-                      }
-                    }, 0);
-                  } else {
-                    alert("No matching row found!");
-                  }
+                  bindFooterToRow(userRow.num);
                 }
               }}
             >
@@ -942,7 +961,9 @@ function renderPersistentPadRow({
   setRightPremise,
   handleFieldChange,
   handleChange,
-  validationErrors
+  validationErrors,
+  isBound,
+  handleRowNumberClick
 }) {
   // Compute values based on side and isPremise
   const isLHS = side === "LHS";
@@ -966,7 +987,11 @@ function renderPersistentPadRow({
   return (
     <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? "premise" : `${side}-field-${padIndex}`}>
       <Col md="1">
-        <div className="main-grid-column">
+        <div 
+          className={`main-grid-column ${!isBound ? 'clickable-row-number' : ''}`}
+          onClick={() => !isBound && handleRowNumberClick(padIndex)}
+          title={!isBound ? 'Click to bind to footer' : ''}
+        >
           {padIndex.toString().padStart(3, "0")}
         </div>
       </Col>
