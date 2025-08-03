@@ -30,77 +30,79 @@ const PersistentPad = forwardRef(function PersistentPad(
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
   const [selected, setSelected] = useState(startPosition);
   const [rule, setRule] = useState(ruleValue);
-  useEffect(() => { setRule(ruleValue); }, [ruleValue]);
-  const lineNumRef = useRef(lineNum);
-  let origTree = jsonTree;
-
-  // Expose moveSelection and focus to parent
+  
   const padDivRef = useRef(null);
-useImperativeHandle(ref, () => ({
-  moveSelection,
-  focus: () => padDivRef.current && padDivRef.current.focus(),
-  getRuleValue: () => rule,
-  setRuleValue: (val) => setRule(val)
-}));
+  const lineNumRef = useRef(lineNum);
 
+  useEffect(() => { 
+    setRule(ruleValue); 
+  }, [ruleValue]);
+
+  // Session storage management for highlights
   useEffect(() => {
-    const saveHighlightToSession = (highlightedText) => {
-      const savedHighlights = JSON.parse(
-        sessionStorage.getItem("highlights") || "[]"
-      );
+    if (!highlightedText) return;
 
-      savedHighlights.forEach((highlight, index) => {
-        if (highlight.equation === equation && highlight.side === side) {
-          savedHighlights.splice(index, 1);
-        }
-      });
-
-      savedHighlights.push({
-        equation,
-        highlightedText,
-        side,
-        selectionRange
-      });
-      sessionStorage.setItem("highlights", JSON.stringify(savedHighlights));
-    };
-
-    if (highlightedText) {
-      saveHighlightToSession(highlightedText);
-    }
-  }, [highlightedText, side, selectionRange, equation]);
-
-  useEffect(() => {
-    const savedHighlights = JSON.parse(
-      sessionStorage.getItem("highlights") || "[]"
+    const savedHighlights = JSON.parse(sessionStorage.getItem("highlights") || "[]");
+    const filteredHighlights = savedHighlights.filter(
+      highlight => !(highlight.equation === equation && highlight.side === side)
     );
 
-    savedHighlights.forEach((highlight) => {
-      if (highlight.equation === equation && highlight.side === side) {
-        setHighlightedText(highlight.highlightedText);
-        setSelectionRange(highlight.selectionRange);
-      }
+    filteredHighlights.push({
+      equation,
+      highlightedText,
+      side,
+      selectionRange
     });
+
+    sessionStorage.setItem("highlights", JSON.stringify(filteredHighlights));
+  }, [highlightedText, side, selectionRange, equation]);
+
+  // Load highlights from session storage
+  useEffect(() => {
+    const savedHighlights = JSON.parse(sessionStorage.getItem("highlights") || "[]");
+    const matchingHighlight = savedHighlights.find(
+      highlight => highlight.equation === equation && highlight.side === side
+    );
+
+    if (matchingHighlight) {
+      setHighlightedText(matchingHighlight.highlightedText);
+      setSelectionRange(matchingHighlight.selectionRange);
+    }
   }, [equation, side]);
 
-  const moveSelection = useCallback(
-    (direction) => {
-      let newSelected = selected;
+  const moveSelection = useCallback((direction) => {
+    const directionMap = {
+      up: 'parent',
+      down: 'children',
+      left: 'leftSib',
+      right: 'rightSib'
+    };
 
-      if (direction === "up") {
-        newSelected = origTree[newSelected].parent ?? newSelected;
-      } else if (direction === "down") {
-        newSelected = origTree[newSelected].children[0] ?? newSelected;
-      } else if (direction === "left") {
-        newSelected = origTree[newSelected].leftSib ?? newSelected;
-      } else if (direction === "right") {
-        newSelected = origTree[newSelected].rightSib ?? newSelected;
-      }
+    const property = directionMap[direction];
+    if (!property) return;
 
-      onHighlightChange(newSelected);
-      setSelected(newSelected);
-    },
-    [selected, origTree, onHighlightChange]
-  );
+    let newSelected = selected;
+    if (property === 'children') {
+      newSelected = jsonTree[selected]?.children?.[0] ?? selected;
+    } else {
+      newSelected = jsonTree[selected]?.[property] ?? selected;
+    }
+
+    onHighlightChange(newSelected);
+    setSelected(newSelected);
+  }, [selected, jsonTree, onHighlightChange]);
+
+  useImperativeHandle(ref, () => ({
+    moveSelection,
+    focus: () => padDivRef.current?.focus(),
+    getRuleValue: () => rule,
+    setRuleValue: setRule
+  }));
+
+  const handleRuleChange = (e) => {
+    setRule(e.target.value);
+    onRuleChange?.(e);
+  };
 
   return (
     <Row className="persistent-pad-row" style={{ alignItems: "center" }}>
@@ -114,7 +116,7 @@ useImperativeHandle(ref, () => ({
           <DivMakerComponent
             expr={jsonTree}
             selected={selected}
-            origTree={origTree}
+            origTree={jsonTree}
             lineNumber={lineNumRef.current}
           />
         </div>
@@ -125,10 +127,7 @@ useImperativeHandle(ref, () => ({
             type="text"
             value={rule}
             placeholder={rulePlaceholder}
-            onChange={e => {
-              setRule(e.target.value);
-              onRuleChange && onRuleChange(e);
-            }}
+            onChange={handleRuleChange}
             readOnly={isRuleReadOnly}
             isInvalid={isRuleInvalid}
             disabled={!isEditRow}

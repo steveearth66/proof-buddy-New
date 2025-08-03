@@ -30,30 +30,29 @@ import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import erService from "../services/erService";
 import { useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
+import {
+  ARROW_KEYS,
+  INITIAL_FORM_VALUES,
+  INITIAL_PREMISE_STATE,
+  INITIAL_EDITABLE_LINE_NUMS,
+  getPadRefs,
+  getPadIndex,
+  isApplied,
+  isFormComplete,
+  convertFormToJSON,
+  getStartPosition,
+  clearSessionData,
+  updatePremises
+} from "../utils/erRacketUtils";
 
 /**
  * ERRacket component facilitates the Equational Reasoning Racket.
  */
-const ARROW_KEYS = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
-function getPadRefs(side, lhsPadRefs, rhsPadRefs) {
-  return side === "LHS" ? lhsPadRefs : rhsPadRefs;
-}
-function getPadIndex(num) {
-  return num === "000" ? 0 : parseInt(num, 10);
-}
-
 const ERRacket = () => {
-  const initialValues = {
-    proofName: "",
-    proofTag: "",
-    lHSGoal: "",
-    rHSGoal: ""
-  };
-
   const [footerRule, setFooterRule] = useState("");
   const [userRow, setUserRow] = useState({ num: "" });
   const [showSide, toggleSide] = useToggleSide();
-  const [formValues, handleChange] = useInputState(initialValues);
+  const [formValues, handleChange] = useInputState(INITIAL_FORM_VALUES);
   const [validationMessages, handleBlur, setAllTouched, isFormValid] =
     useFormValidation(formValues, validateField);
   const [validated, setValidated] = useState(false);
@@ -92,30 +91,16 @@ const ERRacket = () => {
     showSide
   );
   const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields);
-  const [lhsValue, setLhsValue] = useState("");
-  const [rhsValue, setRhsValue] = useState("");
   const [isOffcanvasActive, toggleOffcanvas] = useOffcanvas();
   const [showDefinitionsWindow, toggleDefinitionsWindow] =
     useDefinitionsWindow();
-  const [showProofComplete, setShowProofComplete] = useState(false);
   const [proofComplete, setProofComplete] = useState(false);
-  const [leftPremise, setLeftPremise] = useState({
-    racket: '',
-    rule: 'Premise',
-    startPosition: 0
-  });
-  const [rightPremise, setRightPremise] = useState({
-    racket: '',
-    rule: 'Premise',
-    startPosition: 0
-  });
+  const [leftPremise, setLeftPremise] = useState(INITIAL_PREMISE_STATE);
+  const [rightPremise, setRightPremise] = useState(INITIAL_PREMISE_STATE);
   const [loadedProof, setLoadedProof] = useState(null);
   const location = useLocation();
-  const [editableLineNums, setEditableLineNums] = useState({
-    LHS: 0,
-    RHS: 0
-  });
-  const [isBound, setIsBound] = useState(false); // State to track if the num field is bound
+  const [editableLineNums, setEditableLineNums] = useState(INITIAL_EDITABLE_LINE_NUMS);
+  const [isBound, setIsBound] = useState(false);
 
   const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
@@ -132,39 +117,18 @@ const ERRacket = () => {
     handleERRacketSubmission
   );
 
-  /**
-   * Returns a JSON object of the present form
-   */
-  const convertFormToJSON = () => {
-    let EquationalReasoningObject = {
-      name: formValues.proofName,
-      tag: formValues.proofTag,
-      leftRacketsAndRules: racketRuleFields.LHS,
-      rightRacketsAndRules: racketRuleFields.RHS,
-      lHSGoal: formValues.lHSGoal,
-      rHSGoal: formValues.rHSGoal,
-      leftPremise: { ...leftPremise, jsonTree: (isGoalChecked.LHS ? jsonTreeRep.LHS : null) },
-      rightPremise: { ...rightPremise, jsonTree: (isGoalChecked.RHS ? jsonTreeRep.RHS : null) },
-      definitions: JSON.parse(sessionStorage.getItem("definitions") || "[]").filter(isApplied)
-    };
-    return JSON.stringify(EquationalReasoningObject);
-  };
-
-  function isApplied(definition) {
-    return definition["applied"];
-  }
+  const convertFormToJSONWrapper = () => 
+    convertFormToJSON(formValues, racketRuleFields, leftPremise, rightPremise, isGoalChecked, jsonTreeRep);
 
   const exportJSON = () => {
-    if (!formValues.proofName || !formValues.proofTag || !formValues.lHSGoal || !formValues.rHSGoal) {
+    if (!isFormComplete(formValues)) {
       alert("Please fill out all required fields before exporting.");
       return;
     }
-    exportToLocalMachine(formValues.proofName, convertFormToJSON());
+    exportToLocalMachine(formValues.proofName, convertFormToJSONWrapper());
   };
 
-  const handleHighlight = (startPosition) => {
-    setStartPosition(startPosition);
-  };
+  const handleHighlight = setStartPosition;
 
   const handleFileUpload = async (file) => {
     if (file) {
@@ -202,24 +166,12 @@ const ERRacket = () => {
   };
 
   useEffect(() => {
-    sessionStorage.removeItem("highlights");
-    sessionStorage.removeItem("definitions");
-
-    const clearProof = async () => {
-      await erService.clearProof();
-    };
-
-    clearProof();
+    clearSessionData();
+    erService.clearProof();
   }, []);
 
   useEffect(() => {
-    if (formValues.rHSGoal !== "") {
-      setRightPremise(prev => ({ ...prev, racket: formValues.rHSGoal }));
-    }
-
-    if (formValues.lHSGoal !== "") {
-      setLeftPremise(prev => ({ ...prev, racket: formValues.lHSGoal }));
-    }
+    updatePremises(formValues, setLeftPremise, setRightPremise);
   }, [formValues.lHSGoal, formValues.rHSGoal]);
   useEffect(() => {
     if (isBound && userRow.num !== "000") {
@@ -227,74 +179,44 @@ const ERRacket = () => {
       const padRefs = showSide === "LHS" ? lhsPadRefs : rhsPadRefs;
       const mainPadRef = padRefs.current[padIndex];
       setFooterRule(mainPadRef?.getRuleValue() || "");
-    }
-    if (!isBound) {
+    } else {
       setFooterRule("");
     }
   }, [isBound, userRow.num, showSide]);
   useEffect(() => {
-    const removeBlankRackets = () => {
+    if (currentLHS && currentRHS && currentLHS === currentRHS) {
       racketRuleFields.LHS.splice(-1);
       racketRuleFields.RHS.splice(-1);
-    };
-
-    const sendProofComplete = async () => {
-      try {
-        await erService.completeProof({
-          name: formValues.proofName,
-          tag: formValues.proofTag,
-          leftRacketsAndRules: racketRuleFields.LHS,
-          rightRacketsAndRules: racketRuleFields.RHS,
-          lHSGoal: formValues.lHSGoal,
-          rHSGoal: formValues.rHSGoal,
-          leftPremise,
-          rightPremise
-        });
-      } catch (error) {
-        console.error(error);
-      }
-    };
-
-    if (lhsValue !== "" && rhsValue !== "" && currentLHS !== "") {
-      if (currentLHS === currentRHS) {
-        removeBlankRackets();
-        setShowProofComplete(true);
-        setProofComplete(true);
-        sendProofComplete();
-        setTimeout(() => {
-          setShowProofComplete(false);
-        }, 5000);
-      }
+      setProofComplete(true);
+      
+      erService.completeProof({
+        name: formValues.proofName,
+        tag: formValues.proofTag,
+        leftRacketsAndRules: racketRuleFields.LHS,
+        rightRacketsAndRules: racketRuleFields.RHS,
+        lHSGoal: formValues.lHSGoal,
+        rHSGoal: formValues.rHSGoal,
+        leftPremise,
+        rightPremise
+      }).catch(console.error);
     }
-  }, [
-    currentLHS,
-    currentRHS,
-    racketRuleFields,
-    lhsValue,
-    rhsValue,
-    formValues,
-    leftPremise,
-    rightPremise,
-    sendProofComplete
-  ]);
+  }, [currentLHS, currentRHS, racketRuleFields, formValues, leftPremise, rightPremise]);
 
   useEffect(() => {
-    const fetchProof = async (id) => {
-      const proof = await erService.getRacketProof(id);
-      setLoadedProof(proof);
-    };
-
     if (location?.state?.id) {
-      fetchProof(location.state.id);
+      erService.getRacketProof(location.state.id).then(setLoadedProof);
     }
   }, [location]);
 
   useEffect(() => {
     if (loadedProof) {
-      formValues.proofName = loadedProof.name;
-      formValues.proofTag = loadedProof.tag;
-      formValues.lHSGoal = loadedProof.lHSGoal;
-      formValues.rHSGoal = loadedProof.rHSGoal;
+      // Update form values
+      Object.assign(formValues, {
+        proofName: loadedProof.name,
+        proofTag: loadedProof.tag,
+        lHSGoal: loadedProof.lHSGoal,
+        rHSGoal: loadedProof.rHSGoal
+      });
 
       setLeftPremise(loadedProof.leftPremise);
       setRightPremise(loadedProof.rightPremise);
@@ -309,42 +231,38 @@ const ERRacket = () => {
         RHS: loadedProof.rightRacketsAndRules.length ? loadedProof.rightRacketsAndRules.length - 1 : 0
       });
 
-      let loadedStartPosition;
-      if (showSide === 'LHS')
-        loadedStartPosition = (loadedProof.leftRacketsAndRules.length > 1 ?
-          loadedProof.leftRacketsAndRules.at(-2).startPosition : loadedProof.leftPremise.startPosition);
-      else
-        loadedStartPosition = (loadedProof.rightRacketsAndRules.length > 1 ?
-          loadedProof.rightRacketsAndRules.at(-2).startPosition : loadedProof.rightPremise.startPosition);
-      setStartPosition(loadedStartPosition ?? 0);
+      setStartPosition(getStartPosition(loadedProof, showSide) ?? 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadedProof]);
 
-  // set startPosition upon switching sides
   useEffect(() => {
     const lastUndeletedFieldIndex = racketRuleFields[showSide].filter(line => !line.deleted).length - 2;
-    let correctStartPosition;
-    if (lastUndeletedFieldIndex >= 0)
-      correctStartPosition = racketRuleFields[showSide][lastUndeletedFieldIndex].startPosition;
-    else
-      correctStartPosition = showSide === 'LHS' ? leftPremise.startPosition : rightPremise.startPosition;
-    correctStartPosition = correctStartPosition ?? 0;
-    setStartPosition(correctStartPosition);
-  }, [showSide]);
+    const correctStartPosition = lastUndeletedFieldIndex >= 0 
+      ? racketRuleFields[showSide][lastUndeletedFieldIndex].startPosition
+      : (showSide === 'LHS' ? leftPremise.startPosition : rightPremise.startPosition);
+    
+    setStartPosition(correctStartPosition ?? 0);
+  }, [showSide, racketRuleFields, leftPremise.startPosition, rightPremise.startPosition]);
 
   useEffect(() => {
     const currentSideRackets = racketRuleFields[showSide];
+    
     if (currentSideRackets.length <= 1) {
       setCurrentRacket(formValues[`${showSide[0].toLowerCase()}HSGoal`]);
       return;
     }
-    const undeletedRackets = currentSideRackets.filter((line) => !line.deleted && line.racket !== '');
+    
+    const undeletedRackets = currentSideRackets.filter((line) => !line.deleted && line.racket);
     const lastUndeletedRacket = undeletedRackets[undeletedRackets.length - 1];
-    if (lastUndeletedRacket) setCurrentRacket(lastUndeletedRacket.racket);
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setStartPosition, showSide, racketRuleFields, formValues.lHSGoal, formValues.rHSGoal]);
+    
+    if (lastUndeletedRacket) {
+      setCurrentRacket(lastUndeletedRacket.racket);
+      if (racketRuleFields[showSide].filter(line => !line.deleted).length) {
+        setStartPosition(0);
+      }
+    }
+  }, [showSide, racketRuleFields, formValues.lHSGoal, formValues.rHSGoal]);
 
   return (
     <MainLayout>
@@ -357,7 +275,7 @@ const ERRacket = () => {
           <Definitions toggleDefinitionsWindow={toggleDefinitionsWindow} />
         )}
 
-        {showProofComplete && <ProofComplete />}
+        {proofComplete && <ProofComplete />}
 
         {showSubstitution && (
           <Substitution
@@ -539,7 +457,7 @@ const ERRacket = () => {
                     name="proofCurrentLHS"
                     type="text"
                     placeholder="Current LHS"
-                    value={currentLHS === "" ? lhsValue : currentLHS}
+                    value={currentLHS === "" ? formValues.lHSGoal : currentLHS}
                     readOnly
                   />
                   <label htmlFor="eRProofCurrentLHS">Current LHS</label>
@@ -557,7 +475,7 @@ const ERRacket = () => {
                     name="proofCurrentRHS"
                     type="text"
                     placeholder="Current RHS"
-                    value={currentRHS === "" ? rhsValue : currentRHS}
+                    value={currentRHS === "" ? formValues.rHSGoal : currentRHS}
                     readOnly
                   />
                   <label htmlFor="eRProofCurrentRHS">Current RHS</label>
@@ -826,11 +744,6 @@ const ERRacket = () => {
                   }
                 } catch (error) {
                   //console.log("Null because on premise, don't worry about it");
-                }
-                if (showSide === "LHS") {
-                  setLhsValue(formValues.lHSGoal);
-                } else {
-                  setRhsValue(formValues.rHSGoal);
                 }
               }}
             >
