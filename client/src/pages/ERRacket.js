@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Dropdown from "react-bootstrap/Dropdown";
 import Button from "react-bootstrap/Button";
 import Container from "react-bootstrap/Container";
@@ -68,10 +68,41 @@ const ERRacket = () => {
   ] = useGoalCheck(handleChange);
   const [startPosition, setStartPosition] = useState(0);
   const [currentRacket, setCurrentRacket] = useState("");
+  // Temporary racketRuleFields state to prevent null errors during transition
+  const [racketRuleFields, setRacketRuleFields] = useState({
+    LHS: [{ racket: '', jsonTree: {}, rule: '', deleted: false }],
+    RHS: [{ racket: '', jsonTree: {}, rule: '', deleted: false }]
+  });
+
+  // Temporary handleFieldChange function to prevent null errors during transition
+  const handleFieldChange = useCallback((side, index, fieldName, value, startPosition) => {
+    setRacketRuleFields((prevFields) => {
+      const fieldsCopy = { ...prevFields };
+      if (fieldsCopy[side] && fieldsCopy[side][index]) {
+        fieldsCopy[side][index] = {
+          ...fieldsCopy[side][index],
+          [fieldName]: value,
+          startPosition
+        };
+      }
+      return fieldsCopy;
+    });
+  }, []);
+
+  // Temporary loadRacketProof function to prevent null errors during transition
+  const loadRacketProof = useCallback((loadedProof) => {
+    if (loadedProof) {
+      setRacketRuleFields({
+        LHS: loadedProof.leftRacketsAndRules || [{ racket: '', jsonTree: {}, rule: '', deleted: false }],
+        RHS: loadedProof.rightRacketsAndRules || [{ racket: '', jsonTree: {}, rule: '', deleted: false }]
+      });
+    }
+  }, []);
+
   const [
-    racketRuleFields,
+    , // racketRuleFields removed from hook
     addFieldWithApiCheck,
-    handleFieldChange,
+    , // handleFieldChange removed from hook
     validationErrors,
     serverError,
     racketErrors,
@@ -80,9 +111,8 @@ const ERRacket = () => {
     showSubstitution,
     closeSubstitution,
     substituteFieldWithApiCheck,
-    substitutionErrors,
-    loadRacketProof,
-    sendProofComplete
+    substitutionErrors
+     // loadRacketProof removed
   ] = useRacketRuleFields(
     startPosition,
     currentRacket,
@@ -109,6 +139,112 @@ const ERRacket = () => {
   const lhsPadRefs = useRef({});
   const rhsPadRefs = useRef({});
   const footerPadRef = useRef(null);
+  const isProcessingRef = useRef(false);
+
+  const handleGenerateAndCheck = async () => {
+    // Prevent duplicate execution
+    if (isProcessingRef.current) {
+      return;
+    }
+    
+    isProcessingRef.current = true;
+    
+    try {
+      // Get the data needed for the backend
+      let ruleFromFooter = "";
+      let previousStartPosition = 0;
+      let previousRacketValue = "";
+      
+      if (isBound) {
+        const userIndex = getPadIndex(userRow.num);
+        ruleFromFooter = userRow.num === "000" ? "Premise" : footerRule;
+        
+        // Get the previous row's data
+        if (userRow.num !== "000") {
+          const previousRowIndex = userIndex - 1;
+          const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
+          
+          if (previousRowIndex === 0) {
+            // Previous row is the premise
+            previousRacketValue = showSide === "LHS" ? leftPremise.racket : rightPremise.racket;
+            previousStartPosition = showSide === "LHS" ? leftPremise.startPosition ?? 0 : rightPremise.startPosition ?? 0;
+          } else {
+            // Previous row is a regular field
+            const previousField = racketRuleFields[showSide][previousRowIndex - 1];
+            previousRacketValue = previousField?.racket || "";
+            previousStartPosition = previousField?.startPosition ?? 0;
+          }
+        }
+      }
+      
+      const fullRacket = await addFieldWithApiCheck(showSide, ruleFromFooter, previousStartPosition, previousRacketValue);
+      
+      // Check if we got a valid response
+      if (!fullRacket) {
+        console.error("addFieldWithApiCheck returned undefined/null");
+        return;
+      }
+      
+      if (fullRacket && fullRacket.isValid) {
+        // Add the returned expression to the racketRuleFields state
+        setRacketRuleFields((prevFields) => {
+          // Check if we already added this field (prevent duplicate additions)
+          const hasMatchingField = prevFields[showSide].some(field => 
+            field.racket === fullRacket.racket && field.rule === ruleFromFooter && !field.deleted
+          );
+          
+          if (hasMatchingField) {
+            return prevFields; // Return unchanged state
+          }
+          
+          const fields = { ...prevFields };
+          const newField = {
+            racket: fullRacket.racket || "",
+            jsonTree: fullRacket.jsonTree || {},
+            rule: ruleFromFooter,
+            deleted: false,
+            startPosition: 0
+          };
+          
+          const lastField = fields[showSide][fields[showSide].length - 1];
+          const isEmpty = lastField && lastField.racket === "" && lastField.rule === "";
+          
+          if (isEmpty) {
+            // Replace the last empty field with the new field
+            fields[showSide][fields[showSide].length - 1] = newField;
+            // Add a new empty field at the end
+            fields[showSide].push({ racket: '', jsonTree: {}, rule: '', deleted: false });
+          } else {
+            // Add the new field and ensure there's an empty field at the end
+            fields[showSide].push(newField);
+            fields[showSide].push({ racket: '', jsonTree: {}, rule: '', deleted: false });
+          }
+          
+          return fields;
+        });
+        
+        setEditableLineNums((prevEditableLineNums) => ({
+          ...prevEditableLineNums,
+          [showSide]: (fullRacket.lineNum < 1 || fullRacket.lineNum === null ? 0 : fullRacket.lineNum)
+        }));
+        
+        if (racketRuleFields[showSide].filter(line => !line.deleted).length != 0) {
+          setStartPosition(0);
+        }
+
+        // Unbind the footer after successful generate and check
+        if (isBound) {
+          setUserRow({ num: "" });
+          setIsBound(false);
+        }
+      }
+    } catch (error) {
+      console.error("Error in Generate & Check:", error);
+    } finally {
+      // Always reset the processing flag
+      isProcessingRef.current = false;
+    }
+  };
 
   const { handleSubmit } = useFormSubmit(
     isFormValid,
@@ -258,24 +394,24 @@ const ERRacket = () => {
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
       if (!isBound) return;
-      
+
       // Check if cursor is in a text input (don't interfere with text editing)
       const activeElement = document.activeElement;
       const isInTextInput = activeElement && (
-        activeElement.tagName === 'INPUT' || 
+        activeElement.tagName === 'INPUT' ||
         activeElement.tagName === 'TEXTAREA' ||
         activeElement.isContentEditable
       );
-      
+
       if (isInTextInput) return;
-      
+
       const key = e.key;
       if (ARROW_KEYS.includes(key)) {
         e.preventDefault();
         const direction = key.replace("Arrow", "").toLowerCase();
         const userIndex = getPadIndex(userRow.num);
         const mainPadRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
-        
+
         // Control the previous row instead of the current bound row
         // But handle premise row (000) specially since it has no previous row
         if (userRow.num === "000") {
@@ -291,7 +427,7 @@ const ERRacket = () => {
     };
 
     document.addEventListener('keydown', handleGlobalKeyDown);
-    
+
     return () => {
       document.removeEventListener('keydown', handleGlobalKeyDown);
     };
@@ -732,7 +868,7 @@ const ERRacket = () => {
                       num: userRow.num
                     });
                     setIsBound(true);
-                    
+
                     // Set footer rule initially to what the pad ref row has
                     if (userRow.num !== "000") {
                       const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
@@ -741,7 +877,7 @@ const ERRacket = () => {
                     } else {
                       setFooterRule("Premise");
                     }
-                    
+
                     setTimeout(() => {
                       const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
                       // Focus on the previous row to match arrow key control
@@ -772,72 +908,7 @@ const ERRacket = () => {
           <Col md="3" className="rules-btn-grp">
             <Button
               className="orange-btn green-btn"
-              onClick={async () => {
-                // Prepare additional data for the backend
-                let previousRowExpression = "";
-                let currentRowNumber = "";
-                let currentRule = "";
-                
-                if (isBound) {
-                  const userIndex = getPadIndex(userRow.num);
-                  currentRowNumber = userRow.num;
-                  currentRule = footerRule;
-                  
-                  // Get the previous row's expression
-                  if (userRow.num === "000") {
-                    // If bound to premise (000), there's no previous row
-                    previousRowExpression = "";
-                  } else {
-                    const previousRowIndex = userIndex - 1;
-                    const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
-                    const previousPadRef = padRefs.current[previousRowIndex];
-                    
-                    if (previousRowIndex === 0) {
-                      // Previous row is the premise
-                      previousRowExpression = showSide === "LHS" ? leftPremise.racket : rightPremise.racket;
-                    } else {
-                      // Previous row is a regular field
-                      const previousField = racketRuleFields[showSide][previousRowIndex - 1];
-                      previousRowExpression = previousField?.racket || "";
-                    }
-                  }
-                }
-                
-                const fullRacket = await addFieldWithApiCheck(showSide, {
-                  previousRowExpression,
-                  currentRowNumber,
-                  currentRule
-                });
-                try {
-                  if (fullRacket.isValid) {
-                    setEditableLineNums((prevEditableLineNums) => ({
-                      ...prevEditableLineNums,
-                      [showSide]: (fullRacket.lineNum < 1 || fullRacket.lineNum === null ? 0 : fullRacket.lineNum)
-                    }));
-                    if (racketRuleFields[showSide].filter(line => !line.deleted).length != 0) {
-                      setStartPosition(0);
-                    }
-                    // Update the main pad ref with the footer rule value if bound
-                    if (isBound && userRow.num !== "000" && footerRule) {
-                      const userIndex = getPadIndex(userRow.num);
-                      const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
-                      const mainPadRef = padRefs.current[userIndex];
-                      if (mainPadRef) {
-                        mainPadRef.setRuleValue(footerRule);
-                        handleFieldChange(showSide, userIndex - 1, "rule", footerRule);
-                      }
-                    }
-                    
-                    // Unbind the footer after successful generate and check
-                    if (isBound) {
-                      setUserRow({ num: "" });
-                      setIsBound(false);
-                    }
-                  }
-                } catch (error) {
-                  //console.log("Null because on premise, don't worry about it");
-                }
-              }}
+              onClick={handleGenerateAndCheck}
             >
               Generate & Check
             </Button>
