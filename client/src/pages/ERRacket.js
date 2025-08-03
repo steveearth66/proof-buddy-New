@@ -117,7 +117,7 @@ const ERRacket = () => {
     handleERRacketSubmission
   );
 
-  const convertFormToJSONWrapper = () => 
+  const convertFormToJSONWrapper = () =>
     convertFormToJSON(formValues, racketRuleFields, leftPremise, rightPremise, isGoalChecked, jsonTreeRep);
 
   const exportJSON = () => {
@@ -174,21 +174,11 @@ const ERRacket = () => {
     updatePremises(formValues, setLeftPremise, setRightPremise);
   }, [formValues.lHSGoal, formValues.rHSGoal]);
   useEffect(() => {
-    if (isBound && userRow.num !== "000") {
-      const padIndex = parseInt(userRow.num, 10);
-      const padRefs = showSide === "LHS" ? lhsPadRefs : rhsPadRefs;
-      const mainPadRef = padRefs.current[padIndex];
-      setFooterRule(mainPadRef?.getRuleValue() || "");
-    } else {
-      setFooterRule("");
-    }
-  }, [isBound, userRow.num, showSide]);
-  useEffect(() => {
     if (currentLHS && currentRHS && currentLHS === currentRHS) {
       racketRuleFields.LHS.splice(-1);
       racketRuleFields.RHS.splice(-1);
       setProofComplete(true);
-      
+
       erService.completeProof({
         name: formValues.proofName,
         tag: formValues.proofTag,
@@ -238,24 +228,24 @@ const ERRacket = () => {
 
   useEffect(() => {
     const lastUndeletedFieldIndex = racketRuleFields[showSide].filter(line => !line.deleted).length - 2;
-    const correctStartPosition = lastUndeletedFieldIndex >= 0 
+    const correctStartPosition = lastUndeletedFieldIndex >= 0
       ? racketRuleFields[showSide][lastUndeletedFieldIndex].startPosition
       : (showSide === 'LHS' ? leftPremise.startPosition : rightPremise.startPosition);
-    
+
     setStartPosition(correctStartPosition ?? 0);
   }, [showSide, racketRuleFields, leftPremise.startPosition, rightPremise.startPosition]);
 
   useEffect(() => {
     const currentSideRackets = racketRuleFields[showSide];
-    
+
     if (currentSideRackets.length <= 1) {
       setCurrentRacket(formValues[`${showSide[0].toLowerCase()}HSGoal`]);
       return;
     }
-    
+
     const undeletedRackets = currentSideRackets.filter((line) => !line.deleted && line.racket);
     const lastUndeletedRacket = undeletedRackets[undeletedRackets.length - 1];
-    
+
     if (lastUndeletedRacket) {
       setCurrentRacket(lastUndeletedRacket.racket);
       if (racketRuleFields[showSide].filter(line => !line.deleted).length) {
@@ -263,6 +253,49 @@ const ERRacket = () => {
       }
     }
   }, [showSide, racketRuleFields, formValues.lHSGoal, formValues.rHSGoal]);
+
+  // Global keydown handler for arrow keys when footer is bound
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      if (!isBound) return;
+      
+      // Check if cursor is in a text input (don't interfere with text editing)
+      const activeElement = document.activeElement;
+      const isInTextInput = activeElement && (
+        activeElement.tagName === 'INPUT' || 
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.isContentEditable
+      );
+      
+      if (isInTextInput) return;
+      
+      const key = e.key;
+      if (ARROW_KEYS.includes(key)) {
+        e.preventDefault();
+        const direction = key.replace("Arrow", "").toLowerCase();
+        const userIndex = getPadIndex(userRow.num);
+        const mainPadRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
+        
+        // Control the previous row instead of the current bound row
+        // But handle premise row (000) specially since it has no previous row
+        if (userRow.num === "000") {
+          // When bound to premise, arrow keys don't control anything (no previous row exists)
+          return;
+        } else {
+          const previousRowIndex = userIndex - 1;
+          if (previousRowIndex >= 0) {
+            mainPadRefs.current[previousRowIndex]?.moveSelection(direction);
+          }
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    
+    return () => {
+      document.removeEventListener('keydown', handleGlobalKeyDown);
+    };
+  }, [isBound, userRow.num, showSide, lhsPadRefs, rhsPadRefs]);
 
   return (
     <MainLayout>
@@ -578,23 +611,23 @@ const ERRacket = () => {
                       field.deleted
                         ? null
                         : renderPersistentPadRow({
-                            side: showSide,
-                            index,
-                            field,
-                            padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
-                            formValues,
-                            jsonTreeRep,
-                            editableLineNums,
-                            leftPremise,
-                            rightPremise,
-                            handleHighlight,
-                            setCurrentRacket,
-                            setLeftPremise,
-                            setRightPremise,
-                            handleFieldChange,
-                            handleChange,
-                            validationErrors
-                          })
+                          side: showSide,
+                          index,
+                          field,
+                          padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
+                          formValues,
+                          jsonTreeRep,
+                          editableLineNums,
+                          leftPremise,
+                          rightPremise,
+                          handleHighlight,
+                          setCurrentRacket,
+                          setLeftPremise,
+                          setRightPremise,
+                          handleFieldChange,
+                          handleChange,
+                          validationErrors
+                        })
                     )}
                   </>
                 </div>
@@ -629,16 +662,6 @@ const ERRacket = () => {
               const padIndex = getPadIndex(userRow.num);
               const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
 
-              const handleFooterKeyDown = e => {
-                const key = e.key;
-                if (ARROW_KEYS.includes(key)) {
-                  e.preventDefault();
-                  const direction = key.replace("Arrow", "").toLowerCase();
-                  footerPadRef.current?.moveSelection(direction);
-                  padRefs.current[padIndex]?.moveSelection(direction);
-                }
-              };
-
               let equation, jsonTree, startPos, onHighlightChange, ruleValue, onRuleChange, isRuleReadOnly;
 
               if (userRow.num === "000") {
@@ -647,7 +670,7 @@ const ERRacket = () => {
                 startPos = showSide === "LHS" ? leftPremise.startPosition ?? 0 : rightPremise.startPosition ?? 0;
                 ruleValue = "Premise";
                 isRuleReadOnly = true;
-                onRuleChange = () => {};
+                onRuleChange = () => { };
                 onHighlightChange = newStartPosition => {
                   if (showSide === "LHS") {
                     setLeftPremise(prev => ({ ...prev, startPosition: newStartPosition }));
@@ -665,8 +688,6 @@ const ERRacket = () => {
                 ruleValue = footerRule;
                 onRuleChange = e => {
                   setFooterRule(e.target.value);
-                  handleFieldChange(showSide, padIndex - 1, "rule", e.target.value);
-                  padRefs.current[padIndex]?.setRuleValue(e.target.value);
                 };
                 onHighlightChange = newStartPosition => {
                   handleFieldChange(showSide, padIndex - 1, "racket", field.racket, newStartPosition);
@@ -684,7 +705,6 @@ const ERRacket = () => {
                   editableLineNum={editableLineNums[showSide]}
                   startPosition={startPos}
                   tabIndex={0}
-                  onKeyDown={handleFooterKeyDown}
                   ruleValue={ruleValue}
                   onRuleChange={onRuleChange}
                   isRuleReadOnly={isRuleReadOnly}
@@ -712,8 +732,30 @@ const ERRacket = () => {
                       num: userRow.num
                     });
                     setIsBound(true);
+                    
+                    // Set footer rule initially to what the pad ref row has
+                    if (userRow.num !== "000") {
+                      const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
+                      const mainPadRef = padRefs.current[userIndex];
+                      setFooterRule(mainPadRef?.getRuleValue() || "");
+                    } else {
+                      setFooterRule("Premise");
+                    }
+                    
                     setTimeout(() => {
-                      footerPadRef.current?.focus();
+                      const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
+                      // Focus on the previous row to match arrow key control
+                      // But don't try to focus on negative index if binding to premise
+                      if (userRow.num === "000") {
+                        // When binding to premise (000), focus stays on premise
+                        padRefs.current[userIndex]?.focus();
+                      } else {
+                        // For other rows, focus on the previous row
+                        const previousRowIndex = userIndex - 1;
+                        if (previousRowIndex >= 0) {
+                          padRefs.current[previousRowIndex]?.focus();
+                        }
+                      }
                     }, 0);
                   } else {
                     alert("No matching row found!");
@@ -721,7 +763,7 @@ const ERRacket = () => {
                 }
               }}
             >
-              {isBound ? "Unbind" : "Fill Values"}
+              {isBound ? "Cancel" : "Fill Values"}
             </Button>
           </Col>
         </Row>
@@ -731,7 +773,41 @@ const ERRacket = () => {
             <Button
               className="orange-btn green-btn"
               onClick={async () => {
-                const fullRacket = await addFieldWithApiCheck(showSide);
+                // Prepare additional data for the backend
+                let previousRowExpression = "";
+                let currentRowNumber = "";
+                let currentRule = "";
+                
+                if (isBound) {
+                  const userIndex = getPadIndex(userRow.num);
+                  currentRowNumber = userRow.num;
+                  currentRule = footerRule;
+                  
+                  // Get the previous row's expression
+                  if (userRow.num === "000") {
+                    // If bound to premise (000), there's no previous row
+                    previousRowExpression = "";
+                  } else {
+                    const previousRowIndex = userIndex - 1;
+                    const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
+                    const previousPadRef = padRefs.current[previousRowIndex];
+                    
+                    if (previousRowIndex === 0) {
+                      // Previous row is the premise
+                      previousRowExpression = showSide === "LHS" ? leftPremise.racket : rightPremise.racket;
+                    } else {
+                      // Previous row is a regular field
+                      const previousField = racketRuleFields[showSide][previousRowIndex - 1];
+                      previousRowExpression = previousField?.racket || "";
+                    }
+                  }
+                }
+                
+                const fullRacket = await addFieldWithApiCheck(showSide, {
+                  previousRowExpression,
+                  currentRowNumber,
+                  currentRule
+                });
                 try {
                   if (fullRacket.isValid) {
                     setEditableLineNums((prevEditableLineNums) => ({
@@ -740,6 +816,22 @@ const ERRacket = () => {
                     }));
                     if (racketRuleFields[showSide].filter(line => !line.deleted).length != 0) {
                       setStartPosition(0);
+                    }
+                    // Update the main pad ref with the footer rule value if bound
+                    if (isBound && userRow.num !== "000" && footerRule) {
+                      const userIndex = getPadIndex(userRow.num);
+                      const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
+                      const mainPadRef = padRefs.current[userIndex];
+                      if (mainPadRef) {
+                        mainPadRef.setRuleValue(footerRule);
+                        handleFieldChange(showSide, userIndex - 1, "rule", footerRule);
+                      }
+                    }
+                    
+                    // Unbind the footer after successful generate and check
+                    if (isBound) {
+                      setUserRow({ num: "" });
+                      setIsBound(false);
                     }
                   }
                 } catch (error) {
