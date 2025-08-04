@@ -873,7 +873,7 @@ const ERRacket = () => {
           </div>
         </Form>
       </Container>
-      <div className="floating-footer">
+      {isGoalChecked[showSide] && <div className="floating-footer">
         <Row className="input-row">
           {/* Column 1: Num */}
           <Col md="1">
@@ -893,25 +893,34 @@ const ERRacket = () => {
             </Form.Floating>
           </Col>
 
+          {/* Fill Values Button - only show when not bound */}
+          {!isBound && (
+            <Col md="2" className="d-flex align-items-center">
+              <Button
+                variant="primary"
+                onClick={() => bindFooterToRow(userRow.num)}
+              >
+                Fill Values
+              </Button>
+            </Col>
+          )}
+
           {/* Column 2: Expression */}
-          <Col>
+          <Col md={isBound ? "9" : "7"}>
             {isBound && renderFooterPad()}
           </Col>
-          {/* Column 6: Button */}
-          <Col md="2" className="d-flex align-items-center">
-            <Button
-              variant="primary"
-              onClick={() => {
-                if (isBound) {
-                  unbindFooter();
-                } else {
-                  bindFooterToRow(userRow.num);
-                }
-              }}
-            >
-              {isBound ? "Cancel" : "Fill Values"}
-            </Button>
-          </Col>
+
+          {/* Cancel Button - only show when bound */}
+          {isBound && (
+            <Col md="2" className="d-flex align-items-center">
+              <Button
+                variant="secondary"
+                onClick={() => unbindFooter()}
+              >
+                Cancel
+              </Button>
+            </Col>
+          )}
         </Row>
         <Row className="button-row">
           <Col md="5"></Col>
@@ -919,18 +928,20 @@ const ERRacket = () => {
             <Button
               className="orange-btn green-btn"
               onClick={handleGenerateAndCheck}
+              disabled={!isBound}
             >
               Generate & Check
             </Button>
             <Button
               className="orange-btn green-btn"
               onClick={() => updateShowSubstitution()}
+              disabled={!isBound}
             >
               Substitution
             </Button>
           </Col>
         </Row>
-      </div>
+      </div>}
     </MainLayout>
   );
 };
