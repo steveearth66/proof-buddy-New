@@ -63,9 +63,6 @@ const Home = () => {
                           <option value="/NaturalDeductionFirstOrderLogic">
                             Natural Deduction: First Order Logic
                           </option>
-                          <option value="/er-racket-blank-lines">
-                            Equational Reasoning: Racket - Blank Lines 
-                          </option>
                         </Form.Select>
                       </FloatingLabel>
                     </Form.Floating>
