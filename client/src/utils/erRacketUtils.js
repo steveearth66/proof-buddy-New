@@ -14,8 +14,7 @@ export const INITIAL_FORM_VALUES = {
 
 export const INITIAL_PREMISE_STATE = {
   racket: '',
-  rule: 'Premise',
-  startPosition: 0
+  rule: 'Premise'
 };
 
 // Helper functions

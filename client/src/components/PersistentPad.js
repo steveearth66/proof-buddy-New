@@ -96,7 +96,9 @@ const PersistentPad = forwardRef(function PersistentPad(
     moveSelection,
     focus: () => padDivRef.current?.focus(),
     getRuleValue: () => rule,
-    setRuleValue: setRule
+    setRuleValue: setRule,
+    getStartPosition: () => selected,
+    setStartPosition: setSelected
   }));
 
   const handleRuleChange = (e) => {
