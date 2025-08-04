@@ -184,7 +184,7 @@ class ERProofLine:
             labeledTree, _ = updatePositions(labeledTree)
 
         if self.errLog == []:
-            decTree, self.errLog = Decorator.decorateTree(labeledTree, self.errLog, generics=generics)
+            decTree, self.errLog = Decorator.decorateTree(labeledTree, self.errLog, ruleDict=ruleDict, generics=generics)
         #if self.errLog == []: #added userType in case of UDF
         #    decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog, theRuleDict=ruleDict, userType=udfType)
         if self.errLog == []:
