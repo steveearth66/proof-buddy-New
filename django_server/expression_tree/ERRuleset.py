@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from .ERCommon import *
-from .Generics import Generic, GenericInt, GenericList, GenericBool, GenericAny
+from .ERGenerics import ERGeneric, GenericInt, GenericList, GenericBool, GenericAny
 import copy
 from .Parser import buildTree, preProcess
 from .Labeler import labelTree  # , fillPositions
@@ -63,7 +63,7 @@ class BuiltIn(Rule, ABC):
         if True in map(lambda child: (len(child.children) != 0 and child.data != "'(") or child.name == 'TBD', ruleNode.children[1:]):
             return False, 'Insufficiently resolved arguments'
         if not self._allowGenerics:
-            generics = [child.data for child in ruleNode.children[1:] if isinstance(child.name, Generic)]
+            generics = [child.data for child in ruleNode.children[1:] if isinstance(child.name, ERGeneric)]
             if len(generics) != 0:
                 return False, f"Cannot evaluate '{self.label}' expression with generic arguments" 
         return True, 'BuiltIn.isApplicable() PASS'
@@ -79,7 +79,7 @@ class If(BuiltIn):
             return False, f"Cannot evaluate if on a '{ruleNode.children[0].data}' expression"
         if len((cond := ruleNode.children[1]).children) != 0 and cond.data == '(' or cond.name == 'TBD':
             return False, "Insufficiently resolved condition argument"
-        if not isMatch(ruleNode.children[2], ruleNode.children[3]) and isinstance(ruleNode.children[1].name, Generic):
+        if not isMatch(ruleNode.children[2], ruleNode.children[3]) and isinstance(ruleNode.children[1].name, ERGeneric):
             return False, f"Cannot determine truth value of generic argument '{ruleNode.children[1].data}'"
         return True, 'If.isApplicable() PASS'
 
@@ -109,7 +109,7 @@ class NullQ(BuiltIn):
         return True, 'NullQ.isApplicable() PASS'
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
-        if not ruleNode.children[1].type.isType("LIST") or isinstance(ruleNode.children[1].name, Generic):
+        if not ruleNode.children[1].type.isType("LIST") or isinstance(ruleNode.children[1].name, ERGeneric):
             return Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
         # must check nonlists first to avoid thinking no children is a null list
         if len(ruleNode.children[1].children) == 0:

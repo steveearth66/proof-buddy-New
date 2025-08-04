@@ -1,6 +1,6 @@
 from .ERCommon import *
 from .ERRuleset import *
-from .Generics import GenericInt, GenericBool, GenericList, GenericAny
+from .ERGenerics import GenericInt, GenericBool, GenericList, GenericAny
 import expression_tree.Parser as Parser
 import expression_tree.Labeler as Labeler
 import expression_tree.Decorator as Decorator
