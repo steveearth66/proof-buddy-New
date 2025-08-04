@@ -26,7 +26,7 @@ const OffcanvasRuleSet = ({ isActive, toggleFunction }) => {
     rules.forEach(ruleSet => 
       filteredRules.push(ruleSet.filter((rule) => {
         return (
-          rule.name ? rule.name.toLowerCase().includes(searchValue.toLowerCase()) : false ||
+          (rule.name ? rule.name.toLowerCase().includes(searchValue.toLowerCase()) : false) ||
               String(rule.procedure).toLowerCase().includes(searchValue.toLowerCase()) ||
               String(rule.highlight).toLowerCase().includes(searchValue.toLowerCase()) ||
               String(rule.result).toLowerCase().includes(searchValue.toLowerCase())

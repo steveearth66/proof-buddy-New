@@ -13,6 +13,7 @@ const useGoalCheck = (handleChange) => {
 
   const clearGoalValidationMessage = useCallback((side) => {
     setGoalValidationMessage(prev => ({ ...prev, [side]: '' }));
+    setIsGoalChecked(prev => ({ ...prev, [side]: false }));
   }, []);
 
   const clearProofValidationMessage = useCallback(() => {
@@ -54,6 +55,7 @@ const useGoalCheck = (handleChange) => {
         setGoalValidationMessage(prev => ({ ...prev, [side]: '' }));
         setProofValidationMessage({ name: '', tag: '' });
         setJsonTreeRep(prev => ({ ...prev, [side]: result.jsonTree }));
+        setIsGoalChecked(prev => ({ ...prev, [side]: true }));
       } else {
         const errorMessage = result.errors?.length ? result.errors.join('\n') : 'An unknown error occurred.';
         setGoalValidationMessage(prev => ({
