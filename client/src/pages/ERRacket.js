@@ -546,7 +546,7 @@ const ERRacket = () => {
 
   return (
     <MainLayout>
-      <Container className="er-racket-container">
+      <Container fluid className="er-racket-container">
         <OffcanvasRuleSet
           isActive={isOffcanvasActive}
           toggleFunction={toggleOffcanvas}
@@ -846,6 +846,7 @@ const ERRacket = () => {
                       setCurrentRacket,
                       validationErrors,
                       isBound,
+                      userRow,
                       handleRowNumberClick
                     })}
                     {racketRuleFields[showSide].map((field, index) =>
@@ -861,6 +862,7 @@ const ERRacket = () => {
                           setCurrentRacket,
                           validationErrors,
                           isBound,
+                          userRow,
                           handleRowNumberClick
                         })
                     )}
@@ -944,6 +946,7 @@ function renderPersistentPadRow({
   setCurrentRacket,
   validationErrors,
   isBound,
+  userRow,
   handleRowNumberClick
 }) {
   // Compute values based on side and isPremise
@@ -967,11 +970,12 @@ function renderPersistentPadRow({
         <ClickableRowNumber
           padIndex={padIndex}
           isClickable={!isBound}
+          isSelected={isBound && padIndex === parseInt(userRow.num, 10)}
           onClick={() => handleRowNumberClick(padIndex)}
           title={!isBound ? 'Click to bind to footer' : ''}
         />
       </Col>
-      <Col md="5">
+      <Col md="11">
         <PersistentPad
           ref={el => { padRefs.current[padIndex] = el; }}
           side={side}
