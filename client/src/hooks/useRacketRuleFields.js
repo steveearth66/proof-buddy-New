@@ -84,9 +84,9 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
       let currentRacket = loadedProof.lHSGoal
       let startPosition = loadedProof.leftPremise["startPosition"]
       let LHS = []
-      for(let i = 0; i < loadedProof.leftRacketsAndRules.length; i++){
+      for (let i = 0; i < loadedProof.leftRacketsAndRules.length; i++) {
         let rule = loadedProof.leftRacketsAndRules[i]["rule"]
-        if (i+1 === loadedProof.leftRacketsAndRules.length)
+        if (i + 1 === loadedProof.leftRacketsAndRules.length)
           break;
         LHS.push({ currentRacket, startPosition, rule })
         currentRacket = loadedProof.leftRacketsAndRules[i]["racket"];
@@ -96,9 +96,9 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
       currentRacket = loadedProof.rHSGoal
       startPosition = loadedProof.rightPremise["startPosition"]
       let RHS = []
-      for(let i = 0; i < loadedProof.rightRacketsAndRules.length; i++){
+      for (let i = 0; i < loadedProof.rightRacketsAndRules.length; i++) {
         let rule = loadedProof.rightRacketsAndRules[i]["rule"]
-        if (i+1 === loadedProof.rightRacketsAndRules.length)
+        if (i + 1 === loadedProof.rightRacketsAndRules.length)
           break;
         RHS.push({ currentRacket, startPosition, rule })
         currentRacket = loadedProof.rightRacketsAndRules[i]["racket"];
@@ -139,7 +139,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
     async (side, footerRule, previousStartPosition, previousRacketValue) => {
       try {
         const racket = await fetchRacketValue(footerRule, previousStartPosition, previousRacketValue);
-        
+
         if (racket.isValid) {
           setRacketErrors([]);
           clearServerError();
@@ -150,7 +150,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
         } else {
           setRacketErrors(racket.errors);
         }
-        
+
         return racket;
       } catch (error) {
         logger.error('Failed to fetch racket value:', error);
@@ -216,7 +216,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
     closeSubstitution,
     substituteFieldWithApiCheck,
     substitutionErrors,
-    null // loadRacketProof removed
+    loadProofInServer
   ];
 };
 

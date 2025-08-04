@@ -26,6 +26,7 @@ import {
   PersistentPad,
   Substitution
 } from "../components";
+import ClickableRowNumber from "../components/ClickableRowNumber";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import erService from "../services/erService";
 import { useLocation } from "react-router-dom";
@@ -88,10 +89,26 @@ const ERRacket = () => {
 
   const loadRacketProof = useCallback((loadedProof) => {
     if (loadedProof) {
+      console.log('loadRacketProof called with:', loadedProof);
+      
+      formValues.proofName = loadedProof.name;
+      formValues.proofTag = loadedProof.tag;
+      formValues.lHSGoal = loadedProof.lHSGoal;
+      formValues.rHSGoal = loadedProof.rHSGoal;
+
+      setLeftPremise(loadedProof.leftPremise);
+      setRightPremise(loadedProof.rightPremise);
+
+      sessionStorage.setItem('definitions', JSON.stringify(loadedProof.definitions));
+
+      // Set the racket rule fields from the loaded proof
       setRacketRuleFields({
         LHS: loadedProof.leftRacketsAndRules || [{ racket: '', jsonTree: {}, rule: '', deleted: false }],
         RHS: loadedProof.rightRacketsAndRules || [{ racket: '', jsonTree: {}, rule: '', deleted: false }]
       });
+
+      loadRacketGoal(loadedProof);
+      loadProofInServer(loadedProof);
     }
   }, []);
 
@@ -107,7 +124,8 @@ const ERRacket = () => {
     showSubstitution,
     closeSubstitution,
     substituteFieldWithApiCheck,
-    substitutionErrors
+    substitutionErrors,
+    loadProofInServer
   ] = useRacketRuleFields(
     startPosition,
     currentRacket,
@@ -974,13 +992,12 @@ function renderPersistentPadRow({
   return (
     <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? "premise" : `${side}-field-${padIndex}`}>
       <Col md="1">
-        <div 
-          className={`main-grid-column ${!isBound ? 'clickable-row-number' : ''}`}
-          onClick={() => !isBound && handleRowNumberClick(padIndex)}
+        <ClickableRowNumber
+          padIndex={padIndex}
+          isClickable={!isBound}
+          onClick={() => handleRowNumberClick(padIndex)}
           title={!isBound ? 'Click to bind to footer' : ''}
-        >
-          {padIndex.toString().padStart(3, "0")}
-        </div>
+        />
       </Col>
       <Col md="5">
         <PersistentPad
