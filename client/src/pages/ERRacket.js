@@ -336,6 +336,15 @@ const ERRacket = () => {
   };
 
   const saveProof = async () => {
+    // Validate required fields
+    if (!formValues.proofName || !formValues.proofTag || !formValues.lHSGoal || !formValues.rHSGoal) {
+      toast.error("Please fill in all required fields (Name, Tag, LHS Goal, RHS Goal) before saving.");
+      return;
+    }
+
+    // Get definitions from sessionStorage
+    const definitions = JSON.parse(sessionStorage.getItem("definitions") || "[]");
+    
     const proof = {
       name: formValues.proofName,
       tag: formValues.proofTag,
@@ -343,8 +352,19 @@ const ERRacket = () => {
       rightRacketsAndRules: racketRuleFields.RHS,
       lHSGoal: formValues.lHSGoal,
       rHSGoal: formValues.rHSGoal,
-      leftPremise: { ...leftPremise, checked: isGoalChecked.LHS },
-      rightPremise: { ...rightPremise, checked: isGoalChecked.RHS }
+      leftPremise: { 
+        ...leftPremise, 
+        checked: isGoalChecked.LHS,
+        jsonTree: isGoalChecked.LHS ? jsonTreeRep.LHS : null,
+        startPosition: leftPremise.startPosition || 0
+      },
+      rightPremise: { 
+        ...rightPremise, 
+        checked: isGoalChecked.RHS,
+        jsonTree: isGoalChecked.RHS ? jsonTreeRep.RHS : null,
+        startPosition: rightPremise.startPosition || 0
+      },
+      definitions
     };
 
     try {

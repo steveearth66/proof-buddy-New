@@ -6,6 +6,7 @@ import Form from "react-bootstrap/Form";
 import Col from "react-bootstrap/Col";
 import Row from "react-bootstrap/Row";
 import Alert from "react-bootstrap/Alert";
+import { toast } from "react-toastify";
 import MainLayout from "../layouts/MainLayout";
 import validateField from "../utils/inductionFormValidation";
 import OffcanvasRuleSet from "../components/OffcanvasRuleSet";

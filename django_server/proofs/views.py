@@ -66,17 +66,22 @@ def get_or_create_proof(data, user, definitions):
 
 def create_proof_lines(lines, left_side, proof):
     for line in lines:
+        # Skip empty lines that are just placeholders
+        if not line.get("racket") or not line.get("rule"):
+            continue
+            
         racket = line["racket"]
         rule = line["rule"]
-        start_position = line["startPosition"] if "startPosition" in line else 0
-        errors = line["errors"] if "errors" in line else []
+        start_position = line.get("startPosition", 0)
+        errors = line.get("errors", [])
+        deleted = line.get("deleted", False)
 
         proof_line_data = {
             "left_side": left_side,
             "racket": racket,
             "rule": rule,
             "start_position": start_position,
-            "deleted": line["deleted"],
+            "deleted": deleted,
             "errors": str(errors),
         }
 
@@ -90,6 +95,9 @@ def create_proof_lines(lines, left_side, proof):
 
 def add_data_to_proof(json_data, proof, definitions, user):
     try:
+        # Clear existing proof lines when updating
+        proof.proof_lines.all().delete()
+        
         left_premise_data = json_data["leftPremise"]
         if left_premise_data["checked"]:
             left_premise_data = {
@@ -121,9 +129,9 @@ def add_data_to_proof(json_data, proof, definitions, user):
         create_proof_lines(left_rackets_and_rules, True, proof)
         create_proof_lines(right_rackets_and_rules, False, proof)
         add_definitions(definitions, proof, user)
-    except Exception:
+    except Exception as e:
         proof.delete()
-        raise Exception("Error adding data to proof")
+        raise Exception(f"Error adding data to proof: {str(e)}")
 
 
 def add_definitions(definitions, proof: Proof, user):

@@ -381,9 +381,12 @@ def save_proof(request):
         return Response(
             {"message": "Proof saved successfully"}, status=status.HTTP_201_CREATED
         )
-    except:
+    except Exception as e:
+        import traceback
+        print(f"Error saving proof: {str(e)}")
+        print(traceback.format_exc())
         return Response(
-            {"message": "Error saving proof"}, status=status.HTTP_400_BAD_REQUEST
+            {"message": f"Error saving proof: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST
         )
 
 
