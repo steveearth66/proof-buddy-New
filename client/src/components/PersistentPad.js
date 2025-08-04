@@ -28,7 +28,7 @@ const PersistentPad = forwardRef(function PersistentPad(
 ) {
   const [highlightedText, setHighlightedText] = useState("");
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
-  const [selected, setSelected] = useState(startPosition);
+  const [selected, setSelected] = useState(startPosition ?? 0);
   const [rule, setRule] = useState(ruleValue);
   
   const padDivRef = useRef(null);

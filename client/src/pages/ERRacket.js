@@ -511,6 +511,7 @@ const ERRacket = () => {
           side={showSide}
           jsonTree={jsonTreeRep[showSide]}
           lineNum={padIndex}
+          startPosition={0}
           tabIndex={0}
           ruleValue="Premise"
           onRuleChange={() => {}}
@@ -533,6 +534,7 @@ const ERRacket = () => {
           side={showSide}
           jsonTree={field.jsonTree || jsonTreeRep[showSide]}
           lineNum={padIndex}
+          startPosition={0}
           tabIndex={0}
           ruleValue={footerRule}
           onRuleChange={e => setFooterRule(e.target.value.trim())}
@@ -993,6 +995,7 @@ function renderPersistentPadRow({
           equation={equation}
           jsonTree={jsonTree}
           lineNum={lineNum}
+          startPosition={0}
           onHighlightChange={() => {
             // Highlighting handled internally by pad ref
             setCurrentRacket(equation);
