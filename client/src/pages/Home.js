@@ -81,7 +81,7 @@ const Home = () => {
             ) : (
               <>
                 <p>
-                  Welcome to the platform for verifying mathematical proofs
+                  Hello, and welcome to the platform for verifying mathematical proofs
                   using Truth-Functional Logic (TFL) and First Order Logic
                   (FOL).
                 </p>

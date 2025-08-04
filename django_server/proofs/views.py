@@ -4,7 +4,39 @@ from rest_framework import status
 from .models import Proof, ProofLine, Definition
 from expression_tree.ERProofEngine import ERProof
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from rest_framework.decorators import api_view
 
+@api_view(["DELETE"])
+def delete_proof(request, id):
+    try:
+        proof = Proof.objects.get(id=id)
+        proof.delete()
+        return Response(
+                { "message": "Proof successfully deleted"}, status=status.HTTP_200_OK
+            )
+    except Proof.DoesNotExist:
+        return Response(
+                { "message": "Proof does not exist"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+@api_view(["PUT"])
+def edit_proof(request, id):
+    try:
+        proof = Proof.objects.get(id=id)
+        serializer = ProofSerializer(proof, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                    { "message": "Proof successfully updated"}, status=status.HTTP_200_OK
+                )
+        else:
+            return Response(
+                    { "message": "New name or tag is invalid"}, status=status.HTTP_400_BAD_REQUEST
+                )
+    except Proof.DoesNotExist:
+        return Response(
+                { "message": "Proof does not exist"}, status=status.HTTP_404_NOT_FOUND
+            )
 
 def get_or_create_proof(data, user, definitions):
     proof_data = {
@@ -59,38 +91,37 @@ def create_proof_lines(lines, left_side, proof):
 def add_data_to_proof(json_data, proof, definitions, user):
     try:
         left_premise_data = json_data["leftPremise"]
-        left_premise_data = {
-            "left_side": True,
-            "racket": left_premise_data["racket"],
-            "rule": left_premise_data["rule"],
-            "start_position": left_premise_data["startPosition"],
-        }
+        if left_premise_data["checked"]:
+            left_premise_data = {
+                "left_side": True,
+                "racket": left_premise_data["racket"],
+                "rule": left_premise_data["rule"],
+                "start_position": left_premise_data["startPosition"],
+            }
+            left_premise = ProofLineSerializer(data=left_premise_data)
+            if not left_premise.is_valid():
+                return Response(left_premise.errors, status=status.HTTP_400_BAD_REQUEST)
+            left_premise.save(proof=proof)
+            
         right_premise_data = json_data["rightPremise"]
-        right_premise_data = {
-            "left_side": False,
-            "racket": right_premise_data["racket"],
-            "rule": right_premise_data["rule"],
-            "start_position": right_premise_data["startPosition"],
-        }
+        if right_premise_data["checked"]:
+            right_premise_data = {
+                "left_side": False,
+                "racket": right_premise_data["racket"],
+                "rule": right_premise_data["rule"],
+                "start_position": right_premise_data["startPosition"],
+            }
+            right_premise = ProofLineSerializer(data=right_premise_data)
+            if not right_premise.is_valid():
+                return Response(right_premise.errors, status=status.HTTP_400_BAD_REQUEST)
+            right_premise.save(proof=proof)
+
         left_rackets_and_rules = json_data["leftRacketsAndRules"]
         right_rackets_and_rules = json_data["rightRacketsAndRules"]
-
-        left_premise = ProofLineSerializer(data=left_premise_data)
-        right_premise = ProofLineSerializer(data=right_premise_data)
-
-        if not left_premise.is_valid():
-            return Response(left_premise.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        if not right_premise.is_valid():
-            return Response(right_premise.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        left_premise.save(proof=proof)
-        right_premise.save(proof=proof)
-
         create_proof_lines(left_rackets_and_rules, True, proof)
         create_proof_lines(right_rackets_and_rules, False, proof)
         add_definitions(definitions, proof, user)
-    except:
+    except Exception:
         proof.delete()
         raise Exception("Error adding data to proof")
 
@@ -315,8 +346,11 @@ def create_or_override_definition(user, data):
         definition.save()
         return DefinitionSerializer(definition).data
 
-def get_definition(id):
-    definition = Definition.objects.filter(id=id).first()
+
+# def get_definition(id):
+def get_definition(label):
+    # definition = Definition.objects.filter(id=id).first()
+    definition = Definition.objects.filter(label=label).first()
     definition_data = {
         "id": definition.id,
         "label": definition.label,
@@ -327,8 +361,9 @@ def get_definition(id):
     return definition_data
 
 
-def edit_definition(user, id, data):
-    definition = Definition.objects.filter(id=id, created_by=user).first()
+# def edit_definition(user, id, data):
+def edit_definition(user, label, data):
+    definition = Definition.objects.filter(label=label, created_by=user).first()
 
     if not definition:
         return False
@@ -344,8 +379,10 @@ def edit_definition(user, id, data):
     return definition_data
 
 
-def delete_definition(user, id):
-    definition = Definition.objects.filter(id=id, created_by=user).first()
+# def delete_definition(user, id):
+def delete_definition(user, label):
+    # definition = Definition.objects.filter(id=id, created_by=user).first()
+    definition = Definition.objects.filter(label=label, created_by=user).first()
 
     if not definition:
         return False

@@ -176,24 +176,34 @@ const getUserDefinitions = async () => {
   }
 };
 
-const useDefinition = async (id) => {
-  try {
-    const response = await axiosInstance.get(`${API_GATEWAY}/use-definition/${id}`);
-    return response.data;
-  } catch (error) {
-    handleServiceError(error, "Error during definition usage:");
-    throw error;
-  }
+//const useDefinition = async (id) => {
+const useDefinition = async (label) => {
+  return new Promise((resolve, reject) => {
+    axiosInstance
+        .get(`${API_GATEWAY}/use-definition/${label}`)
+      .then((response) => {
+        resolve(response.data);
+      })
+      .catch((error) => {
+        handleServiceError(error, "Error during definition usage:");
+        reject(error);
+      });
+  });
 };
 
-const removeDefinition = async (id) => {
-  try {
-    await axiosInstance.delete(`${API_GATEWAY}/remove-definition/${id}/`);
-    return true;
-  } catch (error) {
-    handleServiceError(error, "Error during definition removal:");
-    throw error;
-  }
+//const removeDefinition = async (id) => {
+const removeDefinition = async (label) => {
+  return new Promise((resolve, reject) => {
+    axiosInstance
+        .delete(`${API_GATEWAY}/remove-definition/${label}/`)
+      .then(() => {
+        resolve(true);
+      })
+      .catch((error) => {
+        handleServiceError(error, "Error during definition removal:");
+        reject(error);
+      });
+  });
 };
 
 const editDefinition = async (definition) => {
@@ -206,14 +216,18 @@ const editDefinition = async (definition) => {
   }
 };
 
-const deleteDefinition = async (id) => {
-  try {
-    await axiosInstance.delete(`${API_GATEWAY}/delete-definition/${id}/`);
-    return true;
-  } catch (error) {
-    handleServiceError(error, "Error during definition deletion:");
-    throw error;
-  }
+const deleteDefinition = async (label) => {
+  return new Promise((resolve, reject) => {
+    axiosInstance
+        .delete(`${API_GATEWAY}/delete-definition/${label}/`)
+      .then(() => {
+        resolve(true);
+      })
+      .catch((error) => {
+        handleServiceError(error, "Error during definition deletion:");
+        reject(error);
+      });
+  });
 };
 
 const deleteLine = async (side) => {

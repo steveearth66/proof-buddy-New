@@ -343,8 +343,8 @@ const ERRacket = () => {
       rightRacketsAndRules: racketRuleFields.RHS,
       lHSGoal: formValues.lHSGoal,
       rHSGoal: formValues.rHSGoal,
-      leftPremise,
-      rightPremise
+      leftPremise: { ...leftPremise, checked: isGoalChecked.LHS },
+      rightPremise: { ...rightPremise, checked: isGoalChecked.RHS }
     };
 
     try {
@@ -687,6 +687,7 @@ const ERRacket = () => {
                     name="lHSGoal"
                     type="text"
                     placeholder="LHS Goal"
+                    readOnly={isGoalChecked.LHS}
                     value={formValues.lHSGoal}
                     onBlur={() => handleBlur("lHSGoal")}
                     onChange={enhancedHandleChange}
@@ -710,6 +711,7 @@ const ERRacket = () => {
                     name="rHSGoal"
                     type="text"
                     placeholder="RHS Goal"
+                    readOnly={isGoalChecked.RHS}
                     value={formValues.rHSGoal}
                     onBlur={() => handleBlur("rHSGoal")}
                     onChange={enhancedHandleChange}
@@ -773,6 +775,16 @@ const ERRacket = () => {
           </div>
 
           <div className="form-bottom-part">
+            {status === "expired" && (
+                <Alert variant="danger">Your proof has expired; work has been lost. Please reload the page to start
+                  over.</Alert>
+            )}
+            {status === "warning" && (
+                <Alert variant="warning">You have 5 minutes remaining of the 30 minute idle period. Please make a
+                  change, save, or
+                  download your proof to prevent
+                  loss of work.</Alert>
+            )}
             <Row className="switch-btn-wrap">
               <Col>
                 <Button

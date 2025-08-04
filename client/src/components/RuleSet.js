@@ -8,12 +8,12 @@ const ruleSet = () => {
     [
       {
         procedure: "first",
-        highlight: "(first '(a b c…z))",
+        highlight: "(first '(a b c … z))",
         result: "a"
       },
       {
         procedure: "rest",
-        highlight: "(first '(a b c … z))",
+        highlight: "(rest '(a b c … z))",
         result: "'(b c … z)"
       },
       {
@@ -43,7 +43,7 @@ const ruleSet = () => {
       },
       {
         procedure: "null?",
-        highlight: "(null? (cons a L))",
+        highlight: "(null? '(a … z))",
         result: "#f"
       },
       {
@@ -120,6 +120,16 @@ const ruleSet = () => {
         procedure: "rest-cons",
         highlight: "(rest (cons x L))",
         result: "L"
+      },
+      {
+        procedure: "null?-cons",
+        highlight: "(null? (cons a L))",
+        result: "#f"
+      },
+      {
+        procedure: "zero?+",
+        highlight: "(zero? (+ a k)), where a is positive and k is nonnegative or vice versa",
+        result: "#f"
       },
       {
         procedure: "<function name>",

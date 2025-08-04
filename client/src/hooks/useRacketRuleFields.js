@@ -109,6 +109,8 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
         "lHSGoal": loadedProof.lHSGoal,
         "rHSGoal": loadedProof.rHSGoal,
         "definitions": loadedProof.definitions,
+        leftGoalChecked,
+        rightGoalChecked,
         LHS,
         RHS,
         "name": loadedProof.name,

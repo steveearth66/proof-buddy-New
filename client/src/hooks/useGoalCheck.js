@@ -26,8 +26,14 @@ const useGoalCheck = (handleChange) => {
     clearProofValidationMessage();
   }, [clearGoalValidationMessage, handleChange, clearProofValidationMessage]);
 
-  const checkGoal = async (side, goalValue, name, tag, lHSGoal, rHSGoal) => {
-    // Validation checks
+  /**
+   * Validates a goal value for a specific side (LHS or RHS) by making a server-side request.
+   * Updates the validation status and message based on the server response.
+   *
+   * @param {string} side - The side of the goal (LHS or RHS) to validate.
+   * @param {string} goalValue - The value of the goal to validate.
+   */
+  const checkGoal = async (side, goalValue, name, tag, lHSGoal, rHSGoal, loadedProofId) => {
     if (!name) {
       setProofValidationMessage({ name: 'Please provide a name.' });
       return;
@@ -43,10 +49,7 @@ const useGoalCheck = (handleChange) => {
     }
 
     try {
-      const result = await erService.checkGoal({ goal: goalValue, name, tag, lHSGoal, rHSGoal, side });
-      
-      setIsGoalChecked(prev => ({ ...prev, [side]: result.isValid }));
-      
+      const result = await erService.checkGoal({ goal: goalValue, name, tag, lHSGoal, rHSGoal, side, loadedProofId });
       if (result.isValid) {
         setGoalValidationMessage(prev => ({ ...prev, [side]: '' }));
         setProofValidationMessage({ name: '', tag: '' });

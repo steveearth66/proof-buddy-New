@@ -85,7 +85,7 @@ def check_goal(request):
         created_by=user, name=json_data["name"], tag=json_data["tag"]
     ).first()
 
-    if user_proof:
+    if user_proof and user_proof.id != json_data["loadedProofId"]:
         return Response(
             {
                 "isValid": False,
@@ -99,6 +99,9 @@ def check_goal(request):
     proof_two: ERProof = proof["proofTwo"]
     current_proof = proof_one if is_p_one_active else proof_two
 
+    if len(current_proof.proofLines) != 0:
+        current_proof.proofLines.clear()
+    
     current_proof.addProofLine(json_data["goal"])
 
     errors, proof = update_and_validate(proof, json_data["side"])
@@ -149,13 +152,13 @@ def set_current_proof(request):
 
 
     # Set LHS and RHS goals
-    if json_data["lHSGoal"] and not json_data["lHSGoal"] == "":
+    if json_data["leftGoalChecked"]:
         proof_one.addProofLine(json_data["lHSGoal"])
         errors, proof = update_and_validate(proof, "LHS")
         if not proof["isValid"]:
             return get_error_response(errors)
 
-    if json_data["rHSGoal"] and not json_data["rHSGoal"] == "":
+    if json_data["rightGoalChecked"]:
         proof_two.addProofLine(json_data["rHSGoal"])
         errors, proof = update_and_validate(proof, "RHS")
         if not proof["isValid"]:
@@ -222,42 +225,48 @@ def add_definitions(request):
     definitions = proof["definitions"]
 
     try:
-        if json_data["label"] not in proof_one.ruleSet.keys():
-            proof_one.addUDF(
-                json_data["label"], json_data["type"], json_data["expression"]
-            )
+        if json_data["expression"]:
+            proof_one.addUDF(json_data["label"], json_data["type"], json_data["expression"])
+            proof_two.addUDF(json_data["label"], json_data["type"], json_data["expression"])
+        else:
+            proof_one.addGeneric(json_data["label"], json_data["type"])
+            proof_two.addGeneric(json_data["label"], json_data["type"])
 
-        if json_data["label"] not in proof_two.ruleSet.keys():
-            proof_two.addUDF(
-                json_data["label"], json_data["type"], json_data["expression"]
-            )
     except:
         return Response(
             {"message": "Error adding definition"}, status=status.HTTP_400_BAD_REQUEST
         )
 
+    if proof_one.errLog or proof_two.errLog:
+        if proof["currentProof"] == proof_one or not proof["currentProof"]:
+            errors = copy.deepcopy(proof_one.errLog)
+        else:
+            errors = copy.deepcopy(proof_two.errLog)
+        proof_one.errLog.clear()
+        proof_two.errLog.clear()
+        return Response(
+            {"message": errors}, status=status.HTTP_400_BAD_REQUEST)
+
     definition = create_user_definition(user, json_data)
-
-    if definition:
-        definition["applied"] = True
-        definitions.append(definition)
-        save_proof_to_cache(user, proof)
-        return Response(definition, status=status.HTTP_201_CREATED)
-
-    return Response(
-        {"message": "Error adding definition"}, status=status.HTTP_400_BAD_REQUEST
-    )
+    definition["applied"] = True
+    definitions.append(definition)
+    save_proof_to_cache(user, proof)
+    return Response(definition, status=status.HTTP_201_CREATED)
 
 
 @api_view(["DELETE"])
-def remove_definition(request, id):
+# def remove_definition(request, id):
+def remove_definition(request, label):
     user = request.user
     proof = get_or_set_proof(user)
 
     definitions = proof["definitions"]
     proof["definitions"] = [
-        definition for definition in definitions if definition["id"] != id
+        # definition for definition in definitions if definition["id"] != id
+        definition for definition in definitions if definition["label"] != label
     ]
+    proof["proofOne"].removeUDF(label)
+    proof["proofTwo"].removeUDF(label)
 
     save_proof_to_cache(user, proof)
     return Response(status=status.HTTP_200_OK)
@@ -393,12 +402,59 @@ def get_proof(request, proof_id):
     user = request.user
     proof_data = user_proof(user, proof_id)
     proof = load_proof(proof_data)
-    proof_data["proofLines"] = [
-        line for line in proof_data["proofLines"] if line["rule"] != "Premise"
-    ]
+
+    frontend_json = {
+        "name": proof_data["name"],
+        "tag": proof_data["tag"],
+        "lHSGoal": proof_data["lhs"],
+        "rHSGoal": proof_data["rhs"],
+        "leftRacketsAndRules": [],
+        "rightRacketsAndRules": [],
+        "definitions": proof_data["definitions"],
+        "loadedInServer": True
+    }
+
+    leftIndex = rightIndex = 0
+    for line in proof_data["proofLines"]:
+        if line.pop("leftSide"):
+            line["jsonTree"] = makeJson(proof["proofOne"].proofLines[leftIndex].exprTree)
+            if line["rule"] == "Premise":
+                frontend_json["leftPremise"] = line
+                frontend_json["lHSGoal"] = line["racket"]
+            else:
+                frontend_json["leftRacketsAndRules"].append(line)
+            leftIndex += 1
+        else:
+            line["jsonTree"] = makeJson(proof["proofTwo"].proofLines[rightIndex].exprTree)
+            if line["rule"] == "Premise":
+                frontend_json["rightPremise"] = line
+                frontend_json["rHSGoal"] = line["racket"]
+            else:
+                frontend_json["rightRacketsAndRules"].append(line)
+            rightIndex += 1
+    
+    for side in ("left", "right"):
+        if frontend_json.get(side + "Premise") is not None:
+            frontend_json[side + "RacketsAndRules"].append(
+                {
+                    "racket": "",
+                    "jsonTree": {},
+                    "rule": "",
+                    "deleted": False,
+                    "errors": []
+                }
+            )
+        else:
+            frontend_json[side + "Premise"] = {
+                "racket": proof_data["lhs"] if side == "left" else proof_data["rhs"],
+                "rule": "Premise",
+                "startPosition": 0
+            }
+            
+
     save_proof_to_cache(user, proof)
 
-    return Response(proof_data, status=status.HTTP_200_OK)
+    return Response(frontend_json, status=status.HTTP_200_OK)
 
 
 @api_view(["GET"])
@@ -410,9 +466,11 @@ def get_definitions(request):
 
 
 @api_view(["GET"])
-def use_definition(request, id):
+# def use_definition(request, id):
+def use_definition(request, label):
     user = request.user
-    definition = get_definition(id)
+    # definition = get_definition(id)
+    definition = get_definition(label)
     proof = get_or_set_proof(user)
 
     try:
@@ -443,7 +501,7 @@ def use_definition(request, id):
 def update_definition(request):
     user = request.user
     json_data = request.data
-    definition = edit_definition(user, json_data["id"], json_data)
+    definition = edit_definition(user, json_data["label"], json_data)
 
     if not definition:
         return Response(status=status.HTTP_400_BAD_REQUEST)
@@ -452,9 +510,11 @@ def update_definition(request):
 
 
 @api_view(["DELETE"])
-def delete_definition_api(request, id):
+# def delete_definition_api(request, id):
+def delete_definition_api(request, label):
     user = request.user
-    delete_definition(user, id)
+    # delete_definition(user, id)
+    delete_definition(user, label)
 
     if not delete_definition:
         return Response(status=status.HTTP_400_BAD_REQUEST)

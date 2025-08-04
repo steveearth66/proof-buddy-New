@@ -27,29 +27,47 @@ def do_single_test_case(prefix: str, func: str, expr: str, expected, proof: ERPr
         print(f"FAIL! expected {word}: {expected} but got: {ans}\n")
         return 1
 
-def run_test_cases(prefix: str, func: str, tests: list[tuple]) -> int:
+def run_test_cases(prefix: str, func: str, tests: list[tuple], proof: ERProof = None, defaultGenerics=True) -> int:
+    '''
+    Runs test cases with a single rule\n
+    defaultGenerics specifies whether or not to use the default generics k (int), p (bool), L (list), and x (any)
+    '''
+    if proof is None:
+        proof = ERProof()
+    if defaultGenerics:
+        if 'k' not in proof.generics.keys():
+            proof.addGeneric('k', 'int')
+        if 'p' not in proof.generics.keys():
+            proof.addGeneric('p', 'bool')
+        if 'L' not in proof.generics.keys():
+            proof.addGeneric('L', 'list')
+        if 'M' not in proof.generics.keys():
+            proof.addGeneric('M', 'list')
+        if 'x' not in proof.generics.keys():
+            proof.addGeneric('x', 'any')
     fails = 0
     for trial in tests:
         expr, expected = trial
-        fails += do_single_test_case(prefix, func, expr, expected)
+        fails += do_single_test_case(prefix, func, expr, expected, proof)
     return fails
 
-def test_racket_function(func: str, tests: list[tuple], appliable=False) -> int:
+def test_racket_function(func: str, tests: list[tuple], allowGenerics=False, appliable=False) -> int:
     # expects last test case to not have errors
     fails = run_test_cases('eval', func, tests)
 
     expr, _ = tests[-1]
-    fails += do_single_test_case('', func, expr, 
-                            expected=["Rule must start with 'eval' or 'apply'"])
+    fails += do_single_test_case('', func, expr,
+                                 expected=["Rule must start with 'eval', 'apply', or 'rewrite'"])
     if not appliable:
         fails += do_single_test_case('apply', func, expr,
-                                expected=[f'Could not find UDF/lemma/property associated with {func}'])
+                                expected=[f'Could not find definition/lemma associated with {func}'])
     return fails
 
-def test_list_func_props(func: str, tests: list[tuple]) -> int:
-    fails = run_test_cases('apply', func, tests)
+def test_list_func_props(func: str, tests: list[tuple], proof: ERProof = None) -> int:
+    fails = run_test_cases('rewrite', func, tests, proof)
     expr, _ = tests[-1]
-    fails += do_single_test_case('apply', func + 'Prop', expr, [f'Could not find rule associated with {func + 'Prop'}'])
+    fails += do_single_test_case('rewrite', func + 'Prop', expr, [f'Could not find rule associated with'
+                                                                  f' {func + 'Prop'}'])
     return fails
 
 totalFails = 0
@@ -66,7 +84,8 @@ plus_tests = [
     ("(+ 1 1 1)", ['+ only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(+ 1 #t)",
     ["Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['INT', 'INT']"]), # bad type
-    ("(+ 1 (+ 2 3))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(+ k 0)", ["Cannot evaluate '+' expression with generic arguments"]), # generic
+    ("(+ 1 (+ 2 3))", ['Insufficiently resolved arguments']), # insufficiently resolved
     ("(+ 1 2)", 3) # valid test case
 ]
 totalFails += test_racket_function('+', plus_tests)
@@ -81,7 +100,8 @@ minus_tests = [
     ("(- 5 1 2)", ['- only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(- #f 1)",
     ["Cannot match argument out typeList ['BOOL', 'INT'] with expected typeList ['INT', 'INT']"]), # bad type
-    ("(- 5 (- 2 1))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(- 5 (- 2 1))", ['Insufficiently resolved arguments']), # insufficiently resolved
+    ("(- k 0)", ["Cannot evaluate '-' expression with generic arguments"]), # generic
     ("(- 3 5)", -2), # output negative number
     ("(- 5 3)", 2) # valid test case
 ]
@@ -94,7 +114,8 @@ times_tests = [
     ("(* 2 3 4)", ['* only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(* #t 1)",
     ["Cannot match argument out typeList ['BOOL', 'INT'] with expected typeList ['INT', 'INT']"]), # bad type
-    ("(* 2 (+ 3 4))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(* k 0)", ["Cannot evaluate '*' expression with generic arguments"]), # generic
+    ("(* 2 (+ 3 4))", ['Insufficiently resolved arguments']), # insufficiently resolved
     ("(* 8 9)", 72) # valid test case
 ]
 totalFails += test_racket_function('*', times_tests)
@@ -107,7 +128,8 @@ quotient_tests = [
     ("(quotient 12 2 3)", ['quotient only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(quotient #t 1)",
     ["Cannot match argument out typeList ['BOOL', 'INT'] with expected typeList ['INT', 'INT']"]), # bad type
-    ("(quotient 12 (quotient 6 2))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(quotient 12 (quotient 6 2))", ['Insufficiently resolved arguments']), # insufficiently resolved
+    ("(quotient k 1)", ["Cannot evaluate 'quotient' expression with generic arguments"]), # generic
     ("(quotient 3 0)", ["denominator can't be zero"]), # division by zero
     ("(quotient 0 2)", 0),  # quotient with 0 numerator
     ("(quotient 7 3)", 2)  # quotient with remainder
@@ -122,7 +144,8 @@ remainder_tests = [
     ("(remainder 14 5 3)", ['remainder only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(remainder 5 #t)",
     ["Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['INT', 'INT']"]), # bad type
-    ("(remainder 12 (quotient 29 6))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(remainder 12 (quotient 29 6))", ['Insufficiently resolved arguments']), # insufficiently resolved
+    ("(remainder k 1)", ["Cannot evaluate 'remainder' expression with generic arguments"]), # generic
     ("(remainder 2 0)", ["denominator can't be zero"]), # division by zero
     ("(remainder 0 2)", 0),  # remainder with 0 numerator
     ("(remainder 14 5)", 4)  # normal test case
@@ -137,9 +160,10 @@ expt_tests = [
     ("(expt 2 2 2)", ['expt only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(expt 5 #t)",
     ["Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['INT', 'INT']"]), # bad type
-    ("(expt 3 (expt 2 2))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(expt 3 (expt 2 2))", ['Insufficiently resolved arguments']), # insufficiently resolved
     ("(expt 0 0)", ['0^0 is undefined']),  # undef
     ("(expt 3 -1)", ['-1 contains illegal characters']), # fraction, not a legal input due to -1
+    ("(expt k 0)", ["Cannot evaluate 'expt' expression with generic arguments"]), # generic
     ("(expt 2 0)", 1), # expt with 0 power
     ("(expt 0 2)", 0), # expt with 0 base
     ("(expt 2 3)", 8) # normal test case
@@ -153,7 +177,8 @@ eq_tests = [
     ("(= 3)", ['= only takes 2 arguments, but 1 was provided']), # too few arguments
     ("(= 2 2 2)", ['= only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(= #t #t)", '#t'), # allowed to use '=' for any type in buddy racket
-    ("(= 3 (+ 1 2))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(= 3 (+ 1 2))", ['Insufficiently resolved arguments']), # insufficiently resolved
+    ("(= k k)", "#t"), # generic
     ("(= 4 3)", '#f'), # greater than
     ("(= 3 3)", '#t'), # equal
     ("(= 3 4)", '#f'), # less than
@@ -164,7 +189,7 @@ eq_tests = [
     ("(= '(1 2) '(1 3))", '#f'), # comparing lists different values
     ("(= '(1 2) '(1 2 3))", '#f'), # comparing lists different lengths
     ("(= '() null)", '#t'), # comparing empty list to null
-    ("(= (2 3) '(2 3))", ['insufficiently resolved arguments']), # compare unquoted list to quoted list
+    ("(= (2 3) '(2 3))", ['Insufficiently resolved arguments']), # compare unquoted list to quoted list
     ("(= 3 '(3))", '#f')
 ]
 totalFails += test_racket_function('=', eq_tests)
@@ -177,7 +202,7 @@ lt_tests = [
     ("(< 2 3 4)", ['< only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(< #f #t)",
     ["Cannot match argument out typeList ['BOOL', 'BOOL'] with expected typeList ['INT', 'INT']"]), # bad type
-    ("(< 3 (+ 1 2))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(< 3 (+ 1 2))", ['Insufficiently resolved arguments']), # insufficiently resolved
     ("(< 4 3)", '#f'), # greater than
     ("(< 3 3)", '#f'), # equal
     ("(< 3 4)", '#t') # less than
@@ -192,7 +217,7 @@ le_tests = [
     ("(<= 2 3 4)", ['<= only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(<= 0 #t)",
     ["Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['INT', 'INT']"]), # bad type
-    ("(<= 3 (+ 1 2))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(<= 3 (+ 1 2))", ['Insufficiently resolved arguments']), # insufficiently resolved
     ("(<= 4 3)", '#f'), # greater than
     ("(<= 3 3)", '#t'), # equal
     ("(<= 3 4)", '#t') # less than
@@ -207,7 +232,7 @@ gt_tests = [
     ("(> 4 3 2)", ['> only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(> 1 #f)",
     ["Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['INT', 'INT']"]), # bad type
-    ("(> 3 (+ 1 2))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(> 3 (+ 1 2))", ['Insufficiently resolved arguments']), # insufficiently resolved
     ("(> 4 3)", '#t'), # greater than
     ("(> 3 3)", '#f'), # equal
     ("(> 3 4)", '#f') # less than
@@ -222,7 +247,7 @@ ge_tests = [
     ("(>= 4 3 2)", ['>= only takes 2 arguments, but 3 were provided']), # too many arguments
     ("(>= #f #t)",
     ["Cannot match argument out typeList ['BOOL', 'BOOL'] with expected typeList ['INT', 'INT']"]), # bad type
-    ("(>= 3 (+ 1 2))", ['insufficiently resolved arguments']), # insufficiently resolved
+    ("(>= 3 (+ 1 2))", ['Insufficiently resolved arguments']), # insufficiently resolved
     ("(>= 4 3)", '#t'), # greater than
     ("(>= 3 3)", '#t'), # equal
     ("(>= 3 4)", '#f') # less than
@@ -230,8 +255,8 @@ ge_tests = [
 totalFails += test_racket_function('>=', ge_tests)
 
 # Check that 'math' rule can no longer be used in place of the individual operators
-totalFails += do_single_test_case('eval', 'math', '(+ 1 2)', ['Cannot evaluate advanced math'])
-totalFails += do_single_test_case('', 'math', '(+ 1 2)', ["Rule must start with 'eval' or 'apply'"])
+totalFails += do_single_test_case('eval', 'math', '(+ 1 2)', ["Could not find built-in Racket procedure associated with 'math'"])
+totalFails += do_single_test_case('', 'math', '(+ 1 2)', ["Rule must start with 'eval', 'apply', or 'rewrite'"])
 
 # Logic Function Tests
 print('\nTesting Logic Rules:\n')
@@ -241,7 +266,8 @@ not_tests = [
     ("(not #t #t)", ['not only takes 1 arguments, but 2 were provided']),
     ("(not)", ['not only takes 1 arguments, but 0 were provided']),
     ("(not 1)", ["Cannot match argument out typeList ['INT'] with expected typeList ['BOOL']"]),
-    ("(not (and #t #f))", ['insufficiently resolved arguments']),
+    ("(not (and #t #f))", ['Insufficiently resolved arguments']),
+    ("(not p)", ["Cannot evaluate 'not' expression with generic arguments"]),
     ("(not #t)", "#f"),
     ("(not #f)", "#t")
 ]
@@ -255,7 +281,8 @@ and_tests = [
     ("(and 3)", ['and only takes 2 arguments, but 1 was provided']),
     ("(and 1 #t)", [
      "Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['BOOL', 'BOOL']"]),
-    ("(and #t (and #f #f))", ['insufficiently resolved arguments']),
+    ("(and #t (and #f #f))", ['Insufficiently resolved arguments']),
+    ("(and #f p)", ["Cannot evaluate 'and' expression with generic arguments"]),
     ("(and #t #t)", "#t"),
     ("(and #f #f)", "#f"),
     ("(and #t #f)", "#f"),
@@ -271,7 +298,8 @@ or_tests = [
     ("(or 3)", ['or only takes 2 arguments, but 1 was provided']),
     ("(or 1 #t)", [
      "Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['BOOL', 'BOOL']"]),
-    ("(or #t (or #f #f))", ['insufficiently resolved arguments']),
+    ("(or #t (or #f #f))", ['Insufficiently resolved arguments']),
+    ("(or #t p)", ["Cannot evaluate 'or' expression with generic arguments"]),
     ("(or #t #t)", "#t"),
     ("(or #f #f)", "#f"),
     ("(or #t #f)", "#t"),
@@ -287,7 +315,9 @@ xor_tests = [
     ("(xor 3)", ['xor only takes 2 arguments, but 1 was provided']),
     ("(xor 1 #t)", [
      "Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['BOOL', 'BOOL']"]),
-    ("(xor #t (not #t))", ['insufficiently resolved arguments']),
+    ("(xor #t (not #t))", ['Insufficiently resolved arguments']),
+    ("(xor #t p)", ["Cannot evaluate 'xor' expression with generic arguments"]),
+    ("(xor #f p)", ["Cannot evaluate 'xor' expression with generic arguments"]),
     ("(xor #t #t)", "#f"),
     ("(xor #t #f)", "#t"),
     ("(xor #f #f)", "#f")
@@ -301,7 +331,8 @@ implies_tests = [
     ("(implies #t)", ['implies only takes 2 arguments, but 1 was provided']),
     ("(implies #t 1)", [
      "Cannot match argument out typeList ['BOOL', 'INT'] with expected typeList ['BOOL', 'BOOL']"]),
-    ("(implies #t (or #f #f))", ['insufficiently resolved arguments']),
+    ("(implies #t (or #f #f))", ['Insufficiently resolved arguments']),
+    ("(implies #f p)", ["Cannot evaluate 'implies' expression with generic arguments"]),
     ("(implies #t #t)", "#t"),
     ("(implies #t #f)", "#f"),
     ("(implies #f #f)", "#t")
@@ -310,7 +341,7 @@ totalFails += test_racket_function('implies', implies_tests)
 
 # Check that logic is no longer a valid rule
 totalFails += do_single_test_case('eval', 'logic', '(and #t #t)', ['Could not find rule associated with logic'])
-totalFails += do_single_test_case('', 'logic', '(and #t #t)', ["Rule must start with 'eval' or 'apply'"])
+totalFails += do_single_test_case('', 'logic', '(and #t #t)', ["Rule must start with 'eval', 'apply', or 'rewrite'"])
 
 # List function tests
 print('\nTesting List Function Rules...\n')
@@ -318,10 +349,12 @@ cons_tests = [
     ("(+ 1 2)", ["Cannot evaluate cons on a '+' expression"]),
     ("(first '(9 8 7))", ["Cannot evaluate cons on a 'first' expression"]),
     ("(cons 1 1)", ["Cannot match argument out typeList ['INT', 'INT'] with expected typeList ['ANY', 'LIST']"]),
-    ("(cons (+ 1 2) '(4 5))", ['insufficiently resolved arguments']),
-    ("(cons 1 (cons 2 null))", ['insufficiently resolved arguments']),
+    ("(cons (+ 1 2) '(4 5))", ['Insufficiently resolved arguments']),
+    ("(cons 1 (cons 2 null))", ['Insufficiently resolved arguments']),
     ("(cons null)", ['cons only takes 2 arguments, but 1 was provided']),
     ("(cons 1 '(2 3) null)", ['cons only takes 2 arguments, but 3 were provided']),
+    ("(cons x null)", ["Cannot evaluate 'cons' expression with generic arguments"]),
+    ("(cons 1 L)", ["Cannot evaluate 'cons' expression with generic arguments"]),
     ("(cons 1 null)", "'(1)"), # cons int to null
     ("(cons 9 '(8 7))", "'(9 8 7)"), # cons int to non-null
     ("(cons #t null)", "'(#t)"), # cons bool to null
@@ -339,8 +372,9 @@ first_tests = [
     ("(first 1)", ["Cannot match argument out typeList ['INT'] with expected typeList ['LIST']"]),
     ("(first)", ['first only takes 1 arguments, but 0 were provided']),
     ("(first '(1 2) '(3 4))", ['first only takes 1 arguments, but 2 were provided']),
-    ("(first (cons 1 null))", ['insufficiently resolved list argument']), # error expected because the rule is 'eval first'
-    ("(first null)", ['first requires nonempty list']),
+    ("(first (cons 1 null))", ['Insufficiently resolved arguments']), # error expected because the rule is 'eval first',
+    ("(first L)", ["Cannot evaluate 'first' expression with generic arguments"]),
+    ("(first null)", ['first requires non-empty list']),
     ("(first '(1 2 3))", "1"), # first for non-nested list
     ("(first '((1 2) (3) (4)))", "'(1 2)") # first for nested list
 ]
@@ -354,8 +388,9 @@ rest_tests = [
     ("(rest 1)", ["Cannot match argument out typeList ['INT'] with expected typeList ['LIST']"]),
     ("(rest)", ['rest only takes 1 arguments, but 0 were provided']),
     ("(rest '(1 2) '(3 4))", ['rest only takes 1 arguments, but 2 were provided']),
-    ("(rest (cons 1 null))", ['insufficiently resolved list argument']), # error expected because the rule is 'eval rest'
-    ("(rest null)", ['rest requires nonempty list']),
+    ("(rest (cons 1 null))", ['Insufficiently resolved arguments']), # error expected because the rule is 'eval rest'
+    ("(rest null)", ['rest requires non-empty list']),
+    ("(rest L)", ["Cannot evaluate 'rest' expression with generic arguments"]),
     ("(rest '(1 2 3))", "'(2 3)"), # rest for non-nested list
     ("(rest '((1 2) (3) (4)))", "'((3) (4))") # rest for nested list
 ]
@@ -363,6 +398,63 @@ totalFails += test_racket_function('rest', rest_tests, appliable=True)
 totalFails += do_single_test_case('eval', 'restList', "(rest '(1 2 3))",
                                    ['Could not find rule associated with restList'])
 
+print('\nTesting All Other Built-Ins\n')
+zeroQ_tests = [
+    ("(+ 1 2)", ["Cannot evaluate zero? on a '+' expression"]),
+    ("(cons 1 null)", ["Cannot evaluate zero? on a 'cons' expression"]),
+    ("(zero? 1 2)", ["zero? only takes 1 arguments, but 2 were provided"]),
+    ("(zero? (+ 1 2))", ["Insufficiently resolved arguments"]),
+    ("(zero? (- 1 2))", ["Insufficiently resolved arguments"]),
+    ("(zero? k)", ["Cannot determine value of 'zero?' expression with generic argument 'k'"]),
+    ("(zero? L)", "#f"),
+    ("(zero? #f)", '#f'),
+    ("(zero? '(1 2))", '#f'),
+    ("(zero? 0)", '#t'),
+    ("(zero? 1)", '#f')
+]
+totalFails += test_racket_function('zero?', zeroQ_tests)
+
+nullQ_tests = [
+    ("(+ 1 2)", ["Cannot evaluate null? on a '+' expression"]),
+    ("(cons 1 null)", ["Cannot evaluate null? on a 'cons' expression"]),
+    ("(null? null null)", ["null? only takes 1 arguments, but 2 were provided"]),
+    ("(null? (cons 1 null))", ["Insufficiently resolved arguments"]),
+    ("(null? 1)", "#f"),
+    ("(null? #f)", "#f"),
+    ("(null? L)", "#f"),
+    ("(null? null)", "#t"),
+    ("(null? '())", "#t"),
+    ("(null? '(1 2 3))", "#f")
+]
+totalFails += test_racket_function('null?', nullQ_tests)
+
+if_tests = [
+    ("(+ 1 2)", ["Cannot evaluate if on a '+' expression"]),
+    ("(cons 1 null)", ["Cannot evaluate if on a 'cons' expression"]),
+    ("(if #t 1 2 3)", ["if only takes 3 arguments, but 4 were provided"]),
+    ("(if 0 1 2)", ["Cannot match argument out typeList ['INT', 'INT', 'INT'] with expected typeList ['BOOL', 'ANY', 'ANY']"]),
+    ("(if (= 1 1) 1 2)", ["Insufficiently resolved condition argument"]),
+    ("(if #t 1 #f)", 1),
+    ("(if p 1 2)", ["Cannot determine truth value of generic argument 'p'"]),
+    ("(if #t 1 2)", 1),
+    ("(if #f 1 2)", 2),
+    ("(if #t null '(1 2))", "null"),
+    ("(if #f null '(1 2))", "'(1 2)"),
+    ("(if #t #f #t)", "#f"),
+    ("(if #f #f #t)", "#t"),
+    ("(if #t (+ 1 2) (+ 3 4))", "(+ 1 2)"), # latter arguments not fully resolved
+    ("(if p (cons 1 null) (cons 1 null))", "(cons 1 null)"), # generic condition, same outputs regardless of condition value
+]
+test_racket_function('if', if_tests)
+
+print('\nTest Undefined Labels\n')
+totalFails += do_single_test_case('rewrite', 'cons-first-rest', '(cons (first L) (rest L))', ["No definition found for "
+                                                                                              "label '['L']'"])
+
+axiomProof = ERProof()
+axiomProof.addGeneric('a', 'int', {'assumption': 'None'})
+axiomProof.addGeneric('b', 'int', {'assumption': 'Positive'})
+axiomProof.addGeneric('M', 'list')
 print("\nList Function Property Testing\n")
 cons_prop_tests = [
     ("(+ 1 2)", ["Cannot apply cons-first-rest property to a '+' expression"]),
@@ -374,8 +466,8 @@ cons_prop_tests = [
      ["Can only apply cons-first-rest property when first arg is a 'first' expression and second arg is a 'rest' expression"]),
     ("(cons (first L) (rest M))", ["Cannot apply cons-first-rest property on two different lists"]),
     ("(cons (first '(1 2)) (rest '(1 3)))", ["Cannot apply cons-first-rest property on two different lists"]),
-    ("(cons (first null) (rest null))", ["first requires nonempty list"]), # cannot apply property when list is null
-    ("(cons (first '(1 2)) (rest '()))", ["rest requires nonempty list"]), # '() instead of null
+    ("(cons (first null) (rest null))", ["first requires non-empty list"]), # cannot apply property when list is null
+    ("(cons (first '(1 2)) (rest '()))", ["rest requires non-empty list"]), # '() instead of null
     ("(cons (first 1) (rest '(1)))", ["Cannot match argument out typeList ['INT'] with expected typeList ['LIST']"]), # bad type in argument expression
     ("(cons (first '(1 2) '(3)) (rest '(2 3)))", ["first only takes 1 arguments, but 2 were provided"]), # extra argument in argument expressions
     ("(cons (first '(1 2)) (rest '(1) '(2)))", ["rest only takes 1 arguments, but 2 were provided"]),
@@ -384,7 +476,7 @@ cons_prop_tests = [
     ("(cons (first (cons 2 null)) (rest (cons 2 null)))", "(cons 2 null)"), # list not completely resolved
     ("(cons (first L) (rest L))", "L") # symbols
 ]
-totalFails += test_list_func_props('cons', cons_prop_tests)
+totalFails += test_list_func_props('cons-first-rest', cons_prop_tests, axiomProof)
 
 first_prop_tests = [
     ("(+ 1 2)", ["Cannot apply first-cons property to a '+' expression"]),
@@ -395,11 +487,11 @@ first_prop_tests = [
     ("(first (cons 1 null) null)", ["first only takes 1 arguments, but 2 were provided"]), # extra argument in argument expression
     ("(first (cons 1 null))", "1"),
     ("(first (cons 9 '(8 7)))", "9"),
-    ("(first (cons a L))", "a"), # symbolic
+    ("(first (cons x L))", "x"), # symbolic
     ("(first (cons (+ (* 4 5) (* 6 7)) null))", "(+ (* 4 5) (* 6 7))"), # first cons argument not completely simplified
     ("(first (cons 46 (cons 2 null)))", "46") # second cons argument not completely simplified
 ]
-totalFails += test_list_func_props('first', first_prop_tests)
+totalFails += test_list_func_props('first-cons', first_prop_tests)
 
 rest_prop_tests = [
     ("(+ 1 2)", ["Cannot apply rest-cons property to a '+' expression"]),
@@ -410,11 +502,11 @@ rest_prop_tests = [
     ("(rest (cons 1 null) null)", ["rest only takes 1 arguments, but 2 were provided"]), # extra argument in argument expression
     ("(rest (cons 1 null))", "null"),
     ("(rest (cons 9 '(8 7)))", "'(8 7)"),
-    ("(rest (cons a L))", "L"), # symbolic
+    ("(rest (cons x L))", "L"), # symbolic
     ("(rest (cons (+ (* 4 5) (* 6 7)) null))", "null"), # first cons argument not completely simplified
     ("(rest (cons 46 (cons 2 null)))", "(cons 2 null)") # second cons argument not completely simplified
 ]
-totalFails += test_list_func_props('rest', rest_prop_tests)
+totalFails += test_list_func_props('rest-cons', rest_prop_tests)
 
 minus_plus_tests = [
     ("(cons 1 null)", ["Cannot apply -+ when the root operation is cons"]),
@@ -428,7 +520,7 @@ minus_plus_tests = [
     # too many arguments
     ("(- (+ 1 2 3) 2)", ["+ only takes 2 arguments, but 3 were provided"]),
     ("(- (+ k 1) 1 2)", ["- only takes 2 arguments, but 3 were provided"]),
-    # insufficiently resolved arguments
+    # Insufficiently resolved arguments
     ("(- (+ 1 2) (+ 1 1))", ["Insufficiently resolved arguments"]),
     ("(- (+ 1 (+ 1 1)) 2)", ["Insufficiently resolved arguments"]),
     ("(- (+ 1 (+ 1 1)) (+ 1 1))", ["Insufficiently resolved arguments"]),
@@ -439,15 +531,136 @@ minus_plus_tests = [
     ("(- (+ (* 8 8) 3) 3)", "(* 8 8)"),
     ("(- (+ k 9) 9)", "k")
 ]
-totalFails += run_test_cases("apply", "-+", minus_plus_tests)
+totalFails += run_test_cases("rewrite", "-+", minus_plus_tests)
 totalFails += do_single_test_case("eval", "-+", minus_plus_tests[-1][0], ["Cannot evaluate a property"])
+totalFails += do_single_test_case("apply", "-+", minus_plus_tests[-1][0], ["Cannot apply a property"])
+
+nullQ_cons_tests = [
+    ("(cons 1 null)", ["Cannot apply null?-cons property when root operation is 'cons'"]),
+    ("(+ 1 2)", ["Cannot apply null?-cons property when root operation is '+'"]),
+    ("(null? null)", ["Cannot apply null?-cons property when argument is not a 'cons' expression"]),
+    ("(null? '(1 2 3))", ["Cannot apply null?-cons property when argument is not a 'cons' expression"]),
+    ("(null? (cons 1 null) null)", ["null? only takes 1 arguments, but 2 were provided"]),
+    ("(null? (cons 1 1))", ["Cannot match argument out typeList ['INT', 'INT'] with expected typeList ['ANY', 'LIST']"]), # bad type in cons
+    ("(null? (cons 1 1 null))", ["cons only takes 2 arguments, but 3 were provided"]), # too many arguments in cons
+    ("(null? (cons x L))", "#f"), # symbolic
+    ("(null? (cons (+ 1 2) (cons null null)))", "#f"), # not fully resolved
+    ("(null? (cons 1 null))", "#f")
+]
+totalFails += run_test_cases("rewrite", "null?-cons", nullQ_cons_tests)
+totalFails += do_single_test_case("eval", "null?-cons", nullQ_cons_tests[-1][0], ["Cannot evaluate a property"])
+
+zeroQ_plus_tests = [
+    ("(zero? (+ 0 1))", '#f'),
+    ("(zero? (+ 1 0))", '#f'),
+    ("(zero? (+ a k))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
+    ("(zero? (+ a b))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
+    ("(zero? (+ k a))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
+    ("(zero? (+ k 0))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
+    ("(zero? (+ b 0))", '#f'),
+    ("(zero? (+ b x))", "#f"), # using GenericAny (should be treated as a nonnegative int)
+    ("(zero? (+ b k))", '#f')
+]
+totalFails += run_test_cases("rewrite", "zero?+", zeroQ_plus_tests, axiomProof)
+totalFails += do_single_test_case("eval", "zero?+", zeroQ_plus_tests[-1][0], ["Cannot evaluate a property"], axiomProof)
+totalFails += do_single_test_case("apply", "zero?+", zeroQ_plus_tests[-1][0], ["Cannot apply a property"], axiomProof)
 
 print("\nUDF testing:\n")
 udfProof = ERProof()
 udfProof.addUDF("(f x y)", "(INT,INT)>INT", "(* x y)")
-totalFails += do_single_test_case('', 'f', "(f 3 4)", ["Rule must start with 'eval' or 'apply'"], udfProof)
+udfProof.addUDF("(g x)", "INT>BOOL", "(< x 5)")
+udfProof.addUDF("(h x y)", "(LIST,LIST)>LIST", "(cons (first x) (cons (first y) null))")
+udfProof.addUDF("(i x)", "LIST>BOOL", "(zero? (first x))")
+# udfProof.addUDF("(h)", "()>INT", "5") TODO: need to implement 0 argument UDFs
+# udfProof.addUDF("i", "INT", "3") TODO need to implement 0 argument UDFs
+# 2 arguments
+totalFails += do_single_test_case('', 'f', "(f 3 4)", ["Rule must start with 'eval', 'apply', or 'rewrite'"], udfProof)
 totalFails += do_single_test_case('eval', 'f',  "(f 3 4)", ['Cannot evaluate a user-defined function'], udfProof)
-totalFails += do_single_test_case('apply', 'f', "(f 3 4)", "(* 3 4)", udfProof)
+totalFails += do_single_test_case('apply', 'f', "(f 3 4)", ['Not enough arguments given for f. f requires 2 '
+                                                            'arguments, while you gave 0'],
+                                  udfProof)
+totalFails += do_single_test_case('apply', 'f x=3, y=4, z=5', "(f 3 4)", ['Too many arguments given for f. f '
+                                                                          'requires 2 arguments, while you gave 3'],
+                                  udfProof)
+totalFails += do_single_test_case('apply', 'f x=3 y=4', "(f 3 4)", ['Too many assignments for a given argument \'x=3 '
+                                                                    'y=4\'. Did you forget a comma?'], udfProof)
+totalFails += do_single_test_case('apply', 'f z=3, y=4', "(f 3 4)",
+                                  ["Argument 'z' is in position 1 but expected 'x' for f"], udfProof)
+totalFails += do_single_test_case('apply', 'f x=3, z=4', "(f 3 4)",
+                                  ["Argument 'z' is in position 2 but expected 'y' for f"],
+                                  udfProof)
+totalFails += do_single_test_case('apply', 'f y=4, x=3', "(f 3 4)", ["Argument 'y' is in position 1 but expected 'x' "
+                                                                     "for f", "Argument 'x' is in position 2 but "
+                                                                              "expected 'y' for f"], udfProof)
+totalFails += do_single_test_case('apply', 'f x=#t, y=4', "(f 3 4)", ["Type mismatch in argument 'x=#t': expected "
+                                                                      "INT, got BOOL"], udfProof)
+totalFails += do_single_test_case('apply', "f x=3, y='(1 2 3)", "(f 3 4)", ["Type mismatch in argument 'y='(1 2 3)': "
+                                                                            "expected "
+                                                                            "INT, got LIST"], udfProof)
+totalFails += do_single_test_case('apply', 'f x=4, y=5', "(f 3 4)", ["Value mismatch in argument 'x': expected 3, "
+                                                                     "got 4", "Value mismatch in argument 'y': "
+                                                                              "expected 4, got 5"], udfProof)
+totalFails += do_single_test_case('apply', 'f x=3, y=4', "(f 3 4)", "(* 3 4)", udfProof)
+
+# 1 argument
+totalFails += do_single_test_case('', 'g x=3', "(g 3)", ["Rule must start with 'eval', 'apply', or 'rewrite'"],
+                                  udfProof)
+totalFails += do_single_test_case('eval', 'g x=3', "(g 3)", ['Cannot evaluate a user-defined function'], udfProof)
+totalFails += do_single_test_case('apply', 'g', "(g 3)", ['Not enough arguments given for g. g requires 1 arguments, '
+                                                          'while you gave 0'], udfProof)
+totalFails += do_single_test_case('apply', 'g x=3, y=4', "(g 3)", ['Too many arguments given for g. g requires 1 '
+                                                                   'arguments, while you gave 2'], udfProof)
+totalFails += do_single_test_case('apply', 'g y=3', "(g 3)", ["Argument 'y' is in position 1 but expected 'x' for g"],
+                                  udfProof)
+totalFails += do_single_test_case('apply', 'g x=#t', "(g 3)", ["Type mismatch in argument 'x=#t': expected INT, "
+                                                               "got BOOL"], udfProof)
+totalFails += do_single_test_case('apply', 'g x=3', "(g 4)", ["Value mismatch in argument 'x': expected 4, got 3"],
+                                  udfProof)
+totalFails += do_single_test_case('apply', 'g x=3', "(g 3)", "(< 3 5)", udfProof)
+
+# 2 list argument
+totalFails += do_single_test_case('apply', 'h', "(h '(1 2 3) '(4 5 6))", ['Not enough arguments given for h. h '
+                                                                          'requires 2 arguments, while you gave 0'],
+                                  udfProof)
+totalFails += do_single_test_case('apply', "h x='(1 2 3), y='(4 5 6), z='(7 8 9)", "(h '(1 2 3) '(4 5 6))", ['Too many '
+                                                                                                             'arguments given for h. h requires 2 arguments, while you gave 3'],
+                                  udfProof)
+totalFails += do_single_test_case('apply', "h x='(1 2 3) y='(4 5 6)", "(h '(1 2 3) '(4 5 6))",
+                                  ["Too many assignments for a given argument 'x='(1 2 3) y='(4 5 6)'. Did you forget a comma?"],
+                                  udfProof)
+totalFails += do_single_test_case('apply', "h z='(1 2 3), y='(4 5 6)", "(h '(1 2 3) '(4 5 6))",
+                                  ["Argument 'z' is in position 1 but expected 'x' for h"],
+                                  udfProof)
+totalFails += do_single_test_case('apply', "h x='(1 2 3), z='(4 5 6)", "(h '(1 2 3) '(4 5 6))",
+                                  ["Argument 'z' is in position 2 but expected 'y' for h"],
+                                  udfProof)
+totalFails += do_single_test_case('apply', "h y='(4 5 6), x='(1 2 3)", "(h '(1 2 3) '(4 5 6))",
+                                  ["Argument 'y' is in position 1 but expected 'x' for h",
+                                   "Argument 'x' is in position 2 but expected 'y' for h"],
+                                  udfProof)
+totalFails += do_single_test_case('apply', "h x='(1 2 3), y=#t", "(h '(1 2 3) '(4 5 6))",
+                                  ["Type mismatch in argument 'y=#t': expected LIST, got BOOL"],
+                                  udfProof)
+totalFails += do_single_test_case('apply', "h x='(1 2 3), y='(4 5 6)", "(h '(3 2 1) '(6 5 4))",
+                                  ["Value mismatch in argument 'x': expected '(3 2 1), got '(1 2 3)",
+                                   "Value mismatch in argument 'y': expected '(6 5 4), got '(4 5 6)"],
+                                  udfProof)
+totalFails += do_single_test_case('apply', "h x='(1 2 3), y='(4 5 6)", "(h '(1 2 3) '(4 5 6))",
+                                  "(cons (first '(1 2 3)) (cons (first '(4 5 6)) null))", udfProof)
+
+# 1 list argument
+totalFails += do_single_test_case('apply', 'i', "(i '(0 1 2))", ['Not enough arguments given for i. i requires 1 '
+                                                                 'arguments, while you gave 0'], udfProof)
+totalFails += do_single_test_case('apply', "i x='(0 1 2), y='(3 4 5)", "(i '(0 1 2))", ['Too many arguments given for '
+                                                                                        'i. i requires 1 arguments, while you gave 2'],
+                                  udfProof)
+totalFails += do_single_test_case('apply', "i y='(0 1 2)", "(i '(0 1 2))",
+                                  ["Argument 'y' is in position 1 but expected 'x' for i"], udfProof)
+totalFails += do_single_test_case('apply', "i x=#t", "(i '(0 1 2))", ["Type mismatch in argument 'x=#t': expected "
+                                                                      "LIST, got BOOL"], udfProof)
+totalFails += do_single_test_case('apply', "i x='(0 1 2)", "(i '(3 4 5))",
+                                  ["Value mismatch in argument 'x': expected '(3 4 5), got '(0 1 2)"], udfProof)
+totalFails += do_single_test_case('apply', "i x='(0 1 2)", "(i '(0 1 2))", "(zero? (first '(0 1 2)))", udfProof)
 
 #node method tests for funcset, ancestor, allMath, mathstr, logicStr: method, expr, expected
 methTests = [

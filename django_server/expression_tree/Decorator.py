@@ -1,14 +1,17 @@
 # This file is intended to complete the AST creation process and find some more errors through restrictions like type checking, and adding other details
 
-from .ERCommon import Node, Type, RacType, TypeList
+from .ERCommon import Node, Type, RacType, FAIL_TYPES, FLEX_TYPES, TypeList
 # brings in ERobject whose attributes will be used to decorate the tree
 from .ERobj import pdict
 
 # decorate non-function type Nodes in the AST
-def decorateTree(inputTree: Node, errLog, debug=False) -> tuple[Node, list[str]]:
+def decorateTree(inputTree: Node, errLog, generics=None, debug=False) -> tuple[Node, list[str]]:
     # just return if there is not AST to decorate
     if inputTree == None:
         return inputTree, errLog
+    
+    if generics is None:
+        generics = dict()
 
     # check if parameter name is legal
     if inputTree.type.getType() == Type.PARAM and not inputTree.data.isalpha():
@@ -24,10 +27,12 @@ def decorateTree(inputTree: Node, errLog, debug=False) -> tuple[Node, list[str]]
     inputTree.name = inputTree.data
 
     # decorate the Node objects
-    if not inputTree.type.isType("FUNCTION"):
-        if inputTree.type.isType("LIST"):
-            erObj = pdict[inputTree.data]
-            inputTree.length = erObj.length
+    if inputTree.name in generics.keys():
+        inputTree.name = generics[inputTree.name]
+    elif not inputTree.type.isType("FUNCTION"):
+        if inputTree.type.isType("LIST") and not inputTree.children:
+            if inputTree.data in pdict:
+                inputTree.length = pdict[inputTree.data].length
         elif inputTree.type.isType("INT"):
             try:
                 inputTree.name = int(inputTree.data)
@@ -39,7 +44,7 @@ def decorateTree(inputTree: Node, errLog, debug=False) -> tuple[Node, list[str]]
 
     # decorate the children if there are any
     for c in inputTree.children:
-        decorateTree(c, errLog, debug)
+        decorateTree(c, errLog, generics, debug)
 
     # return a decorated AST and the status of the error log
     return inputTree, errLog
@@ -92,8 +97,9 @@ def remTemps(inputTree: Node, errLog=None, debug=False, theRuleDict=None) -> lis
         errLog.append(f"argument #1 of an if function must be Boolean but {str(inputTree.children[1].type.getType())} was provided")
         return errLog
     n1, n2 = inputTree.children[2], inputTree.children[3] #note, even if these are ifs, they'll have been designated types in the recursive call
-    if (t1 := n1.type.getType()) != (t2 := n2.type.getType()):
-        errLog.append(f"final arguments of an if function must match but {str(t1)} and {str(t2)} were provided")
+    if not ((t1 := n1.type.getType()) == (t2 := n2.type.getType())):
+        if not (t1 in FLEX_TYPES or t2 in FLEX_TYPES):  # TODO temporary fix for if functions with different types
+            errLog.append(f"final arguments of an if function must match but {str(t1)} and {str(t2)} were provided")
         return errLog
     inputTree.type = n1.type #setting the if expression list type to the type of the output branches
     return errLog
