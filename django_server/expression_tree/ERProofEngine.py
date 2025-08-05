@@ -263,74 +263,102 @@ class ERProofLine:
             return [], True
         return parsed, False
 
+    def find_undefined_labels(self, node: Node, ruleSet: dict[str, Rule] = None, generics: dict[str, Generic] = None) -> \
+            list[str]:
+        """
+        Recursively find undefined labels in the expression tree.
+        Args:
+            node: The current node in the expression tree.
+            ruleSet: A dictionary of defined rules.
+            generics: A dictionary of defined generics.
+        Returns:
+            A list of undefined labels found in the node's children.
+        """
+        if ruleSet is None:
+            ruleSetet = {}
+        if generics is None:
+            generics = {}
+        undefined_labels = []
+        for child in node.children:
+            if child.data[0] == "'" or child.data[0] == "(":
+                nested_children = self.find_undefined_labels(child, ruleSet, generics)
+                if nested_children and nested_children not in undefined_labels:
+                    # Avoid adding duplicates
+                    undefined_labels.append(nested_children)
+            elif (child.data not in ruleSet.keys() and child.data not in reservedLabels and child.data not in
+                  generics.keys() and child.data.isalpha()):  # TODO: change to checking if type PARAM when
+                # we fix that
+                undefined_labels.append(child.data)
+        return undefined_labels
+
     def applyRule(self, ruleSet: dict[str, Rule], rule: str, startPos: int, generics=None, subNode: Node = None):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
-        isProperty = False
         if targetNode == None:
             self.errLog.append(
                 f'Could not find Token with starting index {startPos}')
-        # rule = rule.split(' ')[1:][-1] if rule.split(' ')[1:] != [] else ''
+        # checking to see if highlighted portion is within a quote
+        if "'(" in targetNode.ancestors():
+            self.errLog.append(f"Cannot apply rules within a quoted expression")
+
         parts = rule.split()
-        ruleCategory = parts[0]
-        rule = parts[1] if len(parts) > 1 else ''  # takes rule being eval'd or applied
-        if parts[2] == "with" if len(parts) > 2 else False:
-            parts[2] = ""  # remove the "with" from the rule params
-        ruleParams = ' '.join(parts[2:]) if len(parts) > 2 else ''  # everything after 'f'
-        ruleParams = ruleParams.replace("\u21A6", "=")  # replace the arrow with an equals sign
+        ruleCategory = parts[0] if parts else ""
+        rule = parts[1] if len(parts) > 1 else ""
+        if len(parts) > 2 and parts[2] == "with":
+            parts.pop(2)  # remove 'with'
+        ruleParams = " ".join(parts[2:]).replace("\u21A6", "=")
         ruleParams = [m.group(0).strip() for m in re.finditer(r"\w+=.*?(?=,\s*\w+=|$)", ruleParams)]
-        '''
-        regex explanation:
-        \w+         # key (e.g., x, y, z)
-        =           # equals sign
-        .*?         # non-greedy match for the value
-        (?=,\s*\w+=|$)  # lookahead for next ", key=" OR end of string
-        '''
-        if ruleCategory in ('eval', 'apply', 'rewrite') and rule in ruleSet.keys():
-            if isinstance(ruleSet[rule], tuple) or rule in ['cons-first-rest', 'first-cons',
-                                                            'rest-cons', 'null?-cons', '-+', 'math', 'zero?+']:
-                isProperty = True
-        if ruleCategory not in ('eval', 'apply', 'rewrite'):
-            self.errLog.append("Rule must start with 'eval', 'apply', or 'rewrite'")
-        elif rule == '':
-            errStr = "Rule must include the "
-            if ruleCategory == 'eval':
-                errStr += "function to be evaluated"
-            elif ruleCategory == 'apply':
-                errStr += "definition/lemma to be applied"
+
+        if rule == "":
+            msg = "Rule must include the "
+            if ruleCategory == "eval":
+                msg += "function to be evaluated"
+            elif ruleCategory == "apply":
+                msg += "definition/lemma to be applied"
             else:
-                errStr += "property to be rewritten"
-            self.errLog.append(errStr)
-        elif rule not in ruleSet.keys() - {'consProp', 'firstProp', 'restProp'}: # 'apply consProp' is not valid
+                msg += "property to be rewritten"
+            self.errLog.append(msg)
+            return
+
+        if rule not in ruleSet.keys() - {'consProp', 'firstProp', 'restProp'}:  # 'apply consProp' is not valid
             self.errLog.append(f'Could not find rule associated with {rule}')
-        elif ruleCategory == 'apply' and not isinstance(ruleSet[rule], UDF) and not (
-                ruleSet[rule].isProperty if not isinstance(ruleSet[rule], tuple) else False
-        ):
-            self.errLog.append(f"Could not find definition/lemma associated with {rule}")
-        elif ruleCategory == 'rewrite':
-            if not isProperty:
-                self.errLog.append(f"Cannot rewrite {rule} as it is not a property")
-            else:
-                isProperty = True
-            if isProperty:
-                selected = ruleSet[rule][1] if isinstance(ruleSet[rule], tuple) else ruleSet[rule]
-                values, hadErr = self.parse_and_typecheck_args(
-                    rule,
-                    ruleParams,
-                    selected.params,
-                    selected.racType.getDomain(),
-                    targetNode
-                )
-                if not hadErr:
-                    ok, err = selected.isApplicable(targetNode)
-                    if ok:
-                        newNode = selected.insertSubstitution(targetNode)
-                        targetNode.replaceWith(newNode)
-                        updatePositions(self.exprTree)
-                    else:
-                        self.errLog.append(err)
-                return
-        elif ruleCategory == 'apply' and isinstance(ruleSet[rule], UDF):
-            selected = ruleSet[rule]
+            return
+
+        entry = ruleSet[rule]
+
+        selected: Rule | None = None
+        match ruleCategory:
+            case 'eval':
+                if isinstance(entry, tuple):
+                    selected = entry[0]  # select eval rule from tuple
+                elif getattr(entry, 'isProperty', False):
+                    self.errLog.append("Cannot evaluate a property")
+                elif isinstance(entry, UDF):
+                    self.errLog.append("Cannot evaluate a user-defined function")
+                elif rule == 'math':
+                    self.errLog.append("Could not find built-in Racket procedure associated with 'math'")
+                else:
+                    selected = entry
+            case 'rewrite':
+                if isinstance(entry, tuple):
+                    selected = entry[1]  # select rewrite rule from tuple
+                elif getattr(entry, 'isProperty', False):
+                    selected = entry
+                else:
+                    self.errLog.append(f"Cannot rewrite {rule} as it is not a property")
+            case 'apply':
+                if isinstance(entry, UDF):  # TODO: might need to add support for other types in future
+                    selected = entry
+                elif getattr(entry, 'isProperty', False):
+                    self.errLog.append("Cannot apply a property")
+                else:
+                    self.errLog.append(f"Could not find definition/lemma associated with {rule}")
+            case _:
+                self.errLog.append("Rule must start with 'eval', 'apply', or 'rewrite'")
+
+        if self.errLog:
+            return
+
+        if (ruleCategory == "rewrite") or isinstance(selected, UDF):
             values, hadErr = self.parse_and_typecheck_args(
                 rule,
                 ruleParams,
@@ -338,74 +366,32 @@ class ERProofLine:
                 selected.racType.getDomain(),
                 targetNode
             )
-            if not hadErr:
-                ok, err = selected.isApplicable(targetNode)
-                if ok:
-                    newNode = selected.insertSubstitution(targetNode)
-                    targetNode.replaceWith(newNode)
-                    updatePositions(self.exprTree)
-                else:
-                    self.errLog.append(err)
-                return
-        elif ruleCategory == 'eval' and isinstance(ruleSet[rule], UDF):
-            self.errLog.append("Cannot evaluate a user-defined function")
-        elif ruleCategory == 'eval' and rule == 'math':
-            self.errLog.append("Could not find built-in Racket procedure associated with 'math'")
-        elif ruleCategory == 'eval' and isProperty:
-            self.errLog.append("Cannot evaluate a property")
-        elif ruleCategory == 'apply' and isProperty:
-            self.errLog.append("Cannot apply a property")
-        if self.errLog == []:
-            def find_undefined_labels(node: Node):
-                undefined_labels = []
-                for child in node.children:
-                    if child.data[0] == "'" or child.data[0] == "(":
-                        nested_children = find_undefined_labels(child)
-                        if nested_children and nested_children not in undefined_labels:
-                            # Avoid adding duplicates
-                            undefined_labels.append(nested_children)
-                    elif (child.data not in ruleSet.keys() and child.data not in reservedLabels and child.data not in
-                          generics.keys() and child.data.isalpha()):  # TODO: change to checking if type PARAM when
-                        # we fix that
-                        undefined_labels.append(child.data)
-                return undefined_labels
-
-            undefined_labels = find_undefined_labels(targetNode)
-            for label in undefined_labels:
+            for label in self.find_undefined_labels(targetNode, ruleSet, generics):
                 self.errLog.append(f"No definition found for label '{label}'")
-        # checking to see if highlighted portion is within a quote
-        if "'(" in targetNode.ancestors():
-            self.errLog.append(f"Cannot apply rules within a quoted expression")
+            if hadErr or self.errLog:
+                return
 
-        if self.errLog == []:
-            if isProperty:
-                if isinstance(ruleSet[rule], tuple):
-                    selectedRule = ruleSet[rule][1]  # select property rule from tuple
-                else:
-                    selectedRule = ruleSet[rule]
-            else:
-                if isinstance(ruleSet[rule], tuple):
-                    selectedRule = ruleSet[rule][0]  # select regular rule from tuple
-                else:
-                    selectedRule = ruleSet[rule]
-            if rule == 'math':
-                isApplicable, error = selectedRule.isApplicable(targetNode, subNode)
-                if isApplicable:
-                    newNode = selectedRule.insertSubstitution(
-                        targetNode, subNode)  # copy information to targetNode
-                    targetNode.replaceWith(newNode)
-                    updatePositions(self.exprTree)
-                else:
-                    self.errLog.append(error)
-            else:
-                isApplicable, error = selectedRule.isApplicable(targetNode)
-                if isApplicable:
-                    newNode = selectedRule.insertSubstitution(
-                        targetNode)  # copy information to targetNode
-                    targetNode.replaceWith(newNode)
-                    updatePositions(self.exprTree)
-                else:
-                    self.errLog.append(error)
+        if ruleCategory == "eval" and rule == 'math':
+            ok, err = selected.isApplicable(targetNode, subNode)
+        else:
+            ok, err = selected.isApplicable(targetNode)
+
+        if not ok:
+            self.errLog.append(err)
+            return
+
+        if ruleCategory == "eval" and isinstance(selected, UDF):
+            # shouldn't get here but just in case
+            self.errLog.append("Cannot evaluate a user-defined function")
+            return
+
+        newNode = (
+            selected.insertSubstitution(targetNode, subNode)
+            if ruleCategory == "eval" and rule == 'math'
+            else selected.insertSubstitution(targetNode)
+        )
+        targetNode.replaceWith(newNode)
+        updatePositions(self.exprTree)
 
     def applySubstitution(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subLine: 'ERProofLine'):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]

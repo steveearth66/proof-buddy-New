@@ -79,7 +79,7 @@ class If(Rule):
 class ConsProp(Rule):
     def __init__(self):
         super().__init__('cons-first-rest', isProperty=True)
-        self.params = ['f', 'r']
+        self.params = ['x', 'L']
         self.racType = str2Type("(ANY, LIST)>ANY")
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
@@ -218,7 +218,7 @@ class ZeroQ(Rule):
 class ZeroQPlus(Rule):
     def __init__(self):
         super().__init__("zero?+", isProperty=True)
-        self.params = ['k']
+        self.params = ['x']
         self.racType = str2Type("INT>BOOL")
     
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
@@ -522,6 +522,7 @@ class GreaterOrEqual(Math):
         return Node(data=newdata, tokenType=newtype, name=newname)  # converting node """
 
 class Logic(Symbolic):
+
     def getStdExpr(self, ruleNode: Node) -> str:
         return ruleNode.logicStr()
     
