@@ -146,13 +146,13 @@ class ERProof:
 
     def addGeneric(self, label: str, type: str, restrictions: dict | None = None):
         if label in reservedLabels or label in self.ruleSet.keys() or label in self.generics.keys() or not label.isalpha():
-            self.errLog.append(f"Could not create generic with label '{label}': label is already being used")
+            self.errLog.append(f"Could not use generic with label '{label}': label is already being used")
         type = type.lower()
-        if type == 'int' and restrictions is None:
+        if type == 'int' and (restrictions is None or restrictions.get("assumption") is None):
             self.generics[label] = GenericInt()
         elif type == 'int':
             self.generics[label] = GenericInt(restrictions['assumption'])
-        elif type == 'list' and restrictions is None:
+        elif type == 'list' and (restrictions is None or restrictions.get("neverNull") is None):
             self.generics[label] = GenericList()
         elif type == 'list':
             self.generics[label] = GenericList(restrictions['neverNull'])

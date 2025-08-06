@@ -16,6 +16,11 @@ from proofs.views import (
     get_definition,
     edit_definition,
     delete_definition,
+    get_user_generics,
+    create_user_generic,
+    use_generic,
+    remove_generic,
+    delete_generic
 )
 from dill import dumps, loads
 from django.core.cache import cache
@@ -521,6 +526,54 @@ def delete_definition_api(request, label):
 
     return Response(status=status.HTTP_200_OK)
 
+@api_view(["GET"])
+def get_generics(request):
+    user = request.user
+    generics = get_user_generics(user)
+    return Response(generics, status=status.HTTP_200_OK)
+
+@api_view(["POST"])
+def add_generic(request):
+    user = request.user
+    data = request.data
+    proof = get_or_set_proof(user)
+    try:
+        generic = create_user_generic(user, data)
+    except:
+        return Response({ 'message': 'Error creating generic' }, status=status.HTTP_400_BAD_REQUEST)
+    for proofSide in (proof["proofOne"], proof["proofTwo"]):
+        proofSide.addGeneric(data["label"], data["type"], data.get("restrictions"))
+    errors, proof = get_errors_and_clear(proof)
+    if len(errors) != 0:
+        return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+    return Response(generic, status=status.HTTP_201_CREATED)
+
+@api_view(["GET"])
+def enable_generic(request, id):
+    user = request.user
+    proof = get_or_set_proof(user)
+    use_generic(proof, id)
+    errors, proof = get_errors_and_clear(user)
+    if len(errors) != 0:
+        return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+    return Response(status=status.HTTP_200_OK)
+
+@api_view(["DELETE"])
+def disable_generic(request, id):
+    user = request.user
+    proof = get_or_set_proof(user)
+    remove_generic(proof, id)
+    return Response(status=status.HTTP_200_OK)
+
+@api_view(["DELETE"])
+def delete_generic_api(request, id):
+    user = request.user
+    proof = get_or_set_proof(user)
+    try:
+        delete_generic(proof, id)
+        return Response(status=status.HTTP_200_OK)
+    except:
+        return Response(status=status.HTTP_400_BAD_REQUEST)
 
 def update_current_proof(proof, side):
     proof_one: ERProof = proof["proofOne"]

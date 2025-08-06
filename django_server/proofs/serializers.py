@@ -1,4 +1,4 @@
-from .models import Proof, ProofLine, Definition
+from .models import Proof, ProofLine, Definition, Generic
 from rest_framework import serializers
 
 
@@ -41,3 +41,26 @@ class DefinitionSerializer(serializers.ModelSerializer):
             label=label, created_by=user, def_type=def_type, defaults=validated_data
         )
         return definition
+
+class GenericSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Generic
+        fields = ["id", "label", "type", "notes", "assumption", "never_null"]
+        extra_kwargs = {
+            "assumption": {"write_only": True},
+            "neverNull": {"write_only": True}
+        }
+    
+    restrictions = serializers.SerializerMethodField()
+
+    def get_restrictions(self, obj):
+        if obj.type == 'int':
+            return { 'assumption': obj.assumption }
+        if obj.type == 'list':
+            return { 'neverNull': obj.never_null }
+        return None
+    
+    def create(self, validated_data):
+        user = validated_data.pop("created_by")
+        generic, _ = Generic.objects.update_or_create(created_by=user, defaults=validated_data)
+        return generic

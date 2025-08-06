@@ -1,7 +1,7 @@
-from .serializers import ProofSerializer, ProofLineSerializer, DefinitionSerializer
+from .serializers import ProofSerializer, ProofLineSerializer, DefinitionSerializer, GenericSerializer
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Proof, ProofLine, Definition
+from .models import Proof, ProofLine, Definition, Generic
 from expression_tree.ERProofEngine import ERProof
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from rest_framework.decorators import api_view
@@ -390,3 +390,45 @@ def delete_definition(user, label):
     definition.delete()
 
     return True
+
+def get_user_generics(user):
+    generics = Generic.objects.filter(created_by=user)
+    serializer = GenericSerializer(generics, many=True)
+    return serializer.data
+
+def create_user_generic(user, data):
+    generic_data = {
+        "label": data["label"],
+        "type": data["type"],
+        "notes": data["notes"]
+    }
+    if (assumption := generic_data["restrictions"].get("assumption")) is not None:
+        generic_data["assumption"] = assumption
+    if (neverNull := generic_data["restrictions"].get("neverNull")) is not None:
+        generic_data["never_null"] = neverNull
+    
+    serializer = GenericSerializer(generic_data)
+    if serializer.is_valid(raise_exception=True):
+        serializer.save(created_by=user)
+    return serializer.data
+
+def use_generic(proof, id):
+    generic = Generic.objects.get(id=id)
+    generic_data = GenericSerializer(generic).data
+    for proofSide in (proof["proofOne"], proof["proofTwo"]):
+        proofSide.addGeneric(
+            generic_data["label"], generic_data["type"], generic_data["restrictions"]
+            )
+
+def remove_generic(proof, id):
+    generic = Generic.objects.get(id=id)
+    label = generic.label
+    for proofSide in (proof["proofOne"], proof["proofTwo"]):
+        del proofSide.generics[label]
+
+def delete_generic(proof, id):
+    try:
+        remove_generic(proof, id)
+    finally:
+        generic = Generic.objects.get(id=id)
+        generic.delete()
