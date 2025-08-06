@@ -306,7 +306,12 @@ class ERProofLine:
         if len(parts) > 2 and parts[2] == "with":
             parts.pop(2)  # remove 'with'
         ruleParams = " ".join(parts[2:]).replace("\u21A6", "=")
+        ruleParams = ruleParams.replace("'()", "null")  # replace empty list with 'null'
         ruleParams = [m.group(0).strip() for m in re.finditer(r"\w+=.*?(?=,\s*\w+=|$)", ruleParams)]
+
+        if ruleCategory not in ["eval", "apply", "rewrite"]:
+            self.errLog.append("Rule must start with 'eval', 'apply', or 'rewrite'")
+            return
 
         if rule == "":
             msg = "Rule must include the "

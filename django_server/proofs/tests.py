@@ -260,7 +260,7 @@ ge_tests = [
 totalFails += test_racket_function('>=', ge_tests)
 
 # Check that 'math' rule can no longer be used in place of the individual operators
-totalFails += do_single_test_case('eval', 'math', '(+ 1 2)', ["Could not find built-in Racket procedure associated with 'math'"])
+totalFails += do_single_test_case('eval', 'math', '(+ 1 2)', ["Cannot evaluate a property"])
 totalFails += do_single_test_case('', 'math', '(+ 1 2)', ["Rule must start with 'eval', 'apply', or 'rewrite'"])
 
 # Logic Function Tests
@@ -434,7 +434,7 @@ cons_prop_tests = [
     # property when
     # list is
     # null
-    ("(cons (first '(1 2)) (rest '()))", "x=(first '(1 2)), L=(rest '())", ["rest requires nonempty list"]),
+    ("(cons (first '(1 2)) (rest null))", "x=(first '(1 2)), L=(rest null)", ["rest requires nonempty list"]),
     # '() instead
     # of null
     ("(cons (first 1) (rest '(1)))", "x=(first 1), L=(rest '(1))", ["Cannot match argument out typeList ['INT'] with "

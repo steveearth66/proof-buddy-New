@@ -792,7 +792,8 @@ const ERRacket = () => {
                                     const raw = e.target.value;
                                     let mapped;
                                     if (raw.split(" ")[0] !== "eval") {
-                                      mapped = raw.replace(/=/g, "\u21A6");
+                                      mapped = raw.replaceAll("=", "\u21A6");
+                                      mapped = mapped.replaceAll("'()", "null");
                                     } else {
                                       mapped = raw
                                     }
@@ -922,7 +923,8 @@ const ERRacket = () => {
                                     const raw = e.target.value;
                                     let mapped;
                                     if (raw.split(" ")[0] !== "eval") {
-                                      mapped = raw.replace(/=/g, "\u21A6");
+                                      mapped = raw.replaceAll("=", "\u21A6");
+                                      mapped = mapped.replaceAll("'()", "null");
                                     } else {
                                       mapped = raw
                                     }
