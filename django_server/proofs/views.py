@@ -38,7 +38,7 @@ def edit_proof(request, id):
                 { "message": "Proof does not exist"}, status=status.HTTP_404_NOT_FOUND
             )
 
-def get_or_create_proof(data, user, definitions):
+def get_or_create_proof(data, user, definitions, generics):
     proof_data = {
         "name": data["name"],
         "tag": data["tag"],
@@ -51,7 +51,7 @@ def get_or_create_proof(data, user, definitions):
     ).first()
 
     if proof:
-        add_data_to_proof(data, proof, definitions, user)
+        add_data_to_proof(data, proof, definitions, generics, user)
         return proof
 
     proof = ProofSerializer(data=proof_data)
@@ -88,7 +88,7 @@ def create_proof_lines(lines, left_side, proof):
         proof_line.save(proof=proof)
 
 
-def add_data_to_proof(json_data, proof, definitions, user):
+def add_data_to_proof(json_data, proof, definitions, generics, user):
     try:
         left_premise_data = json_data["leftPremise"]
         if left_premise_data["checked"]:
@@ -121,6 +121,7 @@ def add_data_to_proof(json_data, proof, definitions, user):
         create_proof_lines(left_rackets_and_rules, True, proof)
         create_proof_lines(right_rackets_and_rules, False, proof)
         add_definitions(definitions, proof, user)
+        add_generics(generics, proof, user)
     except Exception:
         proof.delete()
         raise Exception("Error adding data to proof")
@@ -131,6 +132,10 @@ def add_definitions(definitions, proof: Proof, user):
     for definition in definitions:
         proof.definitions.add(definition["id"])
 
+def add_generics(generics, proof: Proof, user):
+    for label in generics.keys():
+        generic = Generic.objects.filter(created_by=user, label=label).first()
+        proof.generics.add(generic)
 
 # Return all incomplete proofs for a user. Can be change to return all but if a use click on a proof marked as complete the backend crashes because the proof is already complete.
 # This can be fixed by adding a checker to see if the proof is complete, if the proof is complete don't call load_proof method.
@@ -204,6 +209,7 @@ def user_proof(user, proof_id):
     proof = Proof.objects.filter(created_by=user, id=proof_id).first()
     proof_lines = ProofLine.objects.filter(proof=proof).order_by("id")
     definitions = proof.definitions.all()
+    generics = proof.generics.all()
     proof_lines_data = []
     definitions_data = []
 
@@ -230,6 +236,8 @@ def user_proof(user, proof_id):
                 "applied": True,
             }
         )
+    
+    generics_data = GenericSerializer(generics, many=True)
 
     proof_data = {
         "id": proof.id,
@@ -240,6 +248,7 @@ def user_proof(user, proof_id):
         "isComplete": proof.isComplete,
         "proofLines": proof_lines_data,
         "definitions": definitions_data,
+        "generics": generics_data
     }
 
     return proof_data
@@ -272,6 +281,10 @@ def load_proof(proof_data):
         left_proof.addUDF(label, def_type, expression)
         right_proof.addUDF(label, def_type, expression)
         proof["definitions"].append(definition)
+    
+    for generic in proof_data["generics"]:
+        proof["proofOne"].addGeneric(generic["label"], generic["type"], generic["restrictions"])
+        proof["proofTwo"].addGeneric(generic["label"], generic["type"], generic["restrictions"])
 
     for index, line in enumerate(left_proof_lines, start=0):
         if index == 0:

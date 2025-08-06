@@ -376,7 +376,8 @@ def save_proof(request):
         user = request.user
         user_proof = get_or_set_proof(user)
         definitions = user_proof["definitions"]
-        proof = get_or_create_proof(data, user, definitions)
+        generics = user_proof["currentProof"].generics
+        proof = get_or_create_proof(data, user, definitions, generics)
 
         if not proof:
             return Response(
@@ -416,6 +417,7 @@ def get_proof(request, proof_id):
         "leftRacketsAndRules": [],
         "rightRacketsAndRules": [],
         "definitions": proof_data["definitions"],
+        "generics": proof_data["generics"],
         "loadedInServer": True
     }
 
@@ -620,6 +622,8 @@ def save_proof_to_cache(user, proof):
 
 
 def get_or_set_proof(user):
+    # NOTE: 'proofOne' and 'proofTwo' should have the same Ruleset and generics.
+    # May be favorable to find a way to link these attributes
     proof = {
         "proofOne": ERProof(),
         "proofTwo": ERProof(),
