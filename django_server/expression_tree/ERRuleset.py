@@ -256,6 +256,8 @@ class AndProp(Rule):
             return False, f"Cannot rewrite 'and' property on a '{ruleNode.children[0].data}' expression"
         if ruleNode.children[1].data != '#f' and ruleNode.children[2].data != '#f':
             return False, "Can only rewrite 'and' property when one argument is '#f'"
+        if ruleNode.children[1].data == '#f' and ruleNode.children[2].data == '#f':
+            return False, "Cannot rewrite 'and' property when both arguments are '#f'"
         return True, 'AndProp.isApplicable() PASS'
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
@@ -273,6 +275,8 @@ class OrProp(Rule):
             return False, f"Cannot rewrite 'or' property on a '{ruleNode.children[0].data}' expression"
         if ruleNode.children[1].data != '#t' and ruleNode.children[2].data != '#t':
             return False, "Can only rewrite 'or' property when one argument is '#t'"
+        if ruleNode.children[1].data == '#t' and ruleNode.children[2].data == '#t':
+            return False, "Cannot rewrite 'or' property when both arguments are '#t'"
         return True, 'OrProp.isApplicable() PASS'
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
@@ -283,7 +287,7 @@ class ImpliesProp(Rule):
     def __init__(self):
         super().__init__("implies", isProperty=True)
         self.params = ['x', 'y']
-        self.racType = str2Type("(BOOL,ANY)>BOOL")
+        self.racType = str2Type("(BOOL,BOOL)>BOOL")
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'implies':

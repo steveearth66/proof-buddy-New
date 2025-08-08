@@ -571,6 +571,55 @@ totalFails += run_test_cases("rewrite", "zero?+", zeroQ_plus_tests, axiomProof)
 totalFails += do_single_test_case("eval", "zero?+", zeroQ_plus_tests[-1][0], ["Cannot evaluate a property"], axiomProof)
 totalFails += do_single_test_case("apply", "zero?+", zeroQ_plus_tests[-1][0], ["Cannot apply a property"], axiomProof)
 
+and_prop_tests = [
+    ("(or #t #f)", "x=#t, y=#f", ["Cannot rewrite 'and' property on a 'or' expression"]),
+    ("(and #t #t)", "x=#t, y=#t", ["Can only rewrite 'and' property when one argument is '#f'"]),
+    ("(and #f #f)", "x=#f, y=#f", ["Cannot rewrite 'and' property when both arguments are '#f'"]),
+    ("(and #f null)", "x=#f, y=null",
+     ["Cannot match argument out typeList ['BOOL', 'LIST'] with expected typeList ['BOOL', 'BOOL']"]),
+    ("(and 1 #f)", "x=1, y=#f",
+     ["Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['BOOL', 'BOOL']"]),
+    ("(and #f #t)", "x=#f, y=#t", "#f"),  # one argument is false
+    ("(and #t #f)", "x=#t, y=#f", "#f"),  # one argument is false
+    ("(and #f (if (zero? 1) #t #f))", "x=#f, y=(if (zero? 1) #t #f)", "#f"),  # will work because the first argument is
+    # false
+    ("(and (if (zero? 1) #t #f) #f)", "x=(if (zero? 1) #t #f), y=#f", "#f")
+    # will work because the second argument is false
+]
+totalFails += run_test_cases("rewrite", "and", and_prop_tests, axiomProof)
+totalFails += do_single_test_case("apply", "and", and_prop_tests[-1][0], ["Could not find definition/lemma "
+                                                                          "associated with and"], axiomProof)
+
+or_prop_tests = [
+    ("(and #t #f)", "x=#t, y=#f", ["Cannot rewrite 'or' property on a 'and' expression"]),
+    ("(or #f #f)", "x=#f, y=#f", ["Can only rewrite 'or' property when one argument is '#t'"]),
+    ("(or #t #t)", "x=#t, y=#t", ["Cannot rewrite 'or' property when both arguments are '#t'"]),
+    ("(or #t null)", "x=#t, y=null",
+     ["Cannot match argument out typeList ['BOOL', 'LIST'] with expected typeList ['BOOL', 'BOOL']"]),
+    ("(or 1 #t)", "x=1, y=#t",
+     ["Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['BOOL', 'BOOL']"]),
+    ("(or #t #f)", "x=#t, y=#f", "#t"),  # one argument is true
+    ("(or #f #t)", "x=#f, y=#t", "#t"),  # one argument is true
+    ("(or #t (if (zero? 1) #t #f))", "x=#t, y=(if (zero? 1) #t #f)", "#t"),  # will work because the first argument is
+    # true
+    ("(or (if (zero? 1) #t #f) #t)", "x=(if (zero? 1) #t #f), y=#t", "#t")
+    # will work because the second argument is true
+]
+totalFails += run_test_cases("rewrite", "or", or_prop_tests, axiomProof)
+totalFails += do_single_test_case("apply", "or", or_prop_tests[-1][0], ["Could not find definition/lemma "
+                                                                        "associated with or"], axiomProof)
+
+implies_prop_tests = [
+    ("(and #t #f)", "x=#t, y=#f", ["Cannot rewrite 'implies' property on a 'and' expression"]),
+    ("(implies #t #t)", "x=#t, y=#t", ["Can only rewrite 'implies' property when first argument is '#f'"]),
+    ("(implies #f (if (zero? 1) #t #f))", "x=#f, y=(if (zero? 1) #t #f)", "#t"),  # lets unresolved expression be
+    # second argument
+]
+totalFails += run_test_cases("rewrite", "implies", implies_prop_tests, axiomProof)
+totalFails += do_single_test_case("apply", "implies", implies_prop_tests[-1][0], ["Could not find definition/lemma "
+                                                                                  "associated with implies"],
+                                  axiomProof)
+
 print("\nUDF testing:\n")
 udfProof = ERProof()
 udfProof.addUDF("(f x y)", "(INT,INT)>INT", "(* x y)")
