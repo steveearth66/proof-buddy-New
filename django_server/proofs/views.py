@@ -1,7 +1,7 @@
-from .serializers import ProofSerializer, ProofLineSerializer, DefinitionSerializer
+from .serializers import ProofSerializer, ProofLineSerializer, DefinitionSerializer, GenericSerializer
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Proof, ProofLine, Definition
+from .models import Proof, ProofLine, Definition, Generic
 from expression_tree.ERProofEngine import ERProof
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from rest_framework.decorators import api_view
@@ -38,7 +38,7 @@ def edit_proof(request, id):
                 { "message": "Proof does not exist"}, status=status.HTTP_404_NOT_FOUND
             )
 
-def get_or_create_proof(data, user, definitions):
+def get_or_create_proof(data, user, definitions, generics):
     proof_data = {
         "name": data["name"],
         "tag": data["tag"],
@@ -51,7 +51,7 @@ def get_or_create_proof(data, user, definitions):
     ).first()
 
     if proof:
-        add_data_to_proof(data, proof, definitions, user)
+        add_data_to_proof(data, proof, definitions, generics, user)
         return proof
 
     proof = ProofSerializer(data=proof_data)
@@ -93,7 +93,7 @@ def create_proof_lines(lines, left_side, proof):
         proof_line.save(proof=proof)
 
 
-def add_data_to_proof(json_data, proof, definitions, user):
+def add_data_to_proof(json_data, proof, definitions, generics, user):
     try:
         # Clear existing proof lines when updating
         proof.proof_lines.all().delete()
@@ -129,6 +129,7 @@ def add_data_to_proof(json_data, proof, definitions, user):
         create_proof_lines(left_rackets_and_rules, True, proof)
         create_proof_lines(right_rackets_and_rules, False, proof)
         add_definitions(definitions, proof, user)
+        add_generics(generics, proof, user)
     except Exception as e:
         proof.delete()
         raise Exception(f"Error adding data to proof: {str(e)}")
@@ -139,6 +140,10 @@ def add_definitions(definitions, proof: Proof, user):
     for definition in definitions:
         proof.definitions.add(definition["id"])
 
+def add_generics(generics, proof: Proof, user):
+    for label in generics.keys():
+        generic = Generic.objects.filter(created_by=user, label=label).first()
+        proof.generics.add(generic)
 
 # Return all incomplete proofs for a user. Can be change to return all but if a use click on a proof marked as complete the backend crashes because the proof is already complete.
 # This can be fixed by adding a checker to see if the proof is complete, if the proof is complete don't call load_proof method.
@@ -212,6 +217,7 @@ def user_proof(user, proof_id):
     proof = Proof.objects.filter(created_by=user, id=proof_id).first()
     proof_lines = ProofLine.objects.filter(proof=proof).order_by("id")
     definitions = proof.definitions.all()
+    generics = proof.generics.all()
     proof_lines_data = []
     definitions_data = []
 
@@ -238,6 +244,8 @@ def user_proof(user, proof_id):
                 "applied": True,
             }
         )
+    
+    generics_data = GenericSerializer(generics, many=True)
 
     proof_data = {
         "id": proof.id,
@@ -248,6 +256,7 @@ def user_proof(user, proof_id):
         "isComplete": proof.isComplete,
         "proofLines": proof_lines_data,
         "definitions": definitions_data,
+        "generics": generics_data
     }
 
     return proof_data
@@ -280,6 +289,10 @@ def load_proof(proof_data):
         left_proof.addUDF(label, def_type, expression)
         right_proof.addUDF(label, def_type, expression)
         proof["definitions"].append(definition)
+    
+    for generic in proof_data["generics"]:
+        proof["proofOne"].addGeneric(generic["label"], generic["type"], generic["restrictions"])
+        proof["proofTwo"].addGeneric(generic["label"], generic["type"], generic["restrictions"])
 
     for index, line in enumerate(left_proof_lines, start=0):
         if index == 0:
@@ -398,3 +411,45 @@ def delete_definition(user, label):
     definition.delete()
 
     return True
+
+def get_user_generics(user):
+    generics = Generic.objects.filter(created_by=user)
+    serializer = GenericSerializer(generics, many=True)
+    return serializer.data
+
+def create_user_generic(user, data):
+    generic_data = {
+        "label": data["label"],
+        "type": data["type"],
+        "notes": data["notes"]
+    }
+    if (assumption := generic_data["restrictions"].get("assumption")) is not None:
+        generic_data["assumption"] = assumption
+    if (neverNull := generic_data["restrictions"].get("neverNull")) is not None:
+        generic_data["never_null"] = neverNull
+    
+    serializer = GenericSerializer(generic_data)
+    if serializer.is_valid(raise_exception=True):
+        serializer.save(created_by=user)
+    return serializer.data
+
+def use_generic(proof, id):
+    generic = Generic.objects.get(id=id)
+    generic_data = GenericSerializer(generic).data
+    for proofSide in (proof["proofOne"], proof["proofTwo"]):
+        proofSide.addGeneric(
+            generic_data["label"], generic_data["type"], generic_data["restrictions"]
+            )
+
+def remove_generic(proof, id):
+    generic = Generic.objects.get(id=id)
+    label = generic.label
+    for proofSide in (proof["proofOne"], proof["proofTwo"]):
+        del proofSide.generics[label]
+
+def delete_generic(proof, id):
+    try:
+        remove_generic(proof, id)
+    finally:
+        generic = Generic.objects.get(id=id)
+        generic.delete()

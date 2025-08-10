@@ -1,6 +1,6 @@
 from .ERCommon import *
 from .ERRuleset import *
-from .Generics import GenericInt, GenericBool, GenericList, GenericAny
+from .ERGenerics import GenericInt, GenericBool, GenericList, GenericAny
 import expression_tree.Parser as Parser
 import expression_tree.Labeler as Labeler
 import expression_tree.Decorator as Decorator
@@ -146,13 +146,13 @@ class ERProof:
 
     def addGeneric(self, label: str, type: str, restrictions: dict | None = None):
         if label in reservedLabels or label in self.ruleSet.keys() or label in self.generics.keys() or not label.isalpha():
-            self.errLog.append(f"Could not create generic with label '{label}': label is already being used")
+            self.errLog.append(f"Could not use generic with label '{label}': label is already being used")
         type = type.lower()
-        if type == 'int' and restrictions is None:
+        if type == 'int' and (restrictions is None or restrictions.get("assumption") is None):
             self.generics[label] = GenericInt()
         elif type == 'int':
             self.generics[label] = GenericInt(restrictions['assumption'])
-        elif type == 'list' and restrictions is None:
+        elif type == 'list' and (restrictions is None or restrictions.get("neverNull") is None):
             self.generics[label] = GenericList()
         elif type == 'list':
             self.generics[label] = GenericList(restrictions['neverNull'])
@@ -184,7 +184,7 @@ class ERProofLine:
             labeledTree, _ = updatePositions(labeledTree)
 
         if self.errLog == []:
-            decTree, self.errLog = Decorator.decorateTree(labeledTree, self.errLog, generics=generics)
+            decTree, self.errLog = Decorator.decorateTree(labeledTree, self.errLog, ruleDict=ruleDict, generics=generics)
         #if self.errLog == []: #added userType in case of UDF
         #    decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog, theRuleDict=ruleDict, userType=udfType)
         if self.errLog == []:

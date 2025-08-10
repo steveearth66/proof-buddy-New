@@ -1,10 +1,9 @@
 from abc import ABC, abstractmethod
 from .ERCommon import *
-from .Generics import Generic, GenericInt, GenericList, GenericBool, GenericAny
+from .ERGenerics import ERGeneric, GenericInt, GenericList, GenericBool, GenericAny
 import copy
 from .Parser import buildTree, preProcess
 from .Labeler import labelTree  # , fillPositions
-from .Decorator import decorateTree, remTemps, checkFunctions
 from typing import Dict
 import sympy as sp
 
@@ -51,7 +50,6 @@ class Rule(ABC):
     def insertSubstitution(self, ruleNode: Node) -> Node:
         pass
 
-# NOTE: Checking for insufficiently resolved arguments may need to change, due to addition of non-function UDFs
 class BuiltIn(Rule, ABC):
     def __init__(self, label, allowGenerics=False):
         super().__init__(label)
@@ -62,10 +60,10 @@ class BuiltIn(Rule, ABC):
         if ruleNode.children[0].data != self.label:
             return False, f"Cannot evaluate {self.label} on a '{ruleNode.children[0].data}' expression"
         #if (len(ruleNode.children[1].children) != 0 and ruleNode.children[1].data != "'(") or (len(ruleNode.children[2].children) != 0 and ruleNode.children[2].data != "'("):
-        if True in map(lambda child: (len(child.children) != 0 and child.data != "'("), ruleNode.children[1:]):
+        if True in map(lambda child: (len(child.children) != 0 and child.data != "'(") or child.name == 'TBD', ruleNode.children[1:]):
             return False, 'Insufficiently resolved arguments'
         if not self._allowGenerics:
-            generics = [child.data for child in ruleNode.children[1:] if isinstance(child.name, Generic)]
+            generics = [child.data for child in ruleNode.children[1:] if isinstance(child.name, ERGeneric)]
             if len(generics) != 0:
                 return False, f"Cannot evaluate '{self.label}' expression with generic arguments" 
         return True, 'BuiltIn.isApplicable() PASS'
@@ -79,9 +77,9 @@ class If(BuiltIn):
         # Check if the operator matches the rule label
         if ruleNode.children[0].data != self.label:
             return False, f"Cannot evaluate if on a '{ruleNode.children[0].data}' expression"
-        if len(ruleNode.children[1].children) != 0 and ruleNode.children[1].data == '(':
+        if len((cond := ruleNode.children[1]).children) != 0 and cond.data == '(' or cond.name == 'TBD':
             return False, "Insufficiently resolved condition argument"
-        if not isMatch(ruleNode.children[2], ruleNode.children[3]) and isinstance(ruleNode.children[1].name, Generic):
+        if not isMatch(ruleNode.children[2], ruleNode.children[3]) and isinstance(ruleNode.children[1].name, ERGeneric):
             return False, f"Cannot determine truth value of generic argument '{ruleNode.children[1].data}'"
         return True, 'If.isApplicable() PASS'
 
@@ -111,7 +109,7 @@ class NullQ(BuiltIn):
         return True, 'NullQ.isApplicable() PASS'
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
-        if not ruleNode.children[1].type.isType("LIST") or isinstance(ruleNode.children[1].name, Generic):
+        if not ruleNode.children[1].type.isType("LIST") or isinstance(ruleNode.children[1].name, ERGeneric):
             return Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
         # must check nonlists first to avoid thinking no children is a null list
         if len(ruleNode.children[1].children) == 0:

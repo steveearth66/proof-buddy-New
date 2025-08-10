@@ -71,9 +71,6 @@ def labelTree(inputTree: Node, ruleDict=None, generics=None) -> Node:
             matcher = re.compile(label.regex)
             if matcher.match(root.data) != None:
                 root.type = RacType((None, label.dataType))
-                if root.type.isType("INT"):
-                    # storing the integer value in the node to be used with arithmetic operations
-                    root.name = int(root.data)
                 break
 
     # if the Node is still unlabeled, default its type to be Type.PARAM

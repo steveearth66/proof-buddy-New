@@ -571,6 +571,8 @@ udfProof.addUDF("(f x y)", "(INT,INT)>INT", "(* x y)")
 udfProof.addUDF("(g x)", "INT>BOOL", "(< x 5)")
 udfProof.addUDF("(h x y)", "(LIST,LIST)>LIST", "(cons (first x) (cons (first y) null))")
 udfProof.addUDF("(i x)", "LIST>BOOL", "(zero? (first x))")
+udfProof.addUDF("a", "INT", "5")
+udfProof.addUDF("q", "BOOL", "#f")
 # udfProof.addUDF("(h)", "()>INT", "5") TODO: need to implement 0 argument UDFs
 # udfProof.addUDF("i", "INT", "3") TODO need to implement 0 argument UDFs
 # 2 arguments
@@ -661,6 +663,10 @@ totalFails += do_single_test_case('apply', "i x=#t", "(i '(0 1 2))", ["Type mism
 totalFails += do_single_test_case('apply', "i x='(0 1 2)", "(i '(3 4 5))",
                                   ["Value mismatch in argument 'x': expected '(3 4 5), got '(0 1 2)"], udfProof)
 totalFails += do_single_test_case('apply', "i x='(0 1 2)", "(i '(0 1 2))", "(zero? (first '(0 1 2)))", udfProof)
+
+# check that a non-function definition is caught as insufficiently resolved
+totalFails += do_single_test_case("eval", "+", "(+ a 1)", ["Insufficiently resolved arguments"], udfProof)
+totalFails += do_single_test_case("eval", "if", "(if q 1 2)", ["Insufficiently resolved condition argument"], udfProof)
 
 #node method tests for funcset, ancestor, allMath, mathstr, logicStr: method, expr, expected
 methTests = [

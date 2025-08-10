@@ -1,6 +1,6 @@
 from .ERCommon import Type, RacType
 
-class Generic:
+class ERGeneric:
     """Base class for generics"""
     def __init__(self, type):
         self._racType = type
@@ -9,7 +9,7 @@ class Generic:
     def racType(self):
         return self._racType
 
-class GenericInt(Generic):
+class GenericInt(ERGeneric):
     """
     Class for generic integers\n
     Can be used with comparison operators against matching types/classes (int, GenericInt, GenericAny)\n
@@ -103,12 +103,12 @@ class GenericInt(Generic):
         if isinstance(other, GenericAny):
             return self != GenericInt()
 
-class GenericBool(Generic):
+class GenericBool(ERGeneric):
     """Class for generic booleans"""
     def __init__(self):
         super().__init__(RacType((None, Type.BOOL)))
 
-class GenericList(Generic):
+class GenericList(ERGeneric):
     """
     Class for generic lists\n
     Attributes:
@@ -122,7 +122,7 @@ class GenericList(Generic):
     def neverNull(self):
         return self._neverNull
 
-class GenericAny(Generic):
+class GenericAny(ERGeneric):
     """Class for symbols that can be any type\n
     An instance of GenericAny assumes the behavior of a default instance of other 
     generic classes when interpreted in the appropriate context: e.g GenericInt when used 
