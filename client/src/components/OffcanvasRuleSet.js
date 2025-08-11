@@ -15,13 +15,18 @@ const OffcanvasRuleSet = ({ isActive, toggleFunction }) => {
   /* Present list of Rules for View Rule Set Offcanvas */
 
   const onSearch = (e) => {
-    const searchValue = e.target.value;
+    const searchValue = e.target.value.toLowerCase();
+    if (!searchValue) {
+      setFilteredRules(ruleSet());
+      return;
+    }
+
     const rules = ruleSet();
     const filteredRules = [];
     rules.forEach(ruleSet => 
       filteredRules.push(ruleSet.filter((rule) => {
         return (
-          rule.name ? rule.name.toLowerCase().includes(searchValue.toLowerCase()) : false ||
+          (rule.name ? rule.name.toLowerCase().includes(searchValue.toLowerCase()) : false) ||
               String(rule.procedure).toLowerCase().includes(searchValue.toLowerCase()) ||
               String(rule.highlight).toLowerCase().includes(searchValue.toLowerCase()) ||
               String(rule.result).toLowerCase().includes(searchValue.toLowerCase())

@@ -1,18 +1,13 @@
-import { useState } from 'react';
+import { useToggle } from './useToggle';
 
-const useOffcanvas = (initialState=false) => {
+/**
+ * A custom hook for managing offcanvas visibility state.
+ * @param {boolean} initialState - Initial visibility state, defaults to false
+ * @returns {Array} Array containing [isActive, toggle] where toggle is a function to toggle the state
+ */
+const useOffcanvas = (initialState = false) => {
+  const [isOffcanvasActive, toggleOffcanvas] = useToggle(initialState);
+  return [isOffcanvasActive, toggleOffcanvas];
+};
 
-  const [isOffcanvasActive, setIsOffCanvasActive] = useState(initialState);
-
-  const toggleOffcanvas = () => {
-    setIsOffCanvasActive(previousState => previousState === false ? true : false);
-  };
-
-  return [
-    isOffcanvasActive, 
-    toggleOffcanvas
-  ];
-
-}
-
-export { useOffcanvas }
+export { useOffcanvas };

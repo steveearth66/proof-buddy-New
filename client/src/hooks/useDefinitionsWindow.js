@@ -1,15 +1,12 @@
-import { useState } from "react";
+import { useToggle } from './useToggle';
 
+/**
+ * A custom hook for managing definitions window visibility state.
+ * @param {boolean} initialState - Initial visibility state, defaults to false
+ * @returns {Array} Array containing [isActive, toggle] where toggle is a function to toggle the state
+ */
 const useDefinitionsWindow = (initialState = false) => {
-  const [isDefinitionsWindowActive, setIsDefinitionsWindowActive] =
-    useState(initialState);
-
-  const toggleDefinitionsWindow = () => {
-    setIsDefinitionsWindowActive((previousState) =>
-      previousState === false ? true : false
-    );
-  };
-
+  const [isDefinitionsWindowActive, toggleDefinitionsWindow] = useToggle(initialState);
   return [isDefinitionsWindowActive, toggleDefinitionsWindow];
 };
 
