@@ -113,6 +113,7 @@
     }
 
     .form-bottom-part {
+      z-index: 99;
       margin-top: 20px;
 
       input::selection {
