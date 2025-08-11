@@ -263,7 +263,8 @@ class ERProofLine:
             return [], True
         return parsed, False
 
-    def find_undefined_labels(self, node: Node, ruleSet: dict[str, Rule] = None, generics: dict[str, Generic] = None) -> \
+    def find_undefined_labels(self, node: Node, ruleSet: dict[str, Rule] = None, generics: dict[str, ERGeneric] =
+    None) -> \
             list[str]:
         """
         Recursively find undefined labels in the expression tree.
