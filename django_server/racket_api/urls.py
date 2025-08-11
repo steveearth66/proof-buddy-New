@@ -21,4 +21,9 @@ urlpatterns = [
     # path("remove-definition/<int:id>/", views.remove_definition),
     path("remove-definition/<str:label>/", views.remove_definition),
     path("delete-line/<str:side>", views.delete_line),
+    path("get-generics", views.get_generics),
+    path("create-generic", views.add_generic),
+    path("use-generic/<int:id>", views.enable_generic),
+    path("remove-generic/<int:id>", views.disable_generic),
+    path("delete-generic/<int:id>", views.delete_generic_api)
 ]

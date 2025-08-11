@@ -6,6 +6,7 @@ import Form from "react-bootstrap/Form";
 import Col from "react-bootstrap/Col";
 import Row from "react-bootstrap/Row";
 import Alert from "react-bootstrap/Alert";
+import { toast } from "react-toastify";
 import MainLayout from "../layouts/MainLayout";
 import validateField from "../utils/inductionFormValidation";
 import OffcanvasRuleSet from "../components/OffcanvasRuleSet";
@@ -634,6 +635,7 @@ const InductionRacket = () => {
                         <Row className="racket-rule-row">
                           <PersistentPad
                             equation={formValues.lHSGoal}
+                            startPosition={0}
                             onHighlightChange={(startPosition) => {
                               handleHighlight(startPosition);
                               setCurrentRacket(formValues.lHSGoal);
@@ -683,6 +685,7 @@ const InductionRacket = () => {
                             >
                               <PersistentPad
                                 equation={field.racket}
+                                startPosition={0}
                                 onHighlightChange={(startPosition) => {
                                   handleHighlight(startPosition);
                                   setCurrentRacket(
@@ -742,6 +745,7 @@ const InductionRacket = () => {
                         <Row className="racket-rule-row">
                           <PersistentPad
                             equation={formValues.rHSGoal}
+                            startPosition={0}
                             onHighlightChange={(startPosition) => {
                               handleHighlight(startPosition);
                               setCurrentRacket(formValues.rHSGoal);
@@ -791,6 +795,7 @@ const InductionRacket = () => {
                             >
                               <PersistentPad
                                 equation={field.racket}
+                                startPosition={0}
                                 onHighlightChange={(startPosition) => {
                                   handleHighlight(startPosition);
                                   setCurrentRacket(

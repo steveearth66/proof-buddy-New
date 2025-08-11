@@ -207,17 +207,13 @@ const removeDefinition = async (label) => {
 };
 
 const editDefinition = async (definition) => {
-  return new Promise((resolve, reject) => {
-    axiosInstance
-      .post(`${API_GATEWAY}/edit-definition/`, definition)
-      .then((response) => {
-        resolve(response.data);
-      })
-      .catch((error) => {
-        handleServiceError(error, "Error during definition update:");
-        reject(error);
-      });
-  });
+  try {
+    const response = await axiosInstance.post(`${API_GATEWAY}/edit-definition/`, definition);
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during definition update:");
+    throw error;
+  }
 };
 
 const deleteDefinition = async (label) => {
@@ -235,18 +231,14 @@ const deleteDefinition = async (label) => {
 };
 
 const deleteLine = async (side) => {
-  return new Promise((resolve, reject) => {
-    axiosInstance
-      .delete(`${API_GATEWAY}/delete-line/${side}`)
-      .then(() => {
-        resolve(true);
-      })
-      .catch((error) => {
-        handleServiceError(error, "Error during line deletion:");
-        reject(error);
-      });
-  });
-}
+  try {
+    await axiosInstance.delete(`${API_GATEWAY}/delete-line/${side}`);
+    return true;
+  } catch (error) {
+    handleServiceError(error, "Error during line deletion:");
+    throw error;
+  }
+};
 
 const erService = {
   checkGoal,

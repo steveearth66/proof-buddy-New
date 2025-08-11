@@ -1,14 +1,18 @@
 # This file is intended to complete the AST creation process and find some more errors through restrictions like type checking, and adding other details
 
 from .ERCommon import Node, Type, RacType, FAIL_TYPES, FLEX_TYPES, TypeList
+from .ERRuleset import UDF
 # brings in ERobject whose attributes will be used to decorate the tree
 from .ERobj import pdict
 
 # decorate non-function type Nodes in the AST
-def decorateTree(inputTree: Node, errLog, generics=None, debug=False) -> tuple[Node, list[str]]:
+def decorateTree(inputTree: Node, errLog, ruleDict=None, generics=None, debug=False) -> tuple[Node, list[str]]:
     # just return if there is not AST to decorate
     if inputTree == None:
         return inputTree, errLog
+    
+    if ruleDict is None:
+        ruleDict = dict()
     
     if generics is None:
         generics = dict()
@@ -29,6 +33,9 @@ def decorateTree(inputTree: Node, errLog, generics=None, debug=False) -> tuple[N
     # decorate the Node objects
     if inputTree.name in generics.keys():
         inputTree.name = generics[inputTree.name]
+    elif inputTree.name in ruleDict.keys() and isinstance(ruleDict[inputTree.name], UDF) \
+        and inputTree.type.getType() != Type.FUNCTION:
+        inputTree.name = 'TBD' # assign name for non-function definitions
     elif not inputTree.type.isType("FUNCTION"):
         if inputTree.type.isType("LIST") and not inputTree.children:
             if inputTree.data in pdict:
@@ -44,7 +51,7 @@ def decorateTree(inputTree: Node, errLog, generics=None, debug=False) -> tuple[N
 
     # decorate the children if there are any
     for c in inputTree.children:
-        decorateTree(c, errLog, generics, debug)
+        decorateTree(c, errLog, ruleDict, generics, debug)
 
     # return a decorated AST and the status of the error log
     return inputTree, errLog
