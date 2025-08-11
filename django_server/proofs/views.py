@@ -415,12 +415,14 @@ def create_user_generic(user, data):
         "type": data["type"],
         "notes": data["notes"]
     }
-    if (assumption := generic_data["restrictions"].get("assumption")) is not None:
+    if data.get("restrictions") is None:
+        data["restrictions"] = {}
+    if (assumption := data["restrictions"].get("assumption")) is not None:
         generic_data["assumption"] = assumption
-    if (neverNull := generic_data["restrictions"].get("neverNull")) is not None:
+    if (neverNull := data["restrictions"].get("neverNull")) is not None:
         generic_data["never_null"] = neverNull
     
-    serializer = GenericSerializer(generic_data)
+    serializer = GenericSerializer(data=generic_data)
     if serializer.is_valid(raise_exception=True):
         serializer.save(created_by=user)
     return serializer.data
@@ -442,6 +444,7 @@ def remove_generic(proof, id):
 def delete_generic(proof, id):
     try:
         remove_generic(proof, id)
-    finally:
-        generic = Generic.objects.get(id=id)
-        generic.delete()
+    except KeyError:
+        pass
+    generic = Generic.objects.get(id=id)
+    generic.delete()

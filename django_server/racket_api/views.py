@@ -531,7 +531,14 @@ def delete_definition_api(request, label):
 @api_view(["GET"])
 def get_generics(request):
     user = request.user
+    userProof = get_or_set_proof(user)
+    enabledGenerics = userProof["proofOne"].generics
     generics = get_user_generics(user)
+    for generic in generics:
+        if generic["label"] in enabledGenerics.keys():
+            generic["enabled"] = True
+        else:
+            generic["enabled"] = False
     return Response(generics, status=status.HTTP_200_OK)
 
 @api_view(["POST"])
@@ -541,13 +548,16 @@ def add_generic(request):
     proof = get_or_set_proof(user)
     try:
         generic = create_user_generic(user, data)
-    except:
-        return Response({ 'message': 'Error creating generic' }, status=status.HTTP_400_BAD_REQUEST)
+        generic["enabled"] = True
+    except Exception as e:
+        return Response({ 'message': str(e) }, status=status.HTTP_400_BAD_REQUEST)
     for proofSide in (proof["proofOne"], proof["proofTwo"]):
         proofSide.addGeneric(data["label"], data["type"], data.get("restrictions"))
-    errors, proof = get_errors_and_clear(proof)
-    if len(errors) != 0:
-        return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+        if len(proofSide.errLog) != 0:
+            error = proofSide.errLog[-1]
+            proofSide.errLog.clear()
+            return Response({ 'message': error }, status=status.HTTP_400_BAD_REQUEST)
+    save_proof_to_cache(user, proof)
     return Response(generic, status=status.HTTP_201_CREATED)
 
 @api_view(["GET"])
@@ -555,9 +565,10 @@ def enable_generic(request, id):
     user = request.user
     proof = get_or_set_proof(user)
     use_generic(proof, id)
-    errors, proof = get_errors_and_clear(user)
+    errors, proof = get_errors_and_clear(proof)
     if len(errors) != 0:
-        return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'message': errors[-1]}, status=status.HTTP_400_BAD_REQUEST)
+    save_proof_to_cache(user, proof)
     return Response(status=status.HTTP_200_OK)
 
 @api_view(["DELETE"])
@@ -565,6 +576,7 @@ def disable_generic(request, id):
     user = request.user
     proof = get_or_set_proof(user)
     remove_generic(proof, id)
+    save_proof_to_cache(user, proof)
     return Response(status=status.HTTP_200_OK)
 
 @api_view(["DELETE"])
@@ -573,6 +585,7 @@ def delete_generic_api(request, id):
     proof = get_or_set_proof(user)
     try:
         delete_generic(proof, id)
+        save_proof_to_cache(user, proof)
         return Response(status=status.HTTP_200_OK)
     except:
         return Response(status=status.HTTP_400_BAD_REQUEST)
@@ -604,7 +617,10 @@ def get_errors_and_clear(proof):
     current_proof: ERProof = proof["currentProof"]
 
     if current_proof == None:
-        return []
+        errors = proof['proofOne'].errLog + proof['proofTwo'].errLog
+        proof['proofOne'].errLog.clear()
+        proof['proofTwo'].errLog.clear()
+        return errors, proof
 
     prev_errors = copy.deepcopy(current_proof.errLog)
     current_proof.errLog = []

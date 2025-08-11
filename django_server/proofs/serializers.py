@@ -45,10 +45,10 @@ class DefinitionSerializer(serializers.ModelSerializer):
 class GenericSerializer(serializers.ModelSerializer):
     class Meta:
         model = Generic
-        fields = ["id", "label", "type", "notes", "assumption", "never_null"]
+        fields = ["id", "label", "type", "notes", "assumption", "never_null", "restrictions"]
         extra_kwargs = {
             "assumption": {"write_only": True},
-            "neverNull": {"write_only": True}
+            "never_null": {"write_only": True}
         }
     
     restrictions = serializers.SerializerMethodField()
@@ -62,5 +62,5 @@ class GenericSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         user = validated_data.pop("created_by")
-        generic, _ = Generic.objects.update_or_create(created_by=user, defaults=validated_data)
+        generic = Generic.objects.create(created_by=user, **validated_data)
         return generic
