@@ -38,11 +38,11 @@ class ERProof:
             '<=': LessOrEqual(),
             '>': GreaterThan(),
             '>=': GreaterOrEqual(),
-            'and': And(),
-            'or': Or(),
+            'and': (And(), AndProp()),
+            'or': (Or(), OrProp()),
             'not': Not(),
             'xor': Xor(),
-            'implies': Implies(),
+            'implies': (Implies(), ImpliesProp()),
             '-+': MinusPlus(),
             'math': advMath(),
             #'doubleFront': DoubleFront(),  # this is fake for demo. remove when UDF working
@@ -199,165 +199,207 @@ class ERProofLine:
             self.positions = Decorator.makePosDict(self.exprTree, self.positions)
         #checks to make sure that there are no nested quotes
 
+    def parse_and_typecheck_args(self, ruleName: str, rawParams: list[str], expectedNames: list[str], expectedTypes:
+    list[RacType], targetNode: Node) -> tuple[list, bool]:
+        """
+        Parse ["x=...", "y=..."] into a list of values and check if they match the expected names and types.
+        Args:
+            ruleName: The name of the rule being applied.
+            rawParams: The raw parameters as a list of strings, e.g., ["x=1", "y=2"].
+            expectedNames: The expected parameter names for the rule.
+            expectedTypes: The expected types for the parameters.
+            targetNode: The node in the expression tree where the rule is being applied.
+        Returns:
+            A tuple containing a list of parsed values and a boolean indicating if the parsing was successful.
+        """
+        for param in rawParams:
+            if '=' not in param:
+                self.errLog.append(f"Argument '{param}' does not have an assignment. Did you forget an equals sign?")
+                return [], True
+            elif param.count('=') > 1:
+                self.errLog.append(f"Too many assignments for a given argument '{param}'. Did you forget a comma?")
+                return [], True
+        got, need = len(rawParams), len(expectedNames)
+        if got < need:
+            self.errLog.append(f"Not enough arguments given for {ruleName}. {ruleName} requires {len(expectedNames)} "
+                               f"arguments, while you gave {len(rawParams)}")
+            return [], True
+        elif got > need:
+            self.errLog.append(f"Too many arguments given for {ruleName}. {ruleName} requires {len(expectedNames)} "
+                               f"arguments, while you gave {len(rawParams)}")
+            return [], True
+        found_mismatch = False
+        for param, expected in zip(rawParams, expectedNames):
+            name, _ = param.split('=', 1)
+            if name.strip() != expected:
+                self.errLog.append(
+                    f"Argument '{name.strip()}' is in position {expectedNames.index(expected) + 1} but expected '{expected}' for {ruleName}")
+                found_mismatch = True
+        if found_mismatch:
+            return [], True
+        parsed = []
+        for param, expected_type in zip(rawParams, expectedTypes):
+            _, raw = param.split('=', 1)
+            tokens, errors = Parser.preProcess(raw, errLog=self.errLog, debug=self.debug)
+            if errors:
+                self.errLog.extend(errors)
+                return [], True
+            tree = Parser.buildTree(tokens, debug=self.debug)[0]
+            if tree is None:
+                self.errLog.append(f"Failed to build AST from value '{raw}' in argument '{param}'")
+                return [], True
+            labeled = Labeler.labelTree(tree, ruleDict=self.ruleSet)
+            typed, _ = Decorator.decorateTree(labeled, self.errLog)
+            if typed.type != expected_type.getType():
+                self.errLog.append(
+                    f"Type mismatch in argument '{param}': expected {expected_type.getType()}, got {typed.type}")
+                return [], True
+            parsed.append(typed)
+        user_vals = [param.split('=', 1)[1].strip() for param in rawParams]
+        target_vals = [str(child) for child in targetNode.children[1:]]
+        for i, (user_val, target_val) in enumerate(zip(user_vals, target_vals)):
+            if user_val != target_val:
+                self.errLog.append(
+                    f"Value mismatch in argument '{expectedNames[i]}': expected {target_val}, got {user_val}")
+        if self.errLog:
+            return [], True
+        return parsed, False
+
+    def find_undefined_labels(self, node: Node, ruleSet: dict[str, Rule] = None, generics: dict[str, ERGeneric] =
+    None) -> \
+            list[str]:
+        """
+        Recursively find undefined labels in the expression tree.
+        Args:
+            node: The current node in the expression tree.
+            ruleSet: A dictionary of defined rules.
+            generics: A dictionary of defined generics.
+        Returns:
+            A list of undefined labels found in the node's children.
+        """
+        if ruleSet is None:
+            ruleSetet = {}
+        if generics is None:
+            generics = {}
+        undefined_labels = []
+        for child in node.children:
+            if child.data[0] == "'" or child.data[0] == "(":
+                nested_children = self.find_undefined_labels(child, ruleSet, generics)
+                if nested_children and nested_children not in undefined_labels:
+                    # Avoid adding duplicates
+                    undefined_labels.append(nested_children)
+            elif (child.data not in ruleSet.keys() and child.data not in reservedLabels and child.data not in
+                  generics.keys() and child.data.isalpha()):  # TODO: change to checking if type PARAM when
+                # we fix that
+                undefined_labels.append(child.data)
+        return undefined_labels
+
     def applyRule(self, ruleSet: dict[str, Rule], rule: str, startPos: int, generics=None, subNode: Node = None):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
         if targetNode == None:
             self.errLog.append(
                 f'Could not find Token with starting index {startPos}')
-        # rule = rule.split(' ')[1:][-1] if rule.split(' ')[1:] != [] else ''
-        parts = rule.split()
-        ruleCategory = parts[0]
-        rule = parts[1] if len(parts) > 1 else ''  # takes rule being eval'd or applied
-        ruleParams = ' '.join(parts[2:]) if len(parts) > 2 else ''  # everything after 'f'
-        ruleParams = ruleParams.replace("\u21A6", "=")  # replace the arrow with an equals sign
-        ruleParams = [m.group(0).strip() for m in re.finditer(r"\w+=.*?(?=,\s*\w+=|$)", ruleParams)]
-        '''
-        regex explanation:
-        \w+         # key (e.g., x, y, z)
-        =           # equals sign
-        .*?         # non-greedy match for the value
-        (?=,\s*\w+=|$)  # lookahead for next ", key=" OR end of string
-        '''
-
-        if ruleCategory not in ('eval', 'apply', 'rewrite'):
-            self.errLog.append("Rule must start with 'eval', 'apply', or 'rewrite'")
-        elif rule == '':
-            errStr = "Rule must include the "
-            if ruleCategory == 'eval':
-                errStr += "function to be evaluated"
-            elif ruleCategory == 'apply':
-                errStr += "definition/lemma to be applied"
-            else:
-                errStr += "property to be rewritten"
-            self.errLog.append(errStr)
-        elif rule not in ruleSet.keys() - {'consProp', 'firstProp', 'restProp'}: # 'apply consProp' is not valid
-            self.errLog.append(f'Could not find rule associated with {rule}')
-        elif ruleCategory == 'apply' and not (isinstance(ruleSet[rule], UDF) or ruleSet[rule].isProperty):
-            self.errLog.append(f"Could not find definition/lemma associated with {rule}")
-        elif ruleCategory == 'rewrite' and not ruleSet[rule].isProperty:
-            self.errLog.append(f"Cannot rewrite {rule} as it is not a property")
-        elif ruleCategory == 'apply' and isinstance(ruleSet[rule], UDF):
-            stop_error = False
-            given_args = []
-            if len(ruleSet[rule].params) != 0:
-                for arg in ruleParams:
-                    if '=' not in arg:
-                        self.errLog.append(
-                            f"Argument '{arg}' does not have an assignment. Did you forget an equals sign?")
-                        stop_error = True
-                        continue
-                    elif arg.count('=') > 1:
-                        self.errLog.append(
-                            f"Too many assignments for a given argument '{arg}'. Did you forget a comma?")
-                        stop_error = True
-                        continue
-                    var = arg.split('=', 1)[0].strip()
-                    given_args.append(var)
-                if not stop_error and len(given_args) != len(ruleSet[rule].params):
-                    if len(ruleSet[rule].params) > len(given_args):
-                        self.errLog.append(
-                            f"Not enough arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} "
-                            f"arguments, while you gave {len(given_args)}")
-                        stop_error = True
-                    else:
-                        self.errLog.append(
-                            f"Too many arguments given for {rule}. {rule} requires {len(ruleSet[rule].params)} arguments, while you gave {len(given_args)}")
-                        stop_error = True
-                for i, (arg, expected) in enumerate(zip(given_args, ruleSet[rule].params)):
-                    if arg != expected:
-                        self.errLog.append(
-                            f"Argument '{arg}' is in position {i + 1} but expected '{expected}' for {rule}")
-                        stop_error = True
-                if not stop_error:
-                    expected_types = ruleSet[rule].racType.getDomain()
-                    for i, (arg_str, expected_type) in enumerate(zip(ruleParams, expected_types)):
-                        arg_name, arg_value_str = arg_str.split('=', 1)
-                        arg_tokens, tempErrLog = Parser.preProcess(arg_value_str, errLog=[], debug=self.debug)
-                        if tempErrLog:
-                            self.errLog.extend([f"In argument '{arg_str}': {err}" for err in tempErrLog])
-                            stop_error = True
-                            continue
-                        ast = Parser.buildTree(arg_tokens, debug=self.debug)[0]
-                        if ast is None:
-                            self.errLog.append(
-                                f"Failed to build AST from value '{arg_value_str}' in argument '{arg_str}'")
-                            stop_error = True
-                            continue
-                        labeled_ast = Labeler.labelTree(ast, ruleDict=ruleSet)
-                        typed_ast, _ = Decorator.decorateTree(labeled_ast, [])
-                        provided_type = typed_ast.type
-                        try:
-                            expected_type_unwrapped = expected_type.getType()
-                        except Exception as e:
-                            self.errLog.append(
-                                f"Type mismatch in argument '{arg_str}': expected err: {e}, got {provided_type}")
-                            stop_error = True
-                            continue
-
-                        if provided_type != expected_type_unwrapped:
-                            self.errLog.append(
-                                f"Type mismatch in argument '{arg_str}': expected {expected_type_unwrapped}, got {provided_type}"
-                            )
-                            stop_error = True
-                    if not stop_error:
-                        arg_values = [arg.split('=', 1)[1].strip() for arg in ruleParams]
-                        target_values = [str(child) for child in targetNode.children[1:]]  # skip the first child which
-                        # is the UDF label
-                        for i, (user_val, target_val) in enumerate(zip(arg_values, target_values)):
-                            if user_val != target_val:
-                                self.errLog.append(
-                                    f"Value mismatch in argument '{ruleSet[rule].params[i]}': expected {target_val}, got {user_val}")
-
-        elif ruleCategory == 'eval' and isinstance(ruleSet[rule], UDF):
-            self.errLog.append("Cannot evaluate a user-defined function")
-        elif ruleCategory == 'eval' and rule == 'math':
-            self.errLog.append("Could not find built-in Racket procedure associated with 'math'")
-        elif ruleCategory == 'eval' and ruleSet[rule].isProperty:
-            self.errLog.append("Cannot evaluate a property")
-        elif ruleCategory == 'apply' and ruleSet[rule].isProperty:
-            self.errLog.append("Cannot apply a property")
-        if self.errLog == []:
-            def find_undefined_labels(node: Node):
-                undefined_labels = []
-                for child in node.children:
-                    if child.data[0] == "'" or child.data[0] == "(":
-                        nested_children = find_undefined_labels(child)
-                        if nested_children and nested_children not in undefined_labels:
-                            # Avoid adding duplicates
-                            undefined_labels.append(nested_children)
-                    elif (child.data not in ruleSet.keys() and child.data not in reservedLabels and child.data not in
-                          generics.keys() and child.data.isalpha()):  # TODO: change to checking if type PARAM when
-                        # we fix that
-                        undefined_labels.append(child.data)
-                return undefined_labels
-
-            undefined_labels = find_undefined_labels(targetNode)
-            for label in undefined_labels:
-                self.errLog.append(f"No definition found for label '{label}'")
         # checking to see if highlighted portion is within a quote
         if "'(" in targetNode.ancestors():
             self.errLog.append(f"Cannot apply rules within a quoted expression")
-            
-        if self.errLog == []:       
-            selectedRule = ruleSet[rule]
-            if rule == 'math':
-                isApplicable, error = selectedRule.isApplicable(targetNode, subNode)
-                if isApplicable:
-                    newNode = selectedRule.insertSubstitution(
-                        targetNode, subNode)  # copy information to targetNode
-                    targetNode.replaceWith(newNode)
-                    updatePositions(self.exprTree)
-                else:
-                    self.errLog.append(error)
+
+        parts = rule.split()
+        ruleCategory = parts[0] if parts else ""
+        rule = parts[1] if len(parts) > 1 else ""
+        if len(parts) > 2 and parts[2] == "with":
+            parts.pop(2)  # remove 'with'
+        ruleParams = " ".join(parts[2:]).replace("\u21A6", "=")
+        ruleParams = ruleParams.replace("'()", "null")  # replace empty list with 'null'
+        ruleParams = [m.group(0).strip() for m in re.finditer(r"\w+=.*?(?=,\s*\w+=|$)", ruleParams)]
+
+        if ruleCategory not in ["eval", "apply", "rewrite"]:
+            self.errLog.append("Rule must start with 'eval', 'apply', or 'rewrite'")
+            return
+
+        if rule == "":
+            msg = "Rule must include the "
+            if ruleCategory == "eval":
+                msg += "function to be evaluated"
+            elif ruleCategory == "apply":
+                msg += "definition/lemma to be applied"
             else:
-                isApplicable, error = selectedRule.isApplicable(targetNode)
-                if isApplicable:
-                    newNode = selectedRule.insertSubstitution(
-                        targetNode)  # copy information to targetNode
-                    targetNode.replaceWith(newNode)
-                    updatePositions(self.exprTree)
+                msg += "property to be rewritten"
+            self.errLog.append(msg)
+            return
+
+        if rule not in ruleSet.keys() - {'consProp', 'firstProp', 'restProp'}:  # 'apply consProp' is not valid
+            self.errLog.append(f'Could not find rule associated with {rule}')
+            return
+
+        entry = ruleSet[rule]
+
+        selected: Rule | None = None
+        match ruleCategory:
+            case 'eval':
+                if isinstance(entry, tuple):
+                    selected = entry[0]  # select eval rule from tuple
+                elif getattr(entry, 'isProperty', False):
+                    self.errLog.append("Cannot evaluate a property")
+                elif isinstance(entry, UDF):
+                    self.errLog.append("Cannot evaluate a user-defined function")
+                elif rule == 'math':
+                    self.errLog.append("Could not find built-in Racket procedure associated with 'math'")
                 else:
-                    self.errLog.append(error)
+                    selected = entry
+            case 'rewrite':
+                if isinstance(entry, tuple):
+                    selected = entry[1]  # select rewrite rule from tuple
+                elif getattr(entry, 'isProperty', False):
+                    selected = entry
+                else:
+                    self.errLog.append(f"Cannot rewrite {rule} as it is not a property")
+            case 'apply':
+                if isinstance(entry, UDF):  # TODO: might need to add support for other types in future
+                    selected = entry
+                elif getattr(entry, 'isProperty', False):
+                    self.errLog.append("Cannot apply a property")
+                else:
+                    self.errLog.append(f"Could not find definition/lemma associated with {rule}")
+            case _:
+                self.errLog.append("Rule must start with 'eval', 'apply', or 'rewrite'")
+
+        if self.errLog:
+            return
+
+        if (ruleCategory == "rewrite") or isinstance(selected, UDF):
+            values, hadErr = self.parse_and_typecheck_args(
+                rule,
+                ruleParams,
+                selected.params,
+                selected.racType.getDomain(),
+                targetNode
+            )
+            for label in self.find_undefined_labels(targetNode, ruleSet, generics):
+                self.errLog.append(f"No definition found for label '{label}'")
+            if hadErr or self.errLog:
+                return
+
+        if ruleCategory == "eval" and rule == 'math':
+            ok, err = selected.isApplicable(targetNode, subNode)
+        else:
+            ok, err = selected.isApplicable(targetNode)
+
+        if not ok:
+            self.errLog.append(err)
+            return
+
+        if ruleCategory == "eval" and isinstance(selected, UDF):
+            # shouldn't get here but just in case
+            self.errLog.append("Cannot evaluate a user-defined function")
+            return
+
+        newNode = (
+            selected.insertSubstitution(targetNode, subNode)
+            if ruleCategory == "eval" and rule == 'math'
+            else selected.insertSubstitution(targetNode)
+        )
+        targetNode.replaceWith(newNode)
+        updatePositions(self.exprTree)
 
     def applySubstitution(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subLine: 'ERProofLine'):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
