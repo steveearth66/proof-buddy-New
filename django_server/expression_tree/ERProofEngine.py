@@ -24,6 +24,8 @@ class ERProof:
             'null?': NullQ(),
             'cons?': ConsQ(),
             'zero?': ZeroQ(),
+            'integer?': IntegerQ(),
+            'list?': ListQ(),
             'zero?+': ZeroQPlus(),
             '+': Plus(),
             '-': Minus(),

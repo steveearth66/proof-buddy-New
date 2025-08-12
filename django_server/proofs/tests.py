@@ -447,6 +447,34 @@ if_tests = [
 ]
 test_racket_function('if', if_tests)
 
+integerQ_tests = [
+    ("(+ 1 2)", ["Cannot evaluate integer? on a '+' expression"]),
+    ("(integer? 1 2)", ["integer? only takes 1 arguments, but 2 were provided"]),
+    ("(integer? 1)", '#t'),
+    ("(integer? k)", '#t'),
+    ("(integer? null)", '#f'),
+    ("(integer? '(1 2))", '#f'),
+    ("(integer? L)", "#f"),
+    ("(integer? #t)", '#f'),
+    ("(integer? p)", '#f'),
+    ("(integer? x)", '#f') # integer? with generic any currently evaluates to false
+]
+totalFails += test_racket_function('integer?', integerQ_tests)
+
+listQ_tests = [
+    ("(+ 1 2)", ["Cannot evaluate list? on a '+' expression"]),
+    ("(list? null null)", ["list? only takes 1 arguments, but 2 were provided"]),
+    ("(list? 1)", '#f'),
+    ("(list? k)", '#f'),
+    ("(list? null)", '#t'),
+    ("(list? '(1 2))", '#t'),
+    ("(list? L)", "#t"),
+    ("(list? #t)", '#f'),
+    ("(list? p)", '#f'),
+    ("(list? x)", '#f') # list? with generic any currently evaluates to false
+]
+test_racket_function('list?', listQ_tests)
+
 print('\nTest Undefined Labels\n')
 totalFails += do_single_test_case('rewrite', 'cons-first-rest', '(cons (first L) (rest L))', ["No definition found for "
                                                                                               "label '['L']'"])

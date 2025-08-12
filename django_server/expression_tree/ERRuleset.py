@@ -237,6 +237,26 @@ class Equals(BuiltIn):
         argOne = str(ruleNode.children[1])
         argTwo = str(ruleNode.children[2])
         return Node(data="#t" if argOne == argTwo else "#f", tokenType=RacType((None, Type.BOOL)), name=argOne == argTwo)  # converting node
+    
+# NOTE: for both integer? and list? expressions, 
+# when the argument is of type ANY, it currently evaluates to #f
+class IntegerQ(BuiltIn):
+    def __init__(self):
+        super().__init__('integer?', allowGenerics=True)
+    
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        trueNode = Node(data='#t', tokenType=RacType((None, Type.BOOL)), name=True)
+        falseNode = Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
+        return trueNode if ruleNode.children[1].type.getType() == Type.INT else falseNode
+    
+class ListQ(BuiltIn):
+    def __init__(self):
+        super().__init__('list?', allowGenerics=True)
+    
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        trueNode = Node(data='#t', tokenType=RacType((None, Type.BOOL)), name=True)
+        falseNode = Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
+        return trueNode if ruleNode.children[1].type.getType() == Type.LIST else falseNode
 
 # TODO: this needs to be generalized to use a python math library and normal forms, and not just the 4 basic operations
 '''

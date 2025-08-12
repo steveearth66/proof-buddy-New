@@ -27,7 +27,7 @@ LABEL_LIBRARY = [
 
 # list of built-in Racket functions
 BUILT_IN_FUNCTIONS = ['if', 'cons', 'first', 'rest', 'null?', '+', '-', '*', 'quotient', 'remainder', 'zero?',
-                      "expt", "=", "<=", ">=", "<", ">", "and", "or", "not", "xor", "implies", "list?", "int?"]
+                      "expt", "=", "<=", ">=", "<", ">", "and", "or", "not", "xor", "implies", "list?", "integer?"]
 
 # give every Node object in the AST an initial type (ifs will be done later in remTemps since their range varies)
 def labelTree(inputTree: Node, ruleDict=None, generics=None) -> Node:
