@@ -607,7 +607,7 @@ class OrProp(Rule):
         return True, 'OrProp.isApplicable() PASS'
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
-        return Node(data='#t', tokenType=RacType((None, Type.BOOL)), name=False)
+        return Node(data='#t', tokenType=RacType((None, Type.BOOL)), name=True)
 
 
 class ImpliesProp(Rule):

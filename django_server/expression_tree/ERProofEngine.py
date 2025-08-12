@@ -276,21 +276,18 @@ class ERProofLine:
             A list of undefined labels found in the node's children.
         """
         if ruleSet is None:
-            ruleSetet = {}
+            ruleSet = {}
         if generics is None:
             generics = {}
-        undefined_labels = []
+        undefined_labels = set()
         for child in node.children:
-            if child.data[0] == "'" or child.data[0] == "(":
-                nested_children = self.find_undefined_labels(child, ruleSet, generics)
-                if nested_children and nested_children not in undefined_labels:
-                    # Avoid adding duplicates
-                    undefined_labels.append(nested_children)
+            if child.data in ("'(", "("):
+                undefined_labels |= set(self.find_undefined_labels(child, ruleSet, generics))
             elif (child.data not in ruleSet.keys() and child.data not in reservedLabels and child.data not in
                   generics.keys() and child.data.isalpha()):  # TODO: change to checking if type PARAM when
                 # we fix that
-                undefined_labels.append(child.data)
-        return undefined_labels
+                undefined_labels.add(child.data)
+        return list(sorted(undefined_labels))
 
     def applyRule(self, ruleSet: dict[str, Rule], rule: str, startPos: int, generics=None, subNode: Node = None):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
