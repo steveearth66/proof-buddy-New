@@ -14,8 +14,17 @@ export const INITIAL_FORM_VALUES = {
 
 export const INITIAL_PREMISE_STATE = {
   racket: '',
-  rule: 'Premise'
+  rule: 'Premise',
+  startPosition: 0
 };
+
+export const EMPTY_INITIAL_FIELD = { 
+  racket: '', 
+  jsonTree: {}, 
+  rule: '', 
+  startPosition: 0,
+  deleted: false 
+}
 
 // Helper functions
 export const getPadRefs = (side, lhsPadRefs, rhsPadRefs) => 
@@ -47,7 +56,8 @@ export const convertFormToJSON = (formValues, racketRuleFields, leftPremise, rig
     // Additional UI state for proper import
     startPosition,
     showSide,
-    isGoalChecked
+    isGoalChecked,
+    loadedInServer: false
   });
 };
 
