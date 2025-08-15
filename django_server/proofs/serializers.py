@@ -1,5 +1,6 @@
 from .models import Proof, ProofLine, Definition, Generic
 from rest_framework import serializers
+from ast import literal_eval
 
 
 class ProofSerializer(serializers.ModelSerializer):
@@ -45,21 +46,13 @@ class DefinitionSerializer(serializers.ModelSerializer):
 class GenericSerializer(serializers.ModelSerializer):
     class Meta:
         model = Generic
-        fields = ["id", "label", "type", "notes", "assumption", "never_null", "restrictions"]
-        extra_kwargs = {
-            "assumption": {"write_only": True},
-            "never_null": {"write_only": True}
-        }
-    
-    restrictions = serializers.SerializerMethodField()
+        fields = ["id", "label", "type", "notes", "restrictions"]
 
-    def get_restrictions(self, obj):
-        if obj.type == 'int':
-            return { 'assumption': obj.assumption }
-        if obj.type == 'list':
-            return { 'neverNull': obj.never_null }
-        return None
-    
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        representation["restrictions"] = literal_eval(representation["restrictions"])
+        return representation
+
     def create(self, validated_data):
         user = validated_data.pop("created_by")
         generic = Generic.objects.create(created_by=user, **validated_data)

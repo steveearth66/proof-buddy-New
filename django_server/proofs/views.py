@@ -246,6 +246,8 @@ def user_proof(user, proof_id):
         )
     
     generics_data = GenericSerializer(generics, many=True)
+    for generic_dict in generics_data:
+        generic_dict["enabled"] = True
 
     proof_data = {
         "id": proof.id,
@@ -421,14 +423,9 @@ def create_user_generic(user, data):
     generic_data = {
         "label": data["label"],
         "type": data["type"],
-        "notes": data["notes"]
+        "notes": data["notes"],
+        "restrictions": str(data.get("restrictions"))
     }
-    if data.get("restrictions") is None:
-        data["restrictions"] = {}
-    if (assumption := data["restrictions"].get("assumption")) is not None:
-        generic_data["assumption"] = assumption
-    if (neverNull := data["restrictions"].get("neverNull")) is not None:
-        generic_data["never_null"] = neverNull
     
     serializer = GenericSerializer(data=generic_data)
     if serializer.is_valid(raise_exception=True):

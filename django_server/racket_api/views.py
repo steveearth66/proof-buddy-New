@@ -463,7 +463,6 @@ def get_proof(request, proof_id):
             
 
     save_proof_to_cache(user, proof)
-
     return Response(frontend_json, status=status.HTTP_200_OK)
 
 

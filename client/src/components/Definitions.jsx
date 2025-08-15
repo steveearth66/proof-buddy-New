@@ -129,7 +129,7 @@ function CreateDefinition({
           if (generic.type.toLowerCase() === 'int')
             generic.restrictions = { assumption: 'Non-negative' };
           if (generic.type.toLowerCase() === 'list')
-            generic.restrictions = { neverNull: false };
+            generic.restrictions = { neverNull: true };
 
           const createdGeneric = await erService.createGeneric(generic);
           generics.push(createdGeneric);
