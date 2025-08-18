@@ -265,7 +265,7 @@ const ERRacket = () => {
             racket: fullRacket.racket || "",
             jsonTree: fullRacket.jsonTree || {},
             rule: ruleFromFooter,
-            startPosition: previousStartPosition,
+              startPosition: (fullRacket.startPosition ?? previousStartPosition),
             deleted: false
           };
           

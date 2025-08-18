@@ -38,6 +38,10 @@ const PersistentPad = forwardRef(function PersistentPad(
     setRule(ruleValue); 
   }, [ruleValue]);
 
+    useEffect(() => {
+        setSelected(startPosition ?? 0);
+    }, [equation]);
+
   // Session storage management for highlights
   useEffect(() => {
     if (!highlightedText) return;

@@ -169,6 +169,7 @@ class ERProofLine:
         self.errLog = []
         self.debug = debug
         self.positions = dict() # a dict of 4-tuples of the next pos when hitting up,down,left,right. keyd by startpos
+        self.lastTransformedStartPos = 0
         if ruleDict != None:
             self.ruleSet = ruleDict
         else:
@@ -395,6 +396,7 @@ class ERProofLine:
         )
         targetNode.replaceWith(newNode)
         updatePositions(self.exprTree)
+        self.lastTransformedStartPos = int(targetNode.startPosition)
 
     def applySubstitution(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subLine: 'ERProofLine'):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
@@ -418,6 +420,7 @@ class ERProofLine:
         if self.errLog == []:
             targetNode.replaceWith(replacementExprTree)
             updatePositions(self.exprTree)
+            self.lastTransformedStartPos = int(targetNode.startPosition)
 
 
 def updatePositions(inputTree: Node, count: int = 0) -> tuple[Node, int]:

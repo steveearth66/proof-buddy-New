@@ -47,8 +47,17 @@ def apply_rule(request):
     jsonTree = makeJson(current_proof.proofLines[-1].exprTree)
     save_proof_to_cache(user, proof)
 
+    last_line = current_proof.proofLines[-1] if current_proof.proofLines else None
+    start_pos = getattr(last_line, "lastTransformedStartPos", 0) if last_line else 0
     return Response(
-        {"isValid": is_valid, "racket": racket_str, "errors": errors, "jsonTree": jsonTree, "lineNum": max(0, len(current_proof.proofLines) - 1)},
+        {
+            "isValid": is_valid,
+            "racket": racket_str,
+            "errors": errors,
+            "jsonTree": jsonTree,
+            "lineNum": max(0, len(current_proof.proofLines) - 1),
+            "startPosition": start_pos,
+        },
         status=status.HTTP_200_OK,
     )
 
@@ -363,8 +372,16 @@ def substitution(request):
 
     save_proof_to_cache(user, proof)
 
+    last_line = current_proof.proofLines[-1] if current_proof.proofLines else None
+    start_pos = getattr(last_line, "lastTransformedStartPos", 0) if last_line else 0
     return Response(
-        {"isValid": is_valid, "racket": racket_str, "jsonTree": jsonTree, "errors": errors},
+        {
+            "isValid": is_valid,
+            "racket": racket_str,
+            "jsonTree": jsonTree,
+            "errors": errors,
+            "startPosition": start_pos,
+        },
         status=status.HTTP_200_OK,
     )
 
