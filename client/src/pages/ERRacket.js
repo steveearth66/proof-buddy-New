@@ -85,30 +85,30 @@ const ERRacket = () => {
   }, []);
 
   const handleFieldHighlight = useCallback((isLHS, lineNum, selected) => {
-  if (isLHS) {
-    if (lineNum === 0)
-      setLeftPremise(prev => ({ ...prev,  startPosition: selected }));
-    else
-      setRacketRuleFields(prev => 
-        ({ ...prev, 
-          LHS: prev.LHS.map((field, index) => 
-            (index === lineNum - 1 ? { ...field, startPosition: selected } : field)
-          )
-        })
-      );
-  } else {
-    if (lineNum === 0)
-      setRightPremise(prev => ({ ...prev, startPosition: selected }));
-    else
-      setRacketRuleFields(prev => 
-        ({ ...prev, 
-          RHS: prev.RHS.map((field, index) => 
-            (index === lineNum - 1 ? { ...field, startPosition: selected } : field)
-          )
-        })
-      );
-  }
-}, []);
+    if (isLHS) {
+      if (lineNum === 0)
+        setLeftPremise(prev => ({ ...prev,  startPosition: selected }));
+      else
+        setRacketRuleFields(prev => 
+          ({ ...prev, 
+            LHS: prev.LHS.map((field, index) => 
+              (index === lineNum - 1 ? { ...field, startPosition: selected } : field)
+            )
+          })
+        );
+    } else {
+      if (lineNum === 0)
+        setRightPremise(prev => ({ ...prev, startPosition: selected }));
+      else
+        setRacketRuleFields(prev => 
+          ({ ...prev, 
+            RHS: prev.RHS.map((field, index) => 
+              (index === lineNum - 1 ? { ...field, startPosition: selected } : field)
+            )
+          })
+        );
+    }
+  }, []);
 
   const loadRacketProof = useCallback((loadedProof) => {
     if (loadedProof) {
