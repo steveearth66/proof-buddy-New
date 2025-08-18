@@ -75,6 +75,8 @@ class If(BuiltIn):
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         # Check if the operator matches the rule label
+        if len(ruleNode.children) == 0:
+            return False, f"Cannot evaluate if on a '{ruleNode.data}' expression"
         if ruleNode.children[0].data != self.label:
             return False, f"Cannot evaluate if on a '{ruleNode.children[0].data}' expression"
         if len((cond := ruleNode.children[1]).children) != 0 and cond.data == '(' or cond.name == 'TBD':
