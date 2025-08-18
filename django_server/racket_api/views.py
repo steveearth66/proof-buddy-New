@@ -20,7 +20,8 @@ from proofs.views import (
     create_user_generic,
     use_generic,
     remove_generic,
-    delete_generic
+    delete_generic,
+    use_uploaded_generic
 )
 from dill import dumps, loads
 from django.core.cache import cache
@@ -151,6 +152,12 @@ def set_current_proof(request):
             proof_one.addUDF(label, def_type, expression)
             proof_two.addUDF(label, def_type, expression)
             proof["definitions"].append(saved_definition)
+    
+    for generic in json_data["generics"]:
+        try:
+            use_uploaded_generic(user, proof, generic)
+        except Exception as e:
+            errors.append(str(e))
 
     if len(errors) > 0:
         return get_error_response(errors)

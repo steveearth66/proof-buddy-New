@@ -42,6 +42,7 @@ export const isFormComplete = (formValues) =>
 // Proof data conversion
 export const convertFormToJSON = (formValues, racketRuleFields, leftPremise, rightPremise, isGoalChecked, jsonTreeRep, startPosition, showSide) => {
   const definitions = JSON.parse(sessionStorage.getItem("definitions") || "[]").filter(isApplied);
+  const generics = JSON.parse(sessionStorage.getItem("generics") || "[]").filter(generic => generic.enabled);
   
   return JSON.stringify({
     name: formValues.proofName,
@@ -53,6 +54,7 @@ export const convertFormToJSON = (formValues, racketRuleFields, leftPremise, rig
     leftPremise: { ...leftPremise, jsonTree: isGoalChecked.LHS ? jsonTreeRep.LHS : null },
     rightPremise: { ...rightPremise, jsonTree: isGoalChecked.RHS ? jsonTreeRep.RHS : null },
     definitions,
+    generics,
     // Additional UI state for proper import
     startPosition,
     showSide,

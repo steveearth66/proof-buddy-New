@@ -420,14 +420,11 @@ def get_user_generics(user):
     return serializer.data
 
 def create_user_generic(user, data):
-    generic_data = {
-        "label": data["label"],
-        "type": data["type"],
-        "notes": data["notes"],
+    model_data = {
+        **data, 
         "restrictions": str(data.get("restrictions"))
-    }
-    
-    serializer = GenericSerializer(data=generic_data)
+        }
+    serializer = GenericSerializer(data=model_data)
     if serializer.is_valid(raise_exception=True):
         serializer.save(created_by=user)
     return serializer.data
@@ -453,3 +450,17 @@ def delete_generic(proof, id):
         pass
     generic = Generic.objects.get(id=id)
     generic.delete()
+
+def use_uploaded_generic(user, proof, generic_data):
+    model_data = {
+        **generic_data, 
+        "restrictions": str(generic_data.get("restrictions"))
+        }
+    generic_object = Generic.objects.filter(created_by=user, label=generic_data["label"]).first()
+    serializer = (GenericSerializer(data=model_data) 
+                  if generic_object is None 
+                  else GenericSerializer(instance=generic_object, data=model_data))
+    if serializer.is_valid():
+        serializer.save(created_by=user)
+    for proof_side in (proof["proofOne"], proof["proofTwo"]):
+        proof_side.addGeneric(generic_data["label"], generic_data["type"], generic_data["restrictions"])
