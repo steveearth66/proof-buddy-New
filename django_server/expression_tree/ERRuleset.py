@@ -646,6 +646,35 @@ class ImpliesProp(Rule):
     def insertSubstitution(self, ruleNode: Node) -> Node:
         return Node(data='#t', tokenType=RacType((None, Type.BOOL)), name=True)
 
+class TypeQProp(Rule):
+    def __init__(self, label, typeStr):
+        super().__init__(label, isProperty=True)
+        self.params = ['op']
+        self.racType = str2Type("ANY>BOOL")
+        self.typeStr = typeStr
+
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        if ruleNode.children[0].data != self.label:
+            return False, f"Cannot rewrite '{ruleNode.children[0]}' expression with '{self.label}' rule"
+        if ruleNode.children[1].data != '(' or len(ruleNode.children[1].children) == 0:
+            return False, f"Cannot apply '{self.label}' rewrite when argument is not a function call"
+        if ruleNode.children[1].children[0].data in ('cons', 'if'):
+            return False, "Cannot determine output type of argument operation"
+        return True, "TypeQProp.isApplicable() PASS"
+    
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        trueNode = Node(data='#t', tokenType=RacType((None, Type.BOOL)), name=True)
+        falseNode = Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
+        return trueNode if ruleNode.children[1].children[0].type.getRange().isType(self.typeStr) else falseNode
+
+class IntegerQProp(TypeQProp):
+    def __init__(self):
+        super().__init__('integer?', 'INT')
+
+class ListQProp(TypeQProp):
+    def __init__(self):
+        super().__init__('list?', 'LIST')
+
 class advMath(Rule):
     
     def __init__(self):
