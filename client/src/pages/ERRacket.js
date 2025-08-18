@@ -437,12 +437,12 @@ const ERRacket = () => {
         // Set startPosition for both LHS and RHS
         ['LHS', 'RHS'].forEach((side) => {
           const padRefs = getPadRefs(side, lhsPadRefs, rhsPadRefs);
-          
+
           // Set premise startPosition (pad index 0)
           const premiseData = side === 'LHS' ? loadedProof.leftPremise : loadedProof.rightPremise;
           const premiseStartPosition = premiseData?.startPosition ?? 0;
           padRefs.current[0]?.setStartPosition(premiseStartPosition);
-          
+
           // Set startPosition for each racket rule field
           const rules = side === 'LHS' ? loadedProof.leftRacketsAndRules : loadedProof.rightRacketsAndRules;
           if (rules) {
@@ -1027,9 +1027,9 @@ function renderPersistentPadRow({
   const rulePlaceholder = isPremise ? `${side} Premise` : `${side} Rule`;
   const isRuleInvalid = !isPremise && !!validationErrors[side][index];
   const ruleValidationError = validationErrors[side][index];
-  
+
   // Get the correct startPosition
-  const startPosition = isPremise 
+  const startPosition = isPremise
     ? (isLHS ? leftPremise.startPosition || 0 : rightPremise.startPosition || 0)
     : (field.startPosition || 0);
 
