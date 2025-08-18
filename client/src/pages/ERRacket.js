@@ -66,8 +66,8 @@ const ERRacket = () => {
   ] = useGoalCheck(handleChange);
   const [currentRacket, setCurrentRacket] = useState("");
   const [racketRuleFields, setRacketRuleFields] = useState({
-    LHS: [{ racket: '', jsonTree: {}, rule: '', deleted: false }],
-    RHS: [{ racket: '', jsonTree: {}, rule: '', deleted: false }]
+    LHS: [{ racket: '', jsonTree: {}, rule: '', startPosition: 0, deleted: false }],
+    RHS: [{ racket: '', jsonTree: {}, rule: '', startPosition: 0, deleted: false }]
   });
 
   const handleFieldChange = useCallback((side, index, fieldName, value) => {
@@ -86,7 +86,7 @@ const ERRacket = () => {
   const loadRacketProof = useCallback((loadedProof) => {
     if (loadedProof) {
       console.log('loadRacketProof called with:', loadedProof);
-
+      
       formValues.proofName = loadedProof.name;
       formValues.proofTag = loadedProof.tag;
       formValues.lHSGoal = loadedProof.lHSGoal;
@@ -99,8 +99,8 @@ const ERRacket = () => {
 
       // Set the racket rule fields from the loaded proof
       setRacketRuleFields({
-        LHS: loadedProof.leftRacketsAndRules || [{ racket: '', jsonTree: {}, rule: '', deleted: false }],
-        RHS: loadedProof.rightRacketsAndRules || [{ racket: '', jsonTree: {}, rule: '', deleted: false }]
+        LHS: loadedProof.leftRacketsAndRules || [{ racket: '', jsonTree: {}, rule: '', startPosition: 0, deleted: false }],
+        RHS: loadedProof.rightRacketsAndRules || [{ racket: '', jsonTree: {}, rule: '', startPosition: 0, deleted: false }]
       });
 
       loadRacketGoal(loadedProof);
@@ -153,7 +153,7 @@ const ERRacket = () => {
     const paddedRowNum = rowNum.toString().padStart(3, "0");
     const userIndex = getPadIndex(paddedRowNum);
     const matchingRow = document.getElementById("racket-row-" + userIndex);
-
+    
     if (!matchingRow) {
       alert("No matching row found!");
       return false;
@@ -207,24 +207,24 @@ const ERRacket = () => {
     if (isProcessingRef.current) {
       return;
     }
-
+    
     isProcessingRef.current = true;
-
+    
     try {
       // Get the data needed for the backend
       let ruleFromFooter = "";
       let previousStartPosition = 0;
       let previousRacketValue = "";
-
+      
       if (isBound) {
         const userIndex = getPadIndex(userRow.num);
         ruleFromFooter = userRow.num === "000" ? "Premise" : footerRule;
-
+        
         // Get the previous row's data
         if (userRow.num !== "000") {
           const previousRowIndex = userIndex - 1;
           const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
-
+          
           if (previousRowIndex === 0) {
             // Previous row is the premise
             previousRacketValue = showSide === "LHS" ? leftPremise.racket : rightPremise.racket;
@@ -239,49 +239,50 @@ const ERRacket = () => {
           }
         }
       }
-
+      
       const fullRacket = await addFieldWithApiCheck(showSide, ruleFromFooter, previousStartPosition, previousRacketValue);
-
+      
       // Check if we got a valid response
       if (!fullRacket) {
         console.error("addFieldWithApiCheck returned undefined/null");
         return;
       }
-
+      
       if (fullRacket && fullRacket.isValid) {
         // Add the returned expression to the racketRuleFields state
         setRacketRuleFields((prevFields) => {
           // Check if we already added this field (prevent duplicate additions)
-          const hasMatchingField = prevFields[showSide].some(field =>
+          const hasMatchingField = prevFields[showSide].some(field => 
             field.racket === fullRacket.racket && field.rule === ruleFromFooter && !field.deleted
           );
-
+          
           if (hasMatchingField) {
             return prevFields; // Return unchanged state
           }
-
+          
           const fields = { ...prevFields };
           const newField = {
             racket: fullRacket.racket || "",
             jsonTree: fullRacket.jsonTree || {},
             rule: ruleFromFooter,
+            startPosition: previousStartPosition,
             deleted: false
           };
-
+          
           const lastField = fields[showSide][fields[showSide].length - 1];
           const isEmpty = lastField && lastField.racket === "" && lastField.rule === "";
-
+          
           if (isEmpty) {
             // Replace the last empty field with the new field
             fields[showSide][fields[showSide].length - 1] = newField;
             // Add a new empty field at the end
-            fields[showSide].push({ racket: '', jsonTree: {}, rule: '', deleted: false });
+            fields[showSide].push({ racket: '', jsonTree: {}, rule: '', startPosition: 0, deleted: false });
           } else {
             // Add the new field and ensure there's an empty field at the end
             fields[showSide].push(newField);
-            fields[showSide].push({ racket: '', jsonTree: {}, rule: '', deleted: false });
+            fields[showSide].push({ racket: '', jsonTree: {}, rule: '', startPosition: 0, deleted: false });
           }
-
+          
           return fields;
         });
 
@@ -306,11 +307,7 @@ const ERRacket = () => {
   );
 
   const convertFormToJSONWrapper = () => {
-    // Get current startPosition from the active pad ref
-    const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
-    const currentStartPosition = padRefs.current[0]?.getStartPosition() ?? 0;
-
-    return convertFormToJSON(formValues, racketRuleFields, leftPremise, rightPremise, isGoalChecked, jsonTreeRep, currentStartPosition, showSide);
+    return convertFormToJSON(formValues, racketRuleFields, leftPremise, rightPremise, isGoalChecked, jsonTreeRep, showSide);
   };
 
   const exportJSON = () => {
@@ -344,7 +341,7 @@ const ERRacket = () => {
 
     // Get definitions from sessionStorage
     const definitions = JSON.parse(sessionStorage.getItem("definitions") || "[]");
-
+    
     const proof = {
       name: formValues.proofName,
       tag: formValues.proofTag,
@@ -352,14 +349,14 @@ const ERRacket = () => {
       rightRacketsAndRules: racketRuleFields.RHS,
       lHSGoal: formValues.lHSGoal,
       rHSGoal: formValues.rHSGoal,
-      leftPremise: {
-        ...leftPremise,
+      leftPremise: { 
+        ...leftPremise, 
         checked: isGoalChecked.LHS,
         jsonTree: isGoalChecked.LHS ? jsonTreeRep.LHS : null,
         startPosition: leftPremise.startPosition || 0
       },
-      rightPremise: {
-        ...rightPremise,
+      rightPremise: { 
+        ...rightPremise, 
         checked: isGoalChecked.RHS,
         jsonTree: isGoalChecked.RHS ? jsonTreeRep.RHS : null,
         startPosition: rightPremise.startPosition || 0
@@ -421,8 +418,14 @@ const ERRacket = () => {
         rHSGoal: loadedProof.rHSGoal
       });
 
-      setLeftPremise(loadedProof.leftPremise);
-      setRightPremise(loadedProof.rightPremise);
+      setLeftPremise({
+        ...loadedProof.leftPremise,
+        startPosition: loadedProof.leftPremise?.startPosition ?? 0
+      });
+      setRightPremise({
+        ...loadedProof.rightPremise,
+        startPosition: loadedProof.rightPremise?.startPosition ?? 0
+      });
 
       sessionStorage.setItem('definitions', JSON.stringify(loadedProof.definitions));
 
@@ -431,23 +434,27 @@ const ERRacket = () => {
 
       // Set startPosition on all pad refs after they're created
       setTimeout(() => {
-        const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
+        // Set startPosition for both LHS and RHS
+        ['LHS', 'RHS'].forEach((side) => {
+          const padRefs = getPadRefs(side, lhsPadRefs, rhsPadRefs);
 
-        // Set premise startPosition (pad index 0)
-        const premiseStartPosition = loadedProof[showSide === 'LHS' ? 'leftPremise' : 'rightPremise']?.startPosition ?? 0;
-        padRefs.current[0]?.setStartPosition(premiseStartPosition);
+          // Set premise startPosition (pad index 0)
+          const premiseData = side === 'LHS' ? loadedProof.leftPremise : loadedProof.rightPremise;
+          const premiseStartPosition = premiseData?.startPosition ?? 0;
+          padRefs.current[0]?.setStartPosition(premiseStartPosition);
 
-        // Set startPosition for each racket rule field
-        const rules = showSide === 'LHS' ? loadedProof.leftRacketsAndRules : loadedProof.rightRacketsAndRules;
-        if (rules) {
-          rules.forEach((rule, index) => {
-            if (rule.startPosition !== undefined && padRefs.current[index + 1]) {
-              padRefs.current[index + 1].setStartPosition(rule.startPosition);
-            }
-          });
-        }
-      }, 0);
-
+          // Set startPosition for each racket rule field
+          const rules = side === 'LHS' ? loadedProof.leftRacketsAndRules : loadedProof.rightRacketsAndRules;
+          if (rules) {
+            rules.forEach((rule, index) => {
+              if (rule.startPosition !== undefined && padRefs.current[index + 1]) {
+                padRefs.current[index + 1].setStartPosition(rule.startPosition);
+              }
+            });
+          }
+        });
+      }, 100); // Slightly longer timeout to ensure components are mounted
+      
       // Restore showSide if available
       if (loadedProof.showSide && loadedProof.showSide !== showSide) {
         toggleSide();
@@ -517,10 +524,10 @@ const ERRacket = () => {
 
   const renderFooterPad = () => {
     const padIndex = getPadIndex(userRow.num);
-
+    
     if (userRow.num === "000") {
       const equation = showSide === "LHS" ? leftPremise.racket : rightPremise.racket;
-
+      
       return (
         <PersistentPad
           ref={footerPadRef}
@@ -543,7 +550,7 @@ const ERRacket = () => {
     } else {
       const field = racketRuleFields[showSide][padIndex - 1];
       if (!field) return null;
-
+      
       return (
         <PersistentPad
           ref={footerPadRef}
@@ -881,7 +888,11 @@ const ERRacket = () => {
                       validationErrors,
                       isBound,
                       userRow,
-                      handleRowNumberClick
+                      handleRowNumberClick,
+                      leftPremise,
+                      rightPremise,
+                      setLeftPremise,
+                      setRightPremise
                     })}
                     {racketRuleFields[showSide].map((field, index) =>
                       field.deleted
@@ -897,7 +908,11 @@ const ERRacket = () => {
                           validationErrors,
                           isBound,
                           userRow,
-                          handleRowNumberClick
+                          handleRowNumberClick,
+                          leftPremise,
+                          rightPremise,
+                          setLeftPremise,
+                          setRightPremise
                         })
                     )}
                   </>
@@ -992,7 +1007,11 @@ function renderPersistentPadRow({
   validationErrors,
   isBound,
   userRow,
-  handleRowNumberClick
+  handleRowNumberClick,
+  leftPremise,
+  rightPremise,
+  setLeftPremise,
+  setRightPremise
 }) {
   // Compute values based on side and isPremise
   const isLHS = side === "LHS";
@@ -1008,6 +1027,11 @@ function renderPersistentPadRow({
   const rulePlaceholder = isPremise ? `${side} Premise` : `${side} Rule`;
   const isRuleInvalid = !isPremise && !!validationErrors[side][index];
   const ruleValidationError = validationErrors[side][index];
+
+  // Get the correct startPosition
+  const startPosition = isPremise
+    ? (isLHS ? leftPremise.startPosition || 0 : rightPremise.startPosition || 0)
+    : (field.startPosition || 0);
 
   return (
     <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? "premise" : `${side}-field-${padIndex}`}>
@@ -1027,9 +1051,16 @@ function renderPersistentPadRow({
           equation={equation}
           jsonTree={jsonTree}
           lineNum={lineNum}
-          startPosition={0}
-          onHighlightChange={() => {
-            // Highlighting handled internally by pad ref
+          startPosition={startPosition}
+          onHighlightChange={(newStartPosition) => {
+            // Update the premise startPosition when highlighting changes
+            if (isPremise) {
+              if (isLHS) {
+                setLeftPremise(prev => ({ ...prev, startPosition: newStartPosition }));
+              } else {
+                setRightPremise(prev => ({ ...prev, startPosition: newStartPosition }));
+              }
+            }
             setCurrentRacket(equation);
           }}
           ruleValue={ruleValue}
