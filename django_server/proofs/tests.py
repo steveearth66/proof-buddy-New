@@ -462,7 +462,7 @@ test_racket_function('if', if_tests)
 
 print('\nTest Undefined Labels\n')
 totalFails += do_single_test_case('rewrite', 'cons-first-rest', '(cons (first L) (rest L))',
-                                  ["No definition found for label '['L']'"], args="x=(first L), L=(rest L)")
+                                  ["No definition found for label 'L'"], args="x=(first L), L=(rest L)")
 
 axiomProof = ERProof()
 axiomProof.addGeneric('a', 'int', {'assumption': 'None'})
