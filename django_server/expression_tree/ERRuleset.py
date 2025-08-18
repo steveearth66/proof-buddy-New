@@ -65,7 +65,7 @@ class BuiltIn(Rule, ABC):
         if not self._allowGenerics:
             generics = [child.data for child in ruleNode.children[1:] if isinstance(child.name, ERGeneric)]
             if len(generics) != 0:
-                return False, f"Cannot evaluate '{self.label}' expression with generic arguments" 
+                return False, f"Cannot evaluate '{self.label}' expression with generic arguments"
         return True, 'BuiltIn.isApplicable() PASS'
 
 class If(BuiltIn):
@@ -228,7 +228,7 @@ class RestList(BuiltIn):
         for ind in range(1, n): #shift all elements left
             newNode.children.append(origList.children[ind])
         return newNode  # could have just returned in place by removing first element
-    
+
 class Equals(BuiltIn):
     def __init__(self):
         super().__init__('=', allowGenerics=True)
@@ -458,6 +458,8 @@ class UDF(Rule):
 class ConsProp(Rule):
     def __init__(self):
         super().__init__('cons-first-rest', isProperty=True)
+        self.params = ['x', 'L']
+        self.racType = str2Type("(ANY, LIST)>ANY")
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'cons':
@@ -481,6 +483,8 @@ class ConsProp(Rule):
 class FirstProp(Rule):
     def __init__(self):
         super().__init__('first-cons', isProperty=True)
+        self.params = ['L']
+        self.racType = str2Type("LIST>ANY")
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'first':
@@ -497,6 +501,8 @@ class FirstProp(Rule):
 class RestProp(Rule):
     def __init__(self):
         super().__init__('rest-cons', isProperty=True)
+        self.params = ['L']
+        self.racType = str2Type("LIST>ANY")
 
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'rest':
@@ -509,25 +515,29 @@ class RestProp(Rule):
     def insertSubstitution(self, ruleNode: Node) -> Node:
         lNode = ruleNode.children[1].children[2]
         return lNode
-    
+
 class NullQCons(Rule):
     def __init__(self):
         super().__init__('null?-cons', isProperty=True)
-    
+        self.params = ['L']
+        self.racType = str2Type("LIST>BOOL")
+
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'null?':
             return False, f"Cannot apply null?-cons property when root operation is '{ruleNode.children[0].data}'"
         if ruleNode.children[1].data != '(' or ruleNode.children[1].children[0].data != 'cons':
             return False, f"Cannot apply null?-cons property when argument is not a 'cons' expression"
         return True, "NullQCons.isApplicable() PASS"
-    
+
     def insertSubstitution(self, ruleNode: Node) -> Node:
         return Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
-    
+
 class ZeroQPlus(Rule):
     def __init__(self):
         super().__init__("zero?+", isProperty=True)
-    
+        self.params = ['x']
+        self.racType = str2Type("INT>BOOL")
+
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0].data != 'zero?':
             return False, f"Cannot apply zero?+ property when root operation is '{ruleNode.children[0].data}'"
@@ -536,16 +546,18 @@ class ZeroQPlus(Rule):
         plusArgs = [child.name for child in ruleNode.children[1].children[1:]]
         if not(plusArgs[0] >= 0) or not(plusArgs[1] >= 0)  or not(plusArgs[0] != 0 or plusArgs[1] != 0):
             return False, 'Can only apply zero?+ property when one argument of + is positive and the other is nonnegative'
-        
+
         return True, "ZeroQPlus.isApplicable() PASS"
-    
+
     def insertSubstitution(self, ruleNode: Node) -> Node:
         return Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
 
 class MinusPlus(Rule):
     def __init__(self):
         super().__init__('-+', isProperty=True)
-    
+        self.params = ['x', 'y']
+        self.racType = str2Type("(INT,INT)>INT")
+
     def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
         if ruleNode.children[0] != '-':
             return False, f'Cannot apply -+ when the root operation is {ruleNode.children[0]}'
@@ -559,6 +571,60 @@ class MinusPlus(Rule):
     
     def insertSubstitution(self, ruleNode: Node) -> Node:
         return ruleNode.children[1].children[1]
+
+class AndProp(Rule):
+    def __init__(self):
+        super().__init__("and", isProperty=True)
+        self.params = ['x', 'y']
+        self.racType = str2Type("(BOOL,BOOL)>BOOL")
+
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        if ruleNode.children[0].data != 'and':
+            return False, f"Cannot rewrite 'and' property on a '{ruleNode.children[0].data}' expression"
+        if ruleNode.children[1].data != '#f' and ruleNode.children[2].data != '#f':
+            return False, "Can only rewrite 'and' property when one argument is '#f'"
+        if ruleNode.children[1].data == '#f' and ruleNode.children[2].data == '#f':
+            return False, "Cannot rewrite 'and' property when both arguments are '#f'"
+        return True, 'AndProp.isApplicable() PASS'
+
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        return Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
+
+
+class OrProp(Rule):
+    def __init__(self):
+        super().__init__("or", isProperty=True)
+        self.params = ['x', 'y']
+        self.racType = str2Type("(BOOL,BOOL)>BOOL")
+
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        if ruleNode.children[0].data != 'or':
+            return False, f"Cannot rewrite 'or' property on a '{ruleNode.children[0].data}' expression"
+        if ruleNode.children[1].data != '#t' and ruleNode.children[2].data != '#t':
+            return False, "Can only rewrite 'or' property when one argument is '#t'"
+        if ruleNode.children[1].data == '#t' and ruleNode.children[2].data == '#t':
+            return False, "Cannot rewrite 'or' property when both arguments are '#t'"
+        return True, 'OrProp.isApplicable() PASS'
+
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        return Node(data='#t', tokenType=RacType((None, Type.BOOL)), name=True)
+
+
+class ImpliesProp(Rule):
+    def __init__(self):
+        super().__init__("implies", isProperty=True)
+        self.params = ['x', 'y']
+        self.racType = str2Type("(BOOL,BOOL)>BOOL")
+
+    def isApplicable(self, ruleNode: Node) -> tuple[bool, str]:
+        if ruleNode.children[0].data != 'implies':
+            return False, f"Cannot rewrite 'implies' property on a '{ruleNode.children[0].data}' expression"
+        if ruleNode.children[1].data != '#f':
+            return False, "Can only rewrite 'implies' property when first argument is '#f'"
+        return True, 'ImpliesProp.isApplicable() PASS'
+
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        return Node(data='#t', tokenType=RacType((None, Type.BOOL)), name=True)
 
 class advMath(Rule):
     

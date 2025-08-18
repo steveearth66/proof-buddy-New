@@ -7,12 +7,16 @@ import sympy as sp
 import json
 from expression_tree.ERCommon import makeJson
 
-def do_single_test_case(prefix: str, func: str, expr: str, expected, proof: ERProof = None) -> int:
+
+def do_single_test_case(prefix: str, func: str, expr: str, expected, proof: ERProof = None, args: str = None) -> int:
     if proof == None:
         proof = ERProof()
     if prefix != '':
         prefix += ' '
-    rule = prefix + func
+    if args:
+        rule = prefix + func + f" with {args}"
+    else:
+        rule = prefix + func
     print(f"input: {expr}, using rule '{rule}'")
     proof.addProofLine(expr, rule)
     ans = str(proof.errLog if proof.errLog != [] else proof.getPrevRacket())
@@ -47,8 +51,12 @@ def run_test_cases(prefix: str, func: str, tests: list[tuple], proof: ERProof = 
             proof.addGeneric('x', 'any')
     fails = 0
     for trial in tests:
-        expr, expected = trial
-        fails += do_single_test_case(prefix, func, expr, expected, proof)
+        if len(trial) == 2:
+            expr, expected = trial
+            fails += do_single_test_case(prefix, func, expr, expected, proof)
+        else:
+            expr, args, expected = trial
+            fails += do_single_test_case(prefix, func, expr, expected, proof, args)
     return fails
 
 def test_racket_function(func: str, tests: list[tuple], allowGenerics=False, appliable=False) -> int:
@@ -65,9 +73,14 @@ def test_racket_function(func: str, tests: list[tuple], allowGenerics=False, app
 
 def test_list_func_props(func: str, tests: list[tuple], proof: ERProof = None) -> int:
     fails = run_test_cases('rewrite', func, tests, proof)
-    expr, _ = tests[-1]
-    fails += do_single_test_case('rewrite', func + 'Prop', expr, [f'Could not find rule associated with'
-                                                                  f' {func + 'Prop'}'])
+    if len(tests[-1]) == 2:
+        expr, _ = tests[-1]
+        fails += do_single_test_case('rewrite', func + 'Prop', expr, [f'Could not find rule associated with'
+                                                                      f' {func + 'Prop'}'], proof)
+    else:
+        expr, args, _ = tests[-1]
+        fails += do_single_test_case('rewrite', func + 'Prop', expr, [f'Could not find rule associated with'
+                                                                      f' {func + 'Prop'}'], proof, args)
     return fails
 
 totalFails = 0
@@ -255,7 +268,7 @@ ge_tests = [
 totalFails += test_racket_function('>=', ge_tests)
 
 # Check that 'math' rule can no longer be used in place of the individual operators
-totalFails += do_single_test_case('eval', 'math', '(+ 1 2)', ["Could not find built-in Racket procedure associated with 'math'"])
+totalFails += do_single_test_case('eval', 'math', '(+ 1 2)', ["Cannot evaluate a property"])
 totalFails += do_single_test_case('', 'math', '(+ 1 2)', ["Rule must start with 'eval', 'apply', or 'rewrite'"])
 
 # Logic Function Tests
@@ -448,8 +461,8 @@ if_tests = [
 test_racket_function('if', if_tests)
 
 print('\nTest Undefined Labels\n')
-totalFails += do_single_test_case('rewrite', 'cons-first-rest', '(cons (first L) (rest L))', ["No definition found for "
-                                                                                              "label '['L']'"])
+totalFails += do_single_test_case('rewrite', 'cons-first-rest', '(cons (first L) (rest L))',
+                                  ["No definition found for label '['L']'"], args="x=(first L), L=(rest L)")
 
 axiomProof = ERProof()
 axiomProof.addGeneric('a', 'int', {'assumption': 'None'})
@@ -457,113 +470,209 @@ axiomProof.addGeneric('b', 'int', {'assumption': 'Positive'})
 axiomProof.addGeneric('M', 'list')
 print("\nList Function Property Testing\n")
 cons_prop_tests = [
-    ("(+ 1 2)", ["Cannot apply cons-first-rest property to a '+' expression"]),
-    ("(cons 1 null)", 
+    ("(cons 1 null)", "x=1, L=null",
      ["Can only apply cons-first-rest property when first arg is a 'first' expression and second arg is a 'rest' expression"]),
-    ("(cons 1 (rest '(1 2)))", 
+    ("(cons 1 (rest '(1 2)))", "x=1, L=(rest '(1 2))",
      ["Can only apply cons-first-rest property when first arg is a 'first' expression and second arg is a 'rest' expression"]),
-    ("(cons (first '(1 2)) '(2))", 
+    ("(cons (first '(1 2)) '(2))", "x=(first '(1 2)), L='(2)",
      ["Can only apply cons-first-rest property when first arg is a 'first' expression and second arg is a 'rest' expression"]),
-    ("(cons (first L) (rest M))", ["Cannot apply cons-first-rest property on two different lists"]),
-    ("(cons (first '(1 2)) (rest '(1 3)))", ["Cannot apply cons-first-rest property on two different lists"]),
-    ("(cons (first null) (rest null))", ["first requires non-empty list"]), # cannot apply property when list is null
-    ("(cons (first '(1 2)) (rest '()))", ["rest requires non-empty list"]), # '() instead of null
-    ("(cons (first 1) (rest '(1)))", ["Cannot match argument out typeList ['INT'] with expected typeList ['LIST']"]), # bad type in argument expression
-    ("(cons (first '(1 2) '(3)) (rest '(2 3)))", ["first only takes 1 arguments, but 2 were provided"]), # extra argument in argument expressions
-    ("(cons (first '(1 2)) (rest '(1) '(2)))", ["rest only takes 1 arguments, but 2 were provided"]),
-    ("(cons (first '(1 2)) (rest '(1 2)) null)", ["cons only takes 2 arguments, but 3 were provided"]), # extra argument in cons expression
-    ("(cons (first '(1 2)) (rest '(1 2)))", "'(1 2)"),
-    ("(cons (first (cons 2 null)) (rest (cons 2 null)))", "(cons 2 null)"), # list not completely resolved
-    ("(cons (first L) (rest L))", "L") # symbols
+    ("(cons (first L) (rest M))", "x=(first L), L=(rest M)", ["Cannot apply cons-first-rest property on two different "
+                                                              "lists"]),
+    ("(cons (first '(1 2)) (rest '(1 3)))", "x=(first '(1 2)), L=(rest '(1 3))", ["Cannot apply cons-first-rest "
+                                                                                  "property on "
+                                                                                  "two "
+                                                                                  "different "
+                                                                                  "lists"]),
+    ("(cons (first null) (rest null))", "x=(first null), L=(rest null)", ["first requires non-empty list"]),
+    # cannot apply
+    # property when
+    # list is
+    # null
+    ("(cons (first '(1 2)) (rest null))", "x=(first '(1 2)), L=(rest null)", ["rest requires non-empty list"]),
+    # '() instead
+    # of null
+    ("(cons (first 1) (rest '(1)))", "x=(first 1), L=(rest '(1))", ["Cannot match argument out typeList ['INT'] with "
+                                                                    "expected "
+                                                                    "typeList ['LIST']"]),
+    # bad type in argument expression
+    ("(cons (first '(1 2) '(3)) (rest '(2 3)))", "x=(first '(1 2) '(3)), L=(rest '(2 3))", ["first only takes 1 "
+                                                                                            "arguments, "
+                                                                                            "but 2 were "
+                                                                                            "provided"]),
+    # extra argument in argument expressions
+    ("(cons (first '(1 2)) (rest '(1) '(2)))", "x=(first '(1 2)), L=(rest '(1) '(2))", ["rest only takes 1 arguments, "
+                                                                                        "but 2 were "
+                                                                                        "provided"]),
+    ("(cons (first '(1 2)) (rest '(1 2)) null)", "x=(first '(1 2)), L=(rest '(1 2)), M=null", ["cons only takes 2 "
+                                                                                               "arguments, "
+                                                                                               "but 3 were provided"]),
+    # extra argument in cons expression
+    ("(cons (first '(1 2)) (rest '(1 2)))", "x=(first '(1 2)), L=(rest '(1 2))", "'(1 2)"),
+    ("(cons (first (cons 2 null)) (rest (cons 2 null)))", "x=(first (cons 2 null)), L=(rest (cons 2 null))",
+     "(cons 2 null)"),  # list not completely resolved
+    ("(cons (first L) (rest L))", "x=(first L), L=(rest L)", "L")  # symbols
 ]
 totalFails += test_list_func_props('cons-first-rest', cons_prop_tests, axiomProof)
 
 first_prop_tests = [
-    ("(+ 1 2)", ["Cannot apply first-cons property to a '+' expression"]),
-    ("(first '(1 2))", ["Can only apply first-cons property when argument is a 'cons' expression"]),
+    ("(rest '(1 2))", "L='(1 2)", ["Cannot apply first-cons property to a 'rest' expression"]),
+    ("(first '(1 2))", "L='(1 2)", ["Can only apply first-cons property when argument is a 'cons' expression"]),
     ("(first (cons 1 1))", # bad type in argument expression
-     ["Cannot match argument out typeList ['INT', 'INT'] with expected typeList ['ANY', 'LIST']"]),
-    ("(first (cons 1 '(2 3) '(4 5)))", ["cons only takes 2 arguments, but 3 were provided"]), # extra argument in argument expression
-    ("(first (cons 1 null) null)", ["first only takes 1 arguments, but 2 were provided"]), # extra argument in argument expression
-    ("(first (cons 1 null))", "1"),
-    ("(first (cons 9 '(8 7)))", "9"),
-    ("(first (cons x L))", "x"), # symbolic
-    ("(first (cons (+ (* 4 5) (* 6 7)) null))", "(+ (* 4 5) (* 6 7))"), # first cons argument not completely simplified
-    ("(first (cons 46 (cons 2 null)))", "46") # second cons argument not completely simplified
+     "L=(cons 1 1)", ["Cannot match argument out typeList ['INT', 'INT'] with expected typeList ['ANY', 'LIST']"]),
+    ("(first (cons 1 '(2 3) '(4 5)))", "L=(cons 1 '(2 3) '(4 5))", ["cons only takes 2 arguments, but 3 were "
+                                                                    "provided"]),
+    # extra argument in argument expression
+    ("(first (cons 1 null) null)", "L=(cons 1 null), M=null", ["first only takes 1 arguments, but 2 were provided"]),
+    # extra argument in argument expression
+    ("(first (cons 1 null))", "L=(cons 1 null)", "1"),
+    ("(first (cons 9 '(8 7)))", "L=(cons 9 '(8 7))", "9"),
+    ("(first (cons x L))", "L=(cons x L)", "x"),  # symbolic
+    ("(first (cons (+ (* 4 5) (* 6 7)) null))", "L=(cons (+ (* 4 5) (* 6 7)) null)", "(+ (* 4 5) (* 6 7))"),
+    # first cons argument not completely
+    # simplified
+    ("(first (cons 46 (cons 2 null)))", "L=(cons 46 (cons 2 null))", "46")  # second cons argument not completely
+    # simplified
 ]
 totalFails += test_list_func_props('first-cons', first_prop_tests)
 
 rest_prop_tests = [
-    ("(+ 1 2)", ["Cannot apply rest-cons property to a '+' expression"]),
-    ("(rest '(1 2))", ["Can only apply rest-cons property when argument is a 'cons' expression"]),
+    ("(first '(1 2))", "L='(1 2)", ["Cannot apply rest-cons property to a 'first' expression"]),
+    ("(rest '(1 2))", "L='(1 2)", ["Can only apply rest-cons property when argument is a 'cons' expression"]),
     ("(rest (cons 1 1))", # bad type in argument expression
-     ["Cannot match argument out typeList ['INT', 'INT'] with expected typeList ['ANY', 'LIST']"]),
-    ("(rest (cons 1 '(2 3) '(4 5)))", ["cons only takes 2 arguments, but 3 were provided"]), # extra argument in argument expression
-    ("(rest (cons 1 null) null)", ["rest only takes 1 arguments, but 2 were provided"]), # extra argument in argument expression
-    ("(rest (cons 1 null))", "null"),
-    ("(rest (cons 9 '(8 7)))", "'(8 7)"),
-    ("(rest (cons x L))", "L"), # symbolic
-    ("(rest (cons (+ (* 4 5) (* 6 7)) null))", "null"), # first cons argument not completely simplified
-    ("(rest (cons 46 (cons 2 null)))", "(cons 2 null)") # second cons argument not completely simplified
+     "L=(cons 1 1)", ["Cannot match argument out typeList ['INT', 'INT'] with expected typeList ['ANY', 'LIST']"]),
+    ("(rest (cons 1 '(2 3) '(4 5)))", "L=(cons 1 '(2 3) '(4 5))", ["cons only takes 2 arguments, but 3 were provided"]),
+    # extra argument in
+    # argument expression
+    ("(rest (cons 1 null) null)", "L=(cons 1 null), M=null", ["rest only takes 1 arguments, but 2 were provided"]),
+    # extra argument in argument expression
+    ("(rest (cons 1 null))", "L=(cons 1 null)", "null"),
+    ("(rest (cons 9 '(8 7)))", "L=(cons 9 '(8 7))", "'(8 7)"),
+    ("(rest (cons x L))", "L=(cons x L)", "L"),  # symbolic
+    ("(rest (cons (+ (* 4 5) (* 6 7)) null))", "L=(cons (+ (* 4 5) (* 6 7)) null)", "null"),
+    # first cons argument not completely simplified
+    ("(rest (cons 46 (cons 2 null)))", "L=(cons 46 (cons 2 null))", "(cons 2 null)")  # second cons argument not
+    # completely simplified
 ]
 totalFails += test_list_func_props('rest-cons', rest_prop_tests)
 
 minus_plus_tests = [
-    ("(cons 1 null)", ["Cannot apply -+ when the root operation is cons"]),
-    ("(- 2 1)", ["Cannot apply -+ when the first argument of - is not a + expression"]),
-    ("(- (* 2 2) 2)", ["Cannot apply -+ when the first argument of - is not a + expression"]),
+    ("(+ 1 2)", 'x=1, y=2', ["Cannot apply -+ when the root operation is +"]),
+    ("(- 2 1)", 'x=2, y=1', ["Cannot apply -+ when the first argument of - is not a + expression"]),
+    ("(- (* 2 2) 2)", 'x=(* 2 2), y=2', ["Cannot apply -+ when the first argument of - is not a + expression"]),
     # bad types
-    ("(- (+ null 1) 1)", ["Cannot match argument out typeList ['LIST', 'INT'] with expected typeList ['INT', 'INT']"]),
-    ("(- (+ 1 #f) #f)", 
-     ["Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['INT', 'INT']",
+    ("(- (+ null 1) 1)", 'x=(+ null 1), y=1', ["Cannot match argument out typeList ['LIST', 'INT'] with expected "
+                                               "typeList ['INT', "
+                                               "'INT']"]),
+    ("(- (+ 1 #f) #f)", 'x=(+ 1 #f), y=#f', ["Cannot match argument out typeList ['INT', 'BOOL'] with expected "
+                                             "typeList ['INT', 'INT']",
     "Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['INT', 'INT']"]),
     # too many arguments
-    ("(- (+ 1 2 3) 2)", ["+ only takes 2 arguments, but 3 were provided"]),
-    ("(- (+ k 1) 1 2)", ["- only takes 2 arguments, but 3 were provided"]),
+    ("(- (+ 1 2 3) 2)", 'x=(+ 1 2 3), y=2', ["+ only takes 2 arguments, but 3 were provided"]),
+    ("(- (+ k 1) 1 2)", 'x=(+ k 1), y=1, z=2', ["- only takes 2 arguments, but 3 were provided"]),
     # Insufficiently resolved arguments
-    ("(- (+ 1 2) (+ 1 1))", ["Insufficiently resolved arguments"]),
-    ("(- (+ 1 (+ 1 1)) 2)", ["Insufficiently resolved arguments"]),
-    ("(- (+ 1 (+ 1 1)) (+ 1 1))", ["Insufficiently resolved arguments"]),
+    ("(- (+ 1 2) (+ 1 1))", 'x=(+ 1 2), y=(+ 1 1)', ["Insufficiently resolved arguments"]),
+    ("(- (+ 1 (+ 1 1)) 2)", 'x=(+ 1 (+ 1 1)), y=2', ["Insufficiently resolved arguments"]),
+    ("(- (+ 1 (+ 1 1)) (+ 1 1))", 'x=(+ 1 (+ 1 1)), y=(+ 1 1)', ["Insufficiently resolved arguments"]),
     # arguments don't match
-    ("(- (+ k 2) 1)", ["Cannot apply -+ when the second argument of - doesn't match the second argument of +"]),
+    ("(- (+ k 2) 1)", 'x=(+ k 2), y=1', ["Cannot apply -+ when the second argument of - doesn't match the second "
+                                         "argument of +"]),
     # valid
-    ("(- (+ 2 1) 1)", "2"),
-    ("(- (+ (* 8 8) 3) 3)", "(* 8 8)"),
-    ("(- (+ k 9) 9)", "k")
+    ("(- (+ 2 1) 1)", 'x=(+ 2 1), y=1', "2"),
+    ("(- (+ (* 8 8) 3) 3)", 'x=(+ (* 8 8) 3), y=3', "(* 8 8)"),
+    ("(- (+ k 9) 9)", 'x=(+ k 9), y=9', "k")
 ]
 totalFails += run_test_cases("rewrite", "-+", minus_plus_tests)
 totalFails += do_single_test_case("eval", "-+", minus_plus_tests[-1][0], ["Cannot evaluate a property"])
 totalFails += do_single_test_case("apply", "-+", minus_plus_tests[-1][0], ["Cannot apply a property"])
 
 nullQ_cons_tests = [
-    ("(cons 1 null)", ["Cannot apply null?-cons property when root operation is 'cons'"]),
-    ("(+ 1 2)", ["Cannot apply null?-cons property when root operation is '+'"]),
-    ("(null? null)", ["Cannot apply null?-cons property when argument is not a 'cons' expression"]),
-    ("(null? '(1 2 3))", ["Cannot apply null?-cons property when argument is not a 'cons' expression"]),
-    ("(null? (cons 1 null) null)", ["null? only takes 1 arguments, but 2 were provided"]),
-    ("(null? (cons 1 1))", ["Cannot match argument out typeList ['INT', 'INT'] with expected typeList ['ANY', 'LIST']"]), # bad type in cons
-    ("(null? (cons 1 1 null))", ["cons only takes 2 arguments, but 3 were provided"]), # too many arguments in cons
-    ("(null? (cons x L))", "#f"), # symbolic
-    ("(null? (cons (+ 1 2) (cons null null)))", "#f"), # not fully resolved
-    ("(null? (cons 1 null))", "#f")
+    ("(rest '(1 2))", "L='(1 2)", ["Cannot apply null?-cons property when root operation is 'rest'"]),
+    ("(first '(1 2))", "L='(1 2)", ["Cannot apply null?-cons property when root operation is 'first'"]),
+    ("(null? null)", "L=null", ["Cannot apply null?-cons property when argument is not a 'cons' expression"]),
+    ("(null? '(1 2 3))", "L='(1 2 3)", ["Cannot apply null?-cons property when argument is not a 'cons' expression"]),
+    ("(null? (cons 1 null) null)", "L=(cons 1 null), M=null", ["null? only takes 1 arguments, but 2 were provided"]),
+    ("(null? (cons 1 1))", "L=(cons 1 1)", ["Cannot match argument out typeList ['INT', 'INT'] with expected typeList ["
+                                            "'ANY', 'LIST']"]),  # bad type in cons
+    ("(null? (cons 1 1 null))", "L=(cons 1 1 null)", ["cons only takes 2 arguments, but 3 were provided"]),  # too many
+    # arguments in cons
+    ("(null? (cons x L))", "L=(cons x L)", "#f"),  # symbolic
+    ("(null? (cons (+ 1 2) (cons null null)))", "L=(cons (+ 1 2) (cons null null))", "#f"),  # not fully resolved
+    ("(null? (cons 1 null))", "L=(cons 1 null)", "#f")
 ]
 totalFails += run_test_cases("rewrite", "null?-cons", nullQ_cons_tests)
 totalFails += do_single_test_case("eval", "null?-cons", nullQ_cons_tests[-1][0], ["Cannot evaluate a property"])
 
 zeroQ_plus_tests = [
-    ("(zero? (+ 0 1))", '#f'),
-    ("(zero? (+ 1 0))", '#f'),
-    ("(zero? (+ a k))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
-    ("(zero? (+ a b))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
-    ("(zero? (+ k a))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
-    ("(zero? (+ k 0))", ["Can only apply zero?+ property when one argument of + is positive and the other is nonnegative"]),
-    ("(zero? (+ b 0))", '#f'),
-    ("(zero? (+ b x))", "#f"), # using GenericAny (should be treated as a nonnegative int)
-    ("(zero? (+ b k))", '#f')
+    ("(zero? (+ 0 1))", 'x=(+ 0 1)', '#f'),
+    ("(zero? (+ 1 0))", 'x=(+ 1 0)', '#f'),
+    ("(zero? (+ a k))", 'x=(+ a k)', ["Can only apply zero?+ property when one argument of + is positive and the other "
+                                      "is "
+                                      "nonnegative"]),
+    ("(zero? (+ a b))", 'x=(+ a b)', ["Can only apply zero?+ property when one argument of + is positive and the other "
+                                      "is "
+                                      "nonnegative"]),
+    ("(zero? (+ k a))", 'x=(+ k a)', ["Can only apply zero?+ property when one argument of + is positive and the other "
+                                      "is "
+                                      "nonnegative"]),
+    ("(zero? (+ k 0))", 'x=(+ k 0)', ["Can only apply zero?+ property when one argument of + is positive and the other "
+                                      "is "
+                                      "nonnegative"]),
+    ("(zero? (+ b 0))", 'x=(+ b 0)', '#f'),
+    ("(zero? (+ b x))", 'x=(+ b x)', "#f"),  # using GenericAny (should be treated as a nonnegative int)
+    ("(zero? (+ b k))", 'x=(+ b k)', '#f')
 ]
 totalFails += run_test_cases("rewrite", "zero?+", zeroQ_plus_tests, axiomProof)
 totalFails += do_single_test_case("eval", "zero?+", zeroQ_plus_tests[-1][0], ["Cannot evaluate a property"], axiomProof)
 totalFails += do_single_test_case("apply", "zero?+", zeroQ_plus_tests[-1][0], ["Cannot apply a property"], axiomProof)
+
+and_prop_tests = [
+    ("(or #t #f)", "x=#t, y=#f", ["Cannot rewrite 'and' property on a 'or' expression"]),
+    ("(and #t #t)", "x=#t, y=#t", ["Can only rewrite 'and' property when one argument is '#f'"]),
+    ("(and #f #f)", "x=#f, y=#f", ["Cannot rewrite 'and' property when both arguments are '#f'"]),
+    ("(and #f null)", "x=#f, y=null",
+     ["Cannot match argument out typeList ['BOOL', 'LIST'] with expected typeList ['BOOL', 'BOOL']"]),
+    ("(and 1 #f)", "x=1, y=#f",
+     ["Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['BOOL', 'BOOL']"]),
+    ("(and #f #t)", "x=#f, y=#t", "#f"),  # one argument is false
+    ("(and #t #f)", "x=#t, y=#f", "#f"),  # one argument is false
+    ("(and #f (if (zero? 1) #t #f))", "x=#f, y=(if (zero? 1) #t #f)", "#f"),  # will work because the first argument is
+    # false
+    ("(and (if (zero? 1) #t #f) #f)", "x=(if (zero? 1) #t #f), y=#f", "#f")
+    # will work because the second argument is false
+]
+totalFails += run_test_cases("rewrite", "and", and_prop_tests, axiomProof)
+totalFails += do_single_test_case("apply", "and", and_prop_tests[-1][0], ["Could not find definition/lemma "
+                                                                          "associated with and"], axiomProof)
+
+or_prop_tests = [
+    ("(and #t #f)", "x=#t, y=#f", ["Cannot rewrite 'or' property on a 'and' expression"]),
+    ("(or #f #f)", "x=#f, y=#f", ["Can only rewrite 'or' property when one argument is '#t'"]),
+    ("(or #t #t)", "x=#t, y=#t", ["Cannot rewrite 'or' property when both arguments are '#t'"]),
+    ("(or #t null)", "x=#t, y=null",
+     ["Cannot match argument out typeList ['BOOL', 'LIST'] with expected typeList ['BOOL', 'BOOL']"]),
+    ("(or 1 #t)", "x=1, y=#t",
+     ["Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['BOOL', 'BOOL']"]),
+    ("(or #t #f)", "x=#t, y=#f", "#t"),  # one argument is true
+    ("(or #f #t)", "x=#f, y=#t", "#t"),  # one argument is true
+    ("(or #t (if (zero? 1) #t #f))", "x=#t, y=(if (zero? 1) #t #f)", "#t"),  # will work because the first argument is
+    # true
+    ("(or (if (zero? 1) #t #f) #t)", "x=(if (zero? 1) #t #f), y=#t", "#t")
+    # will work because the second argument is true
+]
+totalFails += run_test_cases("rewrite", "or", or_prop_tests, axiomProof)
+totalFails += do_single_test_case("apply", "or", or_prop_tests[-1][0], ["Could not find definition/lemma "
+                                                                        "associated with or"], axiomProof)
+
+implies_prop_tests = [
+    ("(and #t #f)", "x=#t, y=#f", ["Cannot rewrite 'implies' property on a 'and' expression"]),
+    ("(implies #t #t)", "x=#t, y=#t", ["Can only rewrite 'implies' property when first argument is '#f'"]),
+    ("(implies #f (if (zero? 1) #t #f))", "x=#f, y=(if (zero? 1) #t #f)", "#t"),  # lets unresolved expression be
+    # second argument
+]
+totalFails += run_test_cases("rewrite", "implies", implies_prop_tests, axiomProof)
+totalFails += do_single_test_case("apply", "implies", implies_prop_tests[-1][0], ["Could not find definition/lemma "
+                                                                                  "associated with implies"],
+                                  axiomProof)
 
 print("\nUDF testing:\n")
 udfProof = ERProof()

@@ -102,8 +102,25 @@ const PersistentPad = forwardRef(function PersistentPad(
   }));
 
   const handleRuleChange = (e) => {
-    setRule(e.target.value);
-    onRuleChange?.(e);
+    let transformedValue = e.target.value;
+    
+    // Transform = to arrow if rule doesn't start with "eval"
+    if (transformedValue.split(" ")[0] !== "eval") {
+      transformedValue = transformedValue.replace(/=/g, "\u21A6");
+    }
+    
+    setRule(transformedValue);
+    
+    // Create a new event with the transformed value
+    const transformedEvent = {
+      ...e,
+      target: {
+        ...e.target,
+        value: transformedValue
+      }
+    };
+    
+    onRuleChange?.(transformedEvent);
   };
 
   return (

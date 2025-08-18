@@ -117,7 +117,8 @@ def list2Type(slist:list[str])->RacType:
         if strg=="":
             return RacType(Type.ERROR)
         if strg[0]=="(":
-            strg = str[1:-1] #cutting out any surrounding parens (note that strg is not a function, so an open parens isn't needed)
+            strg = strg[1:-1]  # cutting out any surrounding parens (note that strg is not a function, so an open
+            # parens isn't needed)
         return RacType((None,Type.__members__.get(strg)))
     return RacType() # TODO: this is what needs to be done if it is a function
 
