@@ -276,8 +276,8 @@ print('\nTesting Logic Rules:\n')
 not_tests = [
     ("(cons 1 null)", ["Cannot evaluate not on a 'cons' expression"]),
     ("(and #t #t)", ["Cannot evaluate not on a 'and' expression"]),
-    ("(not #t #t)", ['not only takes 1 arguments, but 2 were provided']),
-    ("(not)", ['not only takes 1 arguments, but 0 were provided']),
+    ("(not #t #t)", ['not only takes 1 argument, but 2 were provided']),
+    ("(not)", ['not only takes 1 argument, but 0 were provided']),
     ("(not 1)", ["Cannot match argument out typeList ['INT'] with expected typeList ['BOOL']"]),
     ("(not (and #t #f))", ['Insufficiently resolved arguments']),
     ("(not p)", ["Cannot evaluate 'not' expression with generic arguments"]),
@@ -383,8 +383,8 @@ first_tests = [
     ("(+ 1 2)", ["Cannot evaluate first on a '+' expression"]),
     ("(cons 1 null)", ["Cannot evaluate first on a 'cons' expression"]),
     ("(first 1)", ["Cannot match argument out typeList ['INT'] with expected typeList ['LIST']"]),
-    ("(first)", ['first only takes 1 arguments, but 0 were provided']),
-    ("(first '(1 2) '(3 4))", ['first only takes 1 arguments, but 2 were provided']),
+    ("(first)", ['first only takes 1 argument, but 0 were provided']),
+    ("(first '(1 2) '(3 4))", ['first only takes 1 argument, but 2 were provided']),
     ("(first (cons 1 null))", ['Insufficiently resolved arguments']), # error expected because the rule is 'eval first',
     ("(first L)", ["Cannot evaluate 'first' expression with generic arguments"]),
     ("(first null)", ['first requires non-empty list']),
@@ -399,8 +399,8 @@ rest_tests = [
     ("(+ 1 2)", ["Cannot evaluate rest on a '+' expression"]),
     ("(cons 1 null)", ["Cannot evaluate rest on a 'cons' expression"]),
     ("(rest 1)", ["Cannot match argument out typeList ['INT'] with expected typeList ['LIST']"]),
-    ("(rest)", ['rest only takes 1 arguments, but 0 were provided']),
-    ("(rest '(1 2) '(3 4))", ['rest only takes 1 arguments, but 2 were provided']),
+    ("(rest)", ['rest only takes 1 argument, but 0 were provided']),
+    ("(rest '(1 2) '(3 4))", ['rest only takes 1 argument, but 2 were provided']),
     ("(rest (cons 1 null))", ['Insufficiently resolved arguments']), # error expected because the rule is 'eval rest'
     ("(rest null)", ['rest requires non-empty list']),
     ("(rest L)", ["Cannot evaluate 'rest' expression with generic arguments"]),
@@ -415,7 +415,7 @@ print('\nTesting All Other Built-Ins\n')
 zeroQ_tests = [
     ("(+ 1 2)", ["Cannot evaluate zero? on a '+' expression"]),
     ("(cons 1 null)", ["Cannot evaluate zero? on a 'cons' expression"]),
-    ("(zero? 1 2)", ["zero? only takes 1 arguments, but 2 were provided"]),
+    ("(zero? 1 2)", ["zero? only takes 1 argument, but 2 were provided"]),
     ("(zero? (+ 1 2))", ["Insufficiently resolved arguments"]),
     ("(zero? (- 1 2))", ["Insufficiently resolved arguments"]),
     ("(zero? k)", ["Cannot determine value of 'zero?' expression with generic argument 'k'"]),
@@ -430,7 +430,7 @@ totalFails += test_racket_function('zero?', zeroQ_tests)
 nullQ_tests = [
     ("(+ 1 2)", ["Cannot evaluate null? on a '+' expression"]),
     ("(cons 1 null)", ["Cannot evaluate null? on a 'cons' expression"]),
-    ("(null? null null)", ["null? only takes 1 arguments, but 2 were provided"]),
+    ("(null? null null)", ["null? only takes 1 argument, but 2 were provided"]),
     ("(null? (cons 1 null))", ["Insufficiently resolved arguments"]),
     ("(null? 1)", "#f"),
     ("(null? #f)", "#f"),
@@ -462,7 +462,7 @@ test_racket_function('if', if_tests)
 
 integerQ_tests = [
     ("(+ 1 2)", ["Cannot evaluate integer? on a '+' expression"]),
-    ("(integer? 1 2)", ["integer? only takes 1 arguments, but 2 were provided"]),
+    ("(integer? 1 2)", ["integer? only takes 1 argument, but 2 were provided"]),
     ("(integer? 1)", '#t'),
     ("(integer? k)", '#t'),
     ("(integer? null)", '#f'),
@@ -476,7 +476,7 @@ totalFails += test_racket_function('integer?', integerQ_tests)
 
 listQ_tests = [
     ("(+ 1 2)", ["Cannot evaluate list? on a '+' expression"]),
-    ("(list? null null)", ["list? only takes 1 arguments, but 2 were provided"]),
+    ("(list? null null)", ["list? only takes 1 argument, but 2 were provided"]),
     ("(list? 1)", '#f'),
     ("(list? k)", '#f'),
     ("(list? null)", '#t'),
@@ -524,11 +524,11 @@ cons_prop_tests = [
                                                                     "typeList ['LIST']"]),
     # bad type in argument expression
     ("(cons (first '(1 2) '(3)) (rest '(2 3)))", "x=(first '(1 2) '(3)), L=(rest '(2 3))", ["first only takes 1 "
-                                                                                            "arguments, "
+                                                                                            "argument, "
                                                                                             "but 2 were "
                                                                                             "provided"]),
     # extra argument in argument expressions
-    ("(cons (first '(1 2)) (rest '(1) '(2)))", "x=(first '(1 2)), L=(rest '(1) '(2))", ["rest only takes 1 arguments, "
+    ("(cons (first '(1 2)) (rest '(1) '(2)))", "x=(first '(1 2)), L=(rest '(1) '(2))", ["rest only takes 1 argument, "
                                                                                         "but 2 were "
                                                                                         "provided"]),
     ("(cons (first '(1 2)) (rest '(1 2)) null)", "x=(first '(1 2)), L=(rest '(1 2)), M=null", ["cons only takes 2 "
@@ -550,7 +550,7 @@ first_prop_tests = [
     ("(first (cons 1 '(2 3) '(4 5)))", "L=(cons 1 '(2 3) '(4 5))", ["cons only takes 2 arguments, but 3 were "
                                                                     "provided"]),
     # extra argument in argument expression
-    ("(first (cons 1 null) null)", "L=(cons 1 null), M=null", ["first only takes 1 arguments, but 2 were provided"]),
+    ("(first (cons 1 null) null)", "L=(cons 1 null), M=null", ["first only takes 1 argument, but 2 were provided"]),
     # extra argument in argument expression
     ("(first (cons 1 null))", "L=(cons 1 null)", "1"),
     ("(first (cons 9 '(8 7)))", "L=(cons 9 '(8 7))", "9"),
@@ -571,7 +571,7 @@ rest_prop_tests = [
     ("(rest (cons 1 '(2 3) '(4 5)))", "L=(cons 1 '(2 3) '(4 5))", ["cons only takes 2 arguments, but 3 were provided"]),
     # extra argument in
     # argument expression
-    ("(rest (cons 1 null) null)", "L=(cons 1 null), M=null", ["rest only takes 1 arguments, but 2 were provided"]),
+    ("(rest (cons 1 null) null)", "L=(cons 1 null), M=null", ["rest only takes 1 argument, but 2 were provided"]),
     # extra argument in argument expression
     ("(rest (cons 1 null))", "L=(cons 1 null)", "null"),
     ("(rest (cons 9 '(8 7)))", "L=(cons 9 '(8 7))", "'(8 7)"),
@@ -618,7 +618,7 @@ nullQ_cons_tests = [
     ("(first '(1 2))", "L='(1 2)", ["Cannot apply null?-cons property when root operation is 'first'"]),
     ("(null? null)", "L=null", ["Cannot apply null?-cons property when argument is not a 'cons' expression"]),
     ("(null? '(1 2 3))", "L='(1 2 3)", ["Cannot apply null?-cons property when argument is not a 'cons' expression"]),
-    ("(null? (cons 1 null) null)", "L=(cons 1 null), M=null", ["null? only takes 1 arguments, but 2 were provided"]),
+    ("(null? (cons 1 null) null)", "L=(cons 1 null), M=null", ["null? only takes 1 argument, but 2 were provided"]),
     ("(null? (cons 1 1))", "L=(cons 1 1)", ["Cannot match argument out typeList ['INT', 'INT'] with expected typeList ["
                                             "'ANY', 'LIST']"]),  # bad type in cons
     ("(null? (cons 1 1 null))", "L=(cons 1 1 null)", ["cons only takes 2 arguments, but 3 were provided"]),  # too many
@@ -745,10 +745,10 @@ totalFails += do_single_test_case('apply', 'f x=3, y=4', "(f 3 4)", "(* 3 4)", u
 totalFails += do_single_test_case('', 'g x=3', "(g 3)", ["Rule must start with 'eval', 'apply', or 'rewrite'"],
                                   udfProof)
 totalFails += do_single_test_case('eval', 'g x=3', "(g 3)", ['Cannot evaluate a user-defined function'], udfProof)
-totalFails += do_single_test_case('apply', 'g', "(g 3)", ['Not enough arguments given for g. g requires 1 arguments, '
+totalFails += do_single_test_case('apply', 'g', "(g 3)", ['Not enough arguments given for g. g requires 1 argument, '
                                                           'while you gave 0'], udfProof)
 totalFails += do_single_test_case('apply', 'g x=3, y=4', "(g 3)", ['Too many arguments given for g. g requires 1 '
-                                                                   'arguments, while you gave 2'], udfProof)
+                                                                   'argument, while you gave 2'], udfProof)
 totalFails += do_single_test_case('apply', 'g y=3', "(g 3)", ["Argument 'y' is in position 1 but expected 'x' for g"],
                                   udfProof)
 totalFails += do_single_test_case('apply', 'g x=#t', "(g 3)", ["Type mismatch in argument 'x=#t': expected INT, "
@@ -789,9 +789,9 @@ totalFails += do_single_test_case('apply', "h x='(1 2 3), y='(4 5 6)", "(h '(1 2
 
 # 1 list argument
 totalFails += do_single_test_case('apply', 'i', "(i '(0 1 2))", ['Not enough arguments given for i. i requires 1 '
-                                                                 'arguments, while you gave 0'], udfProof)
+                                                                 'argument, while you gave 0'], udfProof)
 totalFails += do_single_test_case('apply', "i x='(0 1 2), y='(3 4 5)", "(i '(0 1 2))", ['Too many arguments given for '
-                                                                                        'i. i requires 1 arguments, while you gave 2'],
+                                                                                        'i. i requires 1 argument, while you gave 2'],
                                   udfProof)
 totalFails += do_single_test_case('apply', "i y='(0 1 2)", "(i '(0 1 2))",
                                   ["Argument 'y' is in position 1 but expected 'x' for i"], udfProof)

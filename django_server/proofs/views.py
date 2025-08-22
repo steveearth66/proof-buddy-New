@@ -2,7 +2,7 @@ from .serializers import ProofSerializer, ProofLineSerializer, DefinitionSeriali
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Proof, ProofLine, Definition, Generic
-from expression_tree.ERProofEngine import ERProof
+from expression_tree.ERProofEngine import TwoSidedProof, ERProof
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from rest_framework.decorators import api_view
 
@@ -27,15 +27,15 @@ def edit_proof(request, id):
         if serializer.is_valid():
             serializer.save()
             return Response(
-                    { "message": "Proof successfully updated"}, status=status.HTTP_200_OK
+                    { "message": "Proof successfully updated" }, status=status.HTTP_200_OK
                 )
         else:
             return Response(
-                    { "message": "New name or tag is invalid"}, status=status.HTTP_400_BAD_REQUEST
+                    { "message": "New name or tag is invalid" }, status=status.HTTP_400_BAD_REQUEST
                 )
     except Proof.DoesNotExist:
         return Response(
-                { "message": "Proof does not exist"}, status=status.HTTP_404_NOT_FOUND
+                { "message": "Proof does not exist" }, status=status.HTTP_404_NOT_FOUND
             )
 
 def get_or_create_proof(data, user, definitions, generics):
@@ -59,7 +59,7 @@ def get_or_create_proof(data, user, definitions, generics):
     if not proof.is_valid():
         return proof.errors
     proof.save(created_by=user)
-    add_data_to_proof(data, proof.instance, definitions, user)
+    add_data_to_proof(data, proof.instance, definitions, generics, user)
 
     return proof.instance
 
@@ -245,7 +245,7 @@ def user_proof(user, proof_id):
             }
         )
     
-    generics_data = GenericSerializer(generics, many=True)
+    generics_data = GenericSerializer(generics, many=True).data
     for generic_dict in generics_data:
         generic_dict["enabled"] = True
 
@@ -266,16 +266,8 @@ def user_proof(user, proof_id):
 
 def load_proof(proof_data):
     # print(proof_data)
-    proof = {
-        "proofOne": ERProof(),
-        "proofTwo": ERProof(),
-        "isValid": True,
-        "currentProof": None,
-        "definitions": [],
-    }
+    proof = TwoSidedProof()
 
-    left_proof: ERProof = proof["proofOne"]
-    right_proof: ERProof = proof["proofTwo"]
     definitions = proof_data["definitions"]
 
     proof_lines = proof_data["proofLines"]
@@ -288,19 +280,17 @@ def load_proof(proof_data):
         expression = definition["expression"]
         definition["applied"] = True
 
-        left_proof.addUDF(label, def_type, expression)
-        right_proof.addUDF(label, def_type, expression)
-        proof["definitions"].append(definition)
+        proof.addUDF(label, def_type, expression)
+        proof.definitions.append(definition)
     
     for generic in proof_data["generics"]:
-        proof["proofOne"].addGeneric(generic["label"], generic["type"], generic["restrictions"])
-        proof["proofTwo"].addGeneric(generic["label"], generic["type"], generic["restrictions"])
+        proof.addGeneric(generic["label"], generic["type"], generic["restrictions"])
 
     for index, line in enumerate(left_proof_lines, start=0):
         if index == 0:
-            left_proof.addProofLine(line["racket"])
+            proof.LHS.addProofLine(line["racket"])
         else:
-            left_proof.addProofLine(
+            proof.LHS.addProofLine(
                 left_proof_lines[index - 1]["racket"],
                 line["rule"],
                 left_proof_lines[index - 1]["startPosition"],
@@ -308,15 +298,13 @@ def load_proof(proof_data):
 
     for index, line in enumerate(right_proof_lines, start=0):
         if index == 0:
-            right_proof.addProofLine(line["racket"])
+            proof.RHS.addProofLine(line["racket"])
         else:
-            right_proof.addProofLine(
+            proof.RHS.addProofLine(
                 right_proof_lines[index - 1]["racket"],
                 line["rule"],
                 right_proof_lines[index - 1]["startPosition"],
             )
-
-    proof["currentProof"] = left_proof
 
     return proof
 
@@ -429,21 +417,17 @@ def create_user_generic(user, data):
         serializer.save(created_by=user)
     return serializer.data
 
-def use_generic(proof, id):
+def use_generic(proof: TwoSidedProof, id):
     generic = Generic.objects.get(id=id)
     generic_data = GenericSerializer(generic).data
-    for proofSide in (proof["proofOne"], proof["proofTwo"]):
-        proofSide.addGeneric(
-            generic_data["label"], generic_data["type"], generic_data["restrictions"]
-            )
+    proof.addGeneric(generic_data["label"], generic_data["type"], generic_data["restrictions"])
 
-def remove_generic(proof, id):
+def remove_generic(proof: TwoSidedProof, id):
     generic = Generic.objects.get(id=id)
     label = generic.label
-    for proofSide in (proof["proofOne"], proof["proofTwo"]):
-        del proofSide.generics[label]
+    del proof.generics[label]
 
-def delete_generic(proof, id):
+def delete_generic(proof: TwoSidedProof, id):
     try:
         remove_generic(proof, id)
     except KeyError:
@@ -451,7 +435,7 @@ def delete_generic(proof, id):
     generic = Generic.objects.get(id=id)
     generic.delete()
 
-def use_uploaded_generic(user, proof, generic_data):
+def use_uploaded_generic(user, proof: TwoSidedProof, generic_data):
     model_data = {
         **generic_data, 
         "restrictions": str(generic_data.get("restrictions"))
@@ -462,5 +446,4 @@ def use_uploaded_generic(user, proof, generic_data):
                   else GenericSerializer(instance=generic_object, data=model_data))
     if serializer.is_valid():
         serializer.save(created_by=user)
-    for proof_side in (proof["proofOne"], proof["proofTwo"]):
-        proof_side.addGeneric(generic_data["label"], generic_data["type"], generic_data["restrictions"])
+    proof.addGeneric(generic_data["label"], generic_data["type"], generic_data["restrictions"])

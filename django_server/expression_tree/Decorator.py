@@ -112,9 +112,7 @@ def remTemps(inputTree: Node, errLog=None, debug=False, theRuleDict=None) -> lis
     return errLog
 
 # function to check correct number of provided arguments for functions
-def argQty(treeNode: Node, ruleDict=None, userType = None) -> list[bool,str]:
-    if ruleDict == None:
-        ruleDict = dict()
+def argQty(treeNode: Node, userType = None) -> list[bool,str]:
     func = treeNode.children[0]
     builtins = ["if", "first", "rest", "cons", "null?", "zero?", "list?", "integer?","expt", "<=",">=","quotient","remainder",\
                 "+", "-", "*", "=", ">",">=", "<", "<=","and", "or", "not", "xor","implies"]
@@ -122,39 +120,33 @@ def argQty(treeNode: Node, ruleDict=None, userType = None) -> list[bool,str]:
         func.type = userType
         if func.type.isType("FUNCTION"):
             func.numArgs = len(func.type.getDomain())
-    # this used to crash, but now with numArgs added into fillbody, it should work
-    # if func.data in ruleDict.keys():
-    #    if len(treeNode.children[1:]) != len(ruleDict[func.data].racType.getDomain()):
-    #        return False, f"{treeNode.data} must take {len(ruleDict[treeNode.data].racType.getDomain())} inputs"
+            
     expectedCount = func.numArgs
     providedCount = len(treeNode.children) - 1
 
     # if (expectedCount != providedCount) and (func.type.getType() not in FLEX_TYPES):
     if (expectedCount != None) and (expectedCount != providedCount): #note: nonfunction have "None" for numArgs
-        return [False, f"{func.name} only takes {expectedCount} arguments, but {providedCount} {'was' if providedCount == 1 else 'were'} provided"]
+        return [False, f"{func.name} only takes {expectedCount} argument{'' if expectedCount == 1 else 's'}, but {providedCount} {'was' if providedCount == 1 else 'were'} provided"]
 
     # only typeCheck if everything passes
-    daRules = ruleDict # to avoid possible bug with "ruleDict = ruleDict" to skip debug parameter default
-    return typeCheck(treeNode, ruleDict=daRules)
+    return typeCheck(treeNode)
 
 # check functions meet number of arguments and type checking restrictions
 
 
-def checkFunctions(inputTree: Node, errLog, debug=False, theRuleDict=None, userType = None) -> tuple[Node, list[str]]:
+def checkFunctions(inputTree: Node, errLog, debug=False, userType=None) -> tuple[Node, list[str]]:
     if inputTree == None:
         return inputTree, errLog
-    if theRuleDict == None:   # added optional pointer to parent proof's ruleset
-        theRuleDict = dict()
 
     # only check if the function has children
     if len(inputTree.children) > 0: # and inputTree.type.getType() in FLEX_TYPES:
-        typPass = argQty(inputTree, theRuleDict, userType)
+        typPass = argQty(inputTree, userType)
         if not typPass[0]:
             errLog.append(typPass[1])
 
         # continue check for the children of the Node
         for child in inputTree.children:
-            checkFunctions(child, errLog, debug, theRuleDict, userType)
+            checkFunctions(child, errLog, debug, userType)
 
     # return any errors
     return inputTree, errLog
@@ -164,9 +156,7 @@ def checkFunctions(inputTree: Node, errLog, debug=False, theRuleDict=None, userT
 
 # checks that an expression calling a function has the correct arg types. already checked for correct number of args
 # returns True if no errors, False if there are errors. either way, also sends string msg
-def typeCheck(inputTree: Node, debug=False, ruleDict=None) -> list[bool,str]:
-    if ruleDict == None:
-        ruleDict = dict()
+def typeCheck(inputTree: Node, debug=False) -> list[bool,str]:
     if not type(inputTree) == Node:
         return [True, "inputTree is not a Node object, so no type violation"]
     if inputTree.children == []:

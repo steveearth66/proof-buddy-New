@@ -4,7 +4,6 @@ from .ERGenerics import ERGeneric, GenericInt, GenericList, GenericBool, Generic
 import copy
 from .Parser import buildTree, preProcess
 from .Labeler import labelTree  # , fillPositions
-from typing import Dict
 import sympy as sp
 
 # recursively check if two nodes are identical
@@ -658,7 +657,7 @@ class TypeQProp(Rule):
             return False, f"Cannot rewrite '{ruleNode.children[0]}' expression with '{self.label}' rule"
         if ruleNode.children[1].data != '(' or len(ruleNode.children[1].children) == 0:
             return False, f"Cannot apply '{self.label}' rewrite when argument is not a function call"
-        if ruleNode.children[1].children[0].data in ('cons', 'if'):
+        if ruleNode.children[1].children[0].type.getRange().isType('ANY'):
             return False, "Cannot determine output type of argument operation"
         return True, "TypeQProp.isApplicable() PASS"
     
@@ -675,7 +674,7 @@ class ListQProp(TypeQProp):
     def __init__(self):
         super().__init__('list?', 'LIST')
 
-class advMath(Rule):
+class AdvMath(Rule):
     
     def __init__(self):
         super().__init__('advMath', isProperty=True)
@@ -718,3 +717,42 @@ class AdvMath(Rule):
             if Math.isApplicable(child):
                 child = AdvMath().insertSubstitution(child)
         ruleNode = Math().insertSubstitution(ruleNode) """
+
+DEFAULT_RULE_SET: dict[str, Rule | tuple[Rule, Rule]] = {
+    # NOTE: Same key can map to two different rules,
+    # may be useful to split rule set by prefix?
+    'if': If(),
+    'null?': NullQ(),
+    'zero?': ZeroQ(),
+    'cons': ConsList(),
+    'first': FirstList(),
+    'rest': RestList(),
+    'and': (And(), AndProp()),
+    'or': (Or(), OrProp()),
+    'not': Not(),
+    'implies': (Implies(), ImpliesProp()),
+    'xor': Xor(),
+    '+': Plus(),
+    '-': Minus(),
+    '*': Times(),
+    'quotient': Quotient(),
+    'remainder': Remainder(),
+    'expt': Expt(),
+    '<': LessThan(),
+    '<=': LessOrEqual(),
+    '>': GreaterThan(),
+    '>=': GreaterOrEqual(),
+    '=': Equals(),
+    'integer?': (IntegerQ(), IntegerQProp()),
+    'list?': (ListQ(), ListQProp()),
+    'cons-first-rest': ConsProp(),
+    'first-cons': FirstProp(),
+    'rest-cons': RestProp(),
+    'null?-cons': NullQCons(),
+    '-+': MinusPlus(),
+    'zero?+': ZeroQPlus(),
+    'math': AdvMath()
+}
+
+def getDefaultRuleSet():
+    return DEFAULT_RULE_SET.copy()
