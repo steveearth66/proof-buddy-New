@@ -85,8 +85,6 @@ const ERRacket = () => {
 
   const loadRacketProof = useCallback((loadedProof) => {
     if (loadedProof) {
-      console.log('loadRacketProof called with:', loadedProof);
-      
       formValues.proofName = loadedProof.name;
       formValues.proofTag = loadedProof.tag;
       formValues.lHSGoal = loadedProof.lHSGoal;
@@ -129,13 +127,17 @@ const ERRacket = () => {
     formValues.proofTag,
     showSide
   );
-  const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields);
+  
   const [isOffcanvasActive, toggleOffcanvas] = useOffcanvas();
   const [showDefinitionsWindow, toggleDefinitionsWindow] =
     useDefinitionsWindow();
   const [proofComplete, setProofComplete] = useState(false);
   const [leftPremise, setLeftPremise] = useState(INITIAL_PREMISE_STATE);
   const [rightPremise, setRightPremise] = useState(INITIAL_PREMISE_STATE);
+  
+  // Hook to track current LHS and RHS values
+  const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields, formValues, isGoalChecked);
+  
   const [loadedProof, setLoadedProof] = useState(null);
   const location = useLocation();
   const [isBound, setIsBound] = useState(false);
@@ -768,7 +770,7 @@ const ERRacket = () => {
                     name="proofCurrentLHS"
                     type="text"
                     placeholder="Current LHS"
-                    value={currentLHS === "" ? formValues.lHSGoal : currentLHS}
+                    value={currentLHS}
                     readOnly
                   />
                   <label htmlFor="eRProofCurrentLHS">Current LHS</label>
@@ -786,7 +788,7 @@ const ERRacket = () => {
                     name="proofCurrentRHS"
                     type="text"
                     placeholder="Current RHS"
-                    value={currentRHS === "" ? formValues.rHSGoal : currentRHS}
+                    value={currentRHS}
                     readOnly
                   />
                   <label htmlFor="eRProofCurrentRHS">Current RHS</label>
