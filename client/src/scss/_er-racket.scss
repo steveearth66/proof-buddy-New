@@ -125,15 +125,11 @@
       }
 
       .racket-rule-container-wrap {
-        max-height: calc(100vh - 400px); // Mobile: account for non-fixed header + form elements + floating footer
+        // Height is now dynamically calculated via inline style in the component
+        // This allows for proper responsive behavior on window resize
         overflow-y: auto;
         padding-right: 8px; // Add padding to account for scrollbar
-        margin-bottom: 120px; // Add margin to prevent overlap with floating footer
         
-        @media (min-width: $breakpoint-md) {
-          max-height: calc(100vh - 498px); // Desktop: header (68px) + form-top-section (310px) + floating footer (120px) = 498px
-        }
-
         // Custom scrollbar styling
         &::-webkit-scrollbar {
           width: 8px;
@@ -152,9 +148,10 @@
             background: #a8a8a8;
           }
         }
-
+        
         .racket-rule-wrap {
           padding-right: 4px; // Additional padding for content
+          padding-bottom: 20px; // Add bottom padding to ensure last row is visible when scrolling
         }
       }
 

@@ -28,6 +28,7 @@ import {
 } from "../components";
 import ClickableRowNumber from "../components/ClickableRowNumber";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
+import { useDynamicHeight } from "../hooks/useDynamicHeight";
 import erService from "../services/erService";
 import { useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -134,13 +135,16 @@ const ERRacket = () => {
   const [proofComplete, setProofComplete] = useState(false);
   const [leftPremise, setLeftPremise] = useState(INITIAL_PREMISE_STATE);
   const [rightPremise, setRightPremise] = useState(INITIAL_PREMISE_STATE);
+  const [loadedProof, setLoadedProof] = useState(null);
+  const [isBound, setIsBound] = useState(false);
   
   // Hook to track current LHS and RHS values
   const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields, formValues, isGoalChecked);
   
-  const [loadedProof, setLoadedProof] = useState(null);
+  // Hook to dynamically calculate available height for scroll container
+  const availableHeight = useDynamicHeight([racketRuleFields, formValues, isBound]);
+  
   const location = useLocation();
-  const [isBound, setIsBound] = useState(false);
 
   const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
@@ -862,7 +866,10 @@ const ERRacket = () => {
             )}
 
             {isGoalChecked[showSide] && (
-              <div className="racket-rule-container-wrap">
+              <div 
+                className="racket-rule-container-wrap"
+                style={{ maxHeight: `${availableHeight}px` }}
+              >
                 <div className="racket-rule-wrap" id="racket-rule">
                   {serverError && (
                     <Alert variant={"danger"}>{serverError}</Alert>
