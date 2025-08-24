@@ -124,6 +124,40 @@
         margin-top: 325px;
       }
 
+      .racket-rule-container-wrap {
+        max-height: calc(100vh - 400px); // Mobile: account for non-fixed header + form elements + floating footer
+        overflow-y: auto;
+        padding-right: 8px; // Add padding to account for scrollbar
+        margin-bottom: 120px; // Add margin to prevent overlap with floating footer
+        
+        @media (min-width: $breakpoint-md) {
+          max-height: calc(100vh - 498px); // Desktop: header (68px) + form-top-section (310px) + floating footer (120px) = 498px
+        }
+
+        // Custom scrollbar styling
+        &::-webkit-scrollbar {
+          width: 8px;
+        }
+
+        &::-webkit-scrollbar-track {
+          background: #f1f1f1;
+          border-radius: 4px;
+        }
+
+        &::-webkit-scrollbar-thumb {
+          background: #c1c1c1;
+          border-radius: 4px;
+          
+          &:hover {
+            background: #a8a8a8;
+          }
+        }
+
+        .racket-rule-wrap {
+          padding-right: 4px; // Additional padding for content
+        }
+      }
+
       .switch-btn-wrap {
         text-align: center;
         margin-bottom: 20px;
