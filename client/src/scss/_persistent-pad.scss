@@ -1,8 +1,28 @@
+
+.highlight.blue-highlight {
+  background-color: #00c200;
+  position: relative;
+  z-index: 1;
+}
+
 .highlight {
   background-color: yellow;
   padding: 0.4rem;
   border-radius: 0.5rem;
   margin-bottom: 1rem;
+  position: relative;
+  z-index: 1;
+  mix-blend-mode: multiply;
+}
+
+.blue-highlight {
+  background-color: #00c2ff;
+  padding: 0.4rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+  position: relative;
+  z-index: 1;
+  mix-blend-mode: multiply;
 }
 
 .pad {
@@ -13,4 +33,6 @@
 
 .node {  // Marius added this to get the racket divs to display inline
   display: inline;
+  position: relative;
+  z-index: 3;
 }

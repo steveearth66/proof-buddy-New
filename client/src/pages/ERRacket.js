@@ -71,19 +71,6 @@ const ERRacket = () => {
     RHS: [{ racket: '', jsonTree: {}, rule: '', startPosition: 0, deleted: false }]
   });
 
-  const handleFieldChange = useCallback((side, index, fieldName, value) => {
-    setRacketRuleFields((prevFields) => {
-      const fieldsCopy = { ...prevFields };
-      if (fieldsCopy[side] && fieldsCopy[side][index]) {
-        fieldsCopy[side][index] = {
-          ...fieldsCopy[side][index],
-          [fieldName]: value
-        };
-      }
-      return fieldsCopy;
-    });
-  }, []);
-
   const loadRacketProof = useCallback((loadedProof) => {
     if (loadedProof) {
       formValues.proofName = loadedProof.name;
@@ -388,9 +375,9 @@ const ERRacket = () => {
 
   useEffect(() => {
     updatePremises(formValues, setLeftPremise, setRightPremise);
-  }, [formValues.lHSGoal, formValues.rHSGoal]);
+  }, [formValues, formValues.lHSGoal, formValues.rHSGoal]);
   useEffect(() => {
-    if (currentLHS && currentRHS && currentLHS === currentRHS) {
+      if (currentLHS && currentRHS && currentLHS === currentRHS && isGoalChecked.LHS && isGoalChecked.RHS) {
       racketRuleFields.LHS.splice(-1);
       racketRuleFields.RHS.splice(-1);
       setProofComplete(true);
@@ -406,7 +393,7 @@ const ERRacket = () => {
         rightPremise
       }).catch(console.error);
     }
-  }, [currentLHS, currentRHS, racketRuleFields, formValues, leftPremise, rightPremise]);
+  }, [currentLHS, currentRHS, racketRuleFields, formValues, leftPremise, rightPremise, isGoalChecked]);
 
   useEffect(() => {
     if (location?.state?.id) {
@@ -483,7 +470,7 @@ const ERRacket = () => {
     if (lastUndeletedRacket) {
       setCurrentRacket(lastUndeletedRacket.racket);
     }
-  }, [showSide, racketRuleFields, formValues.lHSGoal, formValues.rHSGoal]);
+  }, [showSide, racketRuleFields, formValues.lHSGoal, formValues.rHSGoal, formValues]);
 
   // Global keydown handler for arrow keys when footer is bound
   useEffect(() => {
@@ -1079,6 +1066,7 @@ function renderPersistentPadRow({
           isRuleInvalid={isRuleInvalid}
           ruleValidationError={ruleValidationError}
           isEditRow={false}
+          blueHighlightPosition={lineNum !== 0 ? startPosition : null}
         />
       </Col>
     </Row>

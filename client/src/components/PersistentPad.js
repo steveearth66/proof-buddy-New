@@ -13,7 +13,6 @@ const PersistentPad = forwardRef(function PersistentPad(
     side,
     jsonTree,
     lineNum,
-    editableLineNum,
     startPosition,
     ruleValue,
     onRuleChange,
@@ -22,6 +21,7 @@ const PersistentPad = forwardRef(function PersistentPad(
     isRuleInvalid,
     ruleValidationError,
     isEditRow,
+      blueHighlightPosition,
     ...props
   },
   ref
@@ -40,7 +40,7 @@ const PersistentPad = forwardRef(function PersistentPad(
 
     useEffect(() => {
         setSelected(startPosition ?? 0);
-    }, [equation]);
+    }, [equation, startPosition]);
 
   // Session storage management for highlights
   useEffect(() => {
@@ -139,6 +139,7 @@ const PersistentPad = forwardRef(function PersistentPad(
           <DivMakerComponent
             expr={jsonTree}
             selected={selected}
+            blueHighlightPosition={blueHighlightPosition}
             origTree={jsonTree}
             lineNumber={lineNumRef.current}
           />

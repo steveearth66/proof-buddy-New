@@ -1,9 +1,18 @@
 // DivMaker.js
-function getClassNames(e, selected, prefix) {
-  return ["node", selected === e.startPosition ? "highlight" : "no-highlight"].join(" ");
+function getClassNames(e, selected, blueHighlightPosition) {
+    const classes = ["node"];
+    if (selected === e.startPosition) {
+        classes.push("highlight");
+    } else {
+        classes.push("no-highlight");
+    }
+    if (blueHighlightPosition === e.startPosition) {
+        classes.push("blue-highlight");
+    }
+    return classes.join(" ");
 }
 
-function recurse(e, selected, jsonDict, prefix) {
+function recurse(e, selected, blueHighlightPosition, jsonDict, prefix) {
   if (!e) {
     return <div>&nbsp;</div>;
   }
@@ -15,21 +24,21 @@ function recurse(e, selected, jsonDict, prefix) {
 
   if (Array.isArray(node.children) && node.children.length > 0) {
     return (
-      <div className={getClassNames(node, selected, prefix)} id={uniqueId} key={uniqueId}>
-        {node.data}{node.children.map((child) => 
-          recurse(jsonDict[child], selected, jsonDict, prefix)
+        <div className={getClassNames(node, selected, blueHighlightPosition)} id={uniqueId} key={uniqueId}>
+            {node.data}{node.children.map((child) =>
+            recurse(jsonDict[child], selected, blueHighlightPosition, jsonDict, prefix)
         )})
       </div>
     );
   }
 
   return (
-    <div className={getClassNames(node, selected, prefix)} id={uniqueId} key={uniqueId}>
+      <div className={getClassNames(node, selected, blueHighlightPosition)} id={uniqueId} key={uniqueId}>
       &nbsp;{node.data}&nbsp;
     </div>
   );
 }
 
-export default function DivMakerComponent({ expr, selected, origTree, lineNumber = 0 }) {
-  return recurse(expr[0], selected, origTree, lineNumber);
+export default function DivMakerComponent({ expr, selected, blueHighlightPosition, origTree, lineNumber = 0 }) {
+    return recurse(expr[0], selected, blueHighlightPosition, origTree, lineNumber);
 }
