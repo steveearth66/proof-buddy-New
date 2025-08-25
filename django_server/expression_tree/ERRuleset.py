@@ -656,7 +656,7 @@ class TypeQProp(Rule):
         if ruleNode.children[0].data != self.label:
             return False, f"Cannot rewrite '{ruleNode.children[0]}' expression with '{self.label}' rule"
         if ruleNode.children[1].data != '(' or len(ruleNode.children[1].children) == 0:
-            return False, f"Cannot apply '{self.label}' rewrite when argument is not a function call"
+            return False, f"Cannot use '{self.label}' rewrite when argument is not a function call"
         if ruleNode.children[1].children[0].type.getRange().isType('ANY'):
             return False, "Cannot determine output type of argument operation"
         return True, "TypeQProp.isApplicable() PASS"
@@ -678,6 +678,7 @@ class AdvMath(Rule):
     
     def __init__(self):
         super().__init__('advMath', isProperty=True)
+        self.params = []
 
 # presumes buildtree checked types/qty already for main node and the subnode
 # "subnode" is the exptree created by the user in the Substitution pane.

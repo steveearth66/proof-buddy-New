@@ -462,6 +462,7 @@ test_racket_function('if', if_tests)
 
 integerQ_tests = [
     ("(+ 1 2)", ["Cannot evaluate integer? on a '+' expression"]),
+    ("(integer? (+ 1 2))", ["Insufficiently resolved arguments"]),
     ("(integer? 1 2)", ["integer? only takes 1 argument, but 2 were provided"]),
     ("(integer? 1)", '#t'),
     ("(integer? k)", '#t'),
@@ -476,6 +477,7 @@ totalFails += test_racket_function('integer?', integerQ_tests)
 
 listQ_tests = [
     ("(+ 1 2)", ["Cannot evaluate list? on a '+' expression"]),
+    ("(list? (cons 1 null))", ["Insufficiently resolved arguments"]),
     ("(list? null null)", ["list? only takes 1 argument, but 2 were provided"]),
     ("(list? 1)", '#f'),
     ("(list? k)", '#f'),
@@ -701,6 +703,37 @@ totalFails += run_test_cases("rewrite", "implies", implies_prop_tests, axiomProo
 totalFails += do_single_test_case("apply", "implies", implies_prop_tests[-1][0], ["Could not find definition/lemma "
                                                                                   "associated with implies"],
                                   axiomProof)
+
+axiomProof.addUDF("(F n)", "INT>INT", "(if (<= n 1) n (+ (F (- n 1)) (F (- n 2)))")
+axiomProof.addUDF("(G L)", "LIST>LIST", "(cons 1 L)")
+integerQ_prop_tests = [
+    ("(integer? 1)", "op=1", ["Cannot use 'integer?' rewrite when argument is not a function call"]),
+    ("(integer? (first L))", "op=first", ["Cannot determine output type of argument operation"]),
+    ("(integer? (cons 1 null))", "op=cons", "#f"),
+    ("(integer? (and #f #t))", "op=and", "#f"),
+    ("(integer? (+ 1 2))", "op=+", "#t"),
+    ("(integer? (+ k 1))", "op=+", "#t"),
+    ("(integer? (+ k (- 2 1)))", "op=+", "#t"), 
+    ("(integer? (F k))", "op=F", "#t"),
+    ("(integer? (F p))", "op=F", ["Type mismatch in argument 'n=p': expected INT, got BOOL"]),
+    ("(integer? (G L))", "op=G", "#f")
+]
+totalFails += run_test_cases('rewrite', 'integer?', integerQ_prop_tests)
+
+listQ_prop_tests = [
+    ("(list? null)", "op=null", ["Cannot use 'list?' rewrite when argument is not a function call"]),
+    # TODO: should there be a special case for if, where the output types are checked when 'rewrite [Type]?' is used?
+    ("(list? (if #t 1 2)", "op=if", ["Cannot determne output type of argument operation"]), 
+    ("(list? (cons 1 null))", "op=cons", "#t"),
+    ("(list? (and #f #t))", "op=and", "#f"),
+    ("(list? (+ 1 2))", "op=+", "#f"),
+    ("(list? (+ k 1))", "op=+", "#f"),
+    ("(list? (+ k (- 2 1)))", "op=+", "#f"), 
+    ("(list? (F k))", "op=F", "#f"),
+    ("(list? (G k))", "op=G", ["Type mismatch in argument 'L=k': expected LIST, got INT"]),
+    ("(list? (G L))", "op=G", "#t")
+]
+totalFails += run_test_cases('rewrite', 'list?', listQ_prop_tests)
 
 print("\nUDF testing:\n")
 udfProof = ERProof()

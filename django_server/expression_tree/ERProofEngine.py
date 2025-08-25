@@ -101,6 +101,8 @@ class TwoSidedProof(ProofComponent):
         self.RHS = ERProof(self.ruleSet, self.generics, debug)
         self.currentSide: ERProof = self.LHS
         self.isValid = True
+        # TODO: is there a way to not have a separate definitions list, 
+        # since they are also stored in the ruleSet?
         self.definitions = []
 
     def toggleSide(self):
