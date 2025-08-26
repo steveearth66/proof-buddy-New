@@ -75,7 +75,6 @@ def delete_line(request, side):
 def check_goal(request):
     user = request.user
     json_data = request.data
-    jsonTree = makeJson(ERProofLine(json_data["goal"]).exprTree)
     proof = get_or_set_proof(user)
     user_proof = Proof.objects.filter(
         created_by=user, name=json_data["name"], tag=json_data["tag"]
@@ -96,8 +95,9 @@ def check_goal(request):
         proof.currentSide.proofLines.clear()
     
     proof.currentSide.addProofLine(json_data["goal"])
-
     errors = update_and_validate(proof, json_data["side"])
+
+    jsonTree = makeJson(proof.currentSide.proofLines[-1].exprTree) if proof.isValid else None
 
     save_proof_to_cache(user, proof)
 
