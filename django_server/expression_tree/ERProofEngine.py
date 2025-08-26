@@ -1,6 +1,6 @@
 from .ERCommon import *
 from .ERGenerics import *
-from .ERRuleset import Rule, UDF, getDefaultRuleSet
+from .ERRuleset import Rule, BuiltIn, UDF, getDefaultRuleSet
 import expression_tree.Parser as Parser
 import expression_tree.Labeler as Labeler
 import expression_tree.Decorator as Decorator
@@ -18,6 +18,19 @@ class ProofComponent:
         self.generics = dict() if generics is None else generics
         self.errLog = []
         self.debug = debug
+
+    @property
+    def racketLabels(self):
+        return {label for (label, rule) in self.ruleSet.items() 
+                if isinstance(rule, (BuiltIn, UDF, tuple))}
+
+    @property
+    def defDict(self):
+        return {label: rule for (label, rule) in self.ruleSet.items() if isinstance(rule, UDF)}
+    
+    def _validateLabel(self, label: str) -> bool:
+        return (label not in reservedLabels and label not in self.ruleSet.keys()
+                and label not in self.generics.keys() and label.isalpha())
     
     def addUDF(self, label, typeStr, body):
         errLog = Parser.preProcess(label,udf=True)[1] #added udf=True so that preprocessing will bypass empty string check
@@ -54,7 +67,7 @@ class ProofComponent:
         if bodyNode.errLog != []:
             self.errLog.extend(bodyNode.errLog)
         # if not (udfLabel not in self.ruleSet.keys() and udfLabel not in reservedLabels):
-        if udfLabel in self.ruleSet.keys() or udfLabel in reservedLabels or udfLabel in self.generics.keys() or not udfLabel.isalpha():
+        if not self._validateLabel(udfLabel):
             self.errLog.append(
                 f"'{udfLabel}' is an invalid label for your Definition")
         if racTypeObj.getDomain() != None:
@@ -76,8 +89,8 @@ class ProofComponent:
             self.errLog.append(f"Could not find UDF with label '{label}'")
 
     def addGeneric(self, label: str, type: str, restrictions: dict | None = None):
-        if label in reservedLabels or label in self.ruleSet.keys() or label in self.generics.keys() or not label.isalpha():
-            self.errLog.append(f"Could not use generic with label '{label}': label is already being used")
+        if not self._validateLabel(label):
+            self.errLog.append(f"Can not use generic with label '{label}': label is already being used")
         type = type.lower()
         if type == 'int' and (restrictions is None or restrictions.get("assumption") is None):
             self.generics[label] = GenericInt()
@@ -178,15 +191,15 @@ class ERProofLine(ProofComponent):
             if self.errLog == []:
                 if Parser.checkQuotes(tree):
                     self.errLog.append(f"Cannot have nested quotes")
-            labeledTree = Labeler.labelTree(tree, self.ruleSet, self.generics)
+            labeledTree = Labeler.labelTree(tree, self.defDict, self.generics)
             labeledTree, _ = updatePositions(labeledTree)
 
         if self.errLog == []:
-            decTree, self.errLog = Decorator.decorateTree(labeledTree, self.errLog, ruleDict=self.ruleSet, generics=self.generics)
+            decTree, self.errLog = Decorator.decorateTree(labeledTree, self.errLog, defDict=self.defDict, generics=self.generics)
         #if self.errLog == []: #added userType in case of UDF
         #    decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog, theRuleDict=ruleDict, userType=udfType)
         if self.errLog == []:
-            self.errLog = Decorator.remTemps(decTree, self.errLog, theRuleDict=self.ruleSet)
+            self.errLog = Decorator.remTemps(decTree, self.errLog, racketLabels=self.racketLabels)
         if self.errLog == []: #added userType in case of UDF
             decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog, userType=udfType)
         if self.errLog == []:
@@ -244,7 +257,7 @@ class ERProofLine(ProofComponent):
             if tree is None:
                 self.errLog.append(f"Failed to build AST from value '{raw}' in argument '{param}'")
                 return [], True
-            labeled = Labeler.labelTree(tree, ruleDict=self.ruleSet)
+            labeled = Labeler.labelTree(tree, defDict=self.defDict)
             typed, _ = Decorator.decorateTree(labeled, self.errLog)
             if typed.type != expected_type.getType():
                 self.errLog.append(

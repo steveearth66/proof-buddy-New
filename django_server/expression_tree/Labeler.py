@@ -30,12 +30,12 @@ BUILT_IN_FUNCTIONS = ['if', 'cons', 'first', 'rest', 'null?', '+', '-', '*', 'qu
                       "expt", "=", "<=", ">=", "<", ">", "and", "or", "not", "xor", "implies", "list?", "integer?"]
 
 # give every Node object in the AST an initial type (ifs will be done later in remTemps since their range varies)
-def labelTree(inputTree: Node, ruleDict=None, generics=None) -> Node:
+def labelTree(inputTree: Node, defDict=None, generics=None) -> Node:
     # if inputTree is empty, return the empty list
     if inputTree == []:
         return
-    if ruleDict == None:
-        ruleDict = dict()
+    if defDict == None:
+        defDict = dict()
     if generics is None:
         generics = dict()
         
@@ -58,8 +58,8 @@ def labelTree(inputTree: Node, ruleDict=None, generics=None) -> Node:
         inputTree.numArgs = erObj.numArgs
 
     # check if the token is a user-defined function
-    elif inputTree.data in ruleDict.keys():
-        inputTree.type = ruleDict[inputTree.data].racType
+    elif inputTree.data in defDict:
+        inputTree.type = defDict[inputTree.data].racType
         if inputTree.type.isType("FUNCTION"):
             inputTree.numArgs = len(inputTree.type.getDomain())
     elif inputTree.data in generics.keys():
@@ -79,7 +79,7 @@ def labelTree(inputTree: Node, ruleDict=None, generics=None) -> Node:
 
     # label the children of the root Node
     for child in root.children:
-        labelTree(child, ruleDict, generics)
+        labelTree(child, defDict, generics)
 
     # return the tree
     return root

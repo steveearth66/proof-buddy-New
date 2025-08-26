@@ -6,13 +6,13 @@ from .ERRuleset import UDF
 from .ERobj import pdict
 
 # decorate non-function type Nodes in the AST
-def decorateTree(inputTree: Node, errLog, ruleDict=None, generics=None, debug=False) -> tuple[Node, list[str]]:
+def decorateTree(inputTree: Node, errLog, defDict=None, generics=None, debug=False) -> tuple[Node, list[str]]:
     # just return if there is not AST to decorate
     if inputTree == None:
         return inputTree, errLog
     
-    if ruleDict is None:
-        ruleDict = dict()
+    if defDict is None:
+        defDict = dict()
     
     if generics is None:
         generics = dict()
@@ -33,8 +33,7 @@ def decorateTree(inputTree: Node, errLog, ruleDict=None, generics=None, debug=Fa
     # decorate the Node objects
     if inputTree.name in generics.keys():
         inputTree.name = generics[inputTree.name]
-    elif inputTree.name in ruleDict.keys() and isinstance(ruleDict[inputTree.name], UDF) \
-        and inputTree.type.getType() != Type.FUNCTION:
+    elif inputTree.name in defDict and not inputTree.type.isType("FUNCTION"):
         inputTree.name = 'TBD' # assign name for non-function definitions
     elif not inputTree.type.isType("FUNCTION"):
         if inputTree.type.isType("LIST") and not inputTree.children:
@@ -51,7 +50,7 @@ def decorateTree(inputTree: Node, errLog, ruleDict=None, generics=None, debug=Fa
 
     # decorate the children if there are any
     for c in inputTree.children:
-        decorateTree(c, errLog, ruleDict, generics, debug)
+        decorateTree(c, errLog, defDict, generics, debug)
 
     # return a decorated AST and the status of the error log
     return inputTree, errLog
@@ -68,28 +67,20 @@ def copyDetails(fromNode: Node, toNode: Node):
 # need to also do UDFs in same recursive function. also have sep function that checks for nested quotes and stops rules if has a ' ancestor
 # this function does type checking for "if" functions as they are the only function left with an ambiguous type signature
 
-def remTemps(inputTree: Node, errLog=None, debug=False, theRuleDict=None) -> list[str]:
+def remTemps(inputTree: Node, errLog=None, debug=False, racketLabels=None) -> list[str]:
     if errLog == None:
         errLog = []
-    if theRuleDict == None:
-        theRuleDict = dict()
-    if not isinstance(inputTree,Node):
-        return errLog
-    if inputTree.data in (UDFs := theRuleDict.keys()): # UDF types should have already been done in labelTree, but just in case
-        inputTree.type = theRuleDict[inputTree.data].racType
+    if racketLabels is None:
+        racketLabels = set()
+    if not isinstance(inputTree, Node):
         return errLog
     if inputTree.data != "(" or inputTree.children == []: # or inputTree.children[0].data != "if" also case of (udf...):
         return errLog
     for c in inputTree.children[1:]:
-        errLog = errLog + remTemps(c, errLog, debug, theRuleDict)
+        errLog = errLog + remTemps(c, errLog, debug, racketLabels)
     if errLog != []:
         return errLog
-    if inputTree.data == "(":
-        chType = inputTree.children[0].type.getRange() #type filled by recursion above
-        if isinstance(chType, tuple):
-            chType = RacType(chType)
-        inputTree.type = chType
-    if (func := inputTree.children[0]).data in UDFs:
+    if (func := inputTree.children[0]).data in racketLabels:
         if not func.type.isType("FUNCTION"):
             errLog.append(f"function {func.data} is not a function to be called")
         else:
