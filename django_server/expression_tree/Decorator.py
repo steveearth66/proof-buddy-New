@@ -65,8 +65,7 @@ def copyDetails(fromNode: Node, toNode: Node):
 
 # this function gets rid of all Type.TEMPs and does type checking for 'if' functions. can internally change the AST and update the errLog
 # need to also do UDFs in same recursive function. also have sep function that checks for nested quotes and stops rules if has a ' ancestor
-# this function does type checking for "if" functions as they are the only function left with an ambiguous type signature
-
+# this function does type checking for "if" functions as they are the only function with an ambiguous type
 def remTemps(inputTree: Node, errLog=None, debug=False, racketLabels=None) -> list[str]:
     if errLog == None:
         errLog = []
@@ -83,21 +82,21 @@ def remTemps(inputTree: Node, errLog=None, debug=False, racketLabels=None) -> li
     if (func := inputTree.children[0]).data in racketLabels:
         if not func.type.isType("FUNCTION"):
             errLog.append(f"function {func.data} is not a function to be called")
+            return errLog
         else:
             inputTree.type = func.type.getRange()
-        return errLog
     if func.data != "if":
-        return errLog
-    if (argNum := len(inputTree.children)) != 4: #these should have already been caught by checkfunctions. just double checking
-        errLog.append(f"if function must have 3 arguments but {argNum-1} were provided")
+        return errLog 
+    if (argNum := len(inputTree.children)) != 4:
+        errLog.append(f"if only takes 3 arguments, but {argNum-1} were provided")
         return errLog
     if not inputTree.children[1].type.isType("BOOL"):
-        errLog.append(f"argument #1 of an if function must be Boolean but {str(inputTree.children[1].type.getType())} was provided")
+        errLog.append(f"The first argument of an if function must be Boolean but {str(inputTree.children[1].type.getType())} was provided")
         return errLog
     n1, n2 = inputTree.children[2], inputTree.children[3] #note, even if these are ifs, they'll have been designated types in the recursive call
     if not ((t1 := n1.type.getType()) == (t2 := n2.type.getType())):
         if not (t1 in FLEX_TYPES or t2 in FLEX_TYPES):  # TODO temporary fix for if functions with different types
-            errLog.append(f"final arguments of an if function must match but {str(t1)} and {str(t2)} were provided")
+            errLog.append(f"Final arguments of an if function must have matching types, but {str(t1)} and {str(t2)} were provided")
         return errLog
     inputTree.type = n1.type #setting the if expression list type to the type of the output branches
     return errLog

@@ -167,7 +167,7 @@ class Node:
         self.parent = parent # reference to the Node's parent (will be None for the root Node)
         self.data = data # this is the string name to be displayed (what used to be called "name" in the old PB)
         self.name = name # this is what used to be called "value" in the old PB
-        self.type = tokenType # type of the node, (ex. boolean, int, function, etc.), specification described in typeFile
+        self._type = tokenType # type of the node, (ex. boolean, int, function, etc.), specification described in typeFile
         self.debug = debug # False = standard execution, True = print info useful when debugging the pipeline
         self.numArgs = numArgs # for functions, it's the number of inputs
         self.length = length # for lists, it's the length
@@ -180,7 +180,7 @@ class Node:
     
     # Node.type attribute setter
     @type.setter
-    def type(self, newType):
+    def type(self, newType: RacType):
         self._type = newType
 
     # convert the Node into a representation that is printed to the console
@@ -301,7 +301,7 @@ class Node:
         else:
             return f'({self.children[0].logicStr()} {self.children[1].logicStr()})'
 
-    def replaceWith(self, newNode):
+    def replaceWith(self, newNode: 'Node'):
         self.data = newNode.data
         self.name = newNode.name
         self.type = newNode.type
