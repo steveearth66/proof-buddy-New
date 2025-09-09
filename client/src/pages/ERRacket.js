@@ -85,8 +85,16 @@ const ERRacket = () => {
 
       // Set the racket rule fields from the loaded proof
       setRacketRuleFields({
-        LHS: loadedProof.leftRacketsAndRules || [{ racket: '', jsonTree: {}, rule: '', startPosition: 0, deleted: false }],
-        RHS: loadedProof.rightRacketsAndRules || [{ racket: '', jsonTree: {}, rule: '', startPosition: 0, deleted: false }]
+          LHS: backfillBluePositions(
+              loadedProof.leftRacketsAndRules || [
+                  { racket: '', jsonTree: {}, rule: '', startPosition: 0, deleted: false }
+              ]
+          ),
+          RHS: backfillBluePositions(
+              loadedProof.rightRacketsAndRules || [
+                  { racket: '', jsonTree: {}, rule: '', startPosition: 0, deleted: false }
+              ]
+          )
       });
 
       loadRacketGoal(loadedProof);
@@ -254,12 +262,17 @@ const ERRacket = () => {
           }
           
           const fields = { ...prevFields };
+          const appliedPos =
+              fullRacket?.appliedStartPosition ?? fullRacket?.startPosition ?? previousStartPosition ?? 0;
+          const resultPos =
+              fullRacket?.resultStartPosition ?? previousStartPosition ?? null;
           const newField = {
-            racket: fullRacket.racket || "",
-            jsonTree: fullRacket.jsonTree || {},
-            rule: ruleFromFooter,
-              startPosition: (fullRacket.startPosition ?? previousStartPosition),
-            deleted: false
+              racket: fullRacket.racket || "",
+              jsonTree: fullRacket.jsonTree || {},
+              rule: ruleFromFooter,
+              startPosition: appliedPos,
+              blueStartPosition: resultPos,
+              deleted: false
           };
           
           const lastField = fields[showSide][fields[showSide].length - 1];
@@ -890,13 +903,14 @@ const ERRacket = () => {
                       setLeftPremise,
                       setRightPremise
                     })}
-                    {racketRuleFields[showSide].map((field, index) =>
+                    {racketRuleFields[showSide].map((field, index, arr) =>
                       field.deleted
                         ? null
                         : renderPersistentPadRow({
                           side: showSide,
                           index,
                           field,
+                          prevStartPosition: index > 0 ? arr[index - 1]?.startPosition ?? null : null,
                           padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
                           formValues,
                           jsonTreeRep,
@@ -991,6 +1005,14 @@ const ERRacket = () => {
   );
 };
 
+function backfillBluePositions(arr = []) {
+    return (arr || []).map((item, i) => ({
+        ...item,
+        blueStartPosition: item.blueStartPosition ??
+            (i > 0 ? arr[i - 1]?.startPosition ?? null : null)
+    }));
+}
+
 function renderPersistentPadRow({
   side,
   index = 0,
@@ -1007,7 +1029,8 @@ function renderPersistentPadRow({
   leftPremise,
   rightPremise,
   setLeftPremise,
-  setRightPremise
+  setRightPremise,
+    prevStartPosition
 }) {
   // Compute values based on side and isPremise
   const isLHS = side === "LHS";
@@ -1028,6 +1051,7 @@ function renderPersistentPadRow({
   const startPosition = isPremise
     ? (isLHS ? leftPremise.startPosition || 0 : rightPremise.startPosition || 0)
     : (field.startPosition || 0);
+  const bluePos = field?.blueStartPosition ?? prevStartPosition ?? null;
 
   return (
     <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? "premise" : `${side}-field-${padIndex}`}>
@@ -1066,7 +1090,7 @@ function renderPersistentPadRow({
           isRuleInvalid={isRuleInvalid}
           ruleValidationError={ruleValidationError}
           isEditRow={false}
-          blueHighlightPosition={lineNum !== 0 ? startPosition : null}
+          blueHighlightPosition={bluePos}
         />
       </Col>
     </Row>
