@@ -768,7 +768,7 @@ class OrProp(Axiom):
         return True, ''
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
-        return Node(data='#t', tokenType=RacType((None, Type.BOOL)), name=False)
+        return Node(data='#t', tokenType=RacType((None, Type.BOOL)), name=True)
 
 class ImpliesProp(Axiom):
     def __init__(self):

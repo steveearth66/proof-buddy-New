@@ -83,7 +83,7 @@ const InductionRacket = () => {
     formValues.proofTag,
     showSide
   );
-  const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields);
+  const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields, formValues, isGoalChecked);
   const [lhsValue, setLhsValue] = useState("");
   const [rhsValue, setRhsValue] = useState("");
   const [isOffcanvasActive, toggleOffcanvas] = useOffcanvas();

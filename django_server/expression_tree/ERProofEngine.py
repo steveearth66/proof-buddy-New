@@ -287,20 +287,15 @@ class ERProofLine(ProofComponent):
         Returns:
             A list of undefined labels found in the node's children.
         """
-        if foundLabels is None:
-            foundLabels = set()
-        undefined_labels = []
+
+        undefined_labels = set()
         for child in node.children:
-            if child.data[0] == "'" or child.data[0] == "(":
-                nested_children = self.find_undefined_labels(child, foundLabels)
-                if nested_children:
-                    undefined_labels.extend(nested_children)
+            if child.data in ("'(", "("):
+                undefined_labels |= set(self.find_undefined_labels(child))
             elif self._validateNewLabel(child.data):
                 # TODO: change to checking if type PARAM when we fix that
-                if child.data not in foundLabels:
-                    foundLabels.add(child.data)
-                    undefined_labels.append(child.data)
-        return undefined_labels
+                undefined_labels.add(child.data)
+        return list(sorted(undefined_labels))
     
     def _getRuleType(self, ruleLabel: str) -> RuleType:
         for prefix in self.ruleSet:

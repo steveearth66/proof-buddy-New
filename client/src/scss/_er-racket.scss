@@ -113,6 +113,7 @@
     }
 
     .form-bottom-part {
+      z-index: 99;
       margin-top: 20px;
 
       input::selection {
@@ -121,6 +122,37 @@
 
       @media (min-width: $breakpoint-md) {
         margin-top: 325px;
+      }
+
+      .racket-rule-container-wrap {
+        // Height is now dynamically calculated via inline style in the component
+        // This allows for proper responsive behavior on window resize
+        overflow-y: auto;
+        padding-right: 8px; // Add padding to account for scrollbar
+        
+        // Custom scrollbar styling
+        &::-webkit-scrollbar {
+          width: 8px;
+        }
+
+        &::-webkit-scrollbar-track {
+          background: #f1f1f1;
+          border-radius: 4px;
+        }
+
+        &::-webkit-scrollbar-thumb {
+          background: #c1c1c1;
+          border-radius: 4px;
+          
+          &:hover {
+            background: #a8a8a8;
+          }
+        }
+        
+        .racket-rule-wrap {
+          padding-right: 4px; // Additional padding for content
+          padding-bottom: 20px; // Add bottom padding to ensure last row is visible when scrolling
+        }
       }
 
       .switch-btn-wrap {

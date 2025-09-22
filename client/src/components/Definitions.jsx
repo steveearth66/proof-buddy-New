@@ -12,11 +12,12 @@ import { useFormSubmit } from '../hooks/useFormSubmit';
 import { useEffect, useState } from 'react';
 import erService from '../services/erService';
 import { toast } from 'react-toastify';
+import { createPortal } from 'react-dom';
 
 export default function Definitions({ toggleDefinitionsWindow }) {
   const [showCreateDefinition, setShowCreateDefinition] = useState(false);
 
-  return (
+  return createPortal(
     <div className="overlay">
       <div className="card">
         {showCreateDefinition ? (
@@ -28,7 +29,8 @@ export default function Definitions({ toggleDefinitionsWindow }) {
           />
         )}
       </div>
-    </div>
+    </div>,
+      document.body
   );
 }
 
