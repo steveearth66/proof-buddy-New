@@ -1,6 +1,6 @@
 from .ERCommon import *
 from .ERGenerics import *
-from .ERRuleset import Rule, BuiltIn, UDF, getDefaultRuleSet
+from .ERRuleset import Rule, RuleType, UDF, getDefaultRuleSet
 import expression_tree.Parser as Parser
 import expression_tree.Labeler as Labeler
 import expression_tree.Decorator as Decorator
@@ -21,16 +21,18 @@ class ProofComponent:
 
     @property
     def racketLabels(self):
-        return {label for (label, rule) in self.ruleSet.items() 
-                if isinstance(rule, (BuiltIn, UDF, tuple))}
+        return self.ruleSet['eval'].keys() | self.defDict.keys()
 
     @property
     def defDict(self):
-        return {label: rule for (label, rule) in self.ruleSet.items() if isinstance(rule, UDF)}
+        return {label: rule for (label, rule) in self.ruleSet['apply'].items() 
+                if rule.ruleType == RuleType.DEFINITION}
     
-    def _validateLabel(self, label: str) -> bool:
-        return (label not in reservedLabels and label not in self.ruleSet.keys()
-                and label not in self.generics.keys() and label.isalpha())
+    def _validateNewLabel(self, label: str) -> bool:
+        """Checks if label is not already in use"""
+        return False not in map(lambda iterable: label not in iterable, (
+            reservedLabels, *self.ruleSet.values(), self.generics
+        )) and label.isalpha()
     
     def addUDF(self, label, typeStr, body):
         errLog = Parser.preProcess(label,udf=True)[1] #added udf=True so that preprocessing will bypass empty string check
@@ -66,8 +68,7 @@ class ProofComponent:
         )
         if bodyNode.errLog != []:
             self.errLog.extend(bodyNode.errLog)
-        # if not (udfLabel not in self.ruleSet.keys() and udfLabel not in reservedLabels):
-        if not self._validateLabel(udfLabel):
+        if not self._validateNewLabel(udfLabel):
             self.errLog.append(
                 f"'{udfLabel}' is an invalid label for your Definition")
         if racTypeObj.getDomain() != None:
@@ -78,18 +79,18 @@ class ProofComponent:
             for j in range(len(paramsList)):
                 param2TypeDict[paramsList[j]] = RacType(racTypeObj.getDomain()[j]) #got rid of getDomain here and switched to value[0]
             filledBodyNode = fillBody(bodyNode.exprTree, udfLabel, racTypeObj, param2TypeDict)
-            self.ruleSet[udfLabel] = UDF(udfLabel, filledBodyNode, racTypeObj, paramsList)
+            self.ruleSet['apply'][udfLabel] = UDF(udfLabel, filledBodyNode, racTypeObj, paramsList)
 
     def removeUDF(self, label):
         if len(label) != 1:
             label = label.split()[0][1:]
-        if label in self.ruleSet.keys():
-            del self.ruleSet[label]
+        if label in self.ruleSet['apply']:
+            del self.ruleSet['apply'][label]
         else:
             self.errLog.append(f"Could not find UDF with label '{label}'")
 
     def addGeneric(self, label: str, type: str, restrictions: dict | None = None):
-        if not self._validateLabel(label):
+        if not self._validateNewLabel(label):
             self.errLog.append(f"Can not use generic with label '{label}': label is already being used")
         type = type.lower()
         if type == 'int' and (restrictions is None or restrictions.get("assumption") is None):
@@ -210,6 +211,10 @@ class ERProofLine(ProofComponent):
 
     def parse_and_typecheck_args(self, ruleName: str, rawParams: list[str], expectedNames: list[str], expectedTypes:
     list[RacType], targetNode: Node) -> tuple[list, bool]:
+        # NOTE: currently, this method handles param assignment checking for definitions,
+        # while assignment matching for axioms/rules are handled by methods of the Axiom class
+        # in ERRuleset.
+        # TODO: Replace with param matching in ERRuleset? 
         """
         Parse ["x=...", "y=..."] into a list of values and check if they match the expected names and types.
         Args:
@@ -274,7 +279,7 @@ class ERProofLine(ProofComponent):
             return [], True
         return parsed, False
 
-    def find_undefined_labels(self, node: Node) -> list[str]:
+    def find_undefined_labels(self, node: Node, foundLabels: set[str] = None) -> list[str]:
         """
         Recursively find undefined labels in the expression tree.
         Args:
@@ -282,18 +287,26 @@ class ERProofLine(ProofComponent):
         Returns:
             A list of undefined labels found in the node's children.
         """
+        if foundLabels is None:
+            foundLabels = set()
         undefined_labels = []
         for child in node.children:
             if child.data[0] == "'" or child.data[0] == "(":
-                nested_children = self.find_undefined_labels(child)
-                if nested_children and nested_children not in undefined_labels:
-                    # Avoid adding duplicates
-                    undefined_labels.append(nested_children)
-            elif (child.data not in self.ruleSet.keys() and child.data not in reservedLabels and child.data not in
-                  self.generics.keys() and child.data.isalpha()):  # TODO: change to checking if type PARAM when
-                # we fix that
-                undefined_labels.append(child.data)
+                nested_children = self.find_undefined_labels(child, foundLabels)
+                if nested_children:
+                    undefined_labels.extend(nested_children)
+            elif self._validateNewLabel(child.data):
+                # TODO: change to checking if type PARAM when we fix that
+                if child.data not in foundLabels:
+                    foundLabels.add(child.data)
+                    undefined_labels.append(child.data)
         return undefined_labels
+    
+    def _getRuleType(self, ruleLabel: str) -> RuleType:
+        for prefix in self.ruleSet:
+            if (ruleObj := self.ruleSet[prefix].get(ruleLabel)) is not None:
+                return ruleObj.ruleType
+        raise ValueError
 
     def applyRule(self, rule: str, startPos: int, subNode: Node = None):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
@@ -313,61 +326,31 @@ class ERProofLine(ProofComponent):
         ruleParams = ruleParams.replace("'()", "null")  # replace empty list with 'null'
         ruleParams = [m.group(0).strip() for m in re.finditer(r"\w+=.*?(?=,\s*\w+=|$)", ruleParams)]
 
-        if ruleCategory not in ["eval", "apply", "rewrite"]:
+        if ruleCategory not in ("eval", "apply", "rewrite"):
             self.errLog.append("Rule must start with 'eval', 'apply', or 'rewrite'")
             return
-
-        if rule == "":
-            msg = "Rule must include the "
-            if ruleCategory == "eval":
-                msg += "function to be evaluated"
-            elif ruleCategory == "apply":
-                msg += "definition/lemma to be applied"
-            else:
-                msg += "property to be rewritten"
-            self.errLog.append(msg)
-            return
         
-        if rule not in self.ruleSet:
-            self.errLog.append(f"Could not find rule associated with {rule}")
-            return
-        
-        entry = self.ruleSet[rule]
-
-        selected: Rule | None = None
-        match ruleCategory:
-            case 'eval':
-                if isinstance(entry, tuple):
-                    selected = entry[0]  # select eval rule from tuple
-                elif getattr(entry, 'isProperty', False):
-                    self.errLog.append("Cannot evaluate a property")
-                elif isinstance(entry, UDF):
-                    self.errLog.append("Cannot evaluate a user-defined function")
-                elif rule == 'math':
-                    self.errLog.append("Could not find built-in Racket procedure associated with 'math'")
-                else:
-                    selected = entry
-            case 'rewrite':
-                if isinstance(entry, tuple):
-                    selected = entry[1]  # select rewrite rule from tuple
-                elif getattr(entry, 'isProperty', False):
-                    selected = entry
-                else:
-                    self.errLog.append(f"Cannot rewrite {rule} as it is not a property")
-            case 'apply':
-                if isinstance(entry, UDF):  # TODO: might need to add support for other types in future
-                    selected = entry
-                elif getattr(entry, 'isProperty', False):
-                    self.errLog.append("Cannot apply a property")
-                else:
-                    self.errLog.append(f"Could not find definition/lemma associated with {rule}")
-            case _:
-                self.errLog.append("Rule must start with 'eval', 'apply', or 'rewrite'")
+        selected = self.ruleSet[ruleCategory].get(rule)
+        if selected is None:
+            try:
+                entryType = str(self._getRuleType(rule))
+                match ruleCategory:
+                    case 'eval':
+                        self.errLog.append(f"Cannot evaluate {entryType}")
+                    case 'apply':
+                        self.errLog.append(f"Cannot apply {entryType}")
+                    case 'rewrite':
+                        self.errLog.append(f"Cannot rewrite using {entryType}")
+            except ValueError:
+                self.errLog.append(f"Could not find rule associated with '{rule}'")
 
         if self.errLog:
             return
+        
+        for label in self.find_undefined_labels(targetNode):
+            self.errLog.append(f"No definition found for label '{label}'")
 
-        if (ruleCategory == "rewrite") or isinstance(selected, UDF):
+        if selected.ruleType == RuleType.DEFINITION:
             values, hadErr = self.parse_and_typecheck_args(
                 rule,
                 ruleParams,
@@ -375,28 +358,23 @@ class ERProofLine(ProofComponent):
                 selected.racType.getDomain(),
                 targetNode
             )
-            for label in self.find_undefined_labels(targetNode):
-                self.errLog.append(f"No definition found for label '{label}'")
             if hadErr or self.errLog:
                 return
 
-        if ruleCategory == "eval" and rule == 'math':
+        if selected._ruleType == RuleType.MATH:
             ok, err = selected.isApplicable(targetNode, subNode)
-        else:
+        elif ruleCategory == 'eval':
             ok, err = selected.isApplicable(targetNode)
+        else:
+            ok, err = selected.isApplicable(targetNode, ruleParams)
 
         if not ok:
             self.errLog.append(err)
             return
 
-        if ruleCategory == "eval" and isinstance(selected, UDF):
-            # shouldn't get here but just in case
-            self.errLog.append("Cannot evaluate a user-defined function")
-            return
-
         newNode = (
             selected.insertSubstitution(targetNode, subNode)
-            if ruleCategory == "eval" and rule == 'math'
+            if selected.ruleType == RuleType.MATH
             else selected.insertSubstitution(targetNode)
         )
         targetNode.replaceWith(newNode)

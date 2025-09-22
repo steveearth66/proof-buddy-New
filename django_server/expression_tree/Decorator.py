@@ -1,7 +1,6 @@
 # This file is intended to complete the AST creation process and find some more errors through restrictions like type checking, and adding other details
 
 from .ERCommon import Node, Type, RacType, FAIL_TYPES, FLEX_TYPES, TypeList
-from .ERRuleset import UDF
 # brings in ERobject whose attributes will be used to decorate the tree
 from .ERobj import pdict
 

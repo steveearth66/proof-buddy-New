@@ -165,3 +165,12 @@ def checkQuotes(exprTree: Node) -> bool:
         if checkQuotes(child):
             return True
     return False
+
+def makeBasicAst(inputStr: str) -> tuple[Node, list[str]]:
+    tokens, errs = preProcess(inputStr)
+    if errs:
+        return None, errs
+    tree = buildTree(tokens)[0]
+    if checkQuotes(tree):
+        return tree, ["Racket expression cannot have nested quotes"]
+    return tree, []
