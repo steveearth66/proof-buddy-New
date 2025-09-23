@@ -230,6 +230,53 @@ const deleteDefinition = async (label) => {
   });
 };
 
+const getUserGenerics = async () => {
+  try {
+    const response = await axiosInstance.get(`${API_GATEWAY}/get-generics`);
+    return response.data
+  } catch (error) {
+    handleServiceError(error, "Error while getting user-declared generics:");
+    throw error;
+  }
+};
+
+const createGeneric = async (generic) => {
+  try {
+    const response = await axiosInstance.post(`${API_GATEWAY}/create-generic`, generic);
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error while creating generic:");
+    throw error;
+  }
+};
+
+const useGeneric = async (id) => {
+  try {
+    await axiosInstance.get(`${API_GATEWAY}/use-generic/${id}`);
+  } catch (error) {
+    handleServiceError(error, "Error while enabling generic:");
+    throw error;
+  }
+};
+
+const removeGeneric = async (id) => {
+  try {
+    await axiosInstance.delete(`${API_GATEWAY}/remove-generic/${id}`);
+  } catch (error) {
+    handleServiceError(error, "Error while disabling generic:");
+    throw error;
+  }
+};
+
+const deleteGeneric = async (id) => {
+  try {
+    await axiosInstance.delete(`${API_GATEWAY}/delete-generic/${id}`);
+  } catch (error) {
+    handleServiceError(error, "Error while deleting generic:");
+    throw error;
+  }
+}
+
 const deleteLine = async (side) => {
   try {
     await axiosInstance.delete(`${API_GATEWAY}/delete-line/${side}`);
@@ -256,6 +303,11 @@ const erService = {
   editDefinition,
   deleteDefinition,
   removeDefinition,
+  getUserGenerics,
+  createGeneric,
+  useGeneric,
+  removeGeneric,
+  deleteGeneric,
   deleteLine
 };
 

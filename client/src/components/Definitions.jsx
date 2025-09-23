@@ -78,9 +78,15 @@ function CreateDefinition({
     };
 
     const definitions = JSON.parse(sessionStorage.getItem('definitions')) || [];
+    const generics = JSON.parse(sessionStorage.getItem('generics')) || [];
     let exists = false;
 
     if (edit) {
+      if (!definition.expression) {
+        setErrors(['Cannot edit a definition to a generic.']);
+        setValidated(false);
+        return;
+      }
       try {
         const newDefinition = await toast.promise(
           erService.editDefinition(definition),
@@ -110,35 +116,60 @@ function CreateDefinition({
       return;
     }
 
-    definitions.forEach((def) => {
-      if (def.label.split(" ")[0] === definition.label.split(" ")[0]) {
-        setErrors(['Definition with this label already exists.']);
-        exists = true;
-      }
-    });
+    const existingLabels = [...definitions, ...generics].map(obj => obj.label.split(" ")[0]);
+    if (existingLabels.includes(definition.label.split(" ")[0])) {
+      setErrors(['Definition or generic with this label already exists.']);
+      exists = true;
+    }
 
     if (!exists) {
-      try {
-        const createdDefinition = await erService.createDefinition(definition);
-        setErrors([]);
+      // Create generic if expression is left blank
+      if (!definition.expression) {
+        try {
+          const generic = definition;
+          // Add default restrictions:
+          if (generic.type.toLowerCase() === 'int')
+            generic.restrictions = { assumption: 'Non-negative' };
+          if (generic.type.toLowerCase() === 'list')
+            generic.restrictions = { neverNull: true };
 
-        if (createdDefinition) {
-          createdDefinition.type = createdDefinition.def_type;
-          definitions.push(createdDefinition);
-          sessionStorage.setItem('definitions', JSON.stringify(definitions));
-          setSuccessMessage('Definition created successfully.');
+          const createdGeneric = await erService.createGeneric(generic);
+          generics.push(createdGeneric);
+          sessionStorage.setItem('generics', JSON.stringify(generics));
+          setSuccessMessage('Generic created successfully.');
+          setErrors([]);
           handleReset();
-        } else {
-          setErrors(['An error occurred. Please try again.']);
+        } catch (error) {
+          if (error.response?.data?.message) {
+            setErrors([error.response.data.message]);
+          } else {
+            setErrors(['An error occurred. Please try again']);
+          }
           setValidated(false);
         }
-      } catch (error) {
-        if (error.response && error.response.data && error.response.data.message) {
-          setErrors(error.response.data.message);
-        } else {
-          setErrors(['An error occurred. Please try again.']); // generic error message
+      } else {
+        try {
+          const createdDefinition = await erService.createDefinition(definition);
+          setErrors([]);
+
+          if (createdDefinition) {
+            createdDefinition.type = createdDefinition.def_type;
+            definitions.push(createdDefinition);
+            sessionStorage.setItem('definitions', JSON.stringify(definitions));
+            setSuccessMessage('Definition created successfully.');
+            handleReset();
+          } else {
+            setErrors(['An error occurred. Please try again.']);
+            setValidated(false);
+          }
+        } catch (error) {
+          if (error.response && error.response.data && error.response.data.message) {
+            setErrors(error.response.data.message);
+          } else {
+            setErrors(['An error occurred. Please try again.']); // generic error message
+          }
+          setValidated(false);
         }
-        setValidated(false);
       }
     }
   };
@@ -226,7 +257,7 @@ function CreateDefinition({
                 onBlur={() => handleBlur('expression')}
                 onChange={handleChange}
               />
-              <label htmlFor="definitionExpression">Expression</label>
+              <label htmlFor="definitionExpression">Expression (leave blank to declare a generic)</label>
               <Form.Control.Feedback type="invalid">
                 {validationMessages.expression}
               </Form.Control.Feedback>
@@ -265,6 +296,9 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
   const [definitions, setDefinitions] = useState(
     JSON.parse(sessionStorage.getItem('definitions')) || []
   );
+  const [generics, setGenerics] = useState(
+    JSON.parse(sessionStorage.getItem('generics')) || []
+  );
   const [definitionToEdit, setDefinitionToEdit] = useState({});
   const [edit, setEdit] = useState(false);
 
@@ -286,6 +320,21 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
     const updatedDefinitions = definitions.filter((def) => def.label !== label);
     sessionStorage.setItem('definitions', JSON.stringify(updatedDefinitions));
     setDefinitions(updatedDefinitions);
+  };
+
+  const deleteGeneric = async (generic) => {
+    try {
+      await toast.promise(erService.deleteGeneric(generic.id), {
+        pending: 'Deleting generic...',
+        success: 'Generic deleted successfully.',
+        error: 'An error occurred. Please try again.'
+      });
+      const generics = JSON.parse(sessionStorage.getItem('generics'));
+      const updatedGenerics = generics.filter(gen => gen.id != generic.id);
+      setGenerics(updatedGenerics);
+    } catch (error) {
+      console.error(error)
+    }
   };
 
   const updateDefinition = async ({ id, label, type, expression, notes }) => {
@@ -352,6 +401,45 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
     }
   };
 
+  const enableGeneric = async (generic) => {
+    if (generic.enabled) {
+      try {
+        await toast.promise(erService.removeGeneric(generic.id), {
+          pending: 'Disabling generic...',
+          success: 'Generic successfully disabled.',
+          error: 'An error occurred. Please try again.'
+        });
+        setGenerics(prev => prev.map(gen => {
+          if (gen.id === generic.id) {
+            gen.enabled = false;
+          }
+          return gen;
+        }));
+      } catch (error) {
+        console.error(error)
+      }
+    } else {
+      try {
+        await toast.promise(erService.useGeneric(generic.id), {
+          pending: 'Enabling generic...',
+          success: 'Generic successfully enabled.',
+          error: 'An error occurred. Please try again.'
+        });
+        setGenerics(prev => prev.map(gen => {
+          if (gen.id === generic.id) {
+            gen.enabled = true;
+          }
+          return gen;
+        }));
+      } catch (error) {
+        if (error.response?.data?.message)
+          console.error(error.response.data.message);
+        else
+          console.error(error);
+      }
+    }
+  };
+
   useEffect(() => {
     erService.getUserDefinitions().then((userDefinitions) => {
       let newDefinitions = [];
@@ -369,6 +457,16 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
     });
     // eslint-disable-next-line
   }, []);
+
+  useEffect(() => {
+    erService.getUserGenerics().then(userGenerics => {
+      setGenerics(userGenerics);
+    }).catch(error => console.error(error))
+  }, []);
+
+  useEffect(() => {
+    sessionStorage.setItem('generics', JSON.stringify(generics));
+  }, [generics]);
 
   if (edit) {
     return (
@@ -397,6 +495,19 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
               deleteDefinition={deleteDefinition}
               updateEdit={updateEdit}
               applyDefinition={applyDefinition}
+            />
+          ))}
+        </div>
+        <p className="title">Generics</p>
+        <div className="generics">
+          {generics.length === 0 && <p>No generics found.</p>}
+          {generics.map((gen, index) => (
+            <Generic
+              key={index}
+              generic={gen}
+              eventKey={index}
+              enableGeneric={enableGeneric}
+              deleteGeneric={deleteGeneric}
             />
           ))}
         </div>
@@ -454,4 +565,56 @@ function Definition({
       </Accordion.Item>
     </Accordion>
   );
+}
+
+function Generic({
+  generic,
+  eventKey,
+  enableGeneric,
+  deleteGeneric
+}) {
+
+  const restrictionsToString = restrictions => {
+    let restrictionStr = '';
+    if (restrictions.assumption && restrictions.assumption !== 'None') {
+      restrictionStr += restrictions.assumption.toLowerCase();
+    }
+    if (restrictions.neverNull) {
+      restrictionStr += 'cannot be null';
+    }
+    return restrictionStr;
+  }
+
+  return (
+    <Accordion>
+      <Accordion.Item eventKey={eventKey}>
+        <Accordion.Header>
+          <p className="generic-label">{generic.label}</p>
+        </Accordion.Header>
+        <Accordion.Body>
+          <p>Type: {generic.type}</p>
+
+          {(generic.type === 'int' || generic.type === 'list') && 
+          <p>Restrictions: {restrictionsToString(generic.restrictions)}</p>}
+          {generic.type === 'any' && <p>Restrictions: nonnegative, cannot be null</p>}
+
+          {generic.notes && <p>Notes: {generic.notes}</p>}
+          <div className="def-buttons">
+            <Button
+              variant={`${generic.enabled ? "outline-danger" : "outline-success"}`}
+              onClick={() => enableGeneric(generic)}
+            >
+              {generic.enabled ? "Disable" : "Enable"} Generic
+            </Button>
+            <Button
+              variant="outline-danger"
+              onClick={() => deleteGeneric(generic)}
+            >
+              Delete
+            </Button>
+          </div>
+        </Accordion.Body>
+      </Accordion.Item>
+    </Accordion>
+  )
 }

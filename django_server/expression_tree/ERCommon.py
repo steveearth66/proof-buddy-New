@@ -98,7 +98,7 @@ class RacType:
             return RacType(self.value[1])
         return RacType((None, self.value[1]))
 
-    def isType(self, typeStr)->bool:
+    def isType(self, typeStr) -> bool:
         return str(self.getType()) == typeStr
 
 # a helper function for setType that returns the position in the list of the root delimiter (either > or ,)
@@ -163,14 +163,12 @@ def str2Type(tstr:str)->RacType:
 
 # Node object used to compose the AST
 class Node:
-    def __init__(self, children=None, parent=None, data:str='', tokenType:RacType=RacType((None,None)), name=None, debug:bool=False, numArgs:int=None, length:int=None, startPosition=None):
-        self.children = children # by specification, children[0] is the "operator" for functions
-        if children == None:
-            self.children = []
+    def __init__(self, children: list['Node'] = None, parent=None, data:str='', tokenType:RacType=RacType((None,None)), name=None, debug:bool=False, numArgs:int=None, length:int=None, startPosition=None):
+        self.children = [] if children is None else children # by specification, children[0] is the "operator" for functions
         self.parent = parent # reference to the Node's parent (will be None for the root Node)
         self.data = data # this is the string name to be displayed (what used to be called "name" in the old PB)
         self.name = name # this is what used to be called "value" in the old PB
-        self.type = tokenType # type of the node, (ex. boolean, int, function, etc.), specification described in typeFile
+        self._type = tokenType # type of the node, (ex. boolean, int, function, etc.), specification described in typeFile
         self.debug = debug # False = standard execution, True = print info useful when debugging the pipeline
         self.numArgs = numArgs # for functions, it's the number of inputs
         self.length = length # for lists, it's the length
@@ -183,7 +181,7 @@ class Node:
     
     # Node.type attribute setter
     @type.setter
-    def type(self, newType):
+    def type(self, newType: RacType):
         self._type = newType
 
     # convert the Node into a representation that is printed to the console
@@ -304,7 +302,7 @@ class Node:
         else:
             return f'({self.children[0].logicStr()} {self.children[1].logicStr()})'
 
-    def replaceWith(self, newNode):
+    def replaceWith(self, newNode: 'Node'):
         self.data = newNode.data
         self.name = newNode.name
         self.type = newNode.type

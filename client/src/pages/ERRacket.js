@@ -36,6 +36,7 @@ import {
   ARROW_KEYS,
   INITIAL_FORM_VALUES,
   INITIAL_PREMISE_STATE,
+  EMPTY_INITIAL_FIELD,
   getPadRefs,
   getPadIndex,
   isFormComplete,
@@ -67,8 +68,8 @@ const ERRacket = () => {
   ] = useGoalCheck(handleChange);
   const [currentRacket, setCurrentRacket] = useState("");
   const [racketRuleFields, setRacketRuleFields] = useState({
-    LHS: [{ racket: '', jsonTree: {}, rule: '', startPosition: 0, deleted: false }],
-    RHS: [{ racket: '', jsonTree: {}, rule: '', startPosition: 0, deleted: false }]
+    LHS: [EMPTY_INITIAL_FIELD],
+    RHS: [EMPTY_INITIAL_FIELD]
   });
 
   const handleFieldChange = useCallback((side, index, fieldName, value) => {
@@ -82,6 +83,32 @@ const ERRacket = () => {
       }
       return fieldsCopy;
     });
+  }, []);
+
+  const handleFieldHighlight = useCallback((isLHS, lineNum, selected) => {
+    if (isLHS) {
+      if (lineNum === 0)
+        setLeftPremise(prev => ({ ...prev,  startPosition: selected }));
+      else
+        setRacketRuleFields(prev => 
+          ({ ...prev, 
+            LHS: prev.LHS.map((field, index) => 
+              (index === lineNum - 1 ? { ...field, startPosition: selected } : field)
+            )
+          })
+        );
+    } else {
+      if (lineNum === 0)
+        setRightPremise(prev => ({ ...prev, startPosition: selected }));
+      else
+        setRacketRuleFields(prev => 
+          ({ ...prev, 
+            RHS: prev.RHS.map((field, index) => 
+              (index === lineNum - 1 ? { ...field, startPosition: selected } : field)
+            )
+          })
+        );
+    }
   }, []);
 
   const loadRacketProof = useCallback((loadedProof) => {
@@ -98,8 +125,8 @@ const ERRacket = () => {
 
       // Set the racket rule fields from the loaded proof
       setRacketRuleFields({
-        LHS: loadedProof.leftRacketsAndRules || [{ racket: '', jsonTree: {}, rule: '', startPosition: 0, deleted: false }],
-        RHS: loadedProof.rightRacketsAndRules || [{ racket: '', jsonTree: {}, rule: '', startPosition: 0, deleted: false }]
+        LHS: loadedProof.leftRacketsAndRules || [EMPTY_INITIAL_FIELD],
+        RHS: loadedProof.rightRacketsAndRules || [EMPTY_INITIAL_FIELD]
       });
 
       loadRacketGoal(loadedProof);
@@ -282,11 +309,11 @@ const ERRacket = () => {
             // Replace the last empty field with the new field
             fields[showSide][fields[showSide].length - 1] = newField;
             // Add a new empty field at the end
-            fields[showSide].push({ racket: '', jsonTree: {}, rule: '', startPosition: 0, deleted: false });
+            fields[showSide].push(EMPTY_INITIAL_FIELD);
           } else {
             // Add the new field and ensure there's an empty field at the end
             fields[showSide].push(newField);
-            fields[showSide].push({ racket: '', jsonTree: {}, rule: '', startPosition: 0, deleted: false });
+            fields[showSide].push(EMPTY_INITIAL_FIELD);
           }
           
           return fields;
@@ -893,7 +920,9 @@ const ERRacket = () => {
                       padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
                       formValues,
                       jsonTreeRep,
+                      startPosition: (showSide === 'LHS' ? leftPremise : rightPremise).startPosition,
                       setCurrentRacket,
+                      handleFieldHighlight,
                       validationErrors,
                       isBound,
                       userRow,
@@ -913,7 +942,9 @@ const ERRacket = () => {
                           padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
                           formValues,
                           jsonTreeRep,
+                          startPosition: field.startPosition,
                           setCurrentRacket,
+                          handleFieldHighlight,
                           validationErrors,
                           isBound,
                           userRow,
@@ -1013,6 +1044,7 @@ function renderPersistentPadRow({
   formValues,
   jsonTreeRep,
   setCurrentRacket,
+  handleFieldHighlight,
   validationErrors,
   isBound,
   userRow,
@@ -1061,17 +1093,7 @@ function renderPersistentPadRow({
           jsonTree={jsonTree}
           lineNum={lineNum}
           startPosition={startPosition}
-          onHighlightChange={(newStartPosition) => {
-            // Update the premise startPosition when highlighting changes
-            if (isPremise) {
-              if (isLHS) {
-                setLeftPremise(prev => ({ ...prev, startPosition: newStartPosition }));
-              } else {
-                setRightPremise(prev => ({ ...prev, startPosition: newStartPosition }));
-              }
-            }
-            setCurrentRacket(equation);
-          }}
+          onHighlightChange={selected => handleFieldHighlight(isLHS, lineNum, selected)}
           ruleValue={ruleValue}
           onRuleChange={() => { }}
           isRuleReadOnly={true}

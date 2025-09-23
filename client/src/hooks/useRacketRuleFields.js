@@ -106,15 +106,16 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
       }
 
       const payLoad = {
-        "lHSGoal": loadedProof.lHSGoal,
-        "rHSGoal": loadedProof.rHSGoal,
-        "definitions": loadedProof.definitions,
+        lHSGoal: loadedProof.lHSGoal,
+        rHSGoal: loadedProof.rHSGoal,
+        definitions: loadedProof.definitions,
+        generics: loadedProof.generics,
         leftGoalChecked: loadedProof.isGoalChecked?.LHS || false,
         rightGoalChecked: loadedProof.isGoalChecked?.RHS || false,
         LHS,
         RHS,
-        "name": loadedProof.name,
-        "tag": loadedProof.tag
+        name: loadedProof.name,
+        tag: loadedProof.tag
       };
 
       try {

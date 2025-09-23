@@ -37,6 +37,16 @@
         "sourceMapPathOverrides": {
             "webpack:///src/*": "${webRoot}/*"
         }
+      },
+      {
+        "name": "Python: proofs/tests.py",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "django_server/manage.py",
+        "console": "integratedTerminal",
+        "args": [
+            "test", "proofs"
+        ]
       }
     ],
     "tasks": [

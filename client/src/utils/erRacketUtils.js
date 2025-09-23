@@ -14,8 +14,17 @@ export const INITIAL_FORM_VALUES = {
 
 export const INITIAL_PREMISE_STATE = {
   racket: '',
-  rule: 'Premise'
+  rule: 'Premise',
+  startPosition: 0
 };
+
+export const EMPTY_INITIAL_FIELD = { 
+  racket: '', 
+  jsonTree: {}, 
+  rule: '', 
+  startPosition: 0,
+  deleted: false 
+}
 
 // Helper functions
 export const getPadRefs = (side, lhsPadRefs, rhsPadRefs) => 
@@ -33,6 +42,7 @@ export const isFormComplete = (formValues) =>
 // Proof data conversion
 export const convertFormToJSON = (formValues, racketRuleFields, leftPremise, rightPremise, isGoalChecked, jsonTreeRep, showSide) => {
   const definitions = JSON.parse(sessionStorage.getItem("definitions") || "[]").filter(isApplied);
+  const generics = JSON.parse(sessionStorage.getItem("generics") || "[]").filter(generic => generic.enabled);
   
   return JSON.stringify({
     name: formValues.proofName,
@@ -44,8 +54,10 @@ export const convertFormToJSON = (formValues, racketRuleFields, leftPremise, rig
     leftPremise: { ...leftPremise, jsonTree: isGoalChecked.LHS ? jsonTreeRep.LHS : null },
     rightPremise: { ...rightPremise, jsonTree: isGoalChecked.RHS ? jsonTreeRep.RHS : null },
     definitions,
+    generics,
     showSide,
-    isGoalChecked
+    isGoalChecked,
+    loadedInServer: false
   });
 };
 

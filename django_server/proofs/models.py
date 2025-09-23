@@ -29,8 +29,7 @@ class Definition(models.Model):
 class Generic(models.Model):
     label = models.CharField(max_length=100)
     type = models.CharField(max_length=100)
-    assumption = models.CharField(max_length=100, default="", blank=True)
-    never_null = models.BooleanField(default=True, blank=True)
+    restrictions = models.CharField(default='None', max_length=127)
     notes = models.TextField(default="", blank=True)
     created_by = models.ForeignKey(
         'accounts.Account', related_name='generics', on_delete=models.CASCADE)

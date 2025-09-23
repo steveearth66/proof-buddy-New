@@ -1,93 +1,39 @@
 from .ERCommon import *
-from .ERRuleset import *
-from .ERGenerics import GenericInt, GenericBool, GenericList, GenericAny
+from .ERGenerics import *
+from .ERRuleset import Rule, RuleType, UDF, getDefaultRuleSet
 import expression_tree.Parser as Parser
 import expression_tree.Labeler as Labeler
 import expression_tree.Decorator as Decorator
 import re
+import copy
 
-reservedLabels = ["cons", "if", "first", "rest", "null?", "cons?", "zero?", "consList", "expt", "quotient",
-                  "remainder", "and", "or", "not", "implies", "nand", "iff", "nor", "xor", ">", "<", "+", "-", "*",
-                  "null", "=", "-+", "math", "cons-first-rest", "first-cons", "rest-cons", "null?-cons"]
+reservedLabels = ["cons", "if", "first", "rest", "null?", "cons?", "zero?", "integer?", "list?", "consList", "expt", 
+                  "quotient", "remainder", "and", "or", "not", "implies", "nand", "iff", "nor", "xor", ">", "<", "+", 
+                  "-", "*", "null", "=", "-+", "math", "cons-first-rest", "first-cons", "rest-cons", "null?-cons"]
 
-class ERProof:
-    def __init__(self, debug=False):
-        self.ruleSet = {
-            'if': If(),
-            'cons': ConsList(),
-            'rest': RestList(),
-            'first': FirstList(),
-            'cons-first-rest': ConsProp(),
-            'first-cons': FirstProp(),
-            'rest-cons': RestProp(),
-            'null?-cons': NullQCons(),
-            'null?': NullQ(),
-            'cons?': ConsQ(),
-            'zero?': ZeroQ(),
-            'zero?+': ZeroQPlus(),
-            '+': Plus(),
-            '-': Minus(),
-            '*': Times(),
-            'quotient': Quotient(),
-            'remainder': Remainder(),
-            'expt': Expt(),
-            '=': Equals(),
-            '<': LessThan(),
-            '<=': LessOrEqual(),
-            '>': GreaterThan(),
-            '>=': GreaterOrEqual(),
-            'and': (And(), AndProp()),
-            'or': (Or(), OrProp()),
-            'not': Not(),
-            'xor': Xor(),
-            'implies': (Implies(), ImpliesProp()),
-            '-+': MinusPlus(),
-            'math': advMath(),
-            #'doubleFront': DoubleFront(),  # this is fake for demo. remove when UDF working
-        }
-        self.generics = {}
-        self.proofLines = []
+class ProofComponent:
+    '''Defines shared functionality between classes in ERProofEngine, namely concerning ruleSet, generics, and errLog'''
+    def __init__(self, ruleSet=None, generics=None, debug=False):
+        self.ruleSet = getDefaultRuleSet() if ruleSet is None else ruleSet
+        self.generics = dict() if generics is None else generics
         self.errLog = []
         self.debug = debug
 
-    def addProofLine(self, lineStr, ruleStr=None, highlightPos=0, substitution=None):
-        # prooflines now contain pointers to their proof's ruleset so they can refer to UDFs
-        if substitution != None:
-            subLine = ERProofLine(substitution, self.debug, self.ruleSet, generics=self.generics)
+    @property
+    def racketLabels(self):
+        return self.ruleSet['eval'].keys() | self.defDict.keys()
 
-        proofLine = ERProofLine(lineStr, self.debug, self.ruleSet, generics=self.generics)
-
-        if proofLine.errLog == None:
-            proofLine.errLog = []
-        if proofLine.errLog == []:
-            if ruleStr != None:
-                if substitution!=None:
-                    proofLine.applySubstitution(self.ruleSet, ruleStr, highlightPos, subLine)
-                else:
-                    proofLine.applyRule(self.ruleSet, ruleStr, highlightPos, self.generics)
-            if proofLine.errLog != []:
-                self.errLog.extend(proofLine.errLog)
-        else:
-            self.errLog.extend(proofLine.errLog)
-
-        if self.errLog == []:
-            self.proofLines.append(proofLine)
-
-    def deleteProofLine (self):
-        # when user delete's proof line on front end, simply pop the last proofline from the list
-        # are there any checks that should be performed prior to popping?
-
-        # one check might be... 
-        # do not allow the deletion of a "blank" line
-        # if you delete the blank line, can get stuck in a situation where 
-        # you are "stuck"
-        self.proofLines.pop()
-
-    def getPrevRacket(self):
-        if len(self.proofLines) == 0: #sometimes the proof is empty for some reason??
-            return ""
-        return str(self.proofLines[-1].exprTree)
-
+    @property
+    def defDict(self):
+        return {label: rule for (label, rule) in self.ruleSet['apply'].items() 
+                if rule.ruleType == RuleType.DEFINITION}
+    
+    def _validateNewLabel(self, label: str) -> bool:
+        """Checks if label is not already in use"""
+        return False not in map(lambda iterable: label not in iterable, (
+            reservedLabels, *self.ruleSet.values(), self.generics
+        )) and label.isalpha()
+    
     def addUDF(self, label, typeStr, body):
         errLog = Parser.preProcess(label,udf=True)[1] #added udf=True so that preprocessing will bypass empty string check
         if errLog != []:
@@ -122,8 +68,7 @@ class ERProof:
         )
         if bodyNode.errLog != []:
             self.errLog.extend(bodyNode.errLog)
-        # if not (udfLabel not in self.ruleSet.keys() and udfLabel not in reservedLabels):
-        if udfLabel in self.ruleSet.keys() or udfLabel in reservedLabels or udfLabel in self.generics.keys() or not udfLabel.isalpha():
+        if not self._validateNewLabel(udfLabel):
             self.errLog.append(
                 f"'{udfLabel}' is an invalid label for your Definition")
         if racTypeObj.getDomain() != None:
@@ -134,19 +79,19 @@ class ERProof:
             for j in range(len(paramsList)):
                 param2TypeDict[paramsList[j]] = RacType(racTypeObj.getDomain()[j]) #got rid of getDomain here and switched to value[0]
             filledBodyNode = fillBody(bodyNode.exprTree, udfLabel, racTypeObj, param2TypeDict)
-            self.ruleSet[udfLabel] = UDF(udfLabel, filledBodyNode, racTypeObj, paramsList)
+            self.ruleSet['apply'][udfLabel] = UDF(udfLabel, filledBodyNode, racTypeObj, paramsList)
 
     def removeUDF(self, label):
         if len(label) != 1:
             label = label.split()[0][1:]
-        if label in self.ruleSet.keys():
-            del self.ruleSet[label]
+        if label in self.ruleSet['apply']:
+            del self.ruleSet['apply'][label]
         else:
             self.errLog.append(f"Could not find UDF with label '{label}'")
 
     def addGeneric(self, label: str, type: str, restrictions: dict | None = None):
-        if label in reservedLabels or label in self.ruleSet.keys() or label in self.generics.keys() or not label.isalpha():
-            self.errLog.append(f"Could not use generic with label '{label}': label is already being used")
+        if not self._validateNewLabel(label):
+            self.errLog.append(f"Can not use generic with label '{label}': label is already being used")
         type = type.lower()
         if type == 'int' and (restrictions is None or restrictions.get("assumption") is None):
             self.generics[label] = GenericInt()
@@ -163,16 +108,83 @@ class ERProof:
         else:
             raise ValueError('Invalid type string')
 
-class ERProofLine:
-    def __init__(self, goal, debug=False, ruleDict=None, udfType=None,isUdf=False, generics=None): #added optional pointer to parent proof's ruleset
-        self.exprTree = None
-        self.errLog = []
-        self.debug = debug
-        self.positions = dict() # a dict of 4-tuples of the next pos when hitting up,down,left,right. keyd by startpos
-        if ruleDict != None:
-            self.ruleSet = ruleDict
+class TwoSidedProof(ProofComponent):
+    def __init__(self, debug=False):
+        super().__init__()
+        self.LHS = ERProof(self.ruleSet, self.generics, debug)
+        self.RHS = ERProof(self.ruleSet, self.generics, debug)
+        self.currentSide: ERProof = self.LHS
+        self.isValid = True
+        # TODO: is there a way to not have a separate definitions list, 
+        # since they are also stored in the ruleSet?
+        self.definitions = []
+
+    def toggleSide(self):
+        self.currentSide = self.RHS if self.currentSide == self.LHS else self.LHS
+    
+    def setCurrentSide(self, side: str):
+        if side.upper() not in ('LHS', 'RHS'):
+            raise ValueError("Invalid side literal: side must be either 'LHS' or 'RHS'")
+        self.currentSide = self.LHS if side == 'LHS' else self.RHS
+    
+    def updateErrorsAndValidate(self):
+        self.errLog.extend(self.currentSide.errLog)
+        self.isValid = len(self.errLog) == 0
+    
+    def getErrorsAndClear(self):
+        errors = copy.deepcopy(self.errLog)
+        self.errLog.clear()
+        self.currentSide.errLog.clear()
+        return errors
+    
+class ERProof(ProofComponent):
+    def __init__(self, ruleSet=None, generics=None, debug=False):
+        super().__init__(ruleSet, generics, debug)
+        self.proofLines: list[ERProofLine] = []
+
+    def addProofLine(self, lineStr, ruleStr=None, highlightPos=0, substitution=None):
+        # prooflines now contain pointers to their proof's ruleset so they can refer to UDFs
+        if substitution != None:
+            subLine = ERProofLine(substitution, self.debug, self.ruleSet, generics=self.generics)
+
+        proofLine = ERProofLine(lineStr, self.debug, self.ruleSet, generics=self.generics)
+
+        if proofLine.errLog == None:
+            proofLine.errLog = []
+        if proofLine.errLog == []:
+            if ruleStr != None:
+                if substitution!=None:
+                    proofLine.applySubstitution(ruleStr, highlightPos, subLine)
+                else:
+                    proofLine.applyRule(ruleStr, highlightPos)
+            if proofLine.errLog != []:
+                self.errLog.extend(proofLine.errLog)
         else:
-            self.ruleSet=dict()
+            self.errLog.extend(proofLine.errLog)
+
+        if self.errLog == []:
+            self.proofLines.append(proofLine)
+
+    def deleteProofLine (self):
+        # when user delete's proof line on front end, simply pop the last proofline from the list
+        # are there any checks that should be performed prior to popping?
+
+        # one check might be... 
+        # do not allow the deletion of a "blank" line
+        # if you delete the blank line, can get stuck in a situation where 
+        # you are "stuck"
+        self.proofLines.pop()
+
+    def getPrevRacket(self):
+        if len(self.proofLines) == 0: #sometimes the proof is empty for some reason??
+            return ""
+        return str(self.proofLines[-1].exprTree)
+
+class ERProofLine(ProofComponent):
+    def __init__(self, goal, debug=False, ruleDict=None, udfType=None, isUdf=False, generics=None): #added optional pointer to parent proof's ruleset
+        super().__init__(ruleSet=ruleDict, generics=generics, debug=debug)
+        self.exprTree = None
+        self.positions = dict() # a dict of 4-tuples of the next pos when hitting up,down,left,right. keyd by startpos
 
         tokenList, self.errLog = Parser.preProcess(goal, errLog=self.errLog, debug=self.debug,udf=isUdf)
         if self.errLog == []:
@@ -180,17 +192,17 @@ class ERProofLine:
             if self.errLog == []:
                 if Parser.checkQuotes(tree):
                     self.errLog.append(f"Cannot have nested quotes")
-            labeledTree = Labeler.labelTree(tree, ruleDict, generics)
+            labeledTree = Labeler.labelTree(tree, self.defDict, self.generics)
             labeledTree, _ = updatePositions(labeledTree)
 
         if self.errLog == []:
-            decTree, self.errLog = Decorator.decorateTree(labeledTree, self.errLog, ruleDict=ruleDict, generics=generics)
+            decTree, self.errLog = Decorator.decorateTree(labeledTree, self.errLog, defDict=self.defDict, generics=self.generics)
         #if self.errLog == []: #added userType in case of UDF
         #    decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog, theRuleDict=ruleDict, userType=udfType)
         if self.errLog == []:
-            self.errLog = Decorator.remTemps(decTree, self.errLog, theRuleDict=ruleDict)
+            self.errLog = Decorator.remTemps(decTree, self.errLog, racketLabels=self.racketLabels)
         if self.errLog == []: #added userType in case of UDF
-            decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog, theRuleDict=ruleDict, userType=udfType)
+            decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog, userType=udfType)
         if self.errLog == []:
             self.exprTree = decTree
         if self.errLog == []: #makes the positions dict for arrow key navigation
@@ -199,6 +211,10 @@ class ERProofLine:
 
     def parse_and_typecheck_args(self, ruleName: str, rawParams: list[str], expectedNames: list[str], expectedTypes:
     list[RacType], targetNode: Node) -> tuple[list, bool]:
+        # NOTE: currently, this method handles param assignment checking for definitions,
+        # while assignment matching for axioms/rules are handled by methods of the Axiom class
+        # in ERRuleset.
+        # TODO: Replace with param matching in ERRuleset? 
         """
         Parse ["x=...", "y=..."] into a list of values and check if they match the expected names and types.
         Args:
@@ -220,11 +236,11 @@ class ERProofLine:
         got, need = len(rawParams), len(expectedNames)
         if got < need:
             self.errLog.append(f"Not enough arguments given for {ruleName}. {ruleName} requires {len(expectedNames)} "
-                               f"arguments, while you gave {len(rawParams)}")
+                               f"argument{'' if len(expectedNames) == 1 else 's'}, while you gave {len(rawParams)}")
             return [], True
         elif got > need:
             self.errLog.append(f"Too many arguments given for {ruleName}. {ruleName} requires {len(expectedNames)} "
-                               f"arguments, while you gave {len(rawParams)}")
+                               f"argument{'' if len(expectedNames) == 1 else 's'}, while you gave {len(rawParams)}")
             return [], True
         found_mismatch = False
         for param, expected in zip(rawParams, expectedNames):
@@ -246,7 +262,7 @@ class ERProofLine:
             if tree is None:
                 self.errLog.append(f"Failed to build AST from value '{raw}' in argument '{param}'")
                 return [], True
-            labeled = Labeler.labelTree(tree, ruleDict=self.ruleSet)
+            labeled = Labeler.labelTree(tree, defDict=self.defDict)
             typed, _ = Decorator.decorateTree(labeled, self.errLog)
             if typed.type != expected_type.getType():
                 self.errLog.append(
@@ -263,33 +279,31 @@ class ERProofLine:
             return [], True
         return parsed, False
 
-    def find_undefined_labels(self, node: Node, ruleSet: dict[str, Rule] = None, generics: dict[str, ERGeneric] =
-    None) -> \
-            list[str]:
+    def find_undefined_labels(self, node: Node, foundLabels: set[str] = None) -> list[str]:
         """
         Recursively find undefined labels in the expression tree.
         Args:
             node: The current node in the expression tree.
-            ruleSet: A dictionary of defined rules.
-            generics: A dictionary of defined generics.
         Returns:
             A list of undefined labels found in the node's children.
         """
-        if ruleSet is None:
-            ruleSet = {}
-        if generics is None:
-            generics = {}
+
         undefined_labels = set()
         for child in node.children:
             if child.data in ("'(", "("):
-                undefined_labels |= set(self.find_undefined_labels(child, ruleSet, generics))
-            elif (child.data not in ruleSet.keys() and child.data not in reservedLabels and child.data not in
-                  generics.keys() and child.data.isalpha()):  # TODO: change to checking if type PARAM when
-                # we fix that
+                undefined_labels |= set(self.find_undefined_labels(child))
+            elif self._validateNewLabel(child.data):
+                # TODO: change to checking if type PARAM when we fix that
                 undefined_labels.add(child.data)
         return list(sorted(undefined_labels))
+    
+    def _getRuleType(self, ruleLabel: str) -> RuleType:
+        for prefix in self.ruleSet:
+            if (ruleObj := self.ruleSet[prefix].get(ruleLabel)) is not None:
+                return ruleObj.ruleType
+        raise ValueError
 
-    def applyRule(self, ruleSet: dict[str, Rule], rule: str, startPos: int, generics=None, subNode: Node = None):
+    def applyRule(self, rule: str, startPos: int, subNode: Node = None):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
         if targetNode == None:
             self.errLog.append(
@@ -307,61 +321,31 @@ class ERProofLine:
         ruleParams = ruleParams.replace("'()", "null")  # replace empty list with 'null'
         ruleParams = [m.group(0).strip() for m in re.finditer(r"\w+=.*?(?=,\s*\w+=|$)", ruleParams)]
 
-        if ruleCategory not in ["eval", "apply", "rewrite"]:
+        if ruleCategory not in ("eval", "apply", "rewrite"):
             self.errLog.append("Rule must start with 'eval', 'apply', or 'rewrite'")
             return
-
-        if rule == "":
-            msg = "Rule must include the "
-            if ruleCategory == "eval":
-                msg += "function to be evaluated"
-            elif ruleCategory == "apply":
-                msg += "definition/lemma to be applied"
-            else:
-                msg += "property to be rewritten"
-            self.errLog.append(msg)
-            return
-
-        if rule not in ruleSet.keys() - {'consProp', 'firstProp', 'restProp'}:  # 'apply consProp' is not valid
-            self.errLog.append(f'Could not find rule associated with {rule}')
-            return
-
-        entry = ruleSet[rule]
-
-        selected: Rule | None = None
-        match ruleCategory:
-            case 'eval':
-                if isinstance(entry, tuple):
-                    selected = entry[0]  # select eval rule from tuple
-                elif getattr(entry, 'isProperty', False):
-                    self.errLog.append("Cannot evaluate a property")
-                elif isinstance(entry, UDF):
-                    self.errLog.append("Cannot evaluate a user-defined function")
-                elif rule == 'math':
-                    self.errLog.append("Could not find built-in Racket procedure associated with 'math'")
-                else:
-                    selected = entry
-            case 'rewrite':
-                if isinstance(entry, tuple):
-                    selected = entry[1]  # select rewrite rule from tuple
-                elif getattr(entry, 'isProperty', False):
-                    selected = entry
-                else:
-                    self.errLog.append(f"Cannot rewrite {rule} as it is not a property")
-            case 'apply':
-                if isinstance(entry, UDF):  # TODO: might need to add support for other types in future
-                    selected = entry
-                elif getattr(entry, 'isProperty', False):
-                    self.errLog.append("Cannot apply a property")
-                else:
-                    self.errLog.append(f"Could not find definition/lemma associated with {rule}")
-            case _:
-                self.errLog.append("Rule must start with 'eval', 'apply', or 'rewrite'")
+        
+        selected = self.ruleSet[ruleCategory].get(rule)
+        if selected is None:
+            try:
+                entryType = str(self._getRuleType(rule))
+                match ruleCategory:
+                    case 'eval':
+                        self.errLog.append(f"Cannot evaluate {entryType}")
+                    case 'apply':
+                        self.errLog.append(f"Cannot apply {entryType}")
+                    case 'rewrite':
+                        self.errLog.append(f"Cannot rewrite using {entryType}")
+            except ValueError:
+                self.errLog.append(f"Could not find rule associated with '{rule}'")
 
         if self.errLog:
             return
+        
+        for label in self.find_undefined_labels(targetNode):
+            self.errLog.append(f"No definition found for label '{label}'")
 
-        if (ruleCategory == "rewrite") or isinstance(selected, UDF):
+        if selected.ruleType == RuleType.DEFINITION:
             values, hadErr = self.parse_and_typecheck_args(
                 rule,
                 ruleParams,
@@ -369,34 +353,29 @@ class ERProofLine:
                 selected.racType.getDomain(),
                 targetNode
             )
-            for label in self.find_undefined_labels(targetNode, ruleSet, generics):
-                self.errLog.append(f"No definition found for label '{label}'")
             if hadErr or self.errLog:
                 return
 
-        if ruleCategory == "eval" and rule == 'math':
+        if selected._ruleType == RuleType.MATH:
             ok, err = selected.isApplicable(targetNode, subNode)
-        else:
+        elif ruleCategory == 'eval':
             ok, err = selected.isApplicable(targetNode)
+        else:
+            ok, err = selected.isApplicable(targetNode, ruleParams)
 
         if not ok:
             self.errLog.append(err)
             return
 
-        if ruleCategory == "eval" and isinstance(selected, UDF):
-            # shouldn't get here but just in case
-            self.errLog.append("Cannot evaluate a user-defined function")
-            return
-
         newNode = (
             selected.insertSubstitution(targetNode, subNode)
-            if ruleCategory == "eval" and rule == 'math'
+            if selected.ruleType == RuleType.MATH
             else selected.insertSubstitution(targetNode)
         )
         targetNode.replaceWith(newNode)
         updatePositions(self.exprTree)
 
-    def applySubstitution(self, ruleSet: dict[str, Rule], rule: str, startPos: int, subLine: 'ERProofLine'):
+    def applySubstitution(self, rule: str, startPos: int, subLine: 'ERProofLine'):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
         if targetNode == None:
             self.errLog.append(
@@ -408,7 +387,7 @@ class ERProofLine:
             self.errLog.append(f"Cannot apply rules within a quoted expression")
         if self.errLog == []:
             replacementExprTree = copy.deepcopy(subLine.exprTree)
-            subLine.applyRule(ruleSet, rule, 0, targetNode)
+            subLine.applyRule(rule, 0, targetNode)
             if subLine.errLog != []:
                 self.errLog.extend(subLine.errLog)
             elif subLine.exprTree != targetNode:
