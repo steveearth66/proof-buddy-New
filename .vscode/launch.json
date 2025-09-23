@@ -1,19 +1,60 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
+    "compounds": [
+      {
+        "name": "Full Stack Debug",
+        "configurations": ["Python: Django", "React: Debug Terminal"]
+      }
+    ],
     "configurations": [
-        {
-            "name": "Python Debugger: Current File with Arguments",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "django_server/manage.py",
-            "console": "integratedTerminal",
-            "args": [
-                //"test", "proofs" // use this to run tests.py in proofs directory
-                "runserver"  // use this to debug live
-            ]
+      {
+        "name": "Python: Django",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${workspaceFolder}/django_server/manage.py",
+        "args": ["runserver"],
+        "django": true,
+        "justMyCode": true,
+        "preLaunchTask": "djangoSetup"
+      },
+      {
+        "name": "React: Debug Terminal",
+        "type": "node-terminal",
+        "request": "launch",
+        "command": "cd client; npm start",
+        "serverReadyAction": {
+          "pattern": "Local:",
+          // "uriFormat": "%s",
+          "action": "openExternally"
         }
+      },
+      {
+        "name": "React: Chrome with Source Maps",
+        "type": "chrome",
+        "request": "launch",
+        "url": "http://localhost:3000",
+        "webRoot": "${workspaceFolder}/client/src",
+        "sourceMapPathOverrides": {
+            "webpack:///src/*": "${webRoot}/*"
+        }
+      },
+      {
+        "name": "Python: proofs/tests.py",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "django_server/manage.py",
+        "console": "integratedTerminal",
+        "args": [
+            "test", "proofs"
+        ]
+      }
+    ],
+    "tasks": [
+      {
+        "label": "djangoSetup",
+        "type": "shell",
+        "command": "cd django_server; python manage.py migrate; python manage.py createcachetable",
+        "problemMatcher": []
+      }
     ]
-}
+  }

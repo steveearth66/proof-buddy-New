@@ -75,7 +75,7 @@ pnullPred = ERobj("null?", Type.FUNCTION, (Type.ANY,),
                   Type.BOOL, lambda x: x == [], 1)
 pzeroPred = ERobj("zero?", Type.FUNCTION, (Type.ANY,),
                   Type.BOOL, lambda x: x == 0, 1)
-pintPred = ERobj("int?", Type.FUNCTION, (Type.ANY,),
+pintPred = ERobj("integer?", Type.FUNCTION, (Type.ANY,),
                  Type.BOOL, lambda x: isinstance(x, int), 1)
 # BUG: might be bug with quoted lists, so better to refer to ERobj.type ?
 plistPred = ERobj("list?", Type.FUNCTION, (Type.ANY,),

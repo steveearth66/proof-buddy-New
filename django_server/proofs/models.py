@@ -26,6 +26,21 @@ class Definition(models.Model):
     def __str__(self):
         return self.label
 
+class Generic(models.Model):
+    label = models.CharField(max_length=100)
+    type = models.CharField(max_length=100)
+    restrictions = models.CharField(default='None', max_length=127)
+    notes = models.TextField(default="", blank=True)
+    created_by = models.ForeignKey(
+        'accounts.Account', related_name='generics', on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('label', 'created_by')
+    
+    def __str__(self):
+        return self.label
+
 class Proof(models.Model):
     name = models.CharField(max_length=100)
     tag = models.CharField(max_length=100)
@@ -39,6 +54,9 @@ class Proof(models.Model):
         max_length=3, choices=TEMPLATE_CHOICES, default='ER')
     definitions = models.ManyToManyField(
         Definition, related_name="proof_definitions", blank=True
+    )
+    generics = models.ManyToManyField(
+        Generic, related_name='proofs', blank=True
     )
 
     def __str__(self):

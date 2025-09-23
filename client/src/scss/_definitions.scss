@@ -45,12 +45,20 @@
 .definitions {
     display: flex;
     flex-direction: column;
-    flex: 1;
+    flex: 5;
     gap: 10px;
     overflow-y: auto;
 }
 
-.definition-label {
+.generics {
+    display: flex;
+    flex-direction: column;
+    flex: 3;
+    gap: 10px;
+    overflow-y: scroll;
+}
+
+.definition-label, .generic-label {
     font-size: 18px;
     font-weight: 500;
 }

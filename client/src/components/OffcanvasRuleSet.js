@@ -15,13 +15,18 @@ const OffcanvasRuleSet = ({ isActive, toggleFunction }) => {
   /* Present list of Rules for View Rule Set Offcanvas */
 
   const onSearch = (e) => {
-    const searchValue = e.target.value;
+    const searchValue = e.target.value.toLowerCase();
+    if (!searchValue) {
+      setFilteredRules(ruleSet());
+      return;
+    }
+
     const rules = ruleSet();
     const filteredRules = [];
     rules.forEach(ruleSet => 
       filteredRules.push(ruleSet.filter((rule) => {
         return (
-          rule.name ? rule.name.toLowerCase().includes(searchValue.toLowerCase()) : false ||
+          (rule.name ? rule.name.toLowerCase().includes(searchValue.toLowerCase()) : false) ||
               String(rule.procedure).toLowerCase().includes(searchValue.toLowerCase()) ||
               String(rule.highlight).toLowerCase().includes(searchValue.toLowerCase()) ||
               String(rule.result).toLowerCase().includes(searchValue.toLowerCase())
@@ -48,17 +53,17 @@ const OffcanvasRuleSet = ({ isActive, toggleFunction }) => {
           onChange={onSearch}
         />
         <p>
-          <strong>Rules must be in the form "<em>&lt;prefix&gt; &lt;name&gt;</em>", 
-          where <em>&lt;prefix&gt;</em> is the appropriate prefix (either "eval" or "apply")
+          <strong>Rules must be in the form "<em>&lt;prefix&gt; &lt;name&gt;</em>",
+            where <em>&lt;prefix&gt;</em> is the appropriate prefix ("eval", "rewrite", or "apply")
           and <em>&lt;name&gt;</em> is the rule name of the procedure.</strong><br />
-          <strong>Examples:</strong> "eval +", "apply first" 
+          <strong>Examples:</strong> "eval +", "rewrite first-cons", "apply F" (where F is a definition)
         </p>
         <p>Note: any rule can be done in “reverse” (i.e. selecting result to get the highlight) by using the “Substitution” button</p>
         <h3>"Eval" Procedures:</h3>
         <Table striped bordered hover>
           <thead>
             <tr>
-              <th>Rule Name/Procedure</th>
+              <th>Name/Procedure</th>
               <th>Highlight</th>
               <th>Result</th>
             </tr>
@@ -73,12 +78,11 @@ const OffcanvasRuleSet = ({ isActive, toggleFunction }) => {
             ))}
           </tbody>
         </Table>
-        <h3>"Apply" Procedures:</h3>
+        <h3>Rewrite Rules:</h3>
         <Table striped bordered hover>
           <thead>
             <tr>
               <th style={{ width: "10%" }}>Rule Name</th>
-              <th style={{ width: "10%" }}>Procedure</th>
               <th>Highlight</th>
               <th>Result</th>
             </tr>
@@ -86,14 +90,7 @@ const OffcanvasRuleSet = ({ isActive, toggleFunction }) => {
           <tbody>
             {applyRules.map((rule, index) => (
               <tr key={index}>
-                {rule.name ? (
-                  <>
-                    <td>{rule.name}</td>
-                    <td>{rule.procedure}</td>
-                  </>
-                ) : (
-                  <td colSpan="2" align="center">{rule.procedure}</td>
-                )}
+                <td>{rule.procedure}</td>
                 <td>{rule.highlight}</td>
                 <td>{rule.result}</td>
               </tr>
