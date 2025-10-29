@@ -130,7 +130,7 @@ const InductionRacket = () => {
 
   const exportJSON = useExportToLocalMachine(
     formValues.proofName,
-    convertFormToJSON()
+    convertFormToJSON
   );
 
   const handleHighlight = (startPosition) => {
@@ -199,6 +199,149 @@ const InductionRacket = () => {
     rightPremise,
     sendProofComplete
   ]);
+
+  /**
+   * Parse a top-level function application like "(f x y)".
+   * Returns { name: 'f', params: ['x','y'] } or null if not a simple paren application.
+   */
+  const parseTopLevelApplication = (s) => {
+    if (!s) return null;
+    const trimmed = s.trim();
+    if (!trimmed.startsWith("(")) return null;
+    // Find matching top-level ) for the first '('
+    let depth = 0;
+    for (let i = 0; i < trimmed.length; i++) {
+      const ch = trimmed[i];
+      if (ch === "(") depth++;
+      else if (ch === ")") depth--;
+      if (depth === 0) {
+        // take substring from 1 to i-1
+        const inner = trimmed.slice(1, i).trim();
+        if (inner.length === 0) return null;
+        // split by whitespace but keep symbols intact
+        const tokens = inner.split(/\s+/);
+        if (tokens.length >= 1) {
+          const name = tokens[0];
+          const params = tokens.slice(1);
+          return { name, params };
+        }
+        return null;
+      }
+    }
+    return null;
+  };
+
+  /**
+   * Validates:
+   * - induction variable is a parameter of a (top-level) function in LHS or RHS goal
+   * - anchor/induction value is a nonnegative integer
+   * - leap variable does not appear in LHS, RHS, or equal induction variable
+   *
+   * On success, calls checkGoal(...) to proceed.
+   *
+   * Uses exact error messages requested:
+   * "Induction variable must be a parameter of a function in your goal."
+   * "Anchor value must be a nonnegative integer."
+   * "Leap variable must not overlap with variables in the goal."
+   */
+  const validateAndStart = (
+    side,
+    proofName,
+    proofTag,
+    leapGoalForSide,
+    anchorGoalForSide,
+    inductionVariable,
+    inductionValue,
+    leapVariable,
+    inductionType,
+    isAnchorFlag
+  ) => {
+    // Determine which goal strings to check based on the side and isAnchorFlag
+    const leftGoal = isAnchorFlag
+      ? formValues.lHSAnchorGoal
+      : formValues.lHSLeapGoal;
+    const rightGoal = isAnchorFlag
+      ? formValues.rHSAnchorGoal
+      : formValues.rHSLeapGoal;
+
+    // Choose the side-specific goals passed in (these args are same as existing checkGoal)
+    const selectedLeapGoal = leapGoalForSide || "";
+    const selectedAnchorGoal = anchorGoalForSide || "";
+
+    // 1) Validate inductionValue is a nonnegative integer
+    if (!/^\d+$/.test(inductionValue || "")) {
+      toast.error("Anchor value must be a nonnegative integer.");
+      return;
+    }
+    const parsedVal = parseInt(inductionValue, 10);
+    if (isNaN(parsedVal) || parsedVal < 0) {
+      toast.error("Anchor value must be a nonnegative integer.");
+      return;
+    }
+
+    // 2) Validate leapVariable does not appear in LHS, RHS, or equal inductionVariable
+    if (leapVariable && inductionVariable && leapVariable === inductionVariable) {
+      toast.error("Leap variable must not overlap with variables in the goal.");
+      return;
+    }
+
+    const leapVarWord = leapVariable ? `\\b${escapeRegExp(leapVariable)}\\b` : null;
+    if (leapVarWord) {
+      const re = new RegExp(leapVarWord);
+      // Check both side goals (the "goal" strings visible in form)
+      if (re.test(leftGoal) || re.test(rightGoal) || re.test(selectedLeapGoal) || re.test(selectedAnchorGoal)) {
+        toast.error("Leap variable must not overlap with variables in the goal.");
+        return;
+      }
+    }
+
+    // 3) Validate inductionVariable appears as a parameter of a (top-level) function in either LHS or RHS goal
+    const ivar = inductionVariable ? inductionVariable.trim() : "";
+    if (!ivar) {
+      toast.error("Induction variable must be a parameter of a function in your goal.");
+      return;
+    }
+
+    const leftApp = parseTopLevelApplication(leftGoal);
+    const rightApp = parseTopLevelApplication(rightGoal);
+    const leapApp = parseTopLevelApplication(selectedLeapGoal);
+    const anchorApp = parseTopLevelApplication(selectedAnchorGoal);
+
+    const appearsInParams = (app) => {
+      if (!app || !app.params) return false;
+      return app.params.some((p) => p === ivar);
+    };
+
+    // Check any of the parsed top-level applications for the induction variable as a parameter
+    if (
+      !appearsInParams(leftApp) &&
+      !appearsInParams(rightApp) &&
+      !appearsInParams(leapApp) &&
+      !appearsInParams(anchorApp)
+    ) {
+      toast.error("Induction variable must be a parameter of a function in your goal.");
+      return;
+    }
+
+    // All validations passed — proceed to call existing checkGoal
+    checkGoal(
+      side,
+      proofName,
+      proofTag,
+      leapGoalForSide,
+      anchorGoalForSide,
+      inductionVariable,
+      inductionValue,
+      leapVariable,
+      inductionType,
+      isAnchorFlag
+    );
+  };
+
+  // small helper to escape regex special chars
+  const escapeRegExp = (string) => {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  };
 
   return (
     <MainLayout>
@@ -586,7 +729,7 @@ const InductionRacket = () => {
                   <Button
                     className="orange-btn"
                     onClick={() =>
-                      checkGoal(
+                      validateAndStart(
                         showSide,
                         formValues.proofName,
                         formValues.proofTag,
@@ -895,7 +1038,7 @@ const InductionRacket = () => {
                         </Dropdown.Toggle>
 
                         <Dropdown.Menu>
-                          <Dropdown.Item onClick={exportJSON}>
+                          <Dropdown.Item onClick={exportJSON()}>
                             Download Proof
                           </Dropdown.Item>
                           <Dropdown.Item href="#">Upload Proof</Dropdown.Item>
