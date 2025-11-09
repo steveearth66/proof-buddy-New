@@ -3,7 +3,7 @@ import { handleServiceError } from "../utils/serviceErrorHandling";
 
 const API_GATEWAY = "/api/v1/induction";
 
-const checkInduction = async (induction) => {
+const startInductionProof = async (induction) => {
   try {
     const response = await axiosInstance.post(
       `${API_GATEWAY}/start-induction-proof`,
@@ -27,7 +27,7 @@ const clearInduction = async () => {
 };
 
 const inductionService = {
-  checkInduction,
+  startInductionProof,
   clearInduction
 };
 

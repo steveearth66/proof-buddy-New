@@ -244,7 +244,7 @@ const InductionRacket = () => {
    * "Anchor value must be a nonnegative integer."
    * "Leap variable must not overlap with variables in the goal."
    */
-  const validateAndStart = (
+  const validateAndStart = async (
     side,
     proofName,
     proofTag,
@@ -322,6 +322,45 @@ const InductionRacket = () => {
       toast.error("Induction variable must be a parameter of a function in your goal.");
       return;
     }
+
+    try {
+    const inductionData = {
+      side: side,
+      proof_name: proofName,
+      proof_tag: proofTag,
+      lhs_leap_goal: formValues.lHSLeapGoal,
+      rhs_leap_goal: formValues.rHSLeapGoal,
+      lhs_anchor_goal: formValues.lHSAnchorGoal,
+      rhs_anchor_goal: formValues.rHSAnchorGoal,
+      induction_variable: inductionVariable,
+      anchor_value: inductionValue,
+      leap_variable: leapVariable,
+      induction_type: inductionType,
+      is_anchor: isAnchorFlag
+    };
+
+    console.log('Sending induction data to backend:', inductionData);
+    
+    const response = await inductionService.startInductionProof(inductionData);
+    console.log('Backend response:', response);
+    
+    if (response.data && response.data.proof_id) {
+      toast.success('Induction proof started successfully!');
+      sessionStorage.setItem('current_proof_id', response.data.proof_id);
+    } else {
+      toast.error('Unexpected response from server');
+    }
+    
+  } catch (error) {
+    console.error('Error sending induction data:', error);
+    
+    if (error.response && error.response.data) {
+      const errorData = error.response.data;
+      toast.error(`Failed to start induction proof: ${errorData.error || 'Unknown error'}`);
+    } else {
+      toast.error('Failed to connect to server');
+    }
+  }
 
     // All validations passed — proceed to call existing checkGoal
     checkGoal(
@@ -664,8 +703,18 @@ const InductionRacket = () => {
                     name="proofCurrentLHS"
                     type="text"
                     placeholder="Current LHS"
-                    value={currentLHS === "" ? lhsValue : currentLHS}
-                    readOnly
+                    value={lhsValue || currentLHS}
+                    onChange={(e) => setLhsValue(e.target.value)}
+                    onFocus={(e) => {
+                      if (showSide !== "LHS") {
+                        e.target.blur();
+                        return;
+                      }
+                      if (!lhsValue && currentLHS) {
+                        setLhsValue(currentLHS);
+                      }
+                    }}
+                    style={{ cursor: showSide === "LHS" ? "text" : "not-allowed" }}
                   />
                   <label htmlFor="eRProofCurrentLHS">Current LHS</label>
                 </Form.Floating>
@@ -682,8 +731,18 @@ const InductionRacket = () => {
                     name="proofCurrentRHS"
                     type="text"
                     placeholder="Current RHS"
-                    value={currentRHS === "" ? rhsValue : currentRHS}
-                    readOnly
+                    value={rhsValue || currentRHS}
+                    onChange={(e) => setRhsValue(e.target.value)}
+                    onFocus={(e) => {
+                      if (showSide !== "RHS") {
+                        e.target.blur();
+                        return;
+                      }
+                      if (!rhsValue && currentRHS) {
+                        setRhsValue(currentRHS);
+                      }
+                    }}
+                    style={{ cursor: showSide === "RHS" ? "text" : "not-allowed" }}
                   />
                   <label htmlFor="eRProofCurrentRHS">Current RHS</label>
                 </Form.Floating>
