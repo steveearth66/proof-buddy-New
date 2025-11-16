@@ -32,11 +32,6 @@ class InductionProof(models.Model):
     anchor_value = models.IntegerField()
     leap_variable = models.CharField(max_length=100)
     
-    # Function expressions
-    lhs_expression = models.TextField(blank=True, null=True)
-    rhs_expression = models.TextField(blank=True, null=True)
-    
-    # Proof state - goals
     lhs_leap_goal = models.TextField(blank=True, null=True)
     rhs_leap_goal = models.TextField(blank=True, null=True)
     lhs_anchor_goal = models.TextField(blank=True, null=True)

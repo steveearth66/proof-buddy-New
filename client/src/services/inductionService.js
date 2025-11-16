@@ -9,7 +9,7 @@ const startInductionProof = async (induction) => {
       `${API_GATEWAY}/start-induction-proof`,
       induction
     );
-    return response.data;
+    return response;
   } catch (error) {
     handleServiceError(error, "Error during induction validation:");
     throw error;

@@ -57,12 +57,25 @@ class InductionProofSerializer(serializers.ModelSerializer):
         """Cross-field validation"""
         induction_var = data.get('induction_variable')
         leap_var = data.get('leap_variable')
-        lhs_expr = data.get('lhs_expression', '')
-        rhs_expr = data.get('rhs_expression', '')
         
-        # Validate induction variable is in LHS or RHS
+        # Use the goal fields that your frontend sends
+        lhs_leap_goal = data.get('lhs_leap_goal', '')
+        rhs_leap_goal = data.get('rhs_leap_goal', '')
+        lhs_anchor_goal = data.get('lhs_anchor_goal', '')
+        rhs_anchor_goal = data.get('rhs_anchor_goal', '')
+        
+        # Validate induction variable is in any of the goal expressions
         if induction_var:
-            if induction_var not in lhs_expr and induction_var not in rhs_expr:
+            # More robust check for variable usage using word boundaries
+            var_pattern = r'\b' + re.escape(induction_var) + r'\b'
+            
+            # Check all goal fields
+            goals_to_check = [lhs_leap_goal, rhs_leap_goal, lhs_anchor_goal, rhs_anchor_goal]
+            found_in_any_goal = any(
+                re.search(var_pattern, goal) for goal in goals_to_check if goal
+            )
+            
+            if not found_in_any_goal:
                 raise serializers.ValidationError({
                     'induction_variable': f"Induction variable '{induction_var}' must be used in either LHS or RHS expression."
                 })
@@ -73,15 +86,20 @@ class InductionProofSerializer(serializers.ModelSerializer):
                 'leap_variable': f"Leap variable '{leap_var}' must be different from induction variable '{induction_var}'."
             })
         
-        # Check that leap variable is not already used in expressions
+        # Check that leap variable is not already used in goal expressions
         if leap_var:
-            if leap_var in lhs_expr or leap_var in rhs_expr:
+            var_pattern = r'\b' + re.escape(leap_var) + r'\b'
+            goals_to_check = [lhs_leap_goal, rhs_leap_goal, lhs_anchor_goal, rhs_anchor_goal]
+            found_in_goals = any(
+                re.search(var_pattern, goal) for goal in goals_to_check if goal
+            )
+            
+            if found_in_goals:
                 raise serializers.ValidationError({
-                    'leap_variable': f"Leap variable '{leap_var}' is already used in the expressions. Choose a unique variable name."
+                    'leap_variable': f"Leap variable '{leap_var}' is already used in the goal expressions. Choose a unique variable name."
                 })
         
         return data
-
 
 class InductionProofCreateSerializer(serializers.Serializer):
     """Serializer for creating a new induction proof"""

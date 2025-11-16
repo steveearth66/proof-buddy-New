@@ -29,7 +29,7 @@ import {
 } from "../components";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import inductionService from "../services/inductionService";
-
+import { applyGenericsToDefinitions } from '../components/Definitions';
 /**
  * InductionRacket component facilitates the Equational Reasoning Racket.
  */
@@ -117,8 +117,6 @@ const InductionRacket = () => {
    * Returns a JSON object of the present form
    */
   const convertFormToJSON = () => {
-    //This is a Front End Proof Object placeholder
-    //In the future we will be using a Proof Object sent from the python-server
     let EquationalReasoningObject = {
       name: formValues.proofName,
       leftRacketsAndRules: racketRuleFields.LHS,
@@ -208,17 +206,14 @@ const InductionRacket = () => {
     if (!s) return null;
     const trimmed = s.trim();
     if (!trimmed.startsWith("(")) return null;
-    // Find matching top-level ) for the first '('
     let depth = 0;
     for (let i = 0; i < trimmed.length; i++) {
       const ch = trimmed[i];
       if (ch === "(") depth++;
       else if (ch === ")") depth--;
       if (depth === 0) {
-        // take substring from 1 to i-1
         const inner = trimmed.slice(1, i).trim();
         if (inner.length === 0) return null;
-        // split by whitespace but keep symbols intact
         const tokens = inner.split(/\s+/);
         if (tokens.length >= 1) {
           const name = tokens[0];
@@ -256,7 +251,6 @@ const InductionRacket = () => {
     inductionType,
     isAnchorFlag
   ) => {
-    // Determine which goal strings to check based on the side and isAnchorFlag
     const leftGoal = isAnchorFlag
       ? formValues.lHSAnchorGoal
       : formValues.lHSLeapGoal;
@@ -264,11 +258,9 @@ const InductionRacket = () => {
       ? formValues.rHSAnchorGoal
       : formValues.rHSLeapGoal;
 
-    // Choose the side-specific goals passed in (these args are same as existing checkGoal)
     const selectedLeapGoal = leapGoalForSide || "";
     const selectedAnchorGoal = anchorGoalForSide || "";
 
-    // 1) Validate inductionValue is a nonnegative integer
     if (!/^\d+$/.test(inductionValue || "")) {
       toast.error("Anchor value must be a nonnegative integer.");
       return;
@@ -279,7 +271,6 @@ const InductionRacket = () => {
       return;
     }
 
-    // 2) Validate leapVariable does not appear in LHS, RHS, or equal inductionVariable
     if (leapVariable && inductionVariable && leapVariable === inductionVariable) {
       toast.error("Leap variable must not overlap with variables in the goal.");
       return;
@@ -288,14 +279,12 @@ const InductionRacket = () => {
     const leapVarWord = leapVariable ? `\\b${escapeRegExp(leapVariable)}\\b` : null;
     if (leapVarWord) {
       const re = new RegExp(leapVarWord);
-      // Check both side goals (the "goal" strings visible in form)
       if (re.test(leftGoal) || re.test(rightGoal) || re.test(selectedLeapGoal) || re.test(selectedAnchorGoal)) {
         toast.error("Leap variable must not overlap with variables in the goal.");
         return;
       }
     }
 
-    // 3) Validate inductionVariable appears as a parameter of a (top-level) function in either LHS or RHS goal
     const ivar = inductionVariable ? inductionVariable.trim() : "";
     if (!ivar) {
       toast.error("Induction variable must be a parameter of a function in your goal.");
@@ -312,7 +301,6 @@ const InductionRacket = () => {
       return app.params.some((p) => p === ivar);
     };
 
-    // Check any of the parsed top-level applications for the induction variable as a parameter
     if (
       !appearsInParams(leftApp) &&
       !appearsInParams(rightApp) &&
@@ -324,60 +312,145 @@ const InductionRacket = () => {
     }
 
     try {
-    const inductionData = {
-      side: side,
-      proof_name: proofName,
-      proof_tag: proofTag,
-      lhs_leap_goal: formValues.lHSLeapGoal,
-      rhs_leap_goal: formValues.rHSLeapGoal,
-      lhs_anchor_goal: formValues.lHSAnchorGoal,
-      rhs_anchor_goal: formValues.rHSAnchorGoal,
-      induction_variable: inductionVariable,
-      anchor_value: inductionValue,
-      leap_variable: leapVariable,
-      induction_type: inductionType,
-      is_anchor: isAnchorFlag
-    };
+      const inductionData = {
+        side: side,
+        proof_name: proofName,
+        proof_tag: proofTag,
+        lhs_leap_goal: formValues.lHSLeapGoal,
+        rhs_leap_goal: formValues.rHSLeapGoal,
+        lhs_anchor_goal: formValues.lHSAnchorGoal,
+        rhs_anchor_goal: formValues.rHSAnchorGoal,
+        induction_variable: inductionVariable,
+        anchor_value: inductionValue,
+        leap_variable: leapVariable,
+        induction_type: inductionType,
+        is_anchor: isAnchorFlag
+      };
 
-    console.log('Sending induction data to backend:', inductionData);
-    
-    const response = await inductionService.startInductionProof(inductionData);
-    console.log('Backend response:', response);
-    
-    if (response.data && response.data.proof_id) {
-      toast.success('Induction proof started successfully!');
-      sessionStorage.setItem('current_proof_id', response.data.proof_id);
-    } else {
-      toast.error('Unexpected response from server');
-    }
-    
-  } catch (error) {
-    console.error('Error sending induction data:', error);
-    
-    if (error.response && error.response.data) {
-      const errorData = error.response.data;
-      toast.error(`Failed to start induction proof: ${errorData.error || 'Unknown error'}`);
-    } else {
-      toast.error('Failed to connect to server');
-    }
-  }
+      console.log('=== SENDING INDUCTION DATA ===');
+      console.log(inductionData);
+      
+      const response = await inductionService.startInductionProof(inductionData);
+      
+      console.log('=== RESPONSE RECEIVED ===');
+      console.log('Status:', response.status);
+      console.log('Data:', response.data);
 
-    // All validations passed — proceed to call existing checkGoal
-    checkGoal(
-      side,
-      proofName,
-      proofTag,
-      leapGoalForSide,
-      anchorGoalForSide,
-      inductionVariable,
-      inductionValue,
-      leapVariable,
-      inductionType,
-      isAnchorFlag
-    );
+      if (response && response.data) {
+        if (response.status === 201 || response.status === 200) {
+          const genericDef = response.data.generic_definition_created;
+          
+          console.log('=== GENERIC DEFINITION ===');
+          console.log(genericDef);
+          
+          if (genericDef) {
+            // Get current generics from sessionStorage
+            let generics = [];
+            try {
+              const storedGenerics = sessionStorage.getItem('generics');
+              console.log('Current generics in storage:', storedGenerics);
+              generics = storedGenerics ? JSON.parse(storedGenerics) : [];
+            } catch (e) {
+              console.error('Error parsing generics:', e);
+              generics = [];
+            }
+            
+            // Transform backend format to frontend generic format
+            const newGeneric = {
+              id: genericDef.id || `generic_${Date.now()}`,
+              label: genericDef.name,
+              type: genericDef.type,
+              notes: genericDef.description || `Generic variable for leap case in induction on ${inductionVariable}`,
+              restrictions: {
+                assumption: 'Non-negative',
+                neverNull: false
+              },
+              enabled: true
+            };
+            
+            console.log('=== NEW GENERIC CREATED ===');
+            console.log(newGeneric);
+            
+            // Check if generic already exists by label
+            const existingIndex = generics.findIndex(g => g.label === newGeneric.label);
+            
+            if (existingIndex >= 0) {
+              generics[existingIndex] = newGeneric;
+              console.log('Updated existing generic at index:', existingIndex);
+            } else {
+              generics.push(newGeneric);
+              console.log('Added new generic. Total generics:', generics.length);
+            }
+            
+            // Save back to sessionStorage
+            sessionStorage.setItem('generics', JSON.stringify(generics));
+            console.log('=== SAVED TO SESSION STORAGE ===');
+            console.log('generics:', generics);
+            
+            // Dispatch custom event that Definitions.jsx will listen to
+            const event = new CustomEvent('genericsUpdated', {
+              detail: { 
+                newGeneric: newGeneric,
+                allGenerics: generics 
+              }
+            });
+            window.dispatchEvent(event);
+            console.log('=== DISPATCHED genericsUpdated EVENT ===');
+            
+            toast.success(`Generic variable "${genericDef.name}" created for leap case`);
+          }
+
+          const proofId = response.data.proof_id || response.data.id;
+          
+          if (proofId) {
+            toast.success('Induction proof started successfully!');
+            sessionStorage.setItem('current_proof_id', proofId);
+            console.log('Proof started with ID:', proofId);
+          }
+          
+          // Call checkGoal to proceed
+          checkGoal(
+            side,
+            proofName,
+            proofTag,
+            leapGoalForSide,
+            anchorGoalForSide,
+            inductionVariable,
+            inductionValue,
+            leapVariable,
+            inductionType,
+            isAnchorFlag
+          );
+          
+        } else {
+          toast.error(`Server returned status: ${response.status}`);
+        }
+      } else {
+        toast.error('No response data received from server');
+      }
+    } catch (error) {
+      console.error('=== ERROR IN INDUCTION PROOF ===');
+      console.error('Error object:', error);
+      
+      if (error.response) {
+        console.error('Error response data:', error.response.data);
+        console.error('Error response status:', error.response.status);
+        
+        const errorData = error.response.data;
+        const errorMessage = errorData.error || errorData.details || 'Unknown server error';
+        toast.error(`Failed to start induction proof: ${errorMessage}`);
+      } else if (error.request) {
+        console.error('No response received:', error.request);
+        toast.error('Cannot connect to server. Please check your connection.');
+      } else {
+        console.error('Error message:', error.message);
+        toast.error(`Error: ${error.message}`);
+      }
+      
+      return;
+    }
   };
 
-  // small helper to escape regex special chars
   const escapeRegExp = (string) => {
     return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   };
