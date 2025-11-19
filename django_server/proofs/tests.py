@@ -2,6 +2,7 @@
 
 # Create your tests here.
 from expression_tree.ERProofEngine import ERProof, ERProofLine
+from expression_tree.IndProofs import IndProof
 from expression_tree.ERCommon import Node
 import sympy as sp
 import json
@@ -758,7 +759,7 @@ totalFails += test_axiom('list?', listQ_prop_tests, axiomProof, builtInProp=True
 
 print("\nUDF testing:\n")
 udfProof = ERProof()
-udfProof.addUDF("(f x y)", "(INT,INT)>INT", "(* x y)")
+udfProof.addUDF("(fc x y)", "(INT,INT)>INT", "(* x y)")
 udfProof.addUDF("(g x)", "INT>BOOL", "(< x 5)")
 udfProof.addUDF("(h x y)", "(LIST,LIST)>LIST", "(cons (first x) (cons (first y) null))")
 udfProof.addUDF("(i x)", "LIST>BOOL", "(zero? (first x))")
@@ -767,33 +768,33 @@ udfProof.addUDF("q", "BOOL", "#f")
 # udfProof.addUDF("(h)", "()>INT", "5") TODO: need to implement 0 argument UDFs
 # udfProof.addUDF("i", "INT", "3") TODO need to implement 0 argument UDFs
 # 2 arguments
-totalFails += do_single_test_case("f", "(f 3 4)", ["Rule must start with 'eval', 'apply', or 'rewrite'"], udfProof)
-totalFails += do_single_test_case('eval f',  "(f 3 4)", ['Cannot evaluate definition'], udfProof)
-totalFails += do_single_test_case("apply f", "(f 3 4)", ['Not enough arguments given for f. f requires 2 '
+totalFails += do_single_test_case("fc", "(fc 3 4)", ["Rule must start with 'eval', 'apply', or 'rewrite'"], udfProof)
+totalFails += do_single_test_case('eval fc',  "(fc 3 4)", ['Cannot evaluate definition'], udfProof)
+totalFails += do_single_test_case("apply fc", "(fc 3 4)", ['Not enough arguments given for fc. fc requires 2 '
                                                             'arguments, while you gave 0'],
                                   udfProof)
-totalFails += do_single_test_case("apply f x=3, y=4, z=5", "(f 3 4)", ['Too many arguments given for f. f '
+totalFails += do_single_test_case("apply fc x=3, y=4, z=5", "(fc 3 4)", ['Too many arguments given for fc. fc '
                                                                           'requires 2 arguments, while you gave 3'],
                                   udfProof)
-totalFails += do_single_test_case("apply f x=3 y=4", "(f 3 4)", ['Too many assignments for a given argument \'x=3 '
-                                                                    'y=4\'. Did you forget a comma?'], udfProof)
-totalFails += do_single_test_case("apply f z=3, y=4", "(f 3 4)",
-                                  ["Argument 'z' is in position 1 but expected 'x' for f"], udfProof)
-totalFails += do_single_test_case("apply f x=3, z=4", "(f 3 4)",
-                                  ["Argument 'z' is in position 2 but expected 'y' for f"],
+totalFails += do_single_test_case("apply fc x=3 y=4", "(fc 3 4)", ['Too many assignments for a given argument \'x=3 '
+                                                                   'y=4\'. Did you forget a comma?'], udfProof)
+totalFails += do_single_test_case("apply fc z=3, y=4", "(fc 3 4)",
+                                  ["Argument 'z' is in position 1 but expected 'x' for fc"], udfProof)
+totalFails += do_single_test_case("apply fc x=3, z=4", "(fc 3 4)",
+                                  ["Argument 'z' is in position 2 but expected 'y' for fc"],
                                   udfProof)
-totalFails += do_single_test_case("apply f y=4, x=3", "(f 3 4)", ["Argument 'y' is in position 1 but expected 'x' "
-                                                                     "for f", "Argument 'x' is in position 2 but "
-                                                                              "expected 'y' for f"], udfProof)
-totalFails += do_single_test_case("apply f x=#t, y=4", "(f 3 4)", ["Type mismatch in argument 'x=#t': expected "
+totalFails += do_single_test_case("apply fc y=4, x=3", "(fc 3 4)", ["Argument 'y' is in position 1 but expected 'x' "
+                                                                     "for fc", "Argument 'x' is in position 2 but "
+                                                                              "expected 'y' for fc"], udfProof)
+totalFails += do_single_test_case("apply fc x=#t, y=4", "(fc 3 4)", ["Type mismatch in argument 'x=#t': expected "
                                                                       "INT, got BOOL"], udfProof)
-totalFails += do_single_test_case("apply f x=3, y='(1 2 3)", "(f 3 4)", ["Type mismatch in argument 'y='(1 2 3)': "
+totalFails += do_single_test_case("apply fc x=3, y='(1 2 3)", "(fc 3 4)", ["Type mismatch in argument 'y='(1 2 3)': "
                                                                             "expected "
                                                                             "INT, got LIST"], udfProof)
-totalFails += do_single_test_case("apply f x=4, y=5", "(f 3 4)", ["Value mismatch in argument 'x': expected 3, "
+totalFails += do_single_test_case("apply fc x=4, y=5", "(fc 3 4)", ["Value mismatch in argument 'x': expected 3, "
                                                                      "got 4", "Value mismatch in argument 'y': "
                                                                               "expected 4, got 5"], udfProof)
-totalFails += do_single_test_case("apply f x=3, y=4", "(f 3 4)", "(* 3 4)", udfProof)
+totalFails += do_single_test_case("apply fc x=3, y=4", "(fc 3 4)", "(* 3 4)", udfProof)
 
 # 1 argument
 totalFails += do_single_test_case("g x=3", "(g 3)", ["Rule must start with 'eval', 'apply', or 'rewrite'"],
@@ -910,12 +911,12 @@ for meth,expr, expected in methTests:
 print("\nall tests passed!\n" if totalFails == 0 else f"number of fails: {totalFails}\n")
 
 proof=ERProof()
-proof.addUDF("(f x)", "int>int", "(if (zero? x) 0 (+ x (f (- x 1))))")
+proof.addUDF("(fd x)", "int>int", "(if (zero? x) 0 (+ x (fd (- x 1))))")
 if proof.errLog != []:
     print(proof.errLog)
 else:
     print("no errors with UDF")
-proof.addProofLine("(f 3)", "f")
+proof.addProofLine("(fd 3)", "fd")
 #proof.addProofLine(expr, "math")
 #print(f"before rule = {expr}, after rule = {proof.getPrevRacket() if proof.errLog == [] else proof.errLog}")
 print("ready to check posDict")
@@ -947,3 +948,36 @@ for js,ans in zip(jsonstrgs,jsonans):
     else:
         print(f"PASS: makeJson on {js}")
 print(f"number of json errors: {jerrs}")
+
+
+print("\nTesting IndProofs:\n")
+inderrs, struct = 0, ""
+while struct != 'int': #TODO later add list tests
+    print("Currently only int structures are supported for IndProof testing.")
+    struct = input("Enter structure to test IndProof (int, list): ")
+ivar = input("Enter induction variable (usually n for int, L for list): ")
+aval = input("Enter anchor value (usually 0 for int, 'null' for list): ")
+lvar = input("Enter the leap variable (usually k for int, M for list): ")
+indProof = IndProof()
+indProof.struct=struct
+indProof.indVar=Node(ivar)
+indProof.anchorVal=Node(aval)
+indProof.leapVar=Node(lvar)
+fname = input("Enter the function to prove by induction, e.g. (f n): ")
+s2 = fname.lstrip("(")               # remove leading (
+flet = s2.split()[0]            # split on whitespace, take first
+ftype = input("Enter the function type (e.g., INT>INT ): ")
+fdef = input("Enter the function definition. e.g., (if (zero? n) 0 (+ n (f (- n 1)))): ")
+indProof.baseCase.addUDF(fname, ftype, fdef)
+indProof.leapStep.addUDF(fname, ftype, fdef)
+#make premise of base case be f(anchorVal)
+#indProof.baseCase.addProofLine(f"({fname} {aval})", fname)
+# make the next line of the base case be the evaluation of f(anchorVal)
+#indProof.baseCase.addProofLine(f"eval", fname, f"({fname} {aval})")
+rulestr = f"apply {flet} {ivar} = {aval}"
+exprstr = f"({flet} {aval})"
+print(exprstr, rulestr)
+indProof.baseCase.addProofLine(exprstr, rulestr)
+x=do_single_test_case("apply f n=0", "(f 0)","(if (zero? 0) 0 (+ 0 (f (- 0 1))))", indProof.baseCase)
+print(x)
+print(f"number of IndProof errors: {inderrs}")
