@@ -38,6 +38,8 @@ def create_induction_proof(request):
         'leap_variable': validated_data['leap_variable'],
         'lhs_expression': validated_data['lhs_expression'],
         'rhs_expression': validated_data['rhs_expression'],
+        'inductive_hypothesis_lhs' : validated_data['inductive_hypothesis_lhs'],
+        'inductive_hypothesis_rhs' : validated_data['inductive_hypothesis_rhs'],
         'is_valid': True,
         'definition': [],
     }
@@ -119,6 +121,8 @@ def start_induction_proof(request):
         leap_variable = json_data.get('leap_variable', '')
         induction_type = json_data.get('induction_type', 'integers')
         is_anchor = json_data.get('is_anchor', False)
+        inductive_hypothesis_lhs = json_data.get('inductive_hypothesis_lhs', '')
+        inductive_hypothesis_rhs = json_data.get('inductive_hypothesis_rhs', '')
         
         print(f"Processing induction proof for user: {user.username}")
         
@@ -197,7 +201,7 @@ def start_induction_proof(request):
         generic_definition = {
             'name': leap_variable,
             'type': 'int',
-            'body': '<generic>',  # Generic variable with no body
+            'body': '<generic>',
             'description': f'Generic variable for leap case in induction on {induction_variable}'
         }
         
@@ -217,9 +221,11 @@ def start_induction_proof(request):
             'rhs_anchor_goal': rhs_anchor_goal,
             'current_side': side,
             'is_anchor_case': is_anchor,
+            'inductive_hypothesis_lhs' : inductive_hypothesis_lhs,
+            'inductive_hypothesis_rhs' : inductive_hypothesis_rhs,
             'current_goal': 'base_case',
             'is_valid': True,
-            'definition': [generic_definition],  # Add the generic definition
+            'definition': [generic_definition],
         }
         
         print("Proof data for serializer:", proof_data)
@@ -243,6 +249,8 @@ def start_induction_proof(request):
                 'is_anchor_case': is_anchor,
                 'isValid': proof.is_valid,
                 'definition': proof.definition,
+                'inductive_hypothesis_lhs' : proof.inductive_hypothesis_lhs,
+                'inductive_hypothesis_rhs' : proof.inductive_hypothesis_rhs,
             })
             
             return Response(

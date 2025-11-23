@@ -26,9 +26,23 @@ const clearInduction = async () => {
   }
 };
 
+const checkInduction = async (data) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/start-induction-proof`,
+      data
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during induction check:");
+    throw error;
+  }
+};
+
 const inductionService = {
   startInductionProof,
-  clearInduction
+  clearInduction,
+  checkInduction
 };
 
 export default inductionService;

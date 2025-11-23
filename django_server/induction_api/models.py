@@ -36,7 +36,9 @@ class InductionProof(models.Model):
     rhs_leap_goal = models.TextField(blank=True, null=True)
     lhs_anchor_goal = models.TextField(blank=True, null=True)
     rhs_anchor_goal = models.TextField(blank=True, null=True)
-    
+    inductive_hypothesis_lhs = models.TextField(blank=True, default='')
+    inductive_hypothesis_rhs = models.TextField(blank=True, default='')
+
     # Current state
     current_side = models.CharField(max_length=3, choices=SIDES, default='LHS')
     current_goal = models.TextField(blank=True, null=True)

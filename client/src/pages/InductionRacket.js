@@ -29,7 +29,7 @@ import {
 } from "../components";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import inductionService from "../services/inductionService";
-import { applyGenericsToDefinitions } from '../components/Definitions';
+
 /**
  * InductionRacket component facilitates the Equational Reasoning Racket.
  */
@@ -37,10 +37,8 @@ const InductionRacket = () => {
   const initialValues = {
     proofName: "",
     proofTag: "",
-    lHSLeapGoal: "",
-    rHSLeapGoal: "",
-    lHSAnchorGoal: "",
-    rHSAnchorGoal: "",
+    lHSGoal: "",
+    rHSGoal: "",
     inductionVariable: "",
     inductionValue: "",
     leapVariable: "",
@@ -86,6 +84,8 @@ const InductionRacket = () => {
   const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields, formValues, isGoalChecked);
   const [lhsValue, setLhsValue] = useState("");
   const [rhsValue, setRhsValue] = useState("");
+  const [inductiveHypothesisLHS, setInductiveHypothesisLHS] = useState("");
+  const [inductiveHypothesisRHS, setInductiveHypothesisRHS] = useState("");
   const [isOffcanvasActive, toggleOffcanvas] = useOffcanvas();
   const [showDefinitionsWindow, toggleDefinitionsWindow] =
     useDefinitionsWindow();
@@ -243,23 +243,17 @@ const InductionRacket = () => {
     side,
     proofName,
     proofTag,
-    leapGoalForSide,
-    anchorGoalForSide,
+    goalForSide,
     inductionVariable,
     inductionValue,
     leapVariable,
     inductionType,
     isAnchorFlag
   ) => {
-    const leftGoal = isAnchorFlag
-      ? formValues.lHSAnchorGoal
-      : formValues.lHSLeapGoal;
-    const rightGoal = isAnchorFlag
-      ? formValues.rHSAnchorGoal
-      : formValues.rHSLeapGoal;
+    const leftGoal = formValues.lHSGoal;
+    const rightGoal = formValues.rHSGoal;
 
-    const selectedLeapGoal = leapGoalForSide || "";
-    const selectedAnchorGoal = anchorGoalForSide || "";
+    const selectedGoal = goalForSide || "";
 
     if (!/^\d+$/.test(inductionValue || "")) {
       toast.error("Anchor value must be a nonnegative integer.");
@@ -279,7 +273,7 @@ const InductionRacket = () => {
     const leapVarWord = leapVariable ? `\\b${escapeRegExp(leapVariable)}\\b` : null;
     if (leapVarWord) {
       const re = new RegExp(leapVarWord);
-      if (re.test(leftGoal) || re.test(rightGoal) || re.test(selectedLeapGoal) || re.test(selectedAnchorGoal)) {
+      if (re.test(leftGoal) || re.test(rightGoal) || re.test(selectedGoal)) {
         toast.error("Leap variable must not overlap with variables in the goal.");
         return;
       }
@@ -293,8 +287,7 @@ const InductionRacket = () => {
 
     const leftApp = parseTopLevelApplication(leftGoal);
     const rightApp = parseTopLevelApplication(rightGoal);
-    const leapApp = parseTopLevelApplication(selectedLeapGoal);
-    const anchorApp = parseTopLevelApplication(selectedAnchorGoal);
+    const selectedApp = parseTopLevelApplication(selectedGoal);
 
     const appearsInParams = (app) => {
       if (!app || !app.params) return false;
@@ -304,8 +297,7 @@ const InductionRacket = () => {
     if (
       !appearsInParams(leftApp) &&
       !appearsInParams(rightApp) &&
-      !appearsInParams(leapApp) &&
-      !appearsInParams(anchorApp)
+      !appearsInParams(selectedApp)
     ) {
       toast.error("Induction variable must be a parameter of a function in your goal.");
       return;
@@ -316,15 +308,17 @@ const InductionRacket = () => {
         side: side,
         proof_name: proofName,
         proof_tag: proofTag,
-        lhs_leap_goal: formValues.lHSLeapGoal,
-        rhs_leap_goal: formValues.rHSLeapGoal,
-        lhs_anchor_goal: formValues.lHSAnchorGoal,
-        rhs_anchor_goal: formValues.rHSAnchorGoal,
+        lhs_leap_goal: formValues.lHSGoal,
+        rhs_leap_goal: formValues.rHSGoal,
+        lhs_anchor_goal: formValues.lHSGoal,
+        rhs_anchor_goal: formValues.rHSGoal,
         induction_variable: inductionVariable,
         anchor_value: inductionValue,
         leap_variable: leapVariable,
         induction_type: inductionType,
-        is_anchor: isAnchorFlag
+        is_anchor: isAnchorFlag,
+        inductive_hypothesis_lhs: inductiveHypothesisLHS,
+        inductive_hypothesis_rhs: inductiveHypothesisRHS
       };
 
       console.log('=== SENDING INDUCTION DATA ===');
@@ -408,13 +402,13 @@ const InductionRacket = () => {
             console.log('Proof started with ID:', proofId);
           }
           
-          // Call checkGoal to proceed
+          // Call checkGoal to proceed - pass the same goal for both leap and anchor
           checkGoal(
             side,
             proofName,
             proofTag,
-            leapGoalForSide,
-            anchorGoalForSide,
+            goalForSide,
+            goalForSide,
             inductionVariable,
             inductionValue,
             leapVariable,
@@ -661,108 +655,87 @@ const InductionRacket = () => {
             </Row>
 
             <Row className="g-5">
-              {isAnchor ? (
-                <>
-                  <Form.Group as={Col} md="6" className="er-proof-goal-lhs">
-                    <Form.Floating className="mb-3">
-                      <Form.Control
-                        id="eRProofLHSAnchorGoal"
-                        name="lHSAnchorGoal"
-                        type="text"
-                        placeholder="LHS Anchor Goal"
-                        value={formValues.lHSAnchorGoal}
-                        onBlur={() => handleBlur("lHSAnchorGoal")}
-                        onChange={enhancedHandleChange}
-                        isInvalid={
-                          !!validationMessages.lHSAnchorGoal ||
-                          !!goalValidationMessage.LHS.AnchorGoal
-                        }
-                        required
-                      />
-                      <label htmlFor="eRProofLHSAnchor">LHS Anchor Goal</label>
-                      <Form.Control.Feedback type="invalid" tooltip>
-                        {validationMessages.lHSAnchorGoal ||
-                          goalValidationMessage.LHS.AnchorGoal}
-                      </Form.Control.Feedback>
-                    </Form.Floating>
-                  </Form.Group>
-                  <Form.Group as={Col} md="6" className="er-proof-goal-rhs">
-                    <Form.Floating className="mb-3">
-                      <Form.Control
-                        id="eRProofRHSAnchorGoal"
-                        name="rHSAnchorGoal"
-                        type="text"
-                        placeholder="RHS Anchor Goal"
-                        value={formValues.rHSAnchorGoal}
-                        onBlur={() => handleBlur("rHSAnchorGoal")}
-                        onChange={enhancedHandleChange}
-                        isInvalid={
-                          !!validationMessages.rHSAnchorGoal ||
-                          !!goalValidationMessage.RHS.AnchorGoal
-                        }
-                        required
-                      />
-                      <label htmlFor="eRProofRHSAnchorGoal">
-                        RHS Anchor Goal
-                      </label>
-                      <Form.Control.Feedback type="invalid" tooltip>
-                        {validationMessages.rHSAnchorGoal ||
-                          goalValidationMessage.RHS.AnchorGoal}
-                      </Form.Control.Feedback>
-                    </Form.Floating>
-                  </Form.Group>
-                </>
-              ) : (
-                <>
-                  <Form.Group as={Col} md="6" className="er-proof-goal-lhs">
-                    <Form.Floating className="mb-3">
-                      <Form.Control
-                        id="eRProofLHSLeapGoal"
-                        name="lHSLeapGoal"
-                        type="text"
-                        placeholder="Leap Goal"
-                        value={formValues.lHSLeapGoal}
-                        onBlur={() => handleBlur("lHSLeapGoal")}
-                        onChange={enhancedHandleChange}
-                        isInvalid={
-                          !!validationMessages.lHSLeapGoal ||
-                          !!goalValidationMessage.LHS.LeapGoal
-                        }
-                        required
-                      />
-                      <label htmlFor="eRProofLHSLeapGoal">LHS Leap Goal</label>
-                      <Form.Control.Feedback type="invalid" tooltip>
-                        {validationMessages.lHSLeapGoal ||
-                          goalValidationMessage.LHS.LeapGoal}
-                      </Form.Control.Feedback>
-                    </Form.Floating>
-                  </Form.Group>
-                  <Form.Group as={Col} md="6" className="er-proof-goal-rhs">
-                    <Form.Floating className="mb-3">
-                      <Form.Control
-                        id="eRProofRHSLeapGoal"
-                        name="rHSLeapGoal"
-                        type="text"
-                        placeholder="RHS Leap Goal"
-                        value={formValues.rHSLeapGoal}
-                        onBlur={() => handleBlur("rHSLeapGoal")}
-                        onChange={enhancedHandleChange}
-                        isInvalid={
-                          !!validationMessages.rHSLeapGoal ||
-                          !!goalValidationMessage.RHS.LeapGoal
-                        }
-                        required
-                      />
-                      <label htmlFor="eRProofRHSLeapGoal">RHS Leap Goal</label>
-                      <Form.Control.Feedback type="invalid" tooltip>
-                        {validationMessages.rHSLeapGoal ||
-                          goalValidationMessage.RHS.LeapGoal}
-                      </Form.Control.Feedback>
-                    </Form.Floating>
-                  </Form.Group>
-                </>
-              )}
+              <Form.Group as={Col} md="6" className="er-proof-goal-lhs">
+                <Form.Floating className="mb-3">
+                  <Form.Control
+                    id="eRProofLHSGoal"
+                    name="lHSGoal"
+                    type="text"
+                    placeholder="LHS Goal"
+                    value={formValues.lHSGoal}
+                    onBlur={() => handleBlur("lHSGoal")}
+                    onChange={enhancedHandleChange}
+                    isInvalid={
+                      !!validationMessages.lHSGoal ||
+                      !!goalValidationMessage.LHS.Goal
+                    }
+                    required
+                  />
+                  <label htmlFor="eRProofLHSGoal">LHS Goal</label>
+                  <Form.Control.Feedback type="invalid" tooltip>
+                    {validationMessages.lHSGoal ||
+                      goalValidationMessage.LHS.Goal}
+                  </Form.Control.Feedback>
+                </Form.Floating>
+              </Form.Group>
+              <Form.Group as={Col} md="6" className="er-proof-goal-rhs">
+                <Form.Floating className="mb-3">
+                  <Form.Control
+                    id="eRProofRHSGoal"
+                    name="rHSGoal"
+                    type="text"
+                    placeholder="RHS Goal"
+                    value={formValues.rHSGoal}
+                    onBlur={() => handleBlur("rHSGoal")}
+                    onChange={enhancedHandleChange}
+                    isInvalid={
+                      !!validationMessages.rHSGoal ||
+                      !!goalValidationMessage.RHS.Goal
+                    }
+                    required
+                  />
+                  <label htmlFor="eRProofRHSGoal">RHS Goal</label>
+                  <Form.Control.Feedback type="invalid" tooltip>
+                    {validationMessages.rHSGoal ||
+                      goalValidationMessage.RHS.Goal}
+                  </Form.Control.Feedback>
+                </Form.Floating>
+              </Form.Group>
             </Row>
+
+            {!isAnchor && (
+              <Row className="g-5">
+                <Form.Group as={Col} md="5" className="er-inductive-hypothesis-lhs">
+                  <Form.Floating className="mb-3">
+                    <Form.Control
+                      id="eRInductiveHypothesisLHS"
+                      name="inductiveHypothesisLHS"
+                      type="text"
+                      placeholder="Inductive Hypothesis LHS"
+                      value={inductiveHypothesisLHS}
+                      onChange={(e) => setInductiveHypothesisLHS(e.target.value)}
+                    />
+                    <label htmlFor="eRInductiveHypothesisLHS">IH LHS</label>
+                  </Form.Floating>
+                </Form.Group>
+                <Col md="2" className="d-flex align-items-center justify-content-center">
+                  <span style={{ fontSize: '34px' }}>=</span>
+                </Col>
+                <Form.Group as={Col} md="5" className="er-inductive-hypothesis-rhs">
+                  <Form.Floating className="mb-3">
+                    <Form.Control
+                      id="eRInductiveHypothesisRHS"
+                      name="inductiveHypothesisRHS"
+                      type="text"
+                      placeholder="Inductive Hypothesis RHS"
+                      value={inductiveHypothesisRHS}
+                      onChange={(e) => setInductiveHypothesisRHS(e.target.value)}
+                    />
+                    <label htmlFor="eRInductiveHypothesisRHS">IH RHS</label>
+                  </Form.Floating>
+                </Form.Group>
+              </Row>
+            )}
 
             <Row className="er-current-state">
               <Form.Group
@@ -822,15 +795,26 @@ const InductionRacket = () => {
               </Form.Group>
             </Row>
 
+            {!isAnchor && (
             <Form.Text
               as={"div"}
               id="formSeparator"
               className="form-separator"
-            ></Form.Text>
+              style={{ marginTop: '-10px' }}
+            ></Form.Text> )}
+
+            {isAnchor && (
+            <Form.Text
+              as={"div"}
+              id="formSeparator"
+              className="form-separator"
+              style={{ marginTop: '10px' }}
+            ></Form.Text> )}
           </div>
 
           <div className="form-bottom-part">
-            <Row className="switch-btn-wrap">
+
+            <Row className="switch-btn-wrap" style={{ marginTop: '380.5px' }}>
               <Col>
                 <Button
                   variant="secondary"
@@ -866,11 +850,8 @@ const InductionRacket = () => {
                         formValues.proofName,
                         formValues.proofTag,
                         showSide === "LHS"
-                          ? formValues.lHSLeapGoal
-                          : formValues.rHSLeapGoal,
-                        showSide === "LHS"
-                          ? formValues.lHSAnchorGoal
-                          : formValues.rHSAnchorGoal,
+                          ? formValues.lHSGoal
+                          : formValues.rHSGoal,
                         formValues.inductionVariable,
                         formValues.inductionValue,
                         formValues.leapVariable,
