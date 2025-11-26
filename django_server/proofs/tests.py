@@ -955,9 +955,17 @@ inderrs, struct = 0, ""
 while struct != 'int': #TODO later add list tests
     print("Currently only int structures are supported for IndProof testing.")
     struct = input("Enter structure to test IndProof (int, list): ")
+    if struct == "":
+        struct = 'int'
 ivar = input("Enter induction variable (usually n for int, L for list): ")
+if ivar == "":
+    ivar = 'n'
 aval = input("Enter anchor value (usually 0 for int, 'null' for list): ")
+if aval == "":
+    aval = '0'
 lvar = input("Enter the leap variable (usually k for int, M for list): ")
+if lvar == "":
+    lvar = 'k'
 indProof = IndProof()
 indProof.struct=struct
 indProof.indVar=Node(ivar)
@@ -967,17 +975,18 @@ fname = input("Enter the function to prove by induction, e.g. (f n): ")
 s2 = fname.lstrip("(")               # remove leading (
 flet = s2.split()[0]            # split on whitespace, take first
 ftype = input("Enter the function type (e.g., INT>INT ): ")
+if ftype == "":
+    ftype = "INT>INT"
 fdef = input("Enter the function definition. e.g., (if (zero? n) 0 (+ n (f (- n 1)))): ")
+if fdef == "":
+    fdef = "(if (zero? n) 0 (+ n (f (- n 1))))"
 indProof.baseCase.addUDF(fname, ftype, fdef)
 indProof.leapStep.addUDF(fname, ftype, fdef)
 #make premise of base case be f(anchorVal)
 #indProof.baseCase.addProofLine(f"({fname} {aval})", fname)
 # make the next line of the base case be the evaluation of f(anchorVal)
 #indProof.baseCase.addProofLine(f"eval", fname, f"({fname} {aval})")
-rulestr = f"apply {flet} {ivar} = {aval}"
+rulestr = f"apply {flet} {ivar}={aval}" #NOTE: do not put spaces around =
 exprstr = f"({flet} {aval})"
-print(exprstr, rulestr)
 indProof.baseCase.addProofLine(exprstr, rulestr)
-x=do_single_test_case("apply f n=0", "(f 0)","(if (zero? 0) 0 (+ 0 (f (- 0 1))))", indProof.baseCase)
-print(x)
 print(f"number of IndProof errors: {inderrs}")

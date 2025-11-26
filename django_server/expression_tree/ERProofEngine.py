@@ -320,6 +320,8 @@ class ERProofLine(ProofComponent):
             parts.pop(2)  # remove 'with'
         ruleParams = " ".join(parts[2:]).replace("\u21A6", "=")
         ruleParams = ruleParams.replace("'()", "null")  # replace empty list with 'null'
+        # normalize spaces around '=' so assignments like 'x = 1' parse correctly
+        ruleParams = re.sub(r"\s*=\s*", "=", ruleParams)
         ruleParams = [m.group(0).strip() for m in re.finditer(r"\w+=.*?(?=,\s*\w+=|$)", ruleParams)]
 
         if ruleCategory not in ("eval", "apply", "rewrite"):
