@@ -972,6 +972,8 @@ indProof.indVar=Node(ivar)
 indProof.anchorVal=Node(aval)
 indProof.leapVar=Node(lvar)
 fname = input("Enter the function to prove by induction, e.g. (f n): ")
+if fname == "":
+    fname = "(f n)"
 s2 = fname.lstrip("(")               # remove leading (
 flet = s2.split()[0]            # split on whitespace, take first
 ftype = input("Enter the function type (e.g., INT>INT ): ")
@@ -982,11 +984,8 @@ if fdef == "":
     fdef = "(if (zero? n) 0 (+ n (f (- n 1))))"
 indProof.baseCase.addUDF(fname, ftype, fdef)
 indProof.leapStep.addUDF(fname, ftype, fdef)
-#make premise of base case be f(anchorVal)
-#indProof.baseCase.addProofLine(f"({fname} {aval})", fname)
-# make the next line of the base case be the evaluation of f(anchorVal)
-#indProof.baseCase.addProofLine(f"eval", fname, f"({fname} {aval})")
 rulestr = f"apply {flet} {ivar}={aval}" #NOTE: do not put spaces around =
 exprstr = f"({flet} {aval})"
 indProof.baseCase.addProofLine(exprstr, rulestr)
+x=do_single_test_case(rulestr, exprstr, "(if (zero? 0) 0 (+ 0 (f (- 0 1))))", indProof.baseCase)
 print(f"number of IndProof errors: {inderrs}")
