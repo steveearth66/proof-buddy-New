@@ -17,9 +17,9 @@ class IndProof:
                  lvar = "", #the variable to use for the leap step, typically k for ints, K for lists
                  lhsPremise = "", #the left-hand side of the induction premise, e.g. (cumeSum n) for int induction
                  rhsPremise = "", #the right-hand side of the induction premise, e.g. (quotient (* n (+ n 1)) 2)
-                 baseCase: ERProof = None, #the base case proof, LHS=RHS is ivar replaced with aval
+                 baseCase: TwoSidedProof = None, #the base case proof, LHS=RHS is ivar replaced with aval
                  indHyp: Node = None, #the induction hypothesis, is LHS=RHS wit ivar replaced with lvar
-                 leapStep: ERProof = None): #the leap step proof, LHS=RHS is ivar replaced with (+ lvar 1) or (cons a L) etc, a.type= ANY??
+                 leapStep: TwoSidedProof = None): #the leap step proof, LHS=RHS is ivar replaced with (+ lvar 1) or (cons a L) etc, a.type= ANY??
 
         if errList is None:
             self.errList = []
@@ -28,7 +28,10 @@ class IndProof:
             self.isValid = False
         else:
             self.struct = struct
-        
+        if not isinstance(baseCase, TwoSidedProof):
+            baseCase = TwoSidedProof()
+        if not isinstance(leapStep, TwoSidedProof):
+            leapStep = TwoSidedProof()
         # Integer Induction
         if struct == "int":
             if isinstance(ivar, Node):
@@ -75,13 +78,13 @@ class IndProof:
                 self.isValid = False
             else:
                 self.indHyp = indHyp
-            if not isinstance(baseCase, ERProof):
-                self.errList.append("Base case should be an ERProof.")
+            if not isinstance(baseCase, TwoSidedProof):
+                self.errList.append("Base case should be a twosided ERProof.")
                 self.isValid = False
             else:
                 self.baseCase = baseCase
-            if not isinstance(leapStep, ERProof):
-                self.errList.append("Leap step should be an ERProof.")
+            if not isinstance(leapStep, TwoSidedProof):
+                self.errList.append("Leap step should be a twosided ERProof.")
                 self.isValid = False
             else:
                 self.leapStep = leapStep

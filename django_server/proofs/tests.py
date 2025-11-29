@@ -986,6 +986,10 @@ indProof.baseCase.addUDF(fname, ftype, fdef)
 indProof.leapStep.addUDF(fname, ftype, fdef)
 rulestr = f"apply {flet} {ivar}={aval}" #NOTE: do not put spaces around =
 exprstr = f"({flet} {aval})"
-indProof.baseCase.addProofLine(exprstr, rulestr)
-x=do_single_test_case(rulestr, exprstr, "(if (zero? 0) 0 (+ 0 (f (- 0 1))))", indProof.baseCase)
+print(type(indProof.baseCase))
+print(type(indProof.baseCase.LHS))
+indProof.baseCase.LHS.addProofLine(exprstr, rulestr)
+x=do_single_test_case(rulestr, exprstr, "(if (zero? 0) 0 (+ 0 (f (- 0 1))))", indProof.baseCase.LHS)
 print(f"number of IndProof errors: {inderrs}")
+pl = ERProofLine("(+ 1 (+ 2 3))")
+print(f"Testing getSubtreeStr on expression {pl.exprTree}")
