@@ -1,37 +1,333 @@
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
 from dill import dumps, loads
 from django.core.cache import cache
+from .models import InductionProof
+from .serializers import InductionProofSerializer, InductionProofCreateSerializer
+import re
 
 
 User = get_user_model()
 
 
 @api_view(["POST"])
+def create_induction_proof(request):
+    user = request.user
+    
+    create_serializer = InductionProofCreateSerializer(data=request.data)
+    
+    if not create_serializer.is_valid():
+        return Response(
+            {
+                "error": "Validation failed",
+                "details": create_serializer.errors
+            },
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    validated_data = create_serializer.validated_data
+    
+    proof_data = {
+        'user': user.id,
+        'proof_type': 'induction_int',
+        'induction_variable': validated_data['induction_variable'],
+        'anchor_value': validated_data['anchor_value'],
+        'leap_variable': validated_data['leap_variable'],
+        'lhs_expression': validated_data['lhs_expression'],
+        'rhs_expression': validated_data['rhs_expression'],
+        'inductive_hypothesis_lhs' : validated_data['inductive_hypothesis_lhs'],
+        'inductive_hypothesis_rhs' : validated_data['inductive_hypothesis_rhs'],
+        'is_valid': True,
+        'definition': [],
+    }
+    
+    induction_var = validated_data['induction_variable']
+    leap_var = validated_data['leap_variable']
+    anchor_val = validated_data['anchor_value']
+    
+    lhs_anchor = validated_data['lhs_expression'].replace(
+        induction_var, str(anchor_val)
+    )
+    rhs_anchor = validated_data['rhs_expression'].replace(
+        induction_var, str(anchor_val)
+    )
+    
+    lhs_leap = validated_data['lhs_expression'].replace(
+        induction_var, leap_var
+    )
+    rhs_leap = validated_data['rhs_expression'].replace(
+        induction_var, leap_var
+    )
+    
+    proof_data.update({
+        'lhs_anchor_goal': lhs_anchor,
+        'rhs_anchor_goal': rhs_anchor,
+        'lhs_leap_goal': lhs_leap,
+        'rhs_leap_goal': rhs_leap,
+        'current_goal': 'base_case',
+    })
+    
+    serializer = InductionProofSerializer(data=proof_data)
+    
+    if serializer.is_valid():
+        proof = serializer.save(user=user)
+        
+        save_induction_proof_to_cache(user, {
+            'id': proof.id,
+            'lhs_leap_goal': proof.lhs_leap_goal,
+            'rhs_leap_goal': proof.rhs_leap_goal,
+            'lhs_anchor_goal': proof.lhs_anchor_goal,
+            'rhs_anchor_goal': proof.rhs_anchor_goal,
+            'current_goal': proof.current_goal,
+            'isValid': proof.is_valid,
+            'definition': proof.definition,
+        })
+        
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED
+        )
+    
+    return Response(
+        {
+            "error": "Failed to create proof",
+            "details": serializer.errors
+        },
+        status=status.HTTP_400_BAD_REQUEST
+    )
+
+@api_view(["POST"])
 def start_induction_proof(request):
     user = request.user
     json_data = request.data
-    print(json_data)
-    return Response(json_data, status=status.HTTP_200_OK)
-
+    
+    print(f"User: {user.username}")
+    print("Received induction data:", json_data)
+    
+    try:
+        # Extract all data
+        side = json_data.get('side', 'LHS')
+        proof_name = json_data.get('proof_name', '')
+        proof_tag = json_data.get('proof_tag', '')
+        lhs_leap_goal = json_data.get('lhs_leap_goal', '')
+        rhs_leap_goal = json_data.get('rhs_leap_goal', '')
+        lhs_anchor_goal = json_data.get('lhs_anchor_goal', '')
+        rhs_anchor_goal = json_data.get('rhs_anchor_goal', '')
+        induction_variable = json_data.get('induction_variable', '')
+        anchor_value = json_data.get('anchor_value')
+        leap_variable = json_data.get('leap_variable', '')
+        induction_type = json_data.get('induction_type', 'integers')
+        is_anchor = json_data.get('is_anchor', False)
+        inductive_hypothesis_lhs = json_data.get('inductive_hypothesis_lhs', '')
+        inductive_hypothesis_rhs = json_data.get('inductive_hypothesis_rhs', '')
+        
+        print(f"Processing induction proof for user: {user.username}")
+        
+        # Validate required fields
+        if not all([proof_name, induction_variable, anchor_value is not None, leap_variable]):
+            return Response(
+                {"error": "Missing required fields: proof_name, induction_variable, anchor_value, and leap_variable are required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 1. Validate that iVar, aVal, and Lvar are all integers
+        try:
+            anchor_value_int = int(anchor_value)
+        except (ValueError, TypeError):
+            return Response(
+                {"error": "Anchor value (aVal) must be a valid integer"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check iVar is a valid identifier (single letter or valid variable name)
+        if not re.match(r'^[a-zA-Z][a-zA-Z0-9_]*$', induction_variable):
+            return Response(
+                {"error": "Induction variable (iVar) must be a valid identifier"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check Lvar is a valid identifier
+        if not re.match(r'^[a-zA-Z][a-zA-Z0-9_]*$', leap_variable):
+            return Response(
+                {"error": "Leap variable (Lvar) must be a valid identifier"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 2. Verify iVar appears as parameter in at least one side's goal
+        def check_ivar_in_expression(expr, ivar):
+            """Check if ivar appears as a parameter in a function application"""
+            if not expr or not expr.strip():
+                return False
+            
+            # Simple check: look for ivar as a word boundary
+            pattern = r'\b' + re.escape(ivar) + r'\b'
+            return bool(re.search(pattern, expr))
+        
+        ivar_in_lhs_leap = check_ivar_in_expression(lhs_leap_goal, induction_variable)
+        ivar_in_rhs_leap = check_ivar_in_expression(rhs_leap_goal, induction_variable)
+        ivar_in_lhs_anchor = check_ivar_in_expression(lhs_anchor_goal, induction_variable)
+        ivar_in_rhs_anchor = check_ivar_in_expression(rhs_anchor_goal, induction_variable)
+        
+        if not (ivar_in_lhs_leap or ivar_in_rhs_leap or ivar_in_lhs_anchor or ivar_in_rhs_anchor):
+            return Response(
+                {"error": f"Induction variable '{induction_variable}' must appear as a parameter in at least one goal expression"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 3. Check that Lvar has no conflict with other variables
+        # Check if Lvar appears in any of the goal expressions
+        lvar_in_lhs_leap = check_ivar_in_expression(lhs_leap_goal, leap_variable)
+        lvar_in_rhs_leap = check_ivar_in_expression(rhs_leap_goal, leap_variable)
+        lvar_in_lhs_anchor = check_ivar_in_expression(lhs_anchor_goal, leap_variable)
+        lvar_in_rhs_anchor = check_ivar_in_expression(rhs_anchor_goal, leap_variable)
+        
+        if lvar_in_lhs_leap or lvar_in_rhs_leap or lvar_in_lhs_anchor or lvar_in_rhs_anchor:
+            return Response(
+                {"error": f"Leap variable '{leap_variable}' conflicts with variables in the goal. It must not appear in the original goal expressions."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if Lvar equals iVar
+        if leap_variable == induction_variable:
+            return Response(
+                {"error": f"Leap variable '{leap_variable}' cannot be the same as induction variable '{induction_variable}'"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 4. Automatically create a generic variable definition for Lvar
+        generic_definition = {
+            'name': leap_variable,
+            'type': 'int',
+            'body': '<generic>',
+            'description': f'Generic variable for leap case in induction on {induction_variable}'
+        }
+        
+        # Create complete proof data
+        proof_data = {
+            'user': user.id,
+            'name': proof_name,
+            'tag': proof_tag,
+            'proof_type': 'induction_int',
+            'induction_type': induction_type,
+            'induction_variable': induction_variable,
+            'anchor_value': anchor_value_int,
+            'leap_variable': leap_variable,
+            'lhs_leap_goal': lhs_leap_goal,
+            'rhs_leap_goal': rhs_leap_goal,
+            'lhs_anchor_goal': lhs_anchor_goal,
+            'rhs_anchor_goal': rhs_anchor_goal,
+            'current_side': side,
+            'is_anchor_case': is_anchor,
+            'inductive_hypothesis_lhs' : inductive_hypothesis_lhs,
+            'inductive_hypothesis_rhs' : inductive_hypothesis_rhs,
+            'current_goal': 'base_case',
+            'is_valid': True,
+            'definition': [generic_definition],
+        }
+        
+        print("Proof data for serializer:", proof_data)
+        
+        serializer = InductionProofSerializer(data=proof_data)
+        
+        if serializer.is_valid():
+            proof = serializer.save(user=user)
+            
+            # Save to cache
+            save_induction_proof_to_cache(user, {
+                'id': proof.id,
+                'name': proof.name,
+                'tag': proof.tag,
+                'lhs_leap_goal': proof.lhs_leap_goal,
+                'rhs_leap_goal': proof.rhs_leap_goal,
+                'lhs_anchor_goal': proof.lhs_anchor_goal,
+                'rhs_anchor_goal': proof.rhs_anchor_goal,
+                'current_goal': proof.current_goal,
+                'current_side': side,
+                'is_anchor_case': is_anchor,
+                'isValid': proof.is_valid,
+                'definition': proof.definition,
+                'inductive_hypothesis_lhs' : proof.inductive_hypothesis_lhs,
+                'inductive_hypothesis_rhs' : proof.inductive_hypothesis_rhs,
+            })
+            
+            return Response(
+                {
+                    "message": "Induction proof started successfully",
+                    "proof_id": proof.id,
+                    "proof_name": proof.name,
+                    "proof_tag": proof.tag,
+                    "generic_definition_created": generic_definition,
+                    "data": serializer.data
+                },
+                status=status.HTTP_201_CREATED
+            )
+        else:
+            print("=== SERIALIZER ERRORS ===")
+            print(serializer.errors)
+            print("=== END SERIALIZER ERRORS ===")
+            
+            return Response(
+                {
+                    "error": "Failed to save proof",
+                    "details": serializer.errors
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+    except Exception as e:
+        print(f"Error processing induction proof: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        return Response(
+            {"error": f"Internal server error: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 @api_view(["POST"])
 def clear_induction(request):
     user = request.user
     clear_induction_proof(user)
-    return Response(status=status.HTTP_200_OK)
+    
+    delete_all = request.data.get('delete_all', False)
+    if delete_all:
+        InductionProof.objects.filter(user=user).delete()
+    
+    return Response(
+        {"message": "Induction proof cleared successfully"},
+        status=status.HTTP_200_OK
+    )
 
+@api_view(["GET"])
+def get_induction_proofs(request):
+    user = request.user
+    proofs = InductionProof.objects.filter(user=user)
+    serializer = InductionProofSerializer(proofs, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+@api_view(["GET"])
+def get_induction_proof(request, proof_id):
+    user = request.user
+    
+    try:
+        proof = InductionProof.objects.get(id=proof_id, user=user)
+        serializer = InductionProofSerializer(proof)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except InductionProof.DoesNotExist:
+        return Response(
+            {"error": "Proof not found"},
+            status=status.HTTP_404_NOT_FOUND
+        )
 
 def clear_induction_proof(user):
     cache.delete(f"induction_proof_{user.username}")
 
-
 def save_induction_proof_to_cache(user, proof):
     cache_proof = dumps(proof)
     cache.set(f"induction_proof_{user.username}", cache_proof)
-
 
 def get_or_set_induction_proof(user):
     proof = {

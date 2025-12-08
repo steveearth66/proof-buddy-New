@@ -497,6 +497,11 @@ const ERRacket = () => {
   }, [loadedProof]);
 
   useEffect(() => {
+
+    if (!racketRuleFields || !racketRuleFields[showSide]) {
+    return;
+    }
+
     const currentSideRackets = racketRuleFields[showSide];
 
     if (currentSideRackets.length <= 1) {

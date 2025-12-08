@@ -302,7 +302,43 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
   const [definitionToEdit, setDefinitionToEdit] = useState({});
   const [edit, setEdit] = useState(false);
 
-  //const deleteDefinition = async (id) => {
+  useEffect(() => {
+    const handleGenericsUpdated = (event) => {
+      console.log('=== DEFINITIONS.JSX RECEIVED genericsUpdated EVENT ===');
+      console.log('Event detail:', event.detail);
+      
+      const { newGeneric, allGenerics } = event.detail;
+      
+      if (allGenerics) {
+        console.log('Setting generics from allGenerics:', allGenerics);
+        setGenerics(allGenerics);
+      } else if (newGeneric) {
+        console.log('Adding/updating single generic:', newGeneric);
+        setGenerics(prev => {
+          const existingIndex = prev.findIndex(g => g.label === newGeneric.label);
+          
+          if (existingIndex >= 0) {
+            const updated = [...prev];
+            updated[existingIndex] = newGeneric;
+            console.log('Updated existing generic at index:', existingIndex);
+            return updated;
+          } else {
+            console.log('Added new generic. Total:', prev.length + 1);
+            return [...prev, newGeneric];
+          }
+        });
+      }
+    };
+
+    console.log('=== DEFINITIONS.JSX REGISTERING genericsUpdated LISTENER ===');
+    window.addEventListener('genericsUpdated', handleGenericsUpdated);
+    
+    return () => {
+      console.log('=== DEFINITIONS.JSX REMOVING genericsUpdated LISTENER ===');
+      window.removeEventListener('genericsUpdated', handleGenericsUpdated);
+    };
+  }, []);
+
   const deleteDefinition = async (label) => {
     const confirm = window.confirm(
       'Are you sure you want to delete this definition?'
@@ -460,8 +496,32 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
 
   useEffect(() => {
     erService.getUserGenerics().then(userGenerics => {
-      setGenerics(userGenerics);
-    }).catch(error => console.error(error))
+      console.log('=== FETCHED USER GENERICS FROM BACKEND ===');
+      console.log('User generics:', userGenerics);
+      
+      // Merge with any generics already in sessionStorage (from induction)
+      const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
+      console.log('Stored generics:', storedGenerics);
+      
+      // Merge: prefer backend data but keep any that only exist in storage
+      const merged = [...userGenerics];
+      
+      storedGenerics.forEach(stored => {
+        const existsInBackend = userGenerics.find(ug => ug.label === stored.label);
+        if (!existsInBackend) {
+          merged.push(stored);
+        }
+      });
+      
+      console.log('Merged generics:', merged);
+      setGenerics(merged);
+      sessionStorage.setItem('generics', JSON.stringify(merged));
+    }).catch(error => {
+      console.error('Error fetching user generics:', error);
+      // On error, just use what's in sessionStorage
+      const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
+      setGenerics(storedGenerics);
+    });
   }, []);
 
   useEffect(() => {
