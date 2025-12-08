@@ -1,0 +1,23 @@
+form: int 
+ind var: n
+anchor: 0
+leap var: k
+func label: (f n)
+func type: int>int
+func def: (if (zero? n) 0 (+ n (f (- n 1))))
+
+expected: (f 0)
+highlight node: 0 
+rule: apply f n=0
+
+expected: (if (zero? 0) 0 (+ 0 (f (- 0 1))))
+highlight node: 4
+rule: eval zero?
+
+expected: (if #t 0 (+ 0 (f (- 0 1))))
+highlight node: 0
+rule: eval if
+
+expected: 0
+highlight node: -1
+rule: -1

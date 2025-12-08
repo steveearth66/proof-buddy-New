@@ -1,13 +1,20 @@
 #from django.test import TestCase
 
 # Create your tests here.
+from platform import node
 from expression_tree.ERProofEngine import ERProof, ERProofLine
 from expression_tree.IndProofs import IndProof
-from expression_tree.ERCommon import Node
+from expression_tree.ERCommon import Node, makeJson, findNode
 import sympy as sp
 import json
 from expression_tree.ERCommon import makeJson
 
+def show_node_ids(exprTree:Node, indent=0):
+    if exprTree is None:
+        return
+    print("  " * indent + f"ID {exprTree.startPosition}: '{exprTree.data}' (type: {exprTree.type})")
+    for child in exprTree.children:
+        show_node_ids(child, indent + 1)
 
 def do_single_test_case(rule: str, expr: str, expected, proof: ERProof = None) -> int:
     if proof == None:
@@ -949,47 +956,85 @@ for js,ans in zip(jsonstrgs,jsonans):
         print(f"PASS: makeJson on {js}")
 print(f"number of json errors: {jerrs}")
 
-
 print("\nTesting IndProofs:\n")
-inderrs, struct = 0, ""
-while struct != 'int': #TODO later add list tests
-    print("Currently only int structures are supported for IndProof testing.")
-    struct = input("Enter structure to test IndProof (int, list): ")
-    if struct == "":
-        struct = 'int'
-ivar = input("Enter induction variable (usually n for int, L for list): ")
-if ivar == "":
-    ivar = 'n'
-aval = input("Enter anchor value (usually 0 for int, 'null' for list): ")
-if aval == "":
-    aval = '0'
-lvar = input("Enter the leap variable (usually k for int, M for list): ")
-if lvar == "":
-    lvar = 'k'
+# Read induction test inputs from file
+import os
+test_file = os.path.join(os.path.dirname(__file__), "indTest.txt")
+with open(test_file, 'r') as f:
+    lines = [line.strip() for line in f.readlines() if line.strip()]
+
+# Print the raw file content with headers
+print("Induction test parameters from indTest.txt:")
+for line in lines:
+    print(f"  {line}")
+print()
+
+# Strip everything up to and including the colon
+def extract_value(line):
+    if ':' in line:
+        return line.split(':', 1)[1].strip()
+    return line.strip()
+
+# Parse setup section (first 7 lines)
+struct = extract_value(lines[0])
+ivar = extract_value(lines[1])
+aval = extract_value(lines[2])
+lvar = extract_value(lines[3])
+fname = extract_value(lines[4])
+ftype = extract_value(lines[5])
+fdef = extract_value(lines[6])
+
+# Initialize induction proof
 indProof = IndProof()
-indProof.struct=struct
-indProof.indVar=Node(ivar)
-indProof.anchorVal=Node(aval)
-indProof.leapVar=Node(lvar)
-fname = input("Enter the function to prove by induction, e.g. (f n): ")
-if fname == "":
-    fname = "(f n)"
-s2 = fname.lstrip("(")               # remove leading (
-flet = s2.split()[0]            # split on whitespace, take first
-ftype = input("Enter the function type (e.g., INT>INT ): ")
-if ftype == "":
-    ftype = "INT>INT"
-fdef = input("Enter the function definition. e.g., (if (zero? n) 0 (+ n (f (- n 1)))): ")
-if fdef == "":
-    fdef = "(if (zero? n) 0 (+ n (f (- n 1))))"
+indProof.struct = struct
+indProof.indVar = Node(ivar)
+indProof.anchorVal = Node(aval)
+indProof.leapVar = Node(lvar)
+
+s2 = fname.lstrip("(")  # remove leading (
+flet = s2.split()[0]    # split on whitespace, take first
+
 indProof.baseCase.addUDF(fname, ftype, fdef)
 indProof.leapStep.addUDF(fname, ftype, fdef)
-rulestr = f"apply {flet} {ivar}={aval}" #NOTE: do not put spaces around =
-exprstr = f"({flet} {aval})"
-print(type(indProof.baseCase))
-print(type(indProof.baseCase.LHS))
-indProof.baseCase.LHS.addProofLine(exprstr, rulestr)
-x=do_single_test_case(rulestr, exprstr, "(if (zero? 0) 0 (+ 0 (f (- 0 1))))", indProof.baseCase.LHS)
-print(f"number of IndProof errors: {inderrs}")
-pl = ERProofLine("(+ 1 (+ 2 3))")
-print(f"Testing getSubtreeStr on expression {pl.exprTree}")
+
+# Parse test cases (starting from line 8 onwards, in groups of 3: expected, highlight node, rule)
+inderrs = 0
+current_expr = f"({flet} {aval})"  # Start with initial base case expression
+pl = ERProofLine(current_expr)
+indProof.baseCase.LHS.addProofLine(current_expr, "")
+
+i = 8  # Start after setup section (0-6 is setup, 7 is blank)
+while i < len(lines):
+    expected_line = lines[i] if i < len(lines) else ""
+    node_line = lines[i + 1] if i + 1 < len(lines) else ""
+    rule_line = lines[i + 2] if i + 2 < len(lines) else ""
+    
+    expected = extract_value(expected_line)
+    node_id = int(extract_value(node_line)) if extract_value(node_line).lstrip('-').isdigit() else -1
+    rule = extract_value(rule_line)
+    
+    if node_id == -1:  # End of tests
+        print(f"\nProof complete! Final expression: {pl.exprTree}")
+        break
+    
+    print(f"\nApplying rule: {rule} to node {node_id}")
+    print(f"  Expected: {expected}")
+    
+    # Apply the rule
+    try:
+        pl.applyRule(rule, node_id)
+        result = str(pl.exprTree)
+        
+        if result == expected:
+            print(f"  PASS: Got expected result")
+        else:
+            print(f"  FAIL: Expected {expected} but got {result}")
+            inderrs += 1
+    except Exception as e:
+        print(f"  ERROR applying rule: {e}")
+        inderrs += 1
+    
+    i += 3
+
+print(f"\nNumber of IndProof errors: {inderrs}")
+      
