@@ -965,7 +965,7 @@ with open(test_file, 'r') as f:
 
 # Print the raw file content with headers
 print("Induction test parameters from indTest.txt:")
-for line in lines:
+for line in lines[:9]:
     print(f"  {line}")
 print()
 
@@ -975,7 +975,6 @@ def extract_value(line):
         return line.split(':', 1)[1].strip()
     return line.strip()
 
-# Parse setup section (first 7 lines)
 struct = extract_value(lines[0])
 ivar = extract_value(lines[1])
 aval = extract_value(lines[2])
@@ -984,57 +983,43 @@ fname = extract_value(lines[4])
 ftype = extract_value(lines[5])
 fdef = extract_value(lines[6])
 
-# Initialize induction proof
+inderrs = 0
 indProof = IndProof()
 indProof.struct = struct
 indProof.indVar = Node(ivar)
 indProof.anchorVal = Node(aval)
 indProof.leapVar = Node(lvar)
 
-s2 = fname.lstrip("(")  # remove leading (
-flet = s2.split()[0]    # split on whitespace, take first
+s2 = fname.lstrip("(")               # remove leading (
+flet = s2.split()[0]            # split on whitespace, take first
 
 indProof.baseCase.addUDF(fname, ftype, fdef)
 indProof.leapStep.addUDF(fname, ftype, fdef)
-
-# Parse test cases (starting from line 8 onwards, in groups of 3: expected, highlight node, rule)
-inderrs = 0
-current_expr = f"({flet} {aval})"  # Start with initial base case expression
-pl = ERProofLine(current_expr)
-indProof.baseCase.LHS.addProofLine(current_expr, "")
-
-i = 8  # Start after setup section (0-6 is setup, 7 is blank)
-while i < len(lines):
-    expected_line = lines[i] if i < len(lines) else ""
-    node_line = lines[i + 1] if i + 1 < len(lines) else ""
-    rule_line = lines[i + 2] if i + 2 < len(lines) else ""
-    
-    expected = extract_value(expected_line)
-    node_id = int(extract_value(node_line)) if extract_value(node_line).lstrip('-').isdigit() else -1
-    rule = extract_value(rule_line)
-    
-    if node_id == -1:  # End of tests
-        print(f"\nProof complete! Final expression: {pl.exprTree}")
+currLineNum = 9
+currExpStr = f"({flet} {aval})"
+if currExpStr != extract_value(lines[currLineNum]):
+    print(f"ERROR: expected first line of base case to be {currExpStr} but got {extract_value(lines[currLineNum])}")
+else:
+    print(f"PASS: first line of base case is {currExpStr}")
+pl = ERProofLine(currExpStr)
+while currLineNum + 1 < len(lines):
+    currLineNum += 1
+    targetID = extract_value(lines[currLineNum])
+    if targetID =="-1":
+        print("End of base case proof")
         break
-    
-    print(f"\nApplying rule: {rule} to node {node_id}")
-    print(f"  Expected: {expected}")
-    
-    # Apply the rule
-    try:
-        pl.applyRule(rule, node_id)
-        result = str(pl.exprTree)
-        
-        if result == expected:
-            print(f"  PASS: Got expected result")
-        else:
-            print(f"  FAIL: Expected {expected} but got {result}")
-            inderrs += 1
-    except Exception as e:
-        print(f"  ERROR applying rule: {e}")
+    currLineNum += 1
+    currRuleStr = extract_value(lines[currLineNum])
+    print(f"Applying rule {currRuleStr} to node ID {targetID} which is {findNode(pl.exprTree, int(targetID),[])[0]}")
+    pl.applyRule(currRuleStr, int(targetID))
+    currLineNum += 1
+    expectedExpStr = extract_value(lines[currLineNum])
+    if str(pl.exprTree) == expectedExpStr:
+        print(f"PASS: after applying rule, expression is {expectedExpStr}") 
+    else:
+        print(f"FAIL: after applying rule, expected expression {expectedExpStr} but got {pl.exprTree}")
         inderrs += 1
-    
-    i += 3
+print(f"Completed LHS base case with {inderrs} errors\n")
 
-print(f"\nNumber of IndProof errors: {inderrs}")
-      
+rpl = ERProofLine("(quotient (* 0 1) 2)")
+show_node_ids(rpl.exprTree)

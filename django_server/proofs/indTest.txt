@@ -5,6 +5,8 @@ leap var: k
 func label: (f n)
 func type: int>int
 func def: (if (zero? n) 0 (+ n (f (- n 1))))
+overall LHS: (f n)
+overall RHS: (quotient (* n (+ n 1)) 2)
 
 expected: (f 0)
 highlight node: 0 
@@ -17,6 +19,22 @@ rule: eval zero?
 expected: (if #t 0 (+ 0 (f (- 0 1))))
 highlight node: 0
 rule: eval if
+
+expected: 0
+highlight node: -1
+rule: -1
+
+expected: (quotient (* 0 (+ 0 1)) 2)
+highlight node: 15
+rule: eval +
+
+expected: (quotient (* 0 1) 2)
+highlight node: 10
+rule: eval *
+
+expected: (quotient 0 2)
+highlight node: 0
+rule: eval quotient
 
 expected: 0
 highlight node: -1
