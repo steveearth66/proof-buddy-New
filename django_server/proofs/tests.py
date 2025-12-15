@@ -2,9 +2,10 @@
 
 # Create your tests here.
 from platform import node
-from expression_tree.ERProofEngine import ERProof, ERProofLine
+from expression_tree.ERProofEngine import ERProof, ERProofLine, TwoSidedProof
 from expression_tree.IndProofs import IndProof
 from expression_tree.ERCommon import Node, makeJson, findNode
+from expression_tree.ERRuleset import recursiveReplaceNodes
 import sympy as sp
 import json
 from expression_tree.ERCommon import makeJson
@@ -15,6 +16,29 @@ def show_node_ids(exprTree:Node, indent=0):
     print("  " * indent + f"ID {exprTree.startPosition}: '{exprTree.data}' (type: {exprTree.type})")
     for child in exprTree.children:
         show_node_ids(child, indent + 1)
+
+def find_node_id_by_data(exprTree: Node, data: str):
+    if exprTree is None:
+        return None
+    if str(exprTree.data) == data:
+        return exprTree.startPosition
+    for child in exprTree.children:
+        nid = find_node_id_by_data(child, data)
+        if nid is not None:
+            return nid
+    return None
+
+def find_call_node_id(exprTree: Node, op: str):
+    if exprTree is None:
+        return None
+    if str(exprTree.data) == '(':
+        if len(exprTree.children) > 0 and str(exprTree.children[0].data) == op:
+            return exprTree.startPosition
+    for child in exprTree.children:
+        nid = find_call_node_id(child, op)
+        if nid is not None:
+            return nid
+    return None
 
 def do_single_test_case(rule: str, expr: str, expected, proof: ERProof = None) -> int:
     if proof == None:
@@ -982,6 +1006,8 @@ lvar = extract_value(lines[3])
 fname = extract_value(lines[4])
 ftype = extract_value(lines[5])
 fdef = extract_value(lines[6])
+lhsPremise = extract_value(lines[7])
+rhsPremise = extract_value(lines[8])
 
 inderrs = 0
 indProof = IndProof()
@@ -1023,3 +1049,349 @@ print(f"Completed LHS base case with {inderrs} errors\n")
 
 rpl = ERProofLine("(quotient (* 0 1) 2)")
 show_node_ids(rpl.exprTree)
+
+# Test case: Create a simple proof and test __str__ method
+print("\n\nTesting ERProof __str__ method:\n")
+proof = ERProof()
+
+# Line 0: Premise - (+ 1 2)
+proof.addProofLine("(+ 1 2)")
+print(f"Line 0 added as premise: (+ 1 2)")
+
+# Line 1: Apply 'eval +' on previous line's expression at node 0
+prev = proof.getPrevRacket()
+proof.addProofLine(prev, "eval +", 0)
+print("Applied 'eval +' to node 0 of previous line")
+
+# Print the complete proof
+print(f"\nComplete proof using __str__:\n")
+print(proof)
+print(f"\nProof has {len(proof.proofLines)} lines")
+print(f"Line 0 appliedRule: '{proof.proofLines[0].appliedRule}'")
+print(f"Line 1 appliedRule: '{proof.proofLines[1].appliedRule}'")
+print(f"Line 1 appliedRuleNodeId: {proof.proofLines[1].appliedRuleNodeId}")
+
+# Test case 2: Create a proof chain with list operations
+print("\n\nTesting ERProof with list operations:\n")
+proof2 = ERProof()
+
+# Line 0: Premise - (first (rest (cons 1 (cons 2 null))))
+proof2.addProofLine("(first (rest (cons 1 (cons 2 null))))")
+print(f"Line 0 added as premise: (first (rest (cons 1 (cons 2 null))))")
+
+# Show node IDs to find the rest node
+print(f"Node IDs in line 0:")
+show_node_ids(proof2.proofLines[0].exprTree)
+
+# Line 1: Apply rewrite rest-cons on previous line (node 7) to get (first (cons 2 null))
+prev = proof2.getPrevRacket()
+proof2.addProofLine(prev, "rewrite rest-cons with x=1, L=(cons 2 null)", 7)
+print("Applied 'rewrite rest-cons' to node 7 of previous line")
+
+# Line 2: Apply rewrite first-cons on previous line (node 0) to get 2
+prev = proof2.getPrevRacket()
+proof2.addProofLine(prev, "rewrite first-cons with x=2, L=null", 0)
+print("Applied 'rewrite first-cons' to node 0 of previous line")
+
+# Print the complete proof
+print(f"\nComplete list operations proof:\n")
+print(proof2)
+print(f"\nProof has {len(proof2.proofLines)} lines")
+
+# Test case 3: Use UDF for (f n) starting at premise (f 0)
+print("\n\nTesting ERProof with UDF (f n):\n")
+proof3 = ERProof()
+proof3.removeUDF('f')
+proof3.addUDF("(f n)", "int>int", "(if (zero? n) 0 (+ n (f (- n 1))))")
+if proof3.errLog:
+    print(f"Error adding UDF f: {proof3.errLog}")
+    proof3.errLog.clear()
+
+if 'f' in proof3.ruleSet['apply']:
+
+    # Line 0: Premise - (f 0)
+    proof3.addProofLine("(f 0)")
+    if len(proof3.proofLines) == 0:
+        print(f"Error adding premise (f 0): {proof3.errLog}")
+        proof3.errLog.clear()
+    else:
+        print("Line 0 added as premise: (f 0)")
+
+        # Line 1: Apply definition of f with n=0
+        prev = proof3.getPrevRacket()
+        proof3.addProofLine(prev, "apply f n=0", 0)
+        if proof3.errLog:
+            print(f"Error applying 'apply f n=0': {proof3.errLog}")
+            proof3.errLog.clear()
+        else:
+            print("Applied 'apply f n=0' to node 0 of previous line")
+
+            # Find the node id for zero? in the resulting expression and evaluate it
+            zero_id = find_call_node_id(proof3.proofLines[-1].exprTree, 'zero?')
+            if zero_id is not None:
+                prev = proof3.getPrevRacket()
+                proof3.addProofLine(prev, "eval zero?", zero_id)
+                if proof3.errLog:
+                    print(f"Error applying 'eval zero?': {proof3.errLog}")
+                    proof3.errLog.clear()
+                else:
+                    print(f"Applied 'eval zero?' to node {zero_id} of previous line")
+            else:
+                print("Could not find '(zero? ...)' call node to evaluate")
+
+            # Evaluate the if at the root
+            prev = proof3.getPrevRacket()
+            proof3.addProofLine(prev, "eval if", 0)
+            if proof3.errLog:
+                print(f"Error applying 'eval if': {proof3.errLog}")
+                proof3.errLog.clear()
+            else:
+                print("Applied 'eval if' to node 0 of previous line")
+
+        # Print the complete proof
+        print(f"\nComplete UDF (f n) proof:\n")
+        print(proof3)
+        print(f"\nProof has {len(proof3.proofLines)} lines")
+
+# Test case 4: IndProof base case LHS using the new addProofLine paradigm
+print("\n\nTesting IndProof base case LHS with addProofLine paradigm:\n")
+indproof2 = IndProof()
+# Read induction test inputs from file
+test_file = os.path.join(os.path.dirname(__file__), "indTest.txt")
+with open(test_file, 'r') as f:
+    lines = [line.strip() for line in f.readlines() if line.strip()]
+
+# Extract values from the file
+def extract_value(line):
+    if ':' in line:
+        return line.split(':', 1)[1].strip()
+    return line.strip()
+
+struct = extract_value(lines[0])
+ivar = extract_value(lines[1])
+aval = extract_value(lines[2])
+lvar = extract_value(lines[3])
+fname = extract_value(lines[4])
+ftype = extract_value(lines[5])
+fdef = extract_value(lines[6])
+lhsPremise = extract_value(lines[7])
+rhsPremise = extract_value(lines[8])
+
+print(f"Induction test parameters from indTest.txt:")
+print(f"  form: {struct}")
+print(f"  ind var: {ivar}")
+print(f"  anchor: {aval}")
+print(f"  leap var: {lvar}")
+print(f"  func label: {fname}")
+print(f"  func type: {ftype}")
+print(f"  func def: {fdef}")
+print(f"  trying to prove: {lhsPremise}  =  {rhsPremise}")
+print()
+
+# Store premises on the IndProof object
+indproof2.lhsPremise = lhsPremise
+indproof2.rhsPremise = rhsPremise
+
+s2 = fname.lstrip("(")
+flet = s2.split()[0]
+
+# Create the base case as a TwoSidedProof
+baseCaseProof = indproof2.baseCase
+baseCaseProof.LHS.removeUDF('f')
+baseCaseProof.LHS.addUDF(fname, ftype, fdef)
+if baseCaseProof.LHS.errLog:
+    print(f"Error adding UDF to base case LHS: {baseCaseProof.LHS.errLog}")
+    baseCaseProof.LHS.errLog.clear()
+
+# Start with the LHS premise and substitute ivar -> aval using the engine's AST substitution helper
+lhs_line = ERProofLine(lhsPremise, baseCaseProof.LHS.debug, baseCaseProof.LHS.ruleSet, generics=baseCaseProof.LHS.generics)
+if lhs_line.errLog:
+    print(f"Error parsing lhsPremise '{lhsPremise}': {lhs_line.errLog}")
+    lhs_line.errLog.clear()
+anchor_line = ERProofLine(aval, baseCaseProof.LHS.debug, baseCaseProof.LHS.ruleSet, generics=baseCaseProof.LHS.generics)
+if anchor_line.errLog:
+    print(f"Error parsing anchor '{aval}': {anchor_line.errLog}")
+    anchor_line.errLog.clear()
+if lhs_line.exprTree and anchor_line.exprTree:
+    recursiveReplaceNodes(lhs_line.exprTree, [ivar], [anchor_line.exprTree])
+    premise_expr = str(lhs_line.exprTree)
+    print(f"Line 0 added as premise: {premise_expr}")
+    baseCaseProof.LHS.addProofLine(premise_expr)
+else:
+    print("Could not build base case premise due to parse errors")
+
+# Now apply rules from the file using the new paradigm - LHS first
+currLineNum = 9
+step = 1
+while currLineNum + 1 < len(lines):
+    currLineNum += 1
+    targetID = extract_value(lines[currLineNum])
+    if targetID == "-1":
+        print("End of base case LHS proof")
+        break
+    currLineNum += 1
+    ruleStr = extract_value(lines[currLineNum])
+    currLineNum += 1
+    expectedExpStr = extract_value(lines[currLineNum])
+    
+    prev = baseCaseProof.LHS.getPrevRacket()
+    baseCaseProof.LHS.addProofLine(prev, ruleStr, int(targetID))
+    
+    if baseCaseProof.LHS.errLog:
+        print(f"Error applying '{ruleStr}' to node {targetID}: {baseCaseProof.LHS.errLog}")
+        baseCaseProof.LHS.errLog.clear()
+    else:
+        if str(baseCaseProof.LHS.proofLines[-1].exprTree) == expectedExpStr:
+            print(f"PASS: Line {step} applied '{ruleStr}' to node {targetID}, result: {expectedExpStr}")
+        else:
+            print(f"FAIL: Line {step} applied '{ruleStr}' to node {targetID}, expected {expectedExpStr} but got {baseCaseProof.LHS.proofLines[-1].exprTree}")
+    step += 1
+
+print(f"\nComplete IndProof base case LHS proof:\n")
+print(baseCaseProof.LHS)
+print(f"\nBase case LHS proof has {len(baseCaseProof.LHS.proofLines)} lines")
+
+# Now build the RHS base case proof
+print(f"\n\nBuilding IndProof base case RHS:\n")
+
+baseCaseProof.RHS.removeUDF('f')
+baseCaseProof.RHS.addUDF(fname, ftype, fdef)
+if baseCaseProof.RHS.errLog:
+    print(f"Error adding UDF to base case RHS: {baseCaseProof.RHS.errLog}")
+    baseCaseProof.RHS.errLog.clear()
+
+# Start with the RHS premise and substitute ivar -> aval using the engine's AST substitution helper
+rhs_line = ERProofLine(rhsPremise, baseCaseProof.RHS.debug, baseCaseProof.RHS.ruleSet, generics=baseCaseProof.RHS.generics)
+if rhs_line.errLog:
+    print(f"Error parsing rhsPremise '{rhsPremise}': {rhs_line.errLog}")
+    rhs_line.errLog.clear()
+anchor_line_rhs = ERProofLine(aval, baseCaseProof.RHS.debug, baseCaseProof.RHS.ruleSet, generics=baseCaseProof.RHS.generics)
+if anchor_line_rhs.errLog:
+    print(f"Error parsing anchor '{aval}': {anchor_line_rhs.errLog}")
+    anchor_line_rhs.errLog.clear()
+if rhs_line.exprTree and anchor_line_rhs.exprTree:
+    recursiveReplaceNodes(rhs_line.exprTree, [ivar], [anchor_line_rhs.exprTree])
+    rhs_premise_expr = str(rhs_line.exprTree)
+    print(f"RHS Line 0 added as premise: {rhs_premise_expr}")
+    baseCaseProof.RHS.addProofLine(rhs_premise_expr)
+else:
+    print("Could not build RHS base case premise due to parse errors")
+
+# Now apply RHS rules from the file
+# currLineNum is at "highlight node: -1" from LHS terminator
+# Skip: "rule: -1" line, then "expected: (quotient...)" line (RHS premise, already added)
+# Then we'll be positioned to read the first RHS rule's "highlight node:" line
+currLineNum += 1  # Skip "rule: -1"
+currLineNum += 1  # Skip blank or "expected: ..." line for RHS premise
+
+step = 1
+while currLineNum + 1 < len(lines):
+    currLineNum += 1
+    targetID = extract_value(lines[currLineNum])
+    if targetID == "-1":
+        print("End of base case RHS proof")
+        break
+    currLineNum += 1
+    ruleStr = extract_value(lines[currLineNum])
+    currLineNum += 1
+    expectedExpStr = extract_value(lines[currLineNum])
+    
+    prev = baseCaseProof.RHS.getPrevRacket()
+    baseCaseProof.RHS.addProofLine(prev, ruleStr, int(targetID))
+    
+    if baseCaseProof.RHS.errLog:
+        print(f"Error applying '{ruleStr}' to node {targetID}: {baseCaseProof.RHS.errLog}")
+        baseCaseProof.RHS.errLog.clear()
+    else:
+        if str(baseCaseProof.RHS.proofLines[-1].exprTree) == expectedExpStr:
+            print(f"PASS: Line {step} applied '{ruleStr}' to node {targetID}, result: {expectedExpStr}")
+        else:
+            print(f"FAIL: Line {step} applied '{ruleStr}' to node {targetID}, expected {expectedExpStr} but got {baseCaseProof.RHS.proofLines[-1].exprTree}")
+    step += 1
+
+print(f"\nComplete IndProof base case RHS proof:\n")
+print(baseCaseProof.RHS)
+print(f"\nBase case RHS proof has {len(baseCaseProof.RHS.proofLines)} lines")
+
+# Check if LHS and RHS final expressions match
+if len(baseCaseProof.LHS.proofLines) > 0 and len(baseCaseProof.RHS.proofLines) > 0:
+    lhs_final = str(baseCaseProof.LHS.proofLines[-1].exprTree)
+    rhs_final = str(baseCaseProof.RHS.proofLines[-1].exprTree)
+    if lhs_final == rhs_final:
+        print(f"\nBase case proven: LHS = RHS = {lhs_final}")
+    else:
+        print(f"\nBase case not yet complete: LHS = {lhs_final}, RHS = {rhs_final}")
+
+# Build the induction hypothesis by replacing ivar with lvar in both premises
+print(f"\n\nBuilding induction hypothesis:\n")
+
+# Create indHypLHS by substituting ivar -> lvar in lhsPremise
+lhs_hyp_line = ERProofLine(lhsPremise, baseCaseProof.LHS.debug, baseCaseProof.LHS.ruleSet, generics=baseCaseProof.LHS.generics)
+if lhs_hyp_line.errLog:
+    print(f"Error parsing lhsPremise for hypothesis '{lhsPremise}': {lhs_hyp_line.errLog}")
+    lhs_hyp_line.errLog.clear()
+lvar_line = ERProofLine(lvar, baseCaseProof.LHS.debug, baseCaseProof.LHS.ruleSet, generics=baseCaseProof.LHS.generics)
+if lvar_line.errLog:
+    print(f"Error parsing leap var '{lvar}': {lvar_line.errLog}")
+    lvar_line.errLog.clear()
+if lhs_hyp_line.exprTree and lvar_line.exprTree:
+    recursiveReplaceNodes(lhs_hyp_line.exprTree, [ivar], [lvar_line.exprTree])
+    indproof2.indHypLHS = lhs_hyp_line.exprTree
+    print(f"Induction hypothesis LHS: {indproof2.indHypLHS}")
+else:
+    print("Could not build indHypLHS due to parse errors")
+
+# Create indHypRHS by substituting ivar -> lvar in rhsPremise
+rhs_hyp_line = ERProofLine(rhsPremise, baseCaseProof.RHS.debug, baseCaseProof.RHS.ruleSet, generics=baseCaseProof.RHS.generics)
+if rhs_hyp_line.errLog:
+    print(f"Error parsing rhsPremise for hypothesis '{rhsPremise}': {rhs_hyp_line.errLog}")
+    rhs_hyp_line.errLog.clear()
+lvar_line_rhs = ERProofLine(lvar, baseCaseProof.RHS.debug, baseCaseProof.RHS.ruleSet, generics=baseCaseProof.RHS.generics)
+if lvar_line_rhs.errLog:
+    print(f"Error parsing leap var '{lvar}': {lvar_line_rhs.errLog}")
+    lvar_line_rhs.errLog.clear()
+if rhs_hyp_line.exprTree and lvar_line_rhs.exprTree:
+    recursiveReplaceNodes(rhs_hyp_line.exprTree, [ivar], [lvar_line_rhs.exprTree])
+    indproof2.indHypRHS = rhs_hyp_line.exprTree
+    print(f"Induction hypothesis RHS: {indproof2.indHypRHS}")
+else:
+    print("Could not build indHypRHS due to parse errors")
+
+# Build the leap step premises by replacing ivar with (+ lvar 1)
+print(f"\n\nBuilding leap step premises:\n")
+
+# Parse (+ lvar 1) as the successor node
+leap_successor_expr = f"(+ {lvar} 1)"
+leap_successor_line = ERProofLine(leap_successor_expr, indproof2.leapStep.LHS.debug, indproof2.leapStep.LHS.ruleSet, generics=indproof2.leapStep.LHS.generics)
+if leap_successor_line.errLog:
+    print(f"Error parsing leap successor '{leap_successor_expr}': {leap_successor_line.errLog}")
+    leap_successor_line.errLog.clear()
+
+# Create leap step LHS premise by substituting ivar -> (+ lvar 1) in lhsPremise
+lhs_leap_line = ERProofLine(lhsPremise, indproof2.leapStep.LHS.debug, indproof2.leapStep.LHS.ruleSet, generics=indproof2.leapStep.LHS.generics)
+if lhs_leap_line.errLog:
+    print(f"Error parsing lhsPremise for leap step '{lhsPremise}': {lhs_leap_line.errLog}")
+    lhs_leap_line.errLog.clear()
+if lhs_leap_line.exprTree and leap_successor_line.exprTree:
+    recursiveReplaceNodes(lhs_leap_line.exprTree, [ivar], [leap_successor_line.exprTree])
+    indproof2.leapStep.LHS.premise = lhs_leap_line.exprTree
+    print(f"Leap step LHS premise: {indproof2.leapStep.LHS.premise}")
+else:
+    print("Could not build leap step LHS premise due to parse errors")
+
+# Create leap step RHS premise by substituting ivar -> (+ lvar 1) in rhsPremise
+rhs_leap_line = ERProofLine(rhsPremise, indproof2.leapStep.RHS.debug, indproof2.leapStep.RHS.ruleSet, generics=indproof2.leapStep.RHS.generics)
+if rhs_leap_line.errLog:
+    print(f"Error parsing rhsPremise for leap step '{rhsPremise}': {rhs_leap_line.errLog}")
+    rhs_leap_line.errLog.clear()
+# Reuse or create another leap_successor for RHS
+leap_successor_line_rhs = ERProofLine(leap_successor_expr, indproof2.leapStep.RHS.debug, indproof2.leapStep.RHS.ruleSet, generics=indproof2.leapStep.RHS.generics)
+if leap_successor_line_rhs.errLog:
+    print(f"Error parsing leap successor for RHS '{leap_successor_expr}': {leap_successor_line_rhs.errLog}")
+    leap_successor_line_rhs.errLog.clear()
+if rhs_leap_line.exprTree and leap_successor_line_rhs.exprTree:
+    recursiveReplaceNodes(rhs_leap_line.exprTree, [ivar], [leap_successor_line_rhs.exprTree])
+    indproof2.leapStep.RHS.premise = rhs_leap_line.exprTree
+    print(f"Leap step RHS premise: {indproof2.leapStep.RHS.premise}")
+else:
+    print("Could not build leap step RHS premise due to parse errors")

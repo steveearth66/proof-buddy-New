@@ -142,6 +142,7 @@ class ERProof(ProofComponent):
     def __init__(self, ruleSet=None, generics=None, debug=False):
         super().__init__(ruleSet, generics, debug)
         self.proofLines: list[ERProofLine] = []
+        self.premise: Node = None
 
     def addProofLine(self, lineStr, ruleStr=None, highlightPos=0, substitution=None):
         # prooflines now contain pointers to their proof's ruleset so they can refer to UDFs
@@ -158,6 +159,9 @@ class ERProof(ProofComponent):
                     proofLine.applySubstitution(ruleStr, highlightPos, subLine)
                 else:
                     proofLine.applyRule(ruleStr, highlightPos)
+            elif len(self.proofLines) == 0:
+                # This is the first line of the proof, so it's a premise
+                proofLine.appliedRule = "Premise"
             if proofLine.errLog != []:
                 self.errLog.extend(proofLine.errLog)
         else:
@@ -181,11 +185,32 @@ class ERProof(ProofComponent):
             return ""
         return str(self.proofLines[-1].exprTree)
 
+    def __str__(self):
+        """Display proof lines with line numbers, expressions, rules, and node descriptions"""
+        lines = []
+        for line_num, proofLine in enumerate(self.proofLines):
+            expr_str = str(proofLine.exprTree) if proofLine.exprTree else ""
+            rule_str = proofLine.appliedRule if proofLine.appliedRule else ""
+            
+            # For nodes, get the expression from the previous line
+            node_description = ""
+            if proofLine.appliedRuleNodeId is not None and line_num > 0:
+                prev_line = self.proofLines[line_num - 1]
+                node = findNode(prev_line.exprTree, proofLine.appliedRuleNodeId, [])[0]
+                if node:
+                    node_str = str(node)
+                    node_description = f"on node {proofLine.appliedRuleNodeId}: {node_str}"
+            
+            lines.append(f"{line_num}\t{expr_str}\t{rule_str}\t{node_description}")
+        return "\n".join(lines)
+
 class ERProofLine(ProofComponent):
     def __init__(self, goal, debug=False, ruleDict=None, udfType=None, isUdf=False, generics=None): #added optional pointer to parent proof's ruleset
         super().__init__(ruleSet=ruleDict, generics=generics, debug=debug)
         self.exprTree = None
         self.positions = dict() # a dict of 4-tuples of the next pos when hitting up,down,left,right. keyd by startpos
+        self.appliedRule = None # stores the rule that was applied to generate this line
+        self.appliedRuleNodeId = None # stores the node ID where the rule was applied on the previous line
 
         tokenList, self.errLog = Parser.preProcess(goal, errLog=self.errLog, debug=self.debug,udf=isUdf)
         if self.errLog == []:
@@ -305,6 +330,7 @@ class ERProofLine(ProofComponent):
         raise ValueError
 
     def applyRule(self, rule: str, startPos: int, subNode: Node = None):
+        fullRuleString = rule  # Store the original full rule string before parsing
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
         if targetNode == None:
             self.errLog.append(
@@ -377,6 +403,10 @@ class ERProofLine(ProofComponent):
         )
         targetNode.replaceWith(newNode)
         updatePositions(self.exprTree)
+        
+        # Successfully applied the rule, so store the full rule string and the node ID where it was applied
+        self.appliedRule = fullRuleString
+        self.appliedRuleNodeId = startPos
 
     def applySubstitution(self, rule: str, startPos: int, subLine: 'ERProofLine'):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]

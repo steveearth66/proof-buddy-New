@@ -18,7 +18,8 @@ class IndProof:
                  lhsPremise = "", #the left-hand side of the induction premise, e.g. (cumeSum n) for int induction
                  rhsPremise = "", #the right-hand side of the induction premise, e.g. (quotient (* n (+ n 1)) 2)
                  baseCase: TwoSidedProof = None, #the base case proof, LHS=RHS is ivar replaced with aval
-                 indHyp: Node = None, #the induction hypothesis, is LHS=RHS wit ivar replaced with lvar
+                 indHypLHS: Node = None, #the induction hypothesis LHS, is LHS with ivar replaced with lvar
+                 indHypRHS: Node = None, #the induction hypothesis RHS, is RHS with ivar replaced with lvar
                  leapStep: TwoSidedProof = None): #the leap step proof, LHS=RHS is ivar replaced with (+ lvar 1) or (cons a L) etc, a.type= ANY??
 
         if errList is None:
@@ -73,11 +74,16 @@ class IndProof:
                 self.isValid = False
             else:
                 self.rhsPremise = rhsPremise
-            if not isinstance(indHyp, Node):
-                self.errList.append("Induction hypothesis should be a list.")
+            if not isinstance(indHypLHS, Node):
+                self.errList.append("Induction hypothesis LHS should be a list.")
                 self.isValid = False
             else:
-                self.indHyp = indHyp
+                self.indHypLHS = indHypLHS
+            if not isinstance(indHypRHS, Node):
+                self.errList.append("Induction hypothesis RHS should be a list.")
+                self.isValid = False
+            else:
+                self.indHypRHS = indHypLHS
             if not isinstance(baseCase, TwoSidedProof):
                 self.errList.append("Base case should be a twosided ERProof.")
                 self.isValid = False
@@ -97,7 +103,8 @@ class IndProof:
         self.lvar = lvar if lvar is not None else Node()
         self.lhsPremise = lhsPremise if lhsPremise is not None else Node()
         self.rhsPremise = rhsPremise if rhsPremise is not None else Node()
-        self.indHyp = indHyp if indHyp is not None else Node()
+        self.indHypLHS = indHypLHS if indHypLHS  is not None else Node()
+        self.indHypRHS = indHypRHS if indHypRHS  is not None else Node()
         self.baseCase = baseCase if baseCase is not None else ERProof()
         self.leapStep = leapStep if leapStep is not None else ERProof()
 
