@@ -90,7 +90,14 @@ class ProofComponent:
         else:
             self.errLog.append(f"Could not find UDF with label '{label}'")
 
+    def removeGeneric(self, label: str):
+        if label in self.generics:
+            del self.generics[label]
+
     def addGeneric(self, label: str, type: str, restrictions: dict | None = None):
+        # If the generic already exists, remove it to allow redefinition
+        if label in self.generics:
+            del self.generics[label]
         if not self._validateNewLabel(label):
             self.errLog.append(f"Can not use generic with label '{label}': label is already being used")
         type = type.lower()

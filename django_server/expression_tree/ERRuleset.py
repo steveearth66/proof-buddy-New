@@ -6,7 +6,8 @@ from .Parser import makeBasicAst
 from .Labeler import labelTree  # , fillPositions
 from enum import Enum
 from collections.abc import Callable
-import sympy as sp
+#pylance showing false positive for sympy import
+import sympy as sp # type: ignore
 
 # recursively check if two nodes are identical
 def isMatch(xNode: Node, yNode: Node) -> bool:
@@ -497,6 +498,37 @@ class UDF(Rule):
         expCopy = copy.deepcopy(self.body)
         recursiveReplaceNodes(expCopy, self.params, ruleNode.children[1:])
         return expCopy
+
+class IH(Rule):
+    def __init__(self, indHypLHS: Node, indHypRHS: Node):
+        super().__init__('IH', RuleType.IH)
+        self.indHypLHS = indHypLHS
+        self.indHypRHS = indHypRHS
+
+    def isApplicable(self, ruleNode: Node, rawParams: list[str] = None) -> tuple[bool, str]:
+        if rawParams:
+            return False, f"IH rule takes no parameters"
+        
+        # Check if ruleNode matches either indHypLHS or indHypRHS by comparing string representations
+        nodeStr = str(ruleNode)
+        lhsStr = str(self.indHypLHS)
+        rhsStr = str(self.indHypRHS)
+        
+        if nodeStr == lhsStr or nodeStr == rhsStr:
+            return True, "IH.isApplicable() PASS"
+        else:
+            return False, f"Node '{nodeStr}' does not match induction hypothesis LHS '{lhsStr}' or RHS '{rhsStr}'"
+
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        nodeStr = str(ruleNode)
+        lhsStr = str(self.indHypLHS)
+        rhsStr = str(self.indHypRHS)
+        
+        # If the node matches LHS, replace with RHS; if it matches RHS, replace with LHS
+        if nodeStr == lhsStr:
+            return self.indHypRHS.clone()
+        elif nodeStr == rhsStr:
+            return self.indHypLHS.clone()
 
 class Axiom(Rule, ABC):
     ParamFinder = Callable[[Node], tuple[Node | tuple[Node, ...], ...]] 

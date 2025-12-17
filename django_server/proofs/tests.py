@@ -5,8 +5,9 @@ from platform import node
 from expression_tree.ERProofEngine import ERProof, ERProofLine, TwoSidedProof
 from expression_tree.IndProofs import IndProof
 from expression_tree.ERCommon import Node, makeJson, findNode
-from expression_tree.ERRuleset import recursiveReplaceNodes
-import sympy as sp
+from expression_tree.ERRuleset import recursiveReplaceNodes, IH
+#pylance showing false positive for sympy import
+import sympy as sp # type: ignore
 import json
 from expression_tree.ERCommon import makeJson
 
@@ -65,16 +66,11 @@ def run_test_cases(rule: str, tests: list[tuple], proof: ERProof = None, default
     if proof is None:
         proof = ERProof()
     if defaultGenerics:
-        if 'k' not in proof.generics.keys():
-            proof.addGeneric('k', 'int')
-        if 'p' not in proof.generics.keys():
-            proof.addGeneric('p', 'bool')
-        if 'L' not in proof.generics.keys():
-            proof.addGeneric('L', 'list')
-        if 'M' not in proof.generics.keys():
-            proof.addGeneric('M', 'list')
-        if 'x' not in proof.generics.keys():
-            proof.addGeneric('x', 'any')
+        proof.addGeneric('k', 'int')
+        proof.addGeneric('p', 'bool')
+        proof.addGeneric('L', 'list')
+        proof.addGeneric('M', 'list')
+        proof.addGeneric('x', 'any')
     fails = 0
     for trial in tests:
         if len(trial) == 2:
@@ -980,6 +976,20 @@ for js,ans in zip(jsonstrgs,jsonans):
         print(f"PASS: makeJson on {js}")
 print(f"number of json errors: {jerrs}")
 
+#checking -+ rewrite before induction start
+print("\n\nTesting rewrite -+ rule on (- (+ k 1) 1):\n")
+test_proof1 = ERProof()
+test_proof1.addGeneric('k', 'int')
+test_expr1 = "(- (+ k 1) 1)"
+print(f"Input expression: {test_expr1}")
+test_proof1.addProofLine(test_expr1)
+print(f"Line 0 added as premise: {test_proof1.getPrevRacket()}")
+prev = test_proof1.getPrevRacket()
+test_proof1.addProofLine(prev, "rewrite -+ with k=k, a=1", 0)
+print(f"After applying 'rewrite -+' to node 0: {test_proof1.getPrevRacket()}")       
+print(f"\nComplete proof:\n{test_proof1}")
+
+
 print("\nTesting IndProofs:\n")
 # Read induction test inputs from file
 import os
@@ -1152,6 +1162,34 @@ if 'f' in proof3.ruleSet['apply']:
         print(f"\nComplete UDF (f n) proof:\n")
         print(proof3)
         print(f"\nProof has {len(proof3.proofLines)} lines")
+
+
+# Demonstrate math rewrite success and failure on the single k node
+print("\n\nTesting math rewrite on k within (+ k 2) -> replace k with (* 1 k):\n")
+math_proof_ok = ERProof()
+math_proof_ok.addGeneric('k', 'int')
+expr_math = "(+ k 2)"
+math_proof_ok.addProofLine(expr_math)
+# find node id for the k symbol in the previous line's tree
+k_id = find_node_id_by_data(math_proof_ok.proofLines[-1].exprTree, 'k')
+math_proof_ok.addProofLine(math_proof_ok.getPrevRacket(), "rewrite math", k_id, "(* 1 k)")
+if math_proof_ok.errLog:
+    print(f"Math rewrite (expected success) errors: {math_proof_ok.errLog}")
+else:
+    print(f"After math rewrite success: {math_proof_ok.getPrevRacket()}")
+    print(f"Complete proof:\n{math_proof_ok}")
+
+print("\nTesting math rewrite on k within (+ k 2) with non-equivalent substitute (* 3 k):\n")
+math_proof_fail = ERProof()
+math_proof_fail.addGeneric('k', 'int')
+math_proof_fail.addProofLine(expr_math)
+k_id_fail = find_node_id_by_data(math_proof_fail.proofLines[-1].exprTree, 'k')
+math_proof_fail.addProofLine(math_proof_fail.getPrevRacket(), "rewrite math", k_id_fail, "(* 3 k)")
+if math_proof_fail.errLog:
+    print(f"Math rewrite (expected failure) errors: {math_proof_fail.errLog}")
+else:
+    print(f"Unexpected success: {math_proof_fail.getPrevRacket()}")
+    print(f"Complete proof:\n{math_proof_fail}")
 
 # Test case 4: IndProof base case LHS using the new addProofLine paradigm
 print("\n\nTesting IndProof base case LHS with addProofLine paradigm:\n")
@@ -1357,6 +1395,18 @@ if rhs_hyp_line.exprTree and lvar_line_rhs.exprTree:
 else:
     print("Could not build indHypRHS due to parse errors")
 
+# Register IH apply rule using the built induction hypothesis, so we can apply it later.
+if indproof2.indHypLHS is not None and indproof2.indHypRHS is not None:
+    ih_rule = IH(indproof2.indHypLHS, indproof2.indHypRHS)
+    # Make available in both baseCase and leapStep contexts
+    indproof2.baseCase.ruleSet['apply']['IH'] = ih_rule
+    indproof2.leapStep.ruleSet['apply']['IH'] = ih_rule
+
+print(f"\nCreating generics for leap step: {lvar} of type {struct}\n")
+leapstep = indproof2.leapStep
+# Don't re-add UDF to leap step; IH rule already has the hypothesis encoded
+leapstep.addGeneric(lvar, struct)
+
 # Build the leap step premises by replacing ivar with (+ lvar 1)
 print(f"\n\nBuilding leap step premises:\n")
 
@@ -1395,3 +1445,59 @@ if rhs_leap_line.exprTree and leap_successor_line_rhs.exprTree:
     print(f"Leap step RHS premise: {indproof2.leapStep.RHS.premise}")
 else:
     print("Could not build leap step RHS premise due to parse errors")
+
+print(f"\n\nTesting leap step LHS proof from indTest.txt:\n")
+
+if indproof2.leapStep.LHS.premise is None:
+    print("Cannot test leap step LHS because no premise was built")
+else:
+    # Move past the base case RHS terminator and onto the leap step section
+    currLineNum += 1  # skip the trailing "rule: -1" after the RHS block
+    currLineNum += 1  # now at the leap step LHS expected line
+
+    leap_lhs_expected = extract_value(lines[currLineNum])
+    leap_lhs_expr = str(indproof2.leapStep.LHS.premise)
+    if leap_lhs_expr == leap_lhs_expected:
+        print(f"PASS: leap step LHS premise matches file: {leap_lhs_expr}")
+    else:
+        print(f"FAIL: leap step LHS premise expected {leap_lhs_expected} but got {leap_lhs_expr}")
+
+    indproof2.leapStep.LHS.addProofLine(leap_lhs_expr)
+    if indproof2.leapStep.LHS.errLog:
+        print(f"Error adding leap step LHS premise: {indproof2.leapStep.LHS.errLog}")
+        indproof2.leapStep.LHS.errLog.clear()
+
+    step = 1
+    while currLineNum + 1 < len(lines):
+        currLineNum += 1
+        targetID = extract_value(lines[currLineNum])
+        if targetID == "-1":
+            print("End of leap step LHS proof")
+            break
+        currLineNum += 1
+        ruleStr = extract_value(lines[currLineNum])
+        currLineNum += 1
+        expectedExpStr = extract_value(lines[currLineNum])
+
+        prev = indproof2.leapStep.LHS.getPrevRacket()
+        num_lines_before = len(indproof2.leapStep.LHS.proofLines)
+        indproof2.leapStep.LHS.addProofLine(prev, ruleStr, int(targetID))
+
+        if indproof2.leapStep.LHS.errLog:
+            print(f"Error applying '{ruleStr}' to node {targetID}: {indproof2.leapStep.LHS.errLog}")
+            indproof2.leapStep.LHS.errLog.clear()
+        else:
+            num_lines_after = len(indproof2.leapStep.LHS.proofLines)
+            if num_lines_after > num_lines_before:
+                result_expr = str(indproof2.leapStep.LHS.proofLines[-1].exprTree)
+                if result_expr == expectedExpStr:
+                    print(f"PASS: Line {step} applied '{ruleStr}' to node {targetID}, result: {expectedExpStr}")
+                else:
+                    print(f"FAIL: Line {step} applied '{ruleStr}' to node {targetID}, expected {expectedExpStr} but got {result_expr}")
+            else:
+                print(f"WARNING: Line {step} applied '{ruleStr}' but no line was added (count: {num_lines_before} -> {num_lines_after})")
+        step += 1
+
+    print(f"\nComplete leap step LHS proof:\n")
+    print(indproof2.leapStep.LHS)
+    print(f"\nLeap step LHS proof has {len(indproof2.leapStep.LHS.proofLines)} lines")

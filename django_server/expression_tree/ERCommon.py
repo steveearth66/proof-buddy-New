@@ -303,6 +303,19 @@ class Node:
         else:
             return f'({self.children[0].logicStr()} {self.children[1].logicStr()})'
 
+    # Return a deep copy of this node (independent subtree)
+    def clone(self) -> 'Node':
+        try:
+            # Prefer parser-based clone to ensure a clean, normalized tree
+            from .Parser import makeBasicAst  # local import to avoid circular at module load
+            newNode, errs = makeBasicAst(str(self))
+            if not errs and newNode is not None:
+                return newNode
+        except Exception:
+            pass
+        # Fallback to deepcopy if parsing fails
+        return copy.deepcopy(self)
+
     def replaceWith(self, newNode: 'Node'):
         self.data = newNode.data
         self.name = newNode.name

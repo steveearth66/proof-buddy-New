@@ -39,3 +39,31 @@ rule: eval quotient
 expected: 0
 highlight node: -1
 rule: -1
+
+expected: (f (+ k 1))
+highlight node: 0 
+rule: apply f n=(+ k 1)
+
+expected: (if (zero? (+ k 1)) 0 (+ (+ k 1) (f (- (+ k 1) 1)))) 
+highlight node: 4
+rule: rewrite zero?+ a=k, k=1
+
+expected: (if #f 0 (+ (+ k 1) (f (- (+ k 1) 1)))) 
+highlight node: 0
+rule: eval if
+
+expected: (+ (+ k 1) (f (- (+ k 1) 1)))
+highlight node: 14
+rule: rewrite -+ with k=k, a=1
+
+expected: (+ (+ k 1) (f k))
+highlight node: 11
+rule: apply IH
+
+expected: (+ (+ k 1) (quotient (* k (+ k 1)) 2)) 
+highlight node: -1
+rule: apply -1
+
+
+
+
