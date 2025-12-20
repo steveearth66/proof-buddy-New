@@ -64,6 +64,10 @@ expected: (+ (+ k 1) (quotient (* k (+ k 1)) 2))
 highlight node: -1
 rule: apply -1
 
+expected: (quotient (* (+ k 1) (+ (+ k 1) 1)) 2) 
+highlight node: 0
+rule: rewrite math with (+ (+ k 1) (quotient (* k (+ k 1)) 2)) 
 
-
-
+expected: (+ (+ k 1) (quotient (* k (+ k 1)) 2)) 
+highlight node: -1
+rule: -1

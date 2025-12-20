@@ -109,3 +109,121 @@ class IndProof:
         self.leapStep = leapStep if leapStep is not None else ERProof()
 
         #first we validate the inputs and turn the strings into Nodes
+        # (initial validation is handled by callers/tests)
+
+    def __str__(self) -> str:
+        """Render a structured induction proof summary with aligned sections.
+
+        Order:
+        - Format (int or list)
+        - Function definition
+        - To Prove
+        - Base case (LHS then RHS) + status
+        - Inductive Hypothesis (LHS = RHS)
+        - Leap step (LHS then RHS) + status
+        - Conclusion (entire proof complete or not)
+        """
+
+        def to_str(node_or_val) -> str:
+            try:
+                return str(node_or_val) if node_or_val is not None else ""
+            except Exception:
+                return ""
+
+        def indent_block(text: str, levels: int = 1) -> str:
+            if not text:
+                return ""
+            prefix = "    " * levels
+            return "\n".join(prefix + line for line in text.splitlines())
+
+        # Gather primary parameters with graceful fallbacks
+        fmt = getattr(self, 'struct', '')
+        ivar_raw = getattr(self, 'indVar', None) or getattr(self, 'ivar', None)
+        aval_raw = getattr(self, 'anchorVal', None) or getattr(self, 'aval', None)
+        lvar_raw = getattr(self, 'leapVar', None) or getattr(self, 'lvar', None)
+
+        lhsPrem = to_str(getattr(self, 'lhsPremise', None))
+        rhsPrem = to_str(getattr(self, 'rhsPremise', None))
+
+        ih_lhs = to_str(getattr(self, 'indHypLHS', None))
+        ih_rhs = to_str(getattr(self, 'indHypRHS', None))
+
+        # Handle both Node and string forms
+        ivar = to_str(ivar_raw.data if isinstance(ivar_raw, Node) else ivar_raw)
+        aval = to_str(aval_raw.data if isinstance(aval_raw, Node) else aval_raw)
+        lvar = to_str(lvar_raw.data if isinstance(lvar_raw, Node) else lvar_raw)
+
+        # Function definition (from available UDFs, if any)
+        func_label = ""
+        func_type = ""
+        func_body = ""
+        try:
+            # Prefer baseCase rule set; TwoSidedProof shares ruleSet across LHS/RHS
+            defs = {}
+            if hasattr(self, 'baseCase') and self.baseCase and hasattr(self.baseCase, 'ruleSet'):
+                defs = {label: rule for label, rule in self.baseCase.ruleSet['apply'].items()
+                        if hasattr(rule, 'ruleType') and str(rule.ruleType) == 'definition'}
+            if not defs and hasattr(self, 'leapStep') and self.leapStep and hasattr(self.leapStep, 'ruleSet'):
+                defs = {label: rule for label, rule in self.leapStep.ruleSet['apply'].items()
+                        if hasattr(rule, 'ruleType') and str(rule.ruleType) == 'definition'}
+            if defs:
+                # Pick deterministic first label (prefer 'f' or lowercase, then sorted)
+                first_label = 'f' if 'f' in defs else sorted(defs.keys())[0]
+                udf = defs[first_label]
+                # Build signature (label + params), type, and body strings
+                sig_params = getattr(udf, 'params', [])
+                func_label = f"({udf.label} {' '.join(sig_params)})" if sig_params else f"({udf.label})"
+                func_type = to_str(getattr(udf, 'racType', ''))
+                func_body = to_str(getattr(udf, 'body', ''))
+        except Exception:
+            pass
+
+        # Proof sections - indent proofs under LHS/RHS headers with consistent alignment
+        base_lhs_lines = str(self.baseCase.LHS).splitlines() if hasattr(self, 'baseCase') and self.baseCase else []
+        base_lhs_str = "\n".join("        " + line for line in base_lhs_lines) if base_lhs_lines else ""
+        
+        base_rhs_lines = str(self.baseCase.RHS).splitlines() if hasattr(self, 'baseCase') and self.baseCase else []
+        base_rhs_str = "\n".join("        " + line for line in base_rhs_lines) if base_rhs_lines else ""
+        
+        base_status = 'complete' if bool(getattr(self.baseCase, 'complete', False)) else 'incomplete'
+
+        leap_lhs_lines = str(self.leapStep.LHS).splitlines() if hasattr(self, 'leapStep') and self.leapStep else []
+        leap_lhs_str = "\n".join("        " + line for line in leap_lhs_lines) if leap_lhs_lines else ""
+        
+        leap_rhs_lines = str(self.leapStep.RHS).splitlines() if hasattr(self, 'leapStep') and self.leapStep else []
+        leap_rhs_str = "\n".join("        " + line for line in leap_rhs_lines) if leap_rhs_lines else ""
+        
+        leap_status = 'complete' if bool(getattr(self.leapStep, 'complete', False)) else 'incomplete'
+
+        # Overall conclusion
+        overall_complete = bool(getattr(self.baseCase, 'complete', False)) and bool(getattr(self.leapStep, 'complete', False))
+        conclusion = 'Proof complete' if overall_complete else 'Proof incomplete'
+
+        # Compose output with aligned headers
+        lines: list[str] = []
+        lines.append("Induction Proof")
+        lines.append(f"  Format: {fmt}")
+        if func_label or func_type or func_body:
+            lines.append(f"  Function: {func_label} : {func_type}".rstrip())
+            lines.append(f"  Definition: {func_body}".rstrip())
+        lines.append(f"  To Prove: {lhsPrem} = {rhsPrem}")
+        lines.append(f"  Base Case: anchored at {ivar} = {aval}")
+        lines.append("    LHS:")
+        if base_lhs_str:
+            lines.append(base_lhs_str)
+        lines.append("    RHS:")
+        if base_rhs_str:
+            lines.append(base_rhs_str)
+        lines.append(f"  Base Case Status: {base_status}")
+        lines.append(f"  Inductive Hypothesis: {ih_lhs} = {ih_rhs}")
+        lines.append("  Leap Step:")
+        lines.append("    LHS:")
+        if leap_lhs_str:
+            lines.append(leap_lhs_str)
+        lines.append("    RHS:")
+        if leap_rhs_str:
+            lines.append(leap_rhs_str)
+        lines.append(f"  Leap Step Status: {leap_status}")
+        lines.append(f"  Conclusion: {conclusion}")
+
+        return "\n".join(lines)

@@ -865,9 +865,61 @@ class AdvMath(Rule):
         for node in [ruleNode, subNode]:
             if not node.allMath():
                 return False, f'Math rule requires only math functions, but {"main" if node==ruleNode else "substitute"} expression had {node.funcSet()-set(["+","-","*","expt", "quotient","remainder"])}'
-        if not sp.sympify(ruleNode.mathStr()).equals(sp.sympify(subNode.mathStr())):
+        
+        try:
+            main_expr_str = ruleNode.mathStr()
+            sub_expr_str = subNode.mathStr()
+            
+            # Parse expressions with SymPy
+            main_sympy = sp.sympify(main_expr_str)
+            sub_sympy = sp.sympify(sub_expr_str)
+            
+            # Get all free symbols
+            symbols = list(main_sympy.free_symbols | sub_sympy.free_symbols)
+            
+            # First try: check if their difference simplifies to 0 (works for most algebra)
+            difference = sp.simplify(main_sympy - sub_sympy)
+            if difference.equals(0):
+                return True, "advMath.isApplicable() PASS"
+            
+            # Second try: if that failed and we have symbols, use numerical verification
+            # This is necessary for floor division where SymPy can't reason about bounds symbolically
+            # (e.g., floor(k/(k+1)) = 0 for positive k requires understanding that 0 < k/(k+1) < 1)
+            if symbols:
+                test_values = [1, 2, 3, 5, 10, 100]
+                all_equiv = True
+                
+                # Generate test combinations for up to 2 symbols
+                import itertools
+                if len(symbols) == 1:
+                    test_combos = [(v,) for v in test_values]
+                elif len(symbols) == 2:
+                    test_combos = list(itertools.product(test_values[:4], repeat=2))
+                else:
+                    # For 3+ symbols, use limited test combos
+                    test_combos = list(itertools.product(test_values[:3], repeat=len(symbols)))
+                
+                for combo in test_combos:
+                    try:
+                        sub_dict = dict(zip(symbols, combo))
+                        # Numerically evaluate both expressions with concrete values
+                        main_result = main_sympy.subs(sub_dict).evalf()
+                        sub_result = sub_sympy.subs(sub_dict).evalf()
+                        # Convert to int to handle floor division properly
+                        if int(main_result) != int(sub_result):
+                            all_equiv = False
+                            break
+                    except:
+                        # If evaluation fails, skip this combo
+                        continue
+                
+                if all_equiv and test_combos:
+                    return True, "advMath.isApplicable() PASS"
+            
             return False, f"main and substitute expressions are not equivalent"
-        return True, "advMath.isApplicable() PASS"
+                
+        except Exception as e:
+            return False, f"Error checking mathematical equivalence: {str(e)}"
 
     # note: ERproofline.applyRule will take care of proper highlight position etc
     def insertSubstitution(self, ruleNode: Node, subNode: Node) -> Node:

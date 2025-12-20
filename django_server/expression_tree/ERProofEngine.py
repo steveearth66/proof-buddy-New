@@ -437,6 +437,16 @@ class ERProofLine(ProofComponent):
         if self.errLog == []:
             targetNode.replaceWith(replacementExprTree)
             updatePositions(self.exprTree)
+            # Record the applied rule and node id for display purposes
+            try:
+                # Build a full rule string including substitution expression
+                sub_str = str(subLine.exprTree) if subLine and subLine.exprTree is not None else ""
+                self.appliedRule = f"{rule} with {sub_str}" if sub_str else rule
+                self.appliedRuleNodeId = startPos
+            except Exception:
+                # Fallback: at least record basic rule and node id
+                self.appliedRule = rule
+                self.appliedRuleNodeId = startPos
 
 
 def updatePositions(inputTree: Node, count: int = 0) -> tuple[Node, int]:

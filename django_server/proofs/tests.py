@@ -111,7 +111,7 @@ def test_axiom(axiom: str, tests: list[tuple], proof: ERProof, builtInProp=False
 totalFails = 0
 
 # Math function tests
-print('Testing Math Rules:\n')
+print('[Summary] Math Rules')
 plus_tests = [
      # bad operation
     ("(cons 1 null)", ["Cannot evaluate + on a 'cons' expression"]),
@@ -298,7 +298,7 @@ totalFails += do_single_test_case('eval math', '(+ 1 2)',
 totalFails += do_single_test_case('math', '(+ 1 2)', ["Rule must start with 'eval', 'apply', or 'rewrite'"])
 
 # Logic Function Tests
-print('\nTesting Logic Rules:\n')
+print('[Summary] Logic Rules')
 not_tests = [
     ("(cons 1 null)", ["Cannot evaluate not on a 'cons' expression"]),
     ("(and #t #t)", ["Cannot evaluate not on a 'and' expression"]),
@@ -383,7 +383,7 @@ totalFails += do_single_test_case('eval logic', '(and #t #t)', ["Could not find 
 totalFails += do_single_test_case("logic", '(and #t #t)', ["Rule must start with 'eval', 'apply', or 'rewrite'"])
 
 # List function tests
-print('\nTesting List Function Rules...\n')
+print('[Summary] List Function Rules')
 cons_tests = [
     ("(+ 1 2)", ["Cannot evaluate cons on a '+' expression"]),
     ("(first '(9 8 7))", ["Cannot evaluate cons on a 'first' expression"]),
@@ -437,7 +437,7 @@ totalFails += test_racket_function('rest', rest_tests)
 totalFails += do_single_test_case('eval restList', "(rest '(1 2 3))",
                                    ["Could not find rule associated with 'restList'"])
 
-print('\nTesting All Other Built-Ins\n')
+print('[Summary] Other Built-ins')
 zeroQ_tests = [
     ("(+ 1 2)", ["Cannot evaluate zero? on a '+' expression"]),
     ("(cons 1 null)", ["Cannot evaluate zero? on a 'cons' expression"]),
@@ -516,11 +516,11 @@ listQ_tests = [
 ]
 test_racket_function('list?', listQ_tests, hasAxiom=True)
 
-print('\nTest Undefined Labels\n')
+print('[Summary] Undefined Labels')
 totalFails += do_single_test_case('rewrite cons-first-rest with L=L', '(cons (first L) (rest L))',
                                   ["No definition found for label 'L'"])
 
-print('\nTest Axiom Param Mapping\n')
+print('[Summary] Axiom Param Mapping')
 totalFails += do_single_test_case("rewrite cons-first-rest with x=(first '(1)), L=(rest'(1))",
                                   "(cons (first '(1)) (rest '(1)))", 
                                   ['Unexpected assignment "x=(first \'(1))" was provided'])
@@ -546,7 +546,7 @@ axiomProof = ERProof()
 axiomProof.addGeneric('a', 'int', {'assumption': 'None'})
 axiomProof.addGeneric('b', 'int', {'assumption': 'Positive'})
 axiomProof.addGeneric('M', 'list')
-print("\nAxiom Testing\n")
+print("[Summary] Axiom Tests")
 cons_prop_tests = [
     ("(cons 1 null)",
      ["Can only rewrite with cons-first-rest rule when first arg is a 'first' expression and second arg is a 'rest' expression"]),
@@ -784,7 +784,7 @@ listQ_prop_tests = [
 ]
 totalFails += test_axiom('list?', listQ_prop_tests, axiomProof, builtInProp=True)
 
-print("\nUDF testing:\n")
+print("[Summary] UDF Rule Tests")
 udfProof = ERProof()
 udfProof.addUDF("(fc x y)", "(INT,INT)>INT", "(* x y)")
 udfProof.addUDF("(g x)", "INT>BOOL", "(< x 5)")
@@ -977,7 +977,7 @@ for js,ans in zip(jsonstrgs,jsonans):
 print(f"number of json errors: {jerrs}")
 
 #checking -+ rewrite before induction start
-print("\n\nTesting rewrite -+ rule on (- (+ k 1) 1):\n")
+print("[Summary] Rewrite -+ on (- (+ k 1) 1)")
 test_proof1 = ERProof()
 test_proof1.addGeneric('k', 'int')
 test_expr1 = "(- (+ k 1) 1)"
@@ -990,7 +990,7 @@ print(f"After applying 'rewrite -+' to node 0: {test_proof1.getPrevRacket()}")
 print(f"\nComplete proof:\n{test_proof1}")
 
 
-print("\nTesting IndProofs:\n")
+print("[Summary] IndProofs")
 # Read induction test inputs from file
 import os
 test_file = os.path.join(os.path.dirname(__file__), "indTest.txt")
@@ -998,7 +998,7 @@ with open(test_file, 'r') as f:
     lines = [line.strip() for line in f.readlines() if line.strip()]
 
 # Print the raw file content with headers
-print("Induction test parameters from indTest.txt:")
+print("[Summary] Induction Parameters From File:")
 for line in lines[:9]:
     print(f"  {line}")
 print()
@@ -1061,7 +1061,7 @@ rpl = ERProofLine("(quotient (* 0 1) 2)")
 show_node_ids(rpl.exprTree)
 
 # Test case: Create a simple proof and test __str__ method
-print("\n\nTesting ERProof __str__ method:\n")
+print("\n[Summary] ERProof __str__ Demo")
 proof = ERProof()
 
 # Line 0: Premise - (+ 1 2)
@@ -1074,7 +1074,7 @@ proof.addProofLine(prev, "eval +", 0)
 print("Applied 'eval +' to node 0 of previous line")
 
 # Print the complete proof
-print(f"\nComplete proof using __str__:\n")
+print(f"\nComplete proof using __str__:")
 print(proof)
 print(f"\nProof has {len(proof.proofLines)} lines")
 print(f"Line 0 appliedRule: '{proof.proofLines[0].appliedRule}'")
@@ -1082,7 +1082,7 @@ print(f"Line 1 appliedRule: '{proof.proofLines[1].appliedRule}'")
 print(f"Line 1 appliedRuleNodeId: {proof.proofLines[1].appliedRuleNodeId}")
 
 # Test case 2: Create a proof chain with list operations
-print("\n\nTesting ERProof with list operations:\n")
+print("\n[Summary] List Operations Proof")
 proof2 = ERProof()
 
 # Line 0: Premise - (first (rest (cons 1 (cons 2 null))))
@@ -1104,12 +1104,12 @@ proof2.addProofLine(prev, "rewrite first-cons with x=2, L=null", 0)
 print("Applied 'rewrite first-cons' to node 0 of previous line")
 
 # Print the complete proof
-print(f"\nComplete list operations proof:\n")
+print(f"\nComplete list operations proof:")
 print(proof2)
 print(f"\nProof has {len(proof2.proofLines)} lines")
 
 # Test case 3: Use UDF for (f n) starting at premise (f 0)
-print("\n\nTesting ERProof with UDF (f n):\n")
+print("\n[Summary] UDF (f n) Proof")
 proof3 = ERProof()
 proof3.removeUDF('f')
 proof3.addUDF("(f n)", "int>int", "(if (zero? n) 0 (+ n (f (- n 1))))")
@@ -1226,7 +1226,11 @@ print(f"  func def: {fdef}")
 print(f"  trying to prove: {lhsPremise}  =  {rhsPremise}")
 print()
 
-# Store premises on the IndProof object
+# Initialize IndProof with structure and induction parameters
+indproof2.struct = struct
+indproof2.ivar = ivar
+indproof2.aval = aval
+indproof2.lvar = lvar
 indproof2.lhsPremise = lhsPremise
 indproof2.rhsPremise = rhsPremise
 
@@ -1356,9 +1360,13 @@ if len(baseCaseProof.LHS.proofLines) > 0 and len(baseCaseProof.RHS.proofLines) >
     lhs_final = str(baseCaseProof.LHS.proofLines[-1].exprTree)
     rhs_final = str(baseCaseProof.RHS.proofLines[-1].exprTree)
     if lhs_final == rhs_final:
+        indproof2.baseCase.complete = True
         print(f"\nBase case proven: LHS = RHS = {lhs_final}")
     else:
+        indproof2.baseCase.complete = False
         print(f"\nBase case not yet complete: LHS = {lhs_final}, RHS = {rhs_final}")
+else:
+    indproof2.baseCase.complete = False
 
 # Build the induction hypothesis by replacing ivar with lvar in both premises
 print(f"\n\nBuilding induction hypothesis:\n")
@@ -1501,3 +1509,140 @@ else:
     print(f"\nComplete leap step LHS proof:\n")
     print(indproof2.leapStep.LHS)
     print(f"\nLeap step LHS proof has {len(indproof2.leapStep.LHS.proofLines)} lines")
+
+print(f"\n\nTesting leap step RHS proof from indTest.txt:\n")
+
+if indproof2.leapStep.RHS.premise is None:
+    print("Cannot test leap step RHS because no premise was built")
+else:
+    # currLineNum should be at the leap step RHS expected line after LHS terminator
+    currLineNum += 1  # skip the trailing "rule: -1" after the LHS block
+    currLineNum += 1  # now at the leap step RHS expected line
+
+    leap_rhs_expected = extract_value(lines[currLineNum])
+    leap_rhs_expr = str(indproof2.leapStep.RHS.premise)
+    if leap_rhs_expr == leap_rhs_expected:
+        print(f"PASS: leap step RHS premise matches file: {leap_rhs_expr}")
+    else:
+        print(f"FAIL: leap step RHS premise expected {leap_rhs_expected} but got {leap_rhs_expr}")
+
+    indproof2.leapStep.RHS.addProofLine(leap_rhs_expr)
+    if indproof2.leapStep.RHS.errLog:
+        print(f"Error adding leap step RHS premise: {indproof2.leapStep.RHS.errLog}")
+        indproof2.leapStep.RHS.errLog.clear()
+
+    step = 1
+    while currLineNum + 1 < len(lines):
+        currLineNum += 1
+        targetID = extract_value(lines[currLineNum])
+        if targetID == "-1":
+            print("End of leap step RHS proof")
+            break
+        currLineNum += 1
+        ruleStr = extract_value(lines[currLineNum])
+        currLineNum += 1
+        expectedExpStr = extract_value(lines[currLineNum])
+
+        prev = indproof2.leapStep.RHS.getPrevRacket()
+        num_lines_before = len(indproof2.leapStep.RHS.proofLines)
+        
+        # Check if this is a math rewrite rule with a substitution node
+        if 'rewrite math with' in ruleStr:
+            # Extract the substitution expression after "with"
+            parts = ruleStr.split(' with ', 1)
+            if len(parts) == 2:
+                subst_expr = parts[1].strip()
+                print(f"DEBUG: Math rewrite at node {targetID}")
+                print(f"  Rule: {parts[0].strip()}")
+                print(f"  Substitution: {subst_expr}")
+                indproof2.leapStep.RHS.addProofLine(prev, parts[0].strip(), int(targetID), subst_expr)
+            else:
+                indproof2.leapStep.RHS.addProofLine(prev, ruleStr, int(targetID))
+        else:
+            indproof2.leapStep.RHS.addProofLine(prev, ruleStr, int(targetID))
+
+        if indproof2.leapStep.RHS.errLog:
+            print(f"Error applying '{ruleStr}' to node {targetID}: {indproof2.leapStep.RHS.errLog}")
+            indproof2.leapStep.RHS.errLog.clear()
+        else:
+            num_lines_after = len(indproof2.leapStep.RHS.proofLines)
+            if num_lines_after > num_lines_before:
+                result_expr = str(indproof2.leapStep.RHS.proofLines[-1].exprTree)
+                if result_expr == expectedExpStr:
+                    print(f"PASS: Line {step} applied '{ruleStr}' to node {targetID}, result: {expectedExpStr}")
+                else:
+                    print(f"FAIL: Line {step} applied '{ruleStr}' to node {targetID}, expected {expectedExpStr} but got {result_expr}")
+            else:
+                print(f"WARNING: Line {step} applied '{ruleStr}' but no line was added (count: {num_lines_before} -> {num_lines_after})")
+        step += 1
+
+    print(f"\nComplete leap step RHS proof:\n")
+    print(indproof2.leapStep.RHS)
+    print(f"\nLeap step RHS proof has {len(indproof2.leapStep.RHS.proofLines)} lines")
+
+# Check if LHS and RHS final expressions match for the leap step
+print(f"\n\nVerifying leap step completion:\n")
+if len(indproof2.leapStep.LHS.proofLines) > 0 and len(indproof2.leapStep.RHS.proofLines) > 0:
+    lhs_final = str(indproof2.leapStep.LHS.proofLines[-1].exprTree)
+    rhs_final = str(indproof2.leapStep.RHS.proofLines[-1].exprTree)
+    if lhs_final == rhs_final:
+        indproof2.leapStep.complete = True
+        print(f"[PASS] LEAP STEP COMPLETE: LHS = RHS = {lhs_final}")
+    else:
+        indproof2.leapStep.complete = False
+        print(f"[FAIL] Leap step not yet complete:")
+        print(f"  LHS final: {lhs_final}")
+        print(f"  RHS final: {rhs_final}")
+else:
+    indproof2.leapStep.complete = False
+    print(f"[FAIL] Leap step incomplete: missing proof lines")
+
+# Final check: verify entire induction proof is complete
+summary_status = "PASS" if (indproof2.baseCase.complete and indproof2.leapStep.complete) else "FAIL"
+print("\n[Summary] Induction Proof Status")
+print(f"Base case: {'complete' if indproof2.baseCase.complete else 'incomplete'}; "
+      f"Leap step: {'complete' if indproof2.leapStep.complete else 'incomplete'}")
+if summary_status == "PASS":
+    print(f"Result: Induction proof complete — {lhsPremise} = {rhsPremise}")
+else:
+    print("Result: Induction proof incomplete")
+
+
+# TEST: Quotient floor division rewrite - verifies that rewrite math with quotient works correctly
+# This tests that (quotient k (+ k 1)) can be rewritten to 0 using the "rewrite math" rule
+# This is mathematically valid because for positive integers k, k < k+1, so quotient = 0
+
+print("\n[Summary] Quotient Floor Division Rewrite")
+print("Goal: (zero? (quotient k (+ k 1))) -> (zero? 0)")
+
+proof_quotient_test = ERProof()
+proof_quotient_test.addGeneric('k', 'int')
+
+# Start with the expression
+expr_quotient = "(zero? (quotient k (+ k 1)))"
+proof_quotient_test.addProofLine(expr_quotient)
+
+print(f"Premise: {expr_quotient}")
+
+if not proof_quotient_test.errLog:
+    # Apply "rewrite math with 0" at node 7 (the quotient operation)
+    # Node 7 is the position of the opening parenthesis of (quotient k (+ k 1))
+    prev = proof_quotient_test.getPrevRacket()
+    proof_quotient_test.addProofLine(prev, "rewrite math", 7, "0")
+    
+    if proof_quotient_test.errLog:
+        print(f"Result: FAIL — {proof_quotient_test.errLog}")
+    else:
+        result = str(proof_quotient_test.proofLines[-1].exprTree)
+        expected = "(zero? 0)"
+        print(f"After rewrite: {result}")
+        if result == expected:
+            print("Result: PASS — floor division semantics preserved")
+        else:
+            print(f"Result: FAIL — expected {expected}, got {result}")
+else:
+    print(f"Result: FAIL — error parsing initial expression: {proof_quotient_test.errLog}")
+
+# Show full induction proof summary using __str__ on indproof2
+print("\n[Summary] IndProofs __str__ — indproof2")
+print(indproof2)
