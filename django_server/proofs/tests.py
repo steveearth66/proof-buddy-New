@@ -1191,6 +1191,41 @@ else:
     print(f"Unexpected success: {math_proof_fail.getPrevRacket()}")
     print(f"Complete proof:\n{math_proof_fail}")
 
+# TEST: Quotient floor division rewrite - verifies that rewrite math with quotient works correctly
+# This tests that (quotient k (+ k 1)) can be rewritten to 0 using the "rewrite math" rule
+# This is mathematically valid because for positive integers k, k < k+1, so quotient = 0
+
+print("\n[Summary] Quotient Floor Division Rewrite")
+print("Goal: (zero? (quotient k (+ k 1))) -> (zero? 0)")
+
+proof_quotient_test = ERProof()
+proof_quotient_test.addGeneric('k', 'int')
+
+# Start with the expression
+expr_quotient = "(zero? (quotient k (+ k 1)))"
+proof_quotient_test.addProofLine(expr_quotient)
+
+print(f"Premise: {expr_quotient}")
+
+if not proof_quotient_test.errLog:
+    # Apply "rewrite math with 0" at node 7 (the quotient operation)
+    # Node 7 is the position of the opening parenthesis of (quotient k (+ k 1))
+    prev = proof_quotient_test.getPrevRacket()
+    proof_quotient_test.addProofLine(prev, "rewrite math", 7, "0")
+    
+    if proof_quotient_test.errLog:
+        print(f"Result: FAIL — {proof_quotient_test.errLog}")
+    else:
+        result = str(proof_quotient_test.proofLines[-1].exprTree)
+        expected = "(zero? 0)"
+        print(f"After rewrite: {result}")
+        if result == expected:
+            print("Result: PASS — floor division semantics preserved")
+        else:
+            print(f"Result: FAIL — expected {expected}, got {result}")
+else:
+    print(f"Result: FAIL — error parsing initial expression: {proof_quotient_test.errLog}")
+
 # Test case 4: IndProof base case LHS using the new addProofLine paradigm
 print("\n\nTesting IndProof base case LHS with addProofLine paradigm:\n")
 indproof2 = IndProof()
@@ -1607,42 +1642,6 @@ if summary_status == "PASS":
 else:
     print("Result: Induction proof incomplete")
 
-
-# TEST: Quotient floor division rewrite - verifies that rewrite math with quotient works correctly
-# This tests that (quotient k (+ k 1)) can be rewritten to 0 using the "rewrite math" rule
-# This is mathematically valid because for positive integers k, k < k+1, so quotient = 0
-
-print("\n[Summary] Quotient Floor Division Rewrite")
-print("Goal: (zero? (quotient k (+ k 1))) -> (zero? 0)")
-
-proof_quotient_test = ERProof()
-proof_quotient_test.addGeneric('k', 'int')
-
-# Start with the expression
-expr_quotient = "(zero? (quotient k (+ k 1)))"
-proof_quotient_test.addProofLine(expr_quotient)
-
-print(f"Premise: {expr_quotient}")
-
-if not proof_quotient_test.errLog:
-    # Apply "rewrite math with 0" at node 7 (the quotient operation)
-    # Node 7 is the position of the opening parenthesis of (quotient k (+ k 1))
-    prev = proof_quotient_test.getPrevRacket()
-    proof_quotient_test.addProofLine(prev, "rewrite math", 7, "0")
-    
-    if proof_quotient_test.errLog:
-        print(f"Result: FAIL — {proof_quotient_test.errLog}")
-    else:
-        result = str(proof_quotient_test.proofLines[-1].exprTree)
-        expected = "(zero? 0)"
-        print(f"After rewrite: {result}")
-        if result == expected:
-            print("Result: PASS — floor division semantics preserved")
-        else:
-            print(f"Result: FAIL — expected {expected}, got {result}")
-else:
-    print(f"Result: FAIL — error parsing initial expression: {proof_quotient_test.errLog}")
-
 # Show full induction proof summary using __str__ on indproof2
-print("\n[Summary] IndProofs __str__ — indproof2")
+print("\nInduction Proof Output")
 print(indproof2)
