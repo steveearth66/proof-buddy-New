@@ -420,27 +420,22 @@ def use_definition(request, label):
     definition = get_definition(user, label)
     proof = get_or_set_proof(user)
 
-    # Return 404 if the definition does not exist for this user
-    if not definition:
-        return Response({"message": "Definition not found"}, status=status.HTTP_404_NOT_FOUND)
+    try:
+        if not definition:
+            return Response({"message": "Definition not found"}, status=status.HTTP_404_NOT_FOUND)
+        for proof_definition in proof.definitions:
+            if proof_definition["label"] == definition["label"]:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
 
-    # Prevent duplicates and return a clear message
-    for proof_definition in proof.definitions:
-        if proof_definition["label"] == definition["label"]:
-            return Response({"message": "Definition already enabled"}, status=status.HTTP_409_CONFLICT)
+        proof.addUDF(definition["label"], definition["type"], definition["expression"])
 
-    # Add the UDF; if engine reports errors, return them explicitly
-    proof.addUDF(definition["label"], definition["type"], definition["expression"])
-    if getattr(proof, "errLog", []):
-        errors = proof.getErrorsAndClear() if hasattr(proof, "getErrorsAndClear") else proof.errLog
-        return Response({"errors": errors}, status=status.HTTP_400_BAD_REQUEST)
+        definition["applied"] = True
+        proof.definitions.append(definition)
+        save_proof_to_cache(user, proof)
 
-    # Mark applied, persist, and acknowledge success
-    definition["applied"] = True
-    proof.definitions.append(definition)
-    save_proof_to_cache(user, proof)
-
-    return Response({"message": "Definition enabled", "definition": definition}, status=status.HTTP_200_OK)
+        return Response(status=status.HTTP_200_OK)
+    except:
+        return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["POST"])
