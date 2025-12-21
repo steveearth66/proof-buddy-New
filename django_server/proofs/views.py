@@ -359,17 +359,18 @@ def create_or_override_definition(user, data):
 
 
 # def get_definition(id):
-def get_definition(label):
+def get_definition(user, label):
+    """Return a user's definition by label, or None if not found."""
     # definition = Definition.objects.filter(id=id).first()
-    definition = Definition.objects.filter(label=label).first()
-    definition_data = {
+    definition = Definition.objects.filter(label=label, created_by=user).first()
+    if not definition:
+        return None
+    return {
         "id": definition.id,
         "label": definition.label,
         "type": definition.def_type,
         "expression": definition.expression,
     }
-
-    return definition_data
 
 
 # def edit_definition(user, id, data):

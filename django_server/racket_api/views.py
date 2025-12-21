@@ -415,27 +415,32 @@ def get_definitions(request):
 
 
 @api_view(["GET"])
-# def use_definition(request, id):
 def use_definition(request, label):
     user = request.user
-    # definition = get_definition(id)
-    definition = get_definition(label)
+    definition = get_definition(user, label)
     proof = get_or_set_proof(user)
 
-    try:
-        for proof_definition in proof.definitions:
-            if proof_definition["label"] == definition["label"]:
-                return Response(status=status.HTTP_400_BAD_REQUEST)
+    # Return 404 if the definition does not exist for this user
+    if not definition:
+        return Response({"message": "Definition not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        proof.addUDF(definition["label"], definition["type"], definition["expression"])
+    # Prevent duplicates and return a clear message
+    for proof_definition in proof.definitions:
+        if proof_definition["label"] == definition["label"]:
+            return Response({"message": "Definition already enabled"}, status=status.HTTP_409_CONFLICT)
 
-        definition["applied"] = True
-        proof.definitions.append(definition)
-        save_proof_to_cache(user, proof)
+    # Add the UDF; if engine reports errors, return them explicitly
+    proof.addUDF(definition["label"], definition["type"], definition["expression"])
+    if getattr(proof, "errLog", []):
+        errors = proof.getErrorsAndClear() if hasattr(proof, "getErrorsAndClear") else proof.errLog
+        return Response({"errors": errors}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response(status=status.HTTP_200_OK)
-    except:
-        return Response(status=status.HTTP_400_BAD_REQUEST)
+    # Mark applied, persist, and acknowledge success
+    definition["applied"] = True
+    proof.definitions.append(definition)
+    save_proof_to_cache(user, proof)
+
+    return Response({"message": "Definition enabled", "definition": definition}, status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])
