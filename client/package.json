@@ -24,7 +24,7 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "eject": "react-scripts eject",
-    "test": "jest",
+    "test": "set NODE_OPTIONS=--max-old-space-size=4096 && jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },

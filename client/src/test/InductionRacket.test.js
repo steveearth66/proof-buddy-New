@@ -408,7 +408,7 @@ describe("InductionRacket Component", () => {
       await userEvent.type(screen.getByLabelText("IVar"), "n");
       await userEvent.type(screen.getByLabelText("AVal"), "0");
       await userEvent.type(screen.getByLabelText("LVar"), "k");
-      await userEvent.type(screen. getByPlaceholderText("Leap Goal"), "(+ (f n) 5)");
+      await userEvent.type(screen.getByLabelText("LHS Goal"), "(+ (f n) 5)");
 
       const startButton = screen.getByText("Start Induction Proof");
       await userEvent.click(startButton);

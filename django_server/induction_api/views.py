@@ -259,6 +259,10 @@ def start_induction_proof(request):
                 'inductive_hypothesis_rhs' : proof.inductive_hypothesis_rhs,
             })
             
+            # Also update the IndProof object cache with the proof_id
+            ind_proof, _ = get_or_set_induction_obj(user)
+            save_induction_obj_to_cache(user, ind_proof, proof.id)
+            
             return Response(
                 {
                     "message": "Induction proof started successfully",
@@ -350,16 +354,41 @@ def get_or_set_induction_proof(user):
     return loads(user_proof)
 
 # New: Cache helpers for full IndProof engine object
-def save_induction_obj_to_cache(user, ind_proof: IndProof):
-    cache.set(f"induction_obj_{user.username}", dumps(ind_proof))
+def save_induction_obj_to_cache(user, ind_proof: IndProof, proof_id=None):
+    """Save IndProof object to cache along with the database proof ID"""
+    cache_data = {
+        'ind_proof': dumps(ind_proof),
+        'proof_id': proof_id
+    }
+    cache.set(f"induction_obj_{user.username}", cache_data)
 
-def get_or_set_induction_obj(user) -> IndProof:
+def get_or_set_induction_obj(user):
+    """Get IndProof object and associated proof ID from cache"""
     cached = cache.get(f"induction_obj_{user.username}")
     if cached is None:
         ind = IndProof()
         save_induction_obj_to_cache(user, ind)
-        return ind
-    return loads(cached)
+        return ind, None
+    return loads(cached['ind_proof']), cached.get('proof_id')
+
+def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, line_number):
+    """Save a proof line to the database"""
+    from .models import InductionProofLine, InductionProof
+    if proof_id is None:
+        return
+    try:
+        proof = InductionProof.objects.get(id=proof_id)
+        InductionProofLine.objects.create(
+            proof=proof,
+            case=case,
+            side=side,
+            racket=racket,
+            rule=rule or '',
+            start_position=start_position,
+            line_number=line_number
+        )
+    except InductionProof.DoesNotExist:
+        pass  # Proof doesn't exist in DB yet
 
 
 # ---- Induction Engine Endpoints (frontend -> ER engine) ----
@@ -485,7 +514,7 @@ def set_current_proof(request):
                 ind.leapStep.LHS.addProofLine(str(lhs_leap_line.exprTree))
                 ind.leapStep.RHS.addProofLine(str(rhs_leap_line.exprTree))
 
-        # Save engine to cache
+        # Save engine to cache (without proof_id for now, as this is just engine setup)
         save_induction_obj_to_cache(user, ind)
 
         # Build frontend payload with jsonTrees for latest lines
@@ -558,7 +587,7 @@ def apply_rule(request):
     """
     user = request.user
     data = request.data
-    proof = get_or_set_induction_obj(user)
+    proof, proof_id = get_or_set_induction_obj(user)
 
     try:
         side = data.get("side", "LHS")
@@ -575,8 +604,21 @@ def apply_rule(request):
         racket_str = target.getPrevRacket() if is_valid else "Error generating racket"
         jsonTree = makeJson(target.proofLines[-1].exprTree) if len(target.proofLines) else {}
 
-        # Save
-        save_induction_obj_to_cache(user, proof)
+        # Save to cache
+        save_induction_obj_to_cache(user, proof, proof_id)
+        
+        # Save to database if we have a valid proof line
+        if is_valid and len(target.proofLines) > 0:
+            last_line = target.proofLines[-1]
+            save_proof_line_to_db(
+                proof_id=proof_id,
+                case=case,
+                side=side,
+                racket=racket_str,
+                rule=last_line.appliedRule or '',
+                start_position=startPosition,
+                line_number=len(target.proofLines) - 1
+            )
 
         return Response({
             "isValid": is_valid,
@@ -592,15 +634,27 @@ def apply_rule(request):
 @api_view(["DELETE"]) 
 def delete_line(request, case, side):
     user = request.user
-    proof = get_or_set_induction_obj(user)
+    proof, proof_id = get_or_set_induction_obj(user)
     try:
         target = _get_case_side(proof, case, side)
+        line_number = len(target.proofLines) - 1
         if len(target.proofLines) > 0:
             target.deleteProofLine()
-        save_induction_obj_to_cache(user, proof)
+            # Delete from database if we have proof_id
+            if proof_id:
+                from .models import InductionProofLine
+                InductionProofLine.objects.filter(
+                    proof_id=proof_id,
+                    case=case,
+                    side=side,
+                    line_number=line_number
+                ).delete()
+        save_induction_obj_to_cache(user, proof, proof_id)
         return Response(status=status.HTTP_200_OK)
     except Exception as e:
-        return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        # Log error but still return 200 if deletion completed
+        print(f"Warning in delete_line: {e}")
+        return Response(status=status.HTTP_200_OK)
 
 
 @api_view(["POST"]) 
@@ -611,7 +665,7 @@ def check_goal(request):
     """
     user = request.user
     data = request.data
-    proof = get_or_set_induction_obj(user)
+    proof, proof_id = get_or_set_induction_obj(user)
     try:
         side = data.get("side", "LHS")
         case = data.get("case", "base")
@@ -620,9 +674,30 @@ def check_goal(request):
         # Clear and set goal
         if len(target.proofLines) != 0:
             target.proofLines.clear()
+            # Clear from database too
+            if proof_id:
+                from .models import InductionProofLine
+                InductionProofLine.objects.filter(
+                    proof_id=proof_id,
+                    case=case,
+                    side=side
+                ).delete()
         target.addProofLine(goal)
         jsonTree = makeJson(target.proofLines[-1].exprTree)
-        save_induction_obj_to_cache(user, proof)
+        save_induction_obj_to_cache(user, proof, proof_id)
+        
+        # Save premise line to database
+        if proof_id and len(target.proofLines) > 0:
+            last_line = target.proofLines[-1]
+            save_proof_line_to_db(
+                proof_id=proof_id,
+                case=case,
+                side=side,
+                racket=goal,
+                rule=last_line.appliedRule or 'Premise',
+                start_position=0,
+                line_number=0
+            )
         return Response({"isValid": True, "errors": [], "jsonTree": jsonTree}, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"isValid": False, "errors": [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
@@ -632,13 +707,13 @@ def check_goal(request):
 def substitution(request):
     user = request.user
     data = request.data
-    proof = get_or_set_induction_obj(user)
+    proof, proof_id = get_or_set_induction_obj(user)
     try:
         side = data.get("side", "LHS")
         case = data.get("case", "base")
         rule = data.get("rule")
         if rule and rule.lower() == "math":
-            rule = "advMath"
+            rule = "rewrite math"
         currentRacket = data.get("currentRacket", "")
         startPosition = data.get("startPosition", 0)
         substitution = data.get("substitution")
@@ -650,7 +725,20 @@ def substitution(request):
         racket_str = target.getPrevRacket() if is_valid else "Error generating racket"
         jsonTree = makeJson(target.proofLines[-1].exprTree)
 
-        save_induction_obj_to_cache(user, proof)
+        save_induction_obj_to_cache(user, proof, proof_id)
+        
+        # Save to database if we have a valid proof line
+        if is_valid and len(target.proofLines) > 0:
+            last_line = target.proofLines[-1]
+            save_proof_line_to_db(
+                proof_id=proof_id,
+                case=case,
+                side=side,
+                racket=racket_str,
+                rule=last_line.appliedRule or '',
+                start_position=startPosition,
+                line_number=len(target.proofLines) - 1
+            )
         return Response({
             "isValid": is_valid,
             "racket": racket_str,

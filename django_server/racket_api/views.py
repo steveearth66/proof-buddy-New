@@ -281,7 +281,7 @@ def substitution(request):
 
     if rule.lower() == "math":
         print("math", json_data["substitution"])
-        rule = "advMath"
+        rule = "rewrite math"
 
     proof.setCurrentSide(json_data["side"])
 

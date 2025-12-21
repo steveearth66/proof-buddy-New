@@ -64,3 +64,42 @@ class InductionProof(models.Model):
         if self.name:
             return f"{self.name} - {self.proof_type}"
         return f"{self.proof_type} - {self.user.username} - {self.induction_variable}"
+
+
+class InductionProofLine(models.Model):
+    """
+    Stores individual proof lines for induction proofs.
+    Each line represents a step in either the base case or leap case, on either LHS or RHS.
+    """
+    
+    CASE_CHOICES = [
+        ('base', 'Base Case'),
+        ('leap', 'Leap Case'),
+    ]
+    
+    SIDE_CHOICES = [
+        ('LHS', 'Left Hand Side'),
+        ('RHS', 'Right Hand Side'),
+    ]
+    
+    proof = models.ForeignKey(
+        InductionProof, 
+        related_name='proof_lines', 
+        on_delete=models.CASCADE
+    )
+    case = models.CharField(max_length=10, choices=CASE_CHOICES)
+    side = models.CharField(max_length=3, choices=SIDE_CHOICES)
+    racket = models.TextField()  # The expression in racket notation
+    rule = models.CharField(max_length=255, blank=True, default='')  # The rule that was applied
+    start_position = models.IntegerField(default=0)  # Position where rule was applied
+    line_number = models.IntegerField(default=0)  # Order of line in the proof
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['case', 'side', 'line_number']
+        indexes = [
+            models.Index(fields=['proof', 'case', 'side', 'line_number']),
+        ]
+    
+    def __str__(self):
+        return f"{self.case} {self.side} Line {self.line_number}: {self.racket[:50]}"
