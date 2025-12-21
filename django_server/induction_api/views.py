@@ -9,6 +9,12 @@ from .models import InductionProof
 from .serializers import InductionProofSerializer, InductionProofCreateSerializer
 import re
 
+# ER Engine imports for induction proof wiring
+from expression_tree.IndProofs import IndProof
+from expression_tree.ERProofEngine import TwoSidedProof, ERProof, ERProofLine
+from expression_tree.ERCommon import makeJson
+from expression_tree.ERRuleset import recursiveReplaceNodes, IH
+
 
 User = get_user_model()
 
@@ -342,3 +348,314 @@ def get_or_set_induction_proof(user):
     cache_proof = dumps(proof)
     user_proof = cache.get_or_set(f"induction_proof_{user.username}", cache_proof)
     return loads(user_proof)
+
+# New: Cache helpers for full IndProof engine object
+def save_induction_obj_to_cache(user, ind_proof: IndProof):
+    cache.set(f"induction_obj_{user.username}", dumps(ind_proof))
+
+def get_or_set_induction_obj(user) -> IndProof:
+    cached = cache.get(f"induction_obj_{user.username}")
+    if cached is None:
+        ind = IndProof()
+        save_induction_obj_to_cache(user, ind)
+        return ind
+    return loads(cached)
+
+
+# ---- Induction Engine Endpoints (frontend -> ER engine) ----
+
+@api_view(["POST"]) 
+def set_current_proof(request):
+    """
+    Initialize a full IndProof engine instance using frontend inputs.
+    Expected JSON:
+    {
+      "struct": "int" | "list",
+      "ivar": "n",
+      "aval": "0",            # anchor value expression
+      "lvar": "k",            # leap variable
+      "lhsPremise": "(sum n)",
+      "rhsPremise": "(* n (+ n 1) (/ 1 2))",
+      "definitions": [ { "label": "(f n)", "type": "int -> int", "expression": "..." }, ... ]
+    }
+    Returns 201 with initial state (json trees for base case LHS/RHS and leap step premises).
+    """
+    user = request.user
+    data = request.data
+
+    try:
+        struct = str(data.get("struct", "int")).lower()
+        ivar = data.get("ivar")
+        aval = data.get("aval")
+        lvar = data.get("lvar")
+        lhsPremise = data.get("lhsPremise")
+        rhsPremise = data.get("rhsPremise")
+        definitions = data.get("definitions", [])
+
+        # Basic validation
+        missing = [k for k in ("ivar","aval","lvar","lhsPremise","rhsPremise") if not data.get(k)]
+        if missing:
+            return Response({"isValid": False, "errors": [f"Missing fields: {', '.join(missing)}"]}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Create engine object and assign core params (follow tests pattern)
+        ind = IndProof()
+        ind.struct = struct
+        ind.ivar = ivar
+        ind.aval = aval
+        ind.lvar = lvar
+        ind.lhsPremise = lhsPremise
+        ind.rhsPremise = rhsPremise
+
+        # Add user definitions (UDF) to both baseCase and leapStep rule sets
+        for d in definitions:
+            label = d.get("label")
+            type_str = d.get("type")
+            body = d.get("expression")
+            if not label or not type_str or body is None:
+                continue
+            ind.baseCase.addUDF(label, type_str, body)
+            ind.leapStep.addUDF(label, type_str, body)
+            # track definition list similar to racket_api
+            if getattr(ind, "definitions", None) is None:
+                ind.definitions = []
+            ind.definitions.append({
+                "label": label,
+                "type": type_str,
+                "expression": body,
+                "applied": True
+            })
+
+        # Build base case premises (ivar -> aval) and add as first proof lines
+        # LHS
+        lhs_line = ERProofLine(lhsPremise, ind.baseCase.LHS.debug, ind.baseCase.LHS.ruleSet, generics=ind.baseCase.LHS.generics)
+        aval_line = ERProofLine(aval, ind.baseCase.LHS.debug, ind.baseCase.LHS.ruleSet, generics=ind.baseCase.LHS.generics)
+        if lhs_line.errLog:
+            return Response({"isValid": False, "errors": lhs_line.errLog}, status=status.HTTP_400_BAD_REQUEST)
+        if aval_line.errLog:
+            return Response({"isValid": False, "errors": aval_line.errLog}, status=status.HTTP_400_BAD_REQUEST)
+        recursiveReplaceNodes(lhs_line.exprTree, [ivar], [aval_line.exprTree])
+        ind.baseCase.LHS.addProofLine(str(lhs_line.exprTree))
+
+        # RHS
+        rhs_line = ERProofLine(rhsPremise, ind.baseCase.RHS.debug, ind.baseCase.RHS.ruleSet, generics=ind.baseCase.RHS.generics)
+        aval_line_rhs = ERProofLine(aval, ind.baseCase.RHS.debug, ind.baseCase.RHS.ruleSet, generics=ind.baseCase.RHS.generics)
+        if rhs_line.errLog:
+            return Response({"isValid": False, "errors": rhs_line.errLog}, status=status.HTTP_400_BAD_REQUEST)
+        if aval_line_rhs.errLog:
+            return Response({"isValid": False, "errors": aval_line_rhs.errLog}, status=status.HTTP_400_BAD_REQUEST)
+        recursiveReplaceNodes(rhs_line.exprTree, [ivar], [aval_line_rhs.exprTree])
+        ind.baseCase.RHS.addProofLine(str(rhs_line.exprTree))
+
+        # Build induction hypothesis nodes (ivar -> lvar) and register IH rule
+        ih_lhs_line = ERProofLine(lhsPremise, ind.baseCase.LHS.debug, ind.baseCase.LHS.ruleSet, generics=ind.baseCase.LHS.generics)
+        ih_rhs_line = ERProofLine(rhsPremise, ind.baseCase.RHS.debug, ind.baseCase.RHS.ruleSet, generics=ind.baseCase.RHS.generics)
+        lvar_line = ERProofLine(lvar, ind.baseCase.LHS.debug, ind.baseCase.LHS.ruleSet, generics=ind.baseCase.LHS.generics)
+        lvar_line_rhs = ERProofLine(lvar, ind.baseCase.RHS.debug, ind.baseCase.RHS.ruleSet, generics=ind.baseCase.RHS.generics)
+        if ih_lhs_line.errLog or ih_rhs_line.errLog or lvar_line.errLog or lvar_line_rhs.errLog:
+            errors = []
+            errors.extend(ih_lhs_line.errLog or [])
+            errors.extend(ih_rhs_line.errLog or [])
+            errors.extend(lvar_line.errLog or [])
+            errors.extend(lvar_line_rhs.errLog or [])
+            return Response({"isValid": False, "errors": errors}, status=status.HTTP_400_BAD_REQUEST)
+        recursiveReplaceNodes(ih_lhs_line.exprTree, [ivar], [lvar_line.exprTree])
+        recursiveReplaceNodes(ih_rhs_line.exprTree, [ivar], [lvar_line_rhs.exprTree])
+        ind.indHypLHS = ih_lhs_line.exprTree
+        ind.indHypRHS = ih_rhs_line.exprTree
+        ih_rule = IH(ind.indHypLHS, ind.indHypRHS)
+        ind.baseCase.ruleSet['apply']['IH'] = ih_rule
+        ind.leapStep.ruleSet['apply']['IH'] = ih_rule
+
+        # Prepare leap step: add generic for lvar, build premises ivar -> (+ lvar 1) for int structure
+        try:
+            ind.leapStep.addGeneric(lvar, struct)
+        except Exception:
+            # ignore if invalid; frontend can still proceed applying IH/rules
+            pass
+
+        leap_succ_expr = f"(+ {lvar} 1)" if struct == "int" else None
+        if leap_succ_expr:
+            leap_succ_line_L = ERProofLine(leap_succ_expr, ind.leapStep.LHS.debug, ind.leapStep.LHS.ruleSet, generics=ind.leapStep.LHS.generics)
+            leap_succ_line_R = ERProofLine(leap_succ_expr, ind.leapStep.RHS.debug, ind.leapStep.RHS.ruleSet, generics=ind.leapStep.RHS.generics)
+            lhs_leap_line = ERProofLine(lhsPremise, ind.leapStep.LHS.debug, ind.leapStep.LHS.ruleSet, generics=ind.leapStep.LHS.generics)
+            rhs_leap_line = ERProofLine(rhsPremise, ind.leapStep.RHS.debug, ind.leapStep.RHS.ruleSet, generics=ind.leapStep.RHS.generics)
+            if not (lhs_leap_line.errLog or rhs_leap_line.errLog or leap_succ_line_L.errLog or leap_succ_line_R.errLog):
+                recursiveReplaceNodes(lhs_leap_line.exprTree, [ivar], [leap_succ_line_L.exprTree])
+                recursiveReplaceNodes(rhs_leap_line.exprTree, [ivar], [leap_succ_line_R.exprTree])
+                ind.leapStep.LHS.addProofLine(str(lhs_leap_line.exprTree))
+                ind.leapStep.RHS.addProofLine(str(rhs_leap_line.exprTree))
+
+        # Save engine to cache
+        save_induction_obj_to_cache(user, ind)
+
+        # Build frontend payload with jsonTrees for latest lines
+        payload = {
+            "isValid": True,
+            "errors": [],
+            "base": {
+                "LHS": {
+                    "racket": ind.baseCase.LHS.getPrevRacket(),
+                    "jsonTree": makeJson(ind.baseCase.LHS.proofLines[-1].exprTree),
+                },
+                "RHS": {
+                    "racket": ind.baseCase.RHS.getPrevRacket(),
+                    "jsonTree": makeJson(ind.baseCase.RHS.proofLines[-1].exprTree),
+                },
+            },
+            "leap": {
+                "LHS": {
+                    "racket": ind.leapStep.LHS.getPrevRacket() if len(ind.leapStep.LHS.proofLines) else "",
+                    "jsonTree": makeJson(ind.leapStep.LHS.proofLines[-1].exprTree) if len(ind.leapStep.LHS.proofLines) else {},
+                },
+                "RHS": {
+                    "racket": ind.leapStep.RHS.getPrevRacket() if len(ind.leapStep.RHS.proofLines) else "",
+                    "jsonTree": makeJson(ind.leapStep.RHS.proofLines[-1].exprTree) if len(ind.leapStep.RHS.proofLines) else {},
+                },
+            }
+        }
+        return Response(payload, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        import traceback
+        print("Error in set_current_induction_proof:", str(e))
+        print(traceback.format_exc())
+        return Response({"isValid": False, "errors": [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
+
+
+def _get_case_side(proof: IndProof, case: str, side: str) -> ERProof:
+    case_key = (case or "base").lower()
+    side_key = (side or "LHS").upper()
+    if case_key in ("base", "anchor", "base_case"):
+        ts = proof.baseCase
+    elif case_key in ("leap", "step", "leap_step"):
+        ts = proof.leapStep
+    else:
+        raise ValueError("Invalid case. Use 'base' or 'leap'.")
+    if side_key not in ("LHS", "RHS"):
+        raise ValueError("Invalid side. Use 'LHS' or 'RHS'.")
+    return ts.LHS if side_key == "LHS" else ts.RHS
+
+
+def _apply_line(target: ERProof, currentRacket: str, rule: str | None, startPosition: int | None, substitution: str | None):
+    if target.getPrevRacket() != currentRacket:
+        # if mismatch, re-add currentRacket as a line to sync
+        # (mirrors racket_api toggle behavior but keeps in the same proof)
+        target.addProofLine(currentRacket)
+    if rule:
+        if substitution is not None and substitution != "":
+            target.addProofLine(currentRacket, rule, int(startPosition or 0), substitution)
+        else:
+            target.addProofLine(currentRacket, rule, int(startPosition or 0))
+    else:
+        # goal/premise line
+        target.addProofLine(currentRacket)
+
+
+@api_view(["POST"]) 
+def apply_rule(request):
+    """
+    Apply a rule/substitution to the current case+side of the IndProof.
+    Expected JSON: { case, side, currentRacket, rule, startPosition, substitution? }
+    """
+    user = request.user
+    data = request.data
+    proof = get_or_set_induction_obj(user)
+
+    try:
+        side = data.get("side", "LHS")
+        case = data.get("case", "base")
+        currentRacket = data.get("currentRacket", "")
+        rule = data.get("rule")
+        startPosition = data.get("startPosition", 0)
+        substitution = data.get("substitution")
+
+        target = _get_case_side(proof, case, side)
+        _apply_line(target, currentRacket, rule, startPosition, substitution)
+
+        is_valid = len(target.errLog) == 0
+        racket_str = target.getPrevRacket() if is_valid else "Error generating racket"
+        jsonTree = makeJson(target.proofLines[-1].exprTree) if len(target.proofLines) else {}
+
+        # Save
+        save_induction_obj_to_cache(user, proof)
+
+        return Response({
+            "isValid": is_valid,
+            "racket": racket_str,
+            "errors": target.errLog,
+            "jsonTree": jsonTree,
+            "lineNum": max(0, len(target.proofLines) - 1)
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"isValid": False, "errors": [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["DELETE"]) 
+def delete_line(request, case, side):
+    user = request.user
+    proof = get_or_set_induction_obj(user)
+    try:
+        target = _get_case_side(proof, case, side)
+        if len(target.proofLines) > 0:
+            target.deleteProofLine()
+        save_induction_obj_to_cache(user, proof)
+        return Response(status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"]) 
+def check_goal(request):
+    """
+    Set or reset a goal/premise for a given case+side.
+    JSON: { case, side, goal }
+    """
+    user = request.user
+    data = request.data
+    proof = get_or_set_induction_obj(user)
+    try:
+        side = data.get("side", "LHS")
+        case = data.get("case", "base")
+        goal = data.get("goal")
+        target = _get_case_side(proof, case, side)
+        # Clear and set goal
+        if len(target.proofLines) != 0:
+            target.proofLines.clear()
+        target.addProofLine(goal)
+        jsonTree = makeJson(target.proofLines[-1].exprTree)
+        save_induction_obj_to_cache(user, proof)
+        return Response({"isValid": True, "errors": [], "jsonTree": jsonTree}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"isValid": False, "errors": [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"]) 
+def substitution(request):
+    user = request.user
+    data = request.data
+    proof = get_or_set_induction_obj(user)
+    try:
+        side = data.get("side", "LHS")
+        case = data.get("case", "base")
+        rule = data.get("rule")
+        if rule and rule.lower() == "math":
+            rule = "advMath"
+        currentRacket = data.get("currentRacket", "")
+        startPosition = data.get("startPosition", 0)
+        substitution = data.get("substitution")
+
+        target = _get_case_side(proof, case, side)
+        _apply_line(target, currentRacket, rule, startPosition, substitution)
+
+        is_valid = len(target.errLog) == 0
+        racket_str = target.getPrevRacket() if is_valid else "Error generating racket"
+        jsonTree = makeJson(target.proofLines[-1].exprTree)
+
+        save_induction_obj_to_cache(user, proof)
+        return Response({
+            "isValid": is_valid,
+            "racket": racket_str,
+            "jsonTree": jsonTree,
+            "errors": target.errLog
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"isValid": False, "errors": [str(e)]}, status=status.HTTP_400_BAD_REQUEST)

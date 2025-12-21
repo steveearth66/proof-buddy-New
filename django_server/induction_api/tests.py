@@ -268,3 +268,211 @@ class InductionProofViewTests(TransactionTestCase):
         clear_induction_proof(self.user)
         
         self.assertIsNone(cache.get(cache_key))
+
+
+class EngineEndpointTests(TransactionTestCase):
+    """Test suite for new induction ER engine endpoints"""
+    
+    def setUp(self):
+        """Set up test client and test user"""
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            username='testuser',
+            email='test@example.com',
+            password='testpass123'
+        )
+        self.client.force_authenticate(user=self.user)
+        
+        try:
+            cache.clear()
+        except Exception:
+            pass
+    
+    def tearDown(self):
+        """Clean up after each test"""
+        try:
+            cache.clear()
+        except Exception:
+            pass
+
+    def test_set_current_proof_basic(self):
+        """Test set_current_proof initializes IndProof engine"""
+        print("\n→ Testing set_current_proof initializes IndProof engine...")
+        data = {
+            'struct': 'int',
+            'ivar': 'n',
+            'aval': '0',
+            'lvar': 'k',
+            'lhsPremise': '(+ n 1)',
+            'rhsPremise': '(+ 1 n)',
+            'definitions': []
+        }
+        
+        response = self.client.post(f'{BASE_URL}set-current-proof', data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(response.data['isValid'])
+        self.assertEqual(response.data['errors'], [])
+        self.assertIn('base', response.data)
+        self.assertIn('leap', response.data)
+        self.assertIn('LHS', response.data['base'])
+        self.assertIn('RHS', response.data['base'])
+
+    def test_set_current_proof_missing_fields(self):
+        """Test set_current_proof fails with missing fields"""
+        print("\n→ Testing set_current_proof validation with missing fields...")
+        data = {
+            'struct': 'int',
+            'ivar': 'n'
+        }
+        
+        response = self.client.post(f'{BASE_URL}set-current-proof', data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.data['isValid'])
+        self.assertIn('errors', response.data)
+
+    def test_apply_rule_base_lhs(self):
+        """Test apply_rule on base case LHS"""
+        print("\n→ Testing apply_rule on base case LHS...")
+        # First initialize proof
+        init_data = {
+            'struct': 'int',
+            'ivar': 'n',
+            'aval': '0',
+            'lvar': 'k',
+            'lhsPremise': '(+ 0 1)',
+            'rhsPremise': '1',
+            'definitions': []
+        }
+        self.client.post(f'{BASE_URL}set-current-proof', init_data, format='json')
+        
+        # Apply a rule
+        rule_data = {
+            'case': 'base',
+            'side': 'LHS',
+            'currentRacket': '(+ 0 1)',
+            'rule': 'math',
+            'startPosition': 0
+        }
+        
+        response = self.client.post(f'{BASE_URL}apply-rule', rule_data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('isValid', response.data)
+        self.assertIn('racket', response.data)
+        self.assertIn('jsonTree', response.data)
+
+    def test_check_goal_base_lhs(self):
+        """Test check_goal sets new goal for base LHS"""
+        print("\n→ Testing check_goal sets new goal for base LHS...")
+        # Initialize proof
+        init_data = {
+            'struct': 'int',
+            'ivar': 'n',
+            'aval': '0',
+            'lvar': 'k',
+            'lhsPremise': '(+ n 1)',
+            'rhsPremise': '1',
+            'definitions': []
+        }
+        self.client.post(f'{BASE_URL}set-current-proof', init_data, format='json')
+        
+        # Set new goal
+        goal_data = {
+            'case': 'base',
+            'side': 'LHS',
+            'goal': '(+ 0 2)'
+        }
+        
+        response = self.client.post(f'{BASE_URL}check-goal', goal_data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['isValid'])
+        self.assertIn('jsonTree', response.data)
+
+    def test_delete_line_base_lhs(self):
+        """Test delete_line removes last proof line"""
+        print("\n→ Testing delete_line removes last proof line...")
+        # Initialize proof
+        init_data = {
+            'struct': 'int',
+            'ivar': 'n',
+            'aval': '0',
+            'lvar': 'k',
+            'lhsPremise': '(+ 0 1)',
+            'rhsPremise': '1',
+            'definitions': []
+        }
+        self.client.post(f'{BASE_URL}set-current-proof', init_data, format='json')
+        
+        # Delete a line
+        response = self.client.delete(f'{BASE_URL}delete-line/base/LHS')
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_substitution_leap_rhs(self):
+        """Test substitution with extra expression"""
+        print("\n→ Testing substitution with extra expression on leap RHS...")
+        # Initialize proof
+        init_data = {
+            'struct': 'int',
+            'ivar': 'n',
+            'aval': '0',
+            'lvar': 'k',
+            'lhsPremise': '(+ n 1)',
+            'rhsPremise': '(+ 1 n)',
+            'definitions': []
+        }
+        self.client.post(f'{BASE_URL}set-current-proof', init_data, format='json')
+        
+        # Apply substitution
+        sub_data = {
+            'case': 'leap',
+            'side': 'RHS',
+            'currentRacket': '(+ 1 (+ k 1))',
+            'rule': 'math',
+            'startPosition': 0,
+            'substitution': 'k'
+        }
+        
+        response = self.client.post(f'{BASE_URL}substitution', sub_data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('isValid', response.data)
+        self.assertIn('racket', response.data)
+
+    def test_imports_load_correctly(self):
+        """Test that all new view functions can be imported"""
+        print("\n→ Testing all view functions import successfully...")
+        try:
+            from induction_api.views import (
+                set_current_proof,
+                apply_rule,
+                delete_line,
+                check_goal,
+                substitution
+            )
+            imported = True
+        except ImportError:
+            imported = False
+        
+        self.assertTrue(imported, "All induction endpoint functions should import successfully")
+
+    def test_url_patterns_registered(self):
+        """Test that all URL patterns are correctly registered"""
+        print("\n→ Testing all URL patterns are registered...")
+        from induction_api import urls
+        
+        endpoint_names = [p.name for p in urls.urlpatterns]
+        
+        required_endpoints = [
+            'set_current_proof',
+            'apply_rule',
+            'delete_line',
+            'check_goal',
+            'substitution'
+        ]
+        
+        for endpoint in required_endpoints:
+            self.assertIn(endpoint, endpoint_names, f"{endpoint} should be in URL patterns")
