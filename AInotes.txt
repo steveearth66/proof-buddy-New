@@ -1,0 +1,7 @@
+notes for the AI; you should always keep this in mind when implementing anything in this proofbuddy project.
+
+The ERracket mode works for the most part. So, it is critical that you not make any changes there, at least not without alterting me first to exactly what you are doing so we can make sure you don't break something which functions.
+
+The goal is to get the Induction mode to be working, so you should be looking at the ERracket equivalent versions (Frontend, hooks, api, endpoints, etc) and mirroring them accordingly for the induction structure versions.  You should really only be making changes to the Induction version of the code, and not to the ERracket versions unless absolutely necessary (and always informing me first).
+
+also, you should always stay within the expected structures that have been defined.  So, for example, the backend works primarily with trees, so do NOT try to work with them as strings.

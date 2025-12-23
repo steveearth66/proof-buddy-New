@@ -139,7 +139,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
    * @param {string} previousRacketValue - The racket value from the padRef on the line before.
    */
   const addFieldWithApiCheck = useCallback(
-    async (side, footerRule, previousStartPosition, previousRacketValue) => {
+    async (side, footerRule, previousStartPosition, previousRacketValue, currentIndex) => {
       try {
         const racket = await fetchRacketValue(footerRule, previousStartPosition, previousRacketValue);
 
@@ -152,6 +152,13 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
           }));
         } else {
           setRacketErrors(racket.errors);
+          setValidationErrors((prevErrors) => ({
+            ...prevErrors,
+            [side]: {
+              ...(prevErrors[side] || {}),
+              ...(typeof currentIndex === 'number' ? { [currentIndex]: racket.errors?.[0] || 'Invalid rule' } : {})
+            }
+          }));
         }
 
         return racket;

@@ -203,11 +203,11 @@ const InductionRacket = () => {
     setUserRow({ num: paddedRowNum });
     setIsBound(true);
 
-    // Set footer rule initially to what the pad ref row has
+    // Set footer rule initially to what the field has
     if (paddedRowNum !== "000") {
-      const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
-      const mainPadRef = padRefs.current[userIndex];
-      setFooterRule(mainPadRef?.getRuleValue() || "");
+      const fieldIndex = userIndex - 1; // Convert line number to array index
+      const field = racketRuleFields[showSide]?.[fieldIndex];
+      setFooterRule(field?.rule || "");
     } else {
       setFooterRule("Premise");
     }
@@ -229,7 +229,7 @@ const InductionRacket = () => {
     }, 0);
 
     return true;
-  }, [showSide, lhsPadRefs, rhsPadRefs]);
+  }, [showSide, lhsPadRefs, rhsPadRefs, racketRuleFields]);
 
   /**
    * Unbind footer from current proof line.
@@ -267,6 +267,7 @@ const InductionRacket = () => {
       let ruleFromFooter = "";
       let previousStartPosition = 0;
       let previousRacketValue = "";
+      let currentIndex = undefined;
 
       if (isBound) {
         const userIndex = getPadIndex(userRow.num);
@@ -284,10 +285,64 @@ const InductionRacket = () => {
             previousRacketValue = previousField?.racket || "";
             previousStartPosition = padRefs.current[previousRowIndex]?.getStartPosition() ?? 0;
           }
+          currentIndex = userIndex - 1; // index of the field being edited in footer
         }
       }
 
-      await addFieldWithApiCheck(showSide, ruleFromFooter, previousStartPosition, previousRacketValue);
+      const fullRacket = await addFieldWithApiCheck(
+        showSide,
+        ruleFromFooter,
+        previousStartPosition,
+        previousRacketValue,
+        currentIndex
+      );
+
+      // If the backend returned a valid generated line, append it to the UI
+      if (!fullRacket) {
+        console.error("addFieldWithApiCheck returned undefined/null");
+        return;
+      }
+
+      if (fullRacket && fullRacket.isValid) {
+        setRacketRuleFields((prevFields) => {
+          const fields = { ...prevFields };
+
+          const newField = {
+            racket: fullRacket.racket || "",
+            jsonTree: fullRacket.jsonTree || {},
+            rule: ruleFromFooter,
+            startPosition: previousStartPosition,
+            deleted: false
+          };
+
+          const sideArray = fields[showSide] || [];
+          const lastField = sideArray[sideArray.length - 1];
+          const isEmpty = lastField && lastField.racket === "" && lastField.rule === "";
+
+          if (isEmpty) {
+            // Replace the last empty field with the new field
+            sideArray[sideArray.length - 1] = newField;
+            // Add a new empty field at the end for the next entry
+            sideArray.push(EMPTY_INITIAL_FIELD);
+          } else {
+            // Append the new field and an empty one for the next step
+            sideArray.push(newField);
+            sideArray.push(EMPTY_INITIAL_FIELD);
+          }
+
+          fields[showSide] = sideArray;
+          return fields;
+        });
+
+        // Unbind the footer after successful generation to reset UI state
+        if (isBound) {
+          unbindFooter();
+        }
+      } else {
+        // Show a toast on invalid rule
+        const message = (fullRacket && fullRacket.errors && fullRacket.errors[0]) || "Invalid rule";
+        toast.error(message);
+      }
     } finally {
       isProcessingRef.current = false;
     }
@@ -823,9 +878,11 @@ const InductionRacket = () => {
           startPosition={0}
           tabIndex={0}
           ruleValue={footerRule}
-          onRuleChange={(value) => setFooterRule(value)}
+          onRuleChange={e => setFooterRule(e.target.value.trim())}
           isRuleReadOnly={false}
           rulePlaceholder={`${showSide} Rule`}
+          isRuleInvalid={!!validationErrors[showSide][padIndex - 1]}
+          ruleValidationError={validationErrors[showSide][padIndex - 1]}
           isEditRow={true}
         />
       );
