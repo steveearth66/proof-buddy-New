@@ -64,7 +64,7 @@ export default function Substitution({
         </Modal.Header>
         <Modal.Body>
           <Row>
-            {errors.length > 0 && (
+            {Array.isArray(errors) && errors.length > 0 && (
               <Alert variant="danger" className="scroll-error">
                 {errors.map((error, index) => (
                   <span key={`racket-error-${index}`}>{error}</span>

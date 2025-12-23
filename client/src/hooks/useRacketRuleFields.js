@@ -125,7 +125,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
         handleServerError(error);
       }
     },
-    []
+    [handleServerError] // was [], removed to clean warnings
   );
 
   /**
@@ -207,7 +207,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
   );
 
   return [
-    null, // racketRuleFields removed
+    { LHS: [], RHS: [] }, // racketRuleFields removed, return empty shape to avoid null access
     addFieldWithApiCheck,
     null, // handleFieldChange removed
     validationErrors,

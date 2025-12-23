@@ -17,9 +17,9 @@ from pathlib import Path
 import subprocess
 import sys
 
-print("=" * 80)
+print("=" * 40)
 print("PROOF BUDDY TEST SUITE")
-print("=" * 80)
+print("=" * 40)
 print()
 
 # Import all test modules to execute them
@@ -69,9 +69,9 @@ persistence_failures = run_command("Database persistence", persistence_cmd, cwd=
 totalFails += (1 if persistence_failures else 0)
 
 print()
-print("=" * 80)
+print("=" * 40)
 print("TEST SUITE SUMMARY")
-print("=" * 80)
+print("=" * 40)
 if totalFails == 0:
     print("\nAll tests passed!\n")
 else:

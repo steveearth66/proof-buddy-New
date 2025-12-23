@@ -85,9 +85,9 @@ print("✓ Created 4 proof lines\n")
 # Query and display
 all_lines = InductionProofLine.objects.filter(proof=proof).order_by('case', 'side', 'line_number')
 
-print("=" * 80)
+print("=" * 40)
 print("PROOF LINES IN DATABASE:")
-print("=" * 80)
+print("=" * 40)
 
 for line in all_lines:
     print(f"\n{line.case.upper()} {line.side} - Line {line.line_number}:")
@@ -95,7 +95,7 @@ for line in all_lines:
     print(f"  Rule: {line.rule}")
     print(f"  Position: {line.start_position}")
 
-print("\n" + "=" * 80)
+print("\n" + "=" * 40)
 
 # Verify specific rules
 base_lhs_lines = InductionProofLine.objects.filter(proof=proof, case='base', side='LHS')
@@ -120,6 +120,6 @@ if rewrite_math_line:
 else:
     print("✗ 'rewrite math' rule NOT found!")
 
-print("\n" + "=" * 80)
+print("\n" + "=" * 40)
 print("TEST COMPLETE - Database persistence is working!")
-print("=" * 80)
+print("=" * 40)

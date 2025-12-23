@@ -72,18 +72,18 @@ const ERRacket = () => {
     RHS: [EMPTY_INITIAL_FIELD]
   });
 
-  const handleFieldChange = useCallback((side, index, fieldName, value) => {
-    setRacketRuleFields((prevFields) => {
-      const fieldsCopy = { ...prevFields };
-      if (fieldsCopy[side] && fieldsCopy[side][index]) {
-        fieldsCopy[side][index] = {
-          ...fieldsCopy[side][index],
-          [fieldName]: value
-        };
-      }
-      return fieldsCopy;
-    });
-  }, []);
+  // const handleFieldChange = useCallback((side, index, fieldName, value) => {
+  //   setRacketRuleFields((prevFields) => {
+  //     const fieldsCopy = { ...prevFields };
+  //     if (fieldsCopy[side] && fieldsCopy[side][index]) {
+  //       fieldsCopy[side][index] = {
+  //         ...fieldsCopy[side][index],
+  //         [fieldName]: value
+  //       };
+  //     }
+  //     return fieldsCopy;
+  //   });
+  // }, []); // removed to clean warnings
 
   const handleFieldHighlight = useCallback((isLHS, lineNum, selected) => {
     if (isLHS) {
@@ -111,28 +111,28 @@ const ERRacket = () => {
     }
   }, []);
 
-  const loadRacketProof = useCallback((loadedProof) => {
-    if (loadedProof) {
-      formValues.proofName = loadedProof.name;
-      formValues.proofTag = loadedProof.tag;
-      formValues.lHSGoal = loadedProof.lHSGoal;
-      formValues.rHSGoal = loadedProof.rHSGoal;
-
-      setLeftPremise(loadedProof.leftPremise);
-      setRightPremise(loadedProof.rightPremise);
-
-      sessionStorage.setItem('definitions', JSON.stringify(loadedProof.definitions));
-
-      // Set the racket rule fields from the loaded proof
-      setRacketRuleFields({
-        LHS: loadedProof.leftRacketsAndRules || [EMPTY_INITIAL_FIELD],
-        RHS: loadedProof.rightRacketsAndRules || [EMPTY_INITIAL_FIELD]
-      });
-
-      loadRacketGoal(loadedProof);
-      loadProofInServer(loadedProof);
-    }
-  }, []);
+  // const loadRacketProof = useCallback((loadedProof) => {
+  //   if (loadedProof) {
+  //     formValues.proofName = loadedProof.name;
+  //     formValues.proofTag = loadedProof.tag;
+  //     formValues.lHSGoal = loadedProof.lHSGoal;
+  //     formValues.rHSGoal = loadedProof.rHSGoal;
+  //
+  //     setLeftPremise(loadedProof.leftPremise);
+  //     setRightPremise(loadedProof.rightPremise);
+  //
+  //     sessionStorage.setItem('definitions', JSON.stringify(loadedProof.definitions));
+  //
+  //     // Set the racket rule fields from the loaded proof
+  //     setRacketRuleFields({
+  //       LHS: loadedProof.leftRacketsAndRules || [EMPTY_INITIAL_FIELD],
+  //       RHS: loadedProof.rightRacketsAndRules || [EMPTY_INITIAL_FIELD]
+  //     });
+  //
+  //     loadRacketGoal(loadedProof);
+  //     loadProofInServer(loadedProof);
+  //   }
+  // }, [formValues, loadRacketGoal, loadProofInServer, setLeftPremise, setRightPremise]); // removed to clean warnings
 
   const [
     ,
@@ -155,6 +155,29 @@ const ERRacket = () => {
     formValues.proofTag,
     showSide
   );
+
+  // const loadRacketProof = useCallback((loadedProof) => {
+  //   if (loadedProof) {
+  //     formValues.proofName = loadedProof.name;
+  //     formValues.proofTag = loadedProof.tag;
+  //     formValues.lHSGoal = loadedProof.lHSGoal;
+  //     formValues.rHSGoal = loadedProof.rHSGoal;
+  //
+  //     setLeftPremise(loadedProof.leftPremise);
+  //     setRightPremise(loadedProof.rightPremise);
+  //
+  //     sessionStorage.setItem('definitions', JSON.stringify(loadedProof.definitions));
+  //
+  //     // Set the racket rule fields from the loaded proof
+  //     setRacketRuleFields({
+  //       LHS: loadedProof.leftRacketsAndRules || [EMPTY_INITIAL_FIELD],
+  //       RHS: loadedProof.rightRacketsAndRules || [EMPTY_INITIAL_FIELD]
+  //     });
+  //
+  //     loadRacketGoal(loadedProof);
+  //     loadProofInServer(loadedProof);
+  //   }
+  // }, [formValues, loadRacketGoal, loadProofInServer, setLeftPremise, setRightPremise]); // removed to clean warnings
   
   const [isOffcanvasActive, toggleOffcanvas] = useOffcanvas();
   const [showDefinitionsWindow, toggleDefinitionsWindow] =
@@ -164,6 +187,29 @@ const ERRacket = () => {
   const [rightPremise, setRightPremise] = useState(INITIAL_PREMISE_STATE);
   const [loadedProof, setLoadedProof] = useState(null);
   const [isBound, setIsBound] = useState(false);
+
+  const loadRacketProof = useCallback((loadedProof) => {
+    if (loadedProof) {
+      formValues.proofName = loadedProof.name;
+      formValues.proofTag = loadedProof.tag;
+      formValues.lHSGoal = loadedProof.lHSGoal;
+      formValues.rHSGoal = loadedProof.rHSGoal;
+
+      setLeftPremise(loadedProof.leftPremise);
+      setRightPremise(loadedProof.rightPremise);
+
+      sessionStorage.setItem('definitions', JSON.stringify(loadedProof.definitions));
+
+      // Set the racket rule fields from the loaded proof
+      setRacketRuleFields({
+        LHS: loadedProof.leftRacketsAndRules || [EMPTY_INITIAL_FIELD],
+        RHS: loadedProof.rightRacketsAndRules || [EMPTY_INITIAL_FIELD]
+      });
+
+      loadRacketGoal(loadedProof);
+      loadProofInServer(loadedProof);
+    }
+  }, [formValues, loadRacketGoal, loadProofInServer, setLeftPremise, setRightPremise]);
   
   // Hook to track current LHS and RHS values
   const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields, formValues, isGoalChecked);
@@ -415,7 +461,7 @@ const ERRacket = () => {
 
   useEffect(() => {
     updatePremises(formValues, setLeftPremise, setRightPremise);
-  }, [formValues.lHSGoal, formValues.rHSGoal]);
+  }, [formValues, updatePremises]); // was [formValues.lHSGoal, formValues.rHSGoal], removed to clean warnings
   useEffect(() => {
     if (currentLHS && currentRHS && currentLHS === currentRHS) {
       racketRuleFields.LHS.splice(-1);
@@ -1048,16 +1094,16 @@ function renderPersistentPadRow({
   padRefs,
   formValues,
   jsonTreeRep,
-  setCurrentRacket,
+  // setCurrentRacket, // removed to clean warnings
   handleFieldHighlight,
   validationErrors,
   isBound,
   userRow,
   handleRowNumberClick,
   leftPremise,
-  rightPremise,
-  setLeftPremise,
-  setRightPremise
+  rightPremise // removed trailing comma to clean warnings
+  // setLeftPremise, // removed to clean warnings
+  // setRightPremise // removed to clean warnings
 }) {
   // Compute values based on side and isPremise
   const isLHS = side === "LHS";

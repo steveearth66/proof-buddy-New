@@ -20,11 +20,11 @@ import { useCurrentRacketValues } from "../hooks/useCurrentRacketValues";
 import { useFormSubmit } from "../hooks/useFormSubmit";
 import "../scss/_forms.scss";
 import "../scss/_er-racket.scss";
-import { useExportToLocalMachine } from "../hooks/useExportToLocalMachine";
+// import { useExportToLocalMachine } from "../hooks/useExportToLocalMachine"; // removed to clean warnings
 import {
   Definitions,
   ProofComplete,
-  PersistentPad,
+  // PersistentPad, // removed to clean warnings
   Substitution
 } from "../components";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
@@ -58,13 +58,34 @@ const InductionRacket = () => {
     proofValidationMessage,
     clearProofValidationMessage
   } = useInductionCheck(handleChange);
-  const [startPosition, setStartPosition] = useState(0);
+  const [startPosition, _setStartPosition] = useState(0); // setStartPosition removed to clean warnings
   const [currentRacket, setCurrentRacket] = useState("");
+  // const [
+  //   ,
+  //   addFieldWithApiCheck,
+  //   ,
+  //   validationErrors,
+  //   serverError,
+  //   racketErrors,
+  //   deleteLastLine,
+  //   updateShowSubstitution,
+  //   showSubstitution,
+  //   closeSubstitution,
+  //   substituteFieldWithApiCheck,
+  //   substitutionErrors,
+  //   sendProofComplete
+  // ] = useRacketRuleFields(
+  //   startPosition,
+  //   currentRacket,
+  //   formValues.proofName,
+  //   formValues.proofTag,
+  //   showSide
+  // ); // removed to clean warnings
   const [
     racketRuleFields,
     addFieldWithApiCheck,
-    handleFieldChange,
-    validationErrors,
+    , // handleFieldChange
+    , // validationErrors - removed to clean warnings
     serverError,
     racketErrors,
     deleteLastLine,
@@ -117,24 +138,24 @@ const InductionRacket = () => {
   /**
    * Returns a JSON object of the present form
    */
-  const convertFormToJSON = () => {
-    let EquationalReasoningObject = {
-      name: formValues.proofName,
-      leftRacketsAndRules: racketRuleFields.LHS,
-      rightRacketsAndRules: racketRuleFields.RHS
-    };
+  // const convertFormToJSON = () => {
+  //   let EquationalReasoningObject = {
+  //     name: formValues.proofName,
+  //     leftRacketsAndRules: racketRuleFields.LHS,
+  //     rightRacketsAndRules: racketRuleFields.RHS
+  //   };
+  //
+  //   return convertToJSON(EquationalReasoningObject);
+  // }; // removed to clean warnings
 
-    return convertToJSON(EquationalReasoningObject);
-  };
+  // const exportJSON = useExportToLocalMachine(
+  //   formValues.proofName,
+  //   convertFormToJSON
+  // ); // removed to clean warnings
 
-  const exportJSON = useExportToLocalMachine(
-    formValues.proofName,
-    convertFormToJSON
-  );
-
-  const handleHighlight = (startPosition) => {
-    setStartPosition(startPosition);
-  };
+  // const handleHighlight = (startPosition) => {
+  //   setStartPosition(startPosition);
+  // }; // removed to clean warnings
 
   useEffect(() => {
     sessionStorage.removeItem("highlights");
@@ -163,7 +184,13 @@ const InductionRacket = () => {
         startPosition: 0
       });
     }
-  }, [formValues]);
+
+    // keep currentRacket in sync with active side goal for payloads
+    const sideGoal = showSide === "LHS" ? formValues.lHSGoal : formValues.rHSGoal;
+    if (sideGoal !== undefined) {
+      setCurrentRacket(sideGoal);
+    }
+  }, [formValues, showSide]); // added showSide to clean warnings
 
   useEffect(() => {
     const removeBlankRackets = () => {
@@ -854,7 +881,7 @@ const InductionRacket = () => {
                   className="switch-btn"
                   onClick={() => setIsAnchor((prev) => !prev)}
                 >
-                  {isAnchor ? "Switch to Leap Case" : "Switch to Anchor Case"}
+                  {isAnchor ? "Switch to Leap Case" : "Switch to Base Case"}
                 </Button>
               </Col>
             </Row>
@@ -932,14 +959,18 @@ const InductionRacket = () => {
                       <Col md="4" className="rules-btn-grp">
                         <Button
                           className="orange-btn green-btn"
-                          onClick={() => {
-                            addFieldWithApiCheck(showSide);
-                            if (showSide === "LHS") {
-                              setLhsValue(formValues.lHSGoal);
-                            } else {
-                              setRhsValue(formValues.rHSGoal);
-                            }
-                          }}
+                            onClick={() => {
+                              const prevStart = showSide === "LHS" ? (leftPremise.startPosition ?? 0) : (rightPremise.startPosition ?? 0);
+                              const prevRacket = showSide === "LHS" ? (leftPremise.racket || formValues.lHSGoal) : (rightPremise.racket || formValues.rHSGoal);
+                              // ensure currentRacket is populated for payloads
+                              setCurrentRacket(prevRacket);
+                              addFieldWithApiCheck(showSide, "", prevStart, prevRacket);
+                              if (showSide === "LHS") {
+                                setLhsValue(formValues.lHSGoal);
+                              } else {
+                                setRhsValue(formValues.rHSGoal);
+                              }
+                            }}
                         >
                           Generate & Check
                         </Button>

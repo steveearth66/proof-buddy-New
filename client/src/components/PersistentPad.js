@@ -13,7 +13,7 @@ const PersistentPad = forwardRef(function PersistentPad(
     side,
     jsonTree,
     lineNum,
-    editableLineNum,
+    // editableLineNum, // removed to clean warnings
     startPosition,
     ruleValue,
     onRuleChange,

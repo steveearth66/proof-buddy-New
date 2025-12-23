@@ -1,6 +1,8 @@
 // DivMaker.js
 function getClassNames(e, selected, prefix) {
-  return ["node", selected === e.startPosition ? "highlight" : "no-highlight"].join(" ");
+  // return ["node", selected === e.startPosition ? "highlight" : "no-highlight"].join(" "); // removed to clean warnings
+  const prefixClass = prefix ? `line-${prefix}` : null;
+  return ["node", prefixClass, selected === e.startPosition ? "highlight" : "no-highlight"].filter(Boolean).join(" ");
 }
 
 function recurse(e, selected, jsonDict, prefix) {

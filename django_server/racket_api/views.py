@@ -424,8 +424,10 @@ def use_definition(request, label):
         if not definition:
             return Response({"message": "Definition not found"}, status=status.HTTP_404_NOT_FOUND)
         for proof_definition in proof.definitions:
+            # if proof_definition["label"] == definition["label"]:
+            #     return Response(status=status.HTTP_400_BAD_REQUEST) # removed to avoid failing on already applied defs
             if proof_definition["label"] == definition["label"]:
-                return Response(status=status.HTTP_400_BAD_REQUEST)
+                return Response({"message": "Definition already applied"}, status=status.HTTP_200_OK)
 
         proof.addUDF(definition["label"], definition["type"], definition["expression"])
 
@@ -433,9 +435,10 @@ def use_definition(request, label):
         proof.definitions.append(definition)
         save_proof_to_cache(user, proof)
 
-        return Response(status=status.HTTP_200_OK)
-    except:
-        return Response(status=status.HTTP_400_BAD_REQUEST)
+        return Response({"message": "Definition applied"}, status=status.HTTP_200_OK)
+    except Exception as exc:
+        # return Response(status=status.HTTP_400_BAD_REQUEST)
+        return Response({"message": str(exc) or "Failed to apply definition"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["POST"])
