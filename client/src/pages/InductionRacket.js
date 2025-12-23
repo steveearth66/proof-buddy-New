@@ -34,6 +34,7 @@ import inductionService from "../services/inductionService";
 // import erService from "../services/erService"; // removed to clean warnings
 import {
   ARROW_KEYS,
+  EMPTY_INITIAL_FIELD,
   getPadRefs,
   getPadIndex
 } from "../utils/erRacketUtils";
@@ -68,6 +69,10 @@ const InductionRacket = () => {
   } = useInductionCheck(handleChange);
   const [startPosition] = useState(0); // removed to clean warnings
   const [currentRacket, setCurrentRacket] = useState("");
+  const [racketRuleFields, setRacketRuleFields] = useState({
+    LHS: [EMPTY_INITIAL_FIELD],
+    RHS: [EMPTY_INITIAL_FIELD]
+  });
   // const [
   //   ,
   //   addFieldWithApiCheck,
@@ -90,7 +95,7 @@ const InductionRacket = () => {
   //   showSide
   // ); // removed to clean warnings
   const [
-    racketRuleFields,
+    , // racketRuleFields - now managed in state above
     addFieldWithApiCheck,
     , // handleFieldChange
     validationErrors,
