@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Dropdown from "react-bootstrap/Dropdown";
 import Button from "react-bootstrap/Button";
 import Container from "react-bootstrap/Container";
@@ -24,11 +24,19 @@ import "../scss/_er-racket.scss";
 import {
   Definitions,
   ProofComplete,
-  // PersistentPad, // removed to clean warnings
+  PersistentPad,
   Substitution
 } from "../components";
+import ClickableRowNumber from "../components/ClickableRowNumber";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
+import { useDynamicHeight } from "../hooks/useDynamicHeight";
 import inductionService from "../services/inductionService";
+// import erService from "../services/erService"; // removed to clean warnings
+import {
+  ARROW_KEYS,
+  getPadRefs,
+  getPadIndex
+} from "../utils/erRacketUtils";
 
 /**
  * InductionRacket component facilitates the Equational Reasoning Racket.
@@ -58,7 +66,7 @@ const InductionRacket = () => {
     proofValidationMessage,
     clearProofValidationMessage
   } = useInductionCheck(handleChange);
-  const [startPosition, _setStartPosition] = useState(0); // setStartPosition removed to clean warnings
+  const [startPosition] = useState(0); // removed to clean warnings
   const [currentRacket, setCurrentRacket] = useState("");
   // const [
   //   ,
@@ -85,7 +93,7 @@ const InductionRacket = () => {
     racketRuleFields,
     addFieldWithApiCheck,
     , // handleFieldChange
-    , // validationErrors - removed to clean warnings
+    validationErrors,
     serverError,
     racketErrors,
     deleteLastLine,
@@ -117,6 +125,22 @@ const InductionRacket = () => {
   const [isAnchor, setIsAnchor] = useState(false);
   const [proofStarted, setProofStarted] = useState(false);
 
+  // Footer binding and PersistentPad refs - for interactive proof line highlighting
+  const lhsPadRefs = useRef({});
+  const rhsPadRefs = useRef({});
+  const footerPadRef = useRef(null);
+  const isProcessingRef = useRef(false);
+  const [userRow, setUserRow] = useState({ num: "" });
+  const [isBound, setIsBound] = useState(false);
+  const [footerRule, setFooterRule] = useState("");
+  
+  // Hook for getting available height for scrollable proof area
+  const availableHeight = useDynamicHeight();
+
+  // Initialize jsonTreeRep as empty object for passing to renderPersistentPadRow
+  // It gets populated by the backend when goals are checked
+  const [jsonTreeRep, setJsonTreeRep] = useState({ LHS: {}, RHS: {} });
+
   const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
   };
@@ -131,9 +155,9 @@ const InductionRacket = () => {
   /**
    * Creates JSON object of the target incoming parameter (which should be a JavaScript Object)
    */
-  const convertToJSON = (target) => {
-    return JSON.stringify(target);
-  };
+  // const convertToJSON = (target) => {
+  //   return JSON.stringify(target);
+  // }; // removed to clean warnings
 
   /**
    * Returns a JSON object of the present form
@@ -156,6 +180,113 @@ const InductionRacket = () => {
   // const handleHighlight = (startPosition) => {
   //   setStartPosition(startPosition);
   // }; // removed to clean warnings
+
+  /**
+   * Bind footer to a specific proof line row number.
+   * This allows arrow keys to control highlighting in the previous row.
+   */
+  const bindFooterToRow = useCallback((rowNum) => {
+    const paddedRowNum = rowNum.toString().padStart(3, "0");
+    const userIndex = getPadIndex(paddedRowNum);
+    const matchingRow = document.getElementById("racket-row-" + userIndex);
+    
+    if (!matchingRow) {
+      alert("No matching row found!");
+      return false;
+    }
+
+    setUserRow({ num: paddedRowNum });
+    setIsBound(true);
+
+    // Set footer rule initially to what the pad ref row has
+    if (paddedRowNum !== "000") {
+      const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
+      const mainPadRef = padRefs.current[userIndex];
+      setFooterRule(mainPadRef?.getRuleValue() || "");
+    } else {
+      setFooterRule("Premise");
+    }
+
+    setTimeout(() => {
+      const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
+      // Focus on the previous row to match arrow key control
+      // But don't try to focus on negative index if binding to premise
+      if (paddedRowNum === "000") {
+        // When binding to premise (000), focus stays on premise
+        padRefs.current[userIndex]?.focus();
+      } else {
+        // For other rows, focus on the previous row
+        const previousRowIndex = userIndex - 1;
+        if (previousRowIndex >= 0) {
+          padRefs.current[previousRowIndex]?.focus();
+        }
+      }
+    }, 0);
+
+    return true;
+  }, [showSide, lhsPadRefs, rhsPadRefs]);
+
+  /**
+   * Unbind footer from current proof line.
+   */
+  const unbindFooter = useCallback(() => {
+    setUserRow({ num: "" });
+    setIsBound(false);
+  }, []);
+
+  /**
+   * Handle row number click to bind footer (only if not already bound).
+   */
+  const handleRowNumberClick = (rowNum) => {
+    // Only allow binding if footer is currently unbound
+    if (!isBound) {
+      bindFooterToRow(rowNum);
+    }
+  };
+
+  /**
+   * Handle field highlighting change for proof lines.
+   */
+  const handleFieldHighlight = () => {
+    // No-op handler for PersistentPad - removed params to clean warnings
+  };
+
+  const handleGenerateAndCheck = async () => {
+    if (isProcessingRef.current) {
+      return;
+    }
+
+    isProcessingRef.current = true;
+
+    try {
+      let ruleFromFooter = "";
+      let previousStartPosition = 0;
+      let previousRacketValue = "";
+
+      if (isBound) {
+        const userIndex = getPadIndex(userRow.num);
+        ruleFromFooter = userRow.num === "000" ? "Premise" : footerRule;
+
+        if (userRow.num !== "000") {
+          const previousRowIndex = userIndex - 1;
+          const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
+
+          if (previousRowIndex === 0) {
+            previousRacketValue = showSide === "LHS" ? leftPremise.racket : rightPremise.racket;
+            previousStartPosition = padRefs.current[previousRowIndex]?.getStartPosition() ?? 0;
+          } else {
+            const previousField = racketRuleFields[showSide][previousRowIndex - 1];
+            previousRacketValue = previousField?.racket || "";
+            previousStartPosition = padRefs.current[previousRowIndex]?.getStartPosition() ?? 0;
+          }
+        }
+      }
+
+      await addFieldWithApiCheck(showSide, ruleFromFooter, previousStartPosition, previousRacketValue);
+    } finally {
+      isProcessingRef.current = false;
+    }
+  };
 
   useEffect(() => {
     sessionStorage.removeItem("highlights");
@@ -190,7 +321,15 @@ const InductionRacket = () => {
     if (sideGoal !== undefined) {
       setCurrentRacket(sideGoal);
     }
-  }, [formValues, showSide]); // added showSide to clean warnings
+  }, [showSide, formValues.lHSGoal, formValues.rHSGoal]);
+
+  // Debug: log when leftPremise changes
+  useEffect(() => {
+    if (proofStarted) {
+      console.log("Proof started - leftPremise:", leftPremise);
+      console.log("Proof started - rightPremise:", rightPremise);
+    }
+  }, [proofStarted, leftPremise, rightPremise]);
 
   useEffect(() => {
     const removeBlankRackets = () => {
@@ -225,6 +364,44 @@ const InductionRacket = () => {
     rightPremise,
     sendProofComplete
   ]);
+
+  // Global arrow-key navigation to move highlighting when footer is bound
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      if (!isBound) return;
+
+      const activeElement = document.activeElement;
+      const isInTextInput = activeElement && (
+        activeElement.tagName === "INPUT" ||
+        activeElement.tagName === "TEXTAREA" ||
+        activeElement.isContentEditable
+      );
+
+      if (isInTextInput) return;
+
+      const key = e.key;
+      if (ARROW_KEYS.includes(key)) {
+        e.preventDefault();
+        const direction = key.replace("Arrow", "").toLowerCase();
+        const userIndex = getPadIndex(userRow.num);
+        const mainPadRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
+
+        if (userRow.num === "000") {
+          return;
+        } else {
+          const previousRowIndex = userIndex - 1;
+          if (previousRowIndex >= 0) {
+            mainPadRefs.current[previousRowIndex]?.moveSelection(direction);
+          }
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleGlobalKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleGlobalKeyDown);
+    };
+  }, [isBound, userRow.num, showSide, lhsPadRefs, rhsPadRefs]);
 
   /**
    * Parse a top-level function application like "(f x y)".
@@ -447,6 +624,28 @@ const InductionRacket = () => {
                 startPosition: 0
               });
             }
+
+            // Initialize the ER proof engine with the premise by calling checkGoal
+            // This is required so the backend has a premise line to work from
+            const erService = (await import('../services/erService')).default;
+            try {
+              const checkGoalResponse = await erService.checkGoal({
+                side: side,
+                goal: side === 'LHS' ? substitutedLHS : substitutedRHS,
+                name: proofName,
+                tag: proofTag
+              });
+              
+              // Update jsonTreeRep with the parsed tree from backend
+              if (checkGoalResponse && checkGoalResponse.jsonTree) {
+                setJsonTreeRep(prev => ({
+                  ...prev,
+                  [side]: checkGoalResponse.jsonTree
+                }));
+              }
+            } catch (error) {
+              console.error('Failed to initialize ER premise:', error);
+            }
           }
           
           // Call checkGoal to proceed
@@ -494,6 +693,138 @@ const InductionRacket = () => {
 
   const escapeRegExp = (string) => {
     return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  };
+
+  function renderPersistentPadRow({
+    side,
+    index = 0,
+    field = {},
+    isPremise = false,
+    padRefs,
+    formValues,
+    jsonTreeRep,
+    handleFieldHighlight,
+    validationErrors,
+    isBound,
+    userRow,
+    handleRowNumberClick,
+    leftPremise,
+    rightPremise
+  }) {
+    const isLHS = side === "LHS";
+    const padIndex = isPremise ? 0 : index + 1;
+    
+    // For premise in Induction, use the substituted premise from state
+    let equation;
+    if (isPremise) {
+      if (isLHS) {
+        equation = leftPremise?.racket || formValues.lHSGoal;
+      } else {
+        equation = rightPremise?.racket || formValues.rHSGoal;
+      }
+    } else {
+      equation = field.racket;
+    }
+    
+    const jsonTree = isPremise
+      ? jsonTreeRep[side]
+      : field.jsonTree || jsonTreeRep[side];
+    const lineNum = isPremise ? 0 : index + 1;
+    const ruleValue = isPremise ? "Premise" : field.rule;
+    const rulePlaceholder = isPremise ? `${side} Premise` : `${side} Rule`;
+    const isRuleInvalid = !isPremise && !!validationErrors[side][index];
+    const ruleValidationError = validationErrors[side][index];
+
+    const startPosition = isPremise
+      ? (isLHS ? leftPremise?.startPosition || 0 : rightPremise?.startPosition || 0)
+      : (field.startPosition || 0);
+
+    return (
+      <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? "premise" : `${side}-field-${padIndex}`}>
+        <Col md="1">
+          <ClickableRowNumber
+            padIndex={padIndex}
+            isClickable={!isBound}
+            isSelected={isBound && padIndex === parseInt(userRow.num, 10)}
+            onClick={() => handleRowNumberClick(padIndex)}
+            title={!isBound ? "Click to bind to footer" : ""}
+          />
+        </Col>
+        <Col md="11">
+          <PersistentPad
+            ref={(el) => { padRefs.current[padIndex] = el; }}
+            side={side}
+            equation={equation}
+            jsonTree={jsonTree}
+            lineNum={lineNum}
+            startPosition={startPosition}
+            onHighlightChange={(selected) => handleFieldHighlight()}
+            ruleValue={ruleValue}
+            onRuleChange={() => {}}
+            isRuleReadOnly={true}
+            rulePlaceholder={rulePlaceholder}
+            isRuleInvalid={isRuleInvalid}
+            ruleValidationError={ruleValidationError}
+            isEditRow={false}
+          />
+        </Col>
+      </Row>
+    );
+  }
+
+  const renderFooterPad = () => {
+    const padIndex = getPadIndex(userRow.num);
+    
+    if (!userRow.num || userRow.num === "") {
+      return null;
+    }
+
+    if (userRow.num === "000") {
+      const equation = showSide === "LHS" ? leftPremise?.racket : rightPremise?.racket;
+      
+      if (!equation) {
+        return <div className="alert alert-warning">No equation available</div>;
+      }
+
+      return (
+        <PersistentPad
+          ref={footerPadRef}
+          equation={equation}
+          onHighlightChange={() => {}}
+          side={showSide}
+          jsonTree={jsonTreeRep[showSide]}
+          lineNum={padIndex}
+          startPosition={0}
+          tabIndex={0}
+          ruleValue="Premise"
+          onRuleChange={() => {}}
+          isRuleReadOnly={true}
+          rulePlaceholder="Rule"
+          isEditRow={true}
+        />
+      );
+    } else {
+      const field = racketRuleFields[showSide][padIndex - 1];
+      if (!field) return null;
+
+      return (
+        <PersistentPad
+          ref={footerPadRef}
+          equation={field.racket}
+          onHighlightChange={() => {}}
+          side={showSide}
+          jsonTree={field.jsonTree || jsonTreeRep[showSide]}
+          lineNum={padIndex}
+          startPosition={0}
+          tabIndex={0}
+          ruleValue={footerRule}
+          onRuleChange={(value) => setFooterRule(value)}
+          isRuleReadOnly={false}
+          rulePlaceholder={`${showSide} Rule`}
+          isEditRow={true}
+        />
+      );
+    }
   };
 
   return (
@@ -914,7 +1245,10 @@ const InductionRacket = () => {
               )}
 
               {proofStarted && (
-                <div className="racket-rule-container-wrap">
+                <div 
+                  className="racket-rule-container-wrap"
+                  style={{ maxHeight: `${availableHeight}px` }}
+                >
                   <div className="racket-rule-wrap" id="racket-rule">
                     {serverError && (
                       <Alert variant={"danger"}>{serverError}</Alert>
@@ -932,84 +1266,121 @@ const InductionRacket = () => {
                       <Alert variant={"success"}>Proof Complete!</Alert>
                     )}
 
-                    {/* Rest of the racket-rule content stays the same */}
-                    {showSide === "LHS" && (
-                      <div className="racket-rule-lhs" id="racket-rule-lhs">
-                        {/* LHS content */}
-                      </div>
-                    )}
-
-                    {showSide === "RHS" && (
-                      <div className="racket-rule-rhs" id="racket-rule-rhs">
-                        {/* RHS content */}
-                      </div>
-                    )}
+                    <>
+                      {renderPersistentPadRow({
+                        side: showSide,
+                        isPremise: true,
+                        padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
+                        formValues,
+                        jsonTreeRep,
+                        handleFieldHighlight,
+                        validationErrors,
+                        isBound,
+                        userRow,
+                        handleRowNumberClick,
+                        leftPremise,
+                        rightPremise
+                      })}
+                      {racketRuleFields[showSide].map((field, index) =>
+                        field.deleted
+                          ? null
+                          : renderPersistentPadRow({
+                            side: showSide,
+                            index,
+                            field,
+                            padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
+                            formValues,
+                            jsonTreeRep,
+                            handleFieldHighlight,
+                            validationErrors,
+                            isBound,
+                            userRow,
+                            handleRowNumberClick,
+                            leftPremise,
+                            rightPremise
+                          })
+                      )}
+                    </>
                   </div>
-
-                  <div className="button-row-wrap">
-                    <Row className="button-row">
-                      <Col md="8">
-                        <Button
-                          className="orange-btn delete-btn"
-                          onClick={() => deleteLastLine(showSide)}
-                        >
-                          Delete Line
-                        </Button>
-                      </Col>
-                      <Col md="4" className="rules-btn-grp">
-                        <Button
-                          className="orange-btn green-btn"
-                            onClick={() => {
-                              const prevStart = showSide === "LHS" ? (leftPremise.startPosition ?? 0) : (rightPremise.startPosition ?? 0);
-                              const prevRacket = showSide === "LHS" ? (leftPremise.racket || formValues.lHSGoal) : (rightPremise.racket || formValues.rHSGoal);
-                              // ensure currentRacket is populated for payloads
-                              setCurrentRacket(prevRacket);
-                              addFieldWithApiCheck(showSide, "", prevStart, prevRacket);
-                              if (showSide === "LHS") {
-                                setLhsValue(formValues.lHSGoal);
-                              } else {
-                                setRhsValue(formValues.rHSGoal);
-                              }
-                            }}
-                        >
-                          Generate & Check
-                        </Button>
-                        <Button
-                          className="orange-btn green-btn"
-                          onClick={() => updateShowSubstitution()}
-                        >
-                          Substitution
-                        </Button>
-                      </Col>
-                    </Row>
-                  </div>
-
-                  {/* <div className="proof-opr-wrap">
-                    <Row className="proof-oprs">
-                      <Dropdown
-                        as={Col}
-                        className="d-inline proof-dropdown-btn proof-operations"
-                      >
-                        <Dropdown.Toggle id="dropdown-autoclose-true">
-                          File Operations
-                        </Dropdown.Toggle>
-
-                        <Dropdown.Menu>
-                          <Dropdown.Item onClick={exportJSON()}>
-                            Download Proof
-                          </Dropdown.Item>
-                          <Dropdown.Item href="#">Upload Proof</Dropdown.Item>
-                          <Dropdown.Item href="#">Save Proof</Dropdown.Item>
-                          <Dropdown.Item href="#">Submit Proof</Dropdown.Item>
-                        </Dropdown.Menu>
-                      </Dropdown>
-                    </Row>
-                  </div> */}
                 </div>
               )}
           </div>
         </Form>
       </Container>
+      {proofStarted && (
+        <div className="floating-footer">
+          <Row className="input-row">
+            <Col md="1">
+              <Form.Floating className="mb-3">
+                <Form.Control
+                  id="userRowNum"
+                  name="userRowNum"
+                  type="text"
+                  placeholder="Num"
+                  value={userRow.num}
+                  onChange={(e) => setUserRow({ ...userRow, num: e.target.value })}
+                  disabled={isBound}
+                />
+                <label htmlFor="userRowNum">Num</label>
+              </Form.Floating>
+            </Col>
+
+            {!isBound && (
+              <Col md="2" className="d-flex align-items-center">
+                <Button
+                  variant="primary"
+                  onClick={() => bindFooterToRow(userRow.num)}
+                >
+                  Fill Values
+                </Button>
+              </Col>
+            )}
+
+            <Col md={isBound ? "9" : "7"}>
+              {isBound && renderFooterPad()}
+            </Col>
+
+            {isBound && (
+              <Col md="2" className="d-flex align-items-center">
+                <Button
+                  variant="secondary"
+                  onClick={() => unbindFooter()}
+                >
+                  Cancel
+                </Button>
+              </Col>
+            )}
+          </Row>
+          <Row className="button-row">
+            <Col md="5"></Col>
+            <Col md="3" className="rules-btn-grp">
+              <Button
+                className="orange-btn delete-btn"
+                onClick={() => deleteLastLine(showSide)}
+              >
+                Delete Line
+              </Button>
+            </Col>
+            <Col md="2" className="rules-btn-grp">
+              <Button
+                className="orange-btn green-btn"
+                onClick={handleGenerateAndCheck}
+                disabled={!isBound}
+              >
+                Generate & Check
+              </Button>
+            </Col>
+            <Col md="2" className="rules-btn-grp">
+              <Button
+                className="orange-btn green-btn"
+                onClick={() => updateShowSubstitution()}
+              >
+                Substitution
+              </Button>
+            </Col>
+          </Row>
+        </div>
+      )}
     </MainLayout>
   );
 };

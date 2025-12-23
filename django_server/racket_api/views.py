@@ -80,7 +80,9 @@ def check_goal(request):
         created_by=user, name=json_data["name"], tag=json_data["tag"]
     ).first()
 
-    if user_proof and user_proof.id != json_data["loadedProofId"]:
+    # Use .get() with default None to handle missing loadedProofId gracefully
+    loaded_proof_id = json_data.get("loadedProofId", None)
+    if user_proof and loaded_proof_id and user_proof.id != loaded_proof_id:
         return Response(
             {
                 "isValid": False,
