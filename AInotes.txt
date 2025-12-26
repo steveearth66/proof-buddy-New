@@ -10,6 +10,19 @@ also, you should always stay within the expected structures that have been defin
 
 Here are some notes that the AI wrote to itself about things it learned last session:
 
+Workflow fundamentals
+- **Proof line immutability (universal rule for all proof modes):**
+  - Only the bound line's expression tree changes when applying rules/substitutions
+  - All earlier lines must never mutate
+  - Only permitted changes:
+    - Bound line: expression tree updates with the result
+    - Source line (previous to bound): highlighting may update
+    - End of proof: a blank line is added if the newly generated line was the last line (proofs always maintain a trailing blank for user additions)
+- For Induction substitutions: the source expression is the line BEFORE the bound line.
+- Compute `startPosition` from the source pad’s selected node; do not read it from the blank destination line.
+- Render premises from their own stored `jsonTree` (left/right premises), not from shared `jsonTreeRep`.
+- Backend `ERProof.addProofLine()` appends; if the premise appears changed, treat it as a UI render issue and verify tree sources.
+
 Architecture boundaries
 Induction vs ER are distinct pipelines (endpoints, engines, state). Never mix their services, routes, or rule application flows.
 Induction requires case/side context (base/leap + LHS/RHS) and startPosition; ER doesn’t.
@@ -39,3 +52,30 @@ Logging: prefer targeted logs around payload/response at induction start and app
 Environment
 
 Ensure Django migrations/cache tables are run; React dev server + Django server tasks are the standard start flow.
+
+Induction Substitution — Premise Stability Fix
+- Symptom: After substitution, basecase RHS line 000 appeared to change, even though only line 001 should update.
+- Root Cause: Premise UI rendered from shared side tree (`jsonTreeRep[side]`). After each rule, we updated that shared tree with the newest line’s tree, so the premise visually changed although backend appended correctly.
+- Correct Behavior: Substitution uses the source expression from the line BEFORE the bound line (e.g., bound 001 → source 000). Only the bound line’s content should change; earlier lines never mutate.
+- Fixes Applied:
+	- Store per‑side premise trees and render premises from those (not `jsonTreeRep`).
+	- In substitution handler, derive `currentRacket` and `startPosition` from the source pad (previous line), not the destination line.
+	- Kept backend as-is; `ERProof.addProofLine()` appends a new line. Added logging that prints all proof lines to confirm no mutation of earlier lines.
+- Why Earlier Attempts Failed:
+	- Focused on backend duplication/overwrite, but engine already appended; issue was frontend rendering.
+	- Pulled `currentRacket`/`startPosition` from the blank bound line or wrong side, so rewrites were misapplied.
+	- Shared tree misuse made premise look changed; changes were display-only.
+- Quick Checklist (future sessions):
+	- Source = previous line to the bound line; destination = bound line.
+	- Premise renders from its own stored `jsonTree`, never from shared `jsonTreeRep`.
+	- Payload includes source’s `currentRacket` and pad-derived `startPosition` (selected node).
+	- If premise appears changed, inspect UI tree sources first; backend appends only.
+
+Debug Tips — Fast Verification
+- Selection: In browser console, log `startPosition` from the source pad; it must match the highlighted node and be > 0 for subnode rewrites.
+- Payload: Confirm `currentRacket` equals the source line string (previous to bound) and `side/case` are correct.
+- Backend: Check `_apply_line` logs in views; the "ALL PROOF LINES" list should show line 0 unchanged (Premise) and a new last line appended.
+- Rendering: Premise rows and premise footer must use `leftPremise.jsonTree`/`rightPremise.jsonTree` — not `jsonTreeRep[side]`.
+- If stale UI errors persist: clear Django cache and browser storage.
+	- Django: run `python manage.py shell -c "from django.core.cache import cache; cache.clear(); print('cache cleared')"`.
+	- Browser: in DevTools console `localStorage.clear(); sessionStorage.clear();`.
