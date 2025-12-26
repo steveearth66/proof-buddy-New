@@ -338,6 +338,12 @@ const InductionRacket = () => {
         }
       }
 
+      // Validate payload before sending
+      if (!previousRacketValue || previousRacketValue.trim() === '') {
+        toast.error('No source expression found. Make sure the previous line has content.');
+        return;
+      }
+
       const payload = {
         side: showSide,
         case: isAnchor ? 'base' : 'leap',
@@ -348,6 +354,9 @@ const InductionRacket = () => {
 
       // Reset status when new line generated
       setProofStatus(null);
+
+      // Dismiss any previous error toasts before trying again
+      toast.dismiss();
 
       const fullRacket = await inductionService.applyRule(payload);
 
@@ -827,12 +836,6 @@ const InductionRacket = () => {
 
   const handleInductionSubstitution = useCallback(
     async ({ substitution, rule }) => {
-      console.log('\n=== SUBSTITUTION CALLED ===');
-      console.log('Substitution value:', substitution);
-      console.log('Rule:', rule);
-      console.log('Current side:', showSide);
-      console.log('Is anchor:', isAnchor);
-      
       // Clear previous errors when user attempts a new submission
       setInductionSubErrors([]);
       
@@ -860,10 +863,6 @@ const InductionRacket = () => {
       
       const startPos = sourcePad?.getStartPosition?.() ?? 0;
 
-      console.log('Binding line:', userRow.num);
-      console.log('Source racket:', currentRacket);
-      console.log('Start position from source:', startPos);
-
       const payload = {
         substitution,
         rule,
@@ -873,11 +872,8 @@ const InductionRacket = () => {
         case: isAnchor ? "base" : "leap"
       };
 
-      console.log('Substitution payload:', payload);
-
       try {
         const response = await inductionService.substitution(payload);
-        console.log('Substitution response:', response);
 
         if (response.isValid) {
           setInductionSubErrors([]);

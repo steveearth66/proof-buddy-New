@@ -43,15 +43,18 @@ const PersistentPad = forwardRef(function PersistentPad(
   }, [ruleValue]);
 
   useEffect(() => {
-    setSelected(startPosition);
-  }, [startPosition])
+    // Initialize selection; if startPosition is 0 and this isn't the premise, default to node 1
+    if (startPosition === 0 && lineNum > 0 && jsonTree && jsonTree[0]) {
+      // Non-premise lines should default to root node if no startPosition provided
+      setSelected(0);
+    } else {
+      setSelected(startPosition);
+    }
+  }, [startPosition, lineNum, jsonTree])
 
   // Session storage management for highlights and selection
   useEffect(() => {
-    console.log('[PersistentPad] Saving highlight for key:', highlightKey);
-    console.log('[PersistentPad] Selected node:', selected);
     const savedHighlights = JSON.parse(sessionStorage.getItem("highlights") || "[]");
-    console.log('[PersistentPad] Current sessionStorage highlights:', savedHighlights);
     const filteredHighlights = savedHighlights.filter(
       h => h.key !== highlightKey
     );
@@ -66,28 +69,21 @@ const PersistentPad = forwardRef(function PersistentPad(
     });
 
     sessionStorage.setItem("highlights", JSON.stringify(filteredHighlights));
-    console.log('[PersistentPad] Saved highlights to sessionStorage:', filteredHighlights);
   }, [highlightedText, side, selectionRange, selected, equation, highlightKey]);
 
   // Load highlights from session storage (including selection)
   useEffect(() => {
-    console.log('[PersistentPad] Loading highlight for key:', highlightKey);
     const savedHighlights = JSON.parse(sessionStorage.getItem("highlights") || "[]");
-    console.log('[PersistentPad] All saved highlights:', savedHighlights);
     const matchingHighlight = savedHighlights.find(
       highlight => highlight.key === highlightKey
     );
-    console.log('[PersistentPad] Matching highlight:', matchingHighlight);
 
     if (matchingHighlight) {
       setHighlightedText(matchingHighlight.highlightedText);
       setSelectionRange(matchingHighlight.selectionRange);
       if (typeof matchingHighlight.selected === 'number') {
-        console.log('[PersistentPad] Restoring selected node:', matchingHighlight.selected);
         setSelected(matchingHighlight.selected);
       }
-    } else {
-      console.log('[PersistentPad] No matching highlight found, using default');
     }
   }, [highlightKey]);
 

@@ -566,36 +566,16 @@ def _get_case_side(proof: IndProof, case: str, side: str) -> ERProof:
 
 
 def _apply_line(target: ERProof, currentRacket: str, rule: str | None, startPosition: int | None, substitution: str | None):
-    print("\n=== _APPLY_LINE CALLED ===")
-    print(f"Current racket: {currentRacket}")
-    print(f"Rule: {rule}")
-    print(f"Substitution: {substitution}")
-    print(f"Start position: {startPosition}")
-    print(f"ProofLines count BEFORE: {len(target.proofLines)}")
-    if len(target.proofLines) > 0:
-        print(f"Last line BEFORE: {target.proofLines[-1].exprTree}")
-    
     if rule:
         # Apply rule directly - don't duplicate first
         # The rule application will create a new line based on currentRacket
-        print("Applying rule to create next line...")
         if substitution is not None and substitution != "":
             target.addProofLine(currentRacket, rule, int(startPosition or 0), substitution)
         else:
             target.addProofLine(currentRacket, rule, int(startPosition or 0))
-        print(f"ProofLines count AFTER rule: {len(target.proofLines)}")
     else:
         # goal/premise line only
-        print("Adding goal/premise line only...")
         target.addProofLine(currentRacket)
-    
-    print(f"ProofLines count FINAL: {len(target.proofLines)}")
-    if len(target.proofLines) > 0:
-        print(f"Last line FINAL: {target.proofLines[-1].exprTree}")
-    print("ALL PROOF LINES:")
-    for i, line in enumerate(target.proofLines):
-        print(f"  Line {i}: {line.exprTree} (rule: {line.appliedRule})")
-    print("=== _APPLY_LINE DONE ===\n")
 
 
 @api_view(["POST"]) 
@@ -617,6 +597,8 @@ def apply_rule(request):
         substitution = data.get("substitution")
 
         target = _get_case_side(proof, case, side)
+        # Clear previous errors before attempting new rule application
+        target.errLog = []
         _apply_line(target, currentRacket, rule, startPosition, substitution)
 
         is_valid = len(target.errLog) == 0
@@ -742,16 +724,19 @@ def substitution(request):
         substitution = data.get("substitution")
 
         target = _get_case_side(proof, case, side)
+        # Clear previous errors before attempting new substitution
+        target.errLog = []
         _apply_line(target, currentRacket, rule, startPosition, substitution)
 
         is_valid = len(target.errLog) == 0
         racket_str = target.getPrevRacket() if is_valid else "Error generating racket"
         jsonTree = makeJson(target.proofLines[-1].exprTree)
         
-        # Build rule with substitution for display
-        rule_with_sub = rule or ''
-        if substitution:
-            rule_with_sub = f"{rule_with_sub} {substitution}".strip()
+        # Get the rule from the engine - it formats it correctly with "with" keyword
+        rule_with_sub = ''
+        if is_valid and len(target.proofLines) > 0:
+            last_line = target.proofLines[-1]
+            rule_with_sub = last_line.appliedRule or rule or ''
 
         save_induction_obj_to_cache(user, proof, proof_id)
         
