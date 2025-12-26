@@ -105,3 +105,10 @@ Debug Tips — Fast Verification
 - If stale UI errors persist: clear Django cache and browser storage.
 	- Django: run `python manage.py shell -c "from django.core.cache import cache; cache.clear(); print('cache cleared')"`.
 	- Browser: in DevTools console `localStorage.clear(); sessionStorage.clear();`.
+
+Session 2025-12-26 — Highlighting Regression Postmortem
+- Symptom: Newly generated lines highlighted the entire expression instead of the changed subnode.
+- Root cause: SessionStorage restoration overwrote the explicit `startPosition` set for new lines. The load effect unconditionally set `selected` from saved highlights.
+- Fix: Only restore `selected` from sessionStorage when `startPosition === 0` (navigation/toggle scenario). Never override explicit `startPosition` for freshly generated lines. Add `startPosition` to the effect deps.
+- Lesson: When a regression appears, diff the last known-good commit against the first bad one. Small diffs often reveal the culprit faster than adding logs or touching backend state.
+- Principle: Keep concerns separate—initial highlighting comes from the source pad’s `startPosition`; toggle persistence should not rewrite that on creation. Session restore is for navigation, not for new-line initialization.

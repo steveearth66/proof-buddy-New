@@ -81,11 +81,13 @@ const PersistentPad = forwardRef(function PersistentPad(
     if (matchingHighlight) {
       setHighlightedText(matchingHighlight.highlightedText);
       setSelectionRange(matchingHighlight.selectionRange);
-      if (typeof matchingHighlight.selected === 'number') {
+      // Only restore selected from sessionStorage if startPosition is 0 (default/unset)
+      // This prevents overwriting newly generated lines that have explicit startPosition
+      if (typeof matchingHighlight.selected === 'number' && startPosition === 0) {
         setSelected(matchingHighlight.selected);
       }
     }
-  }, [highlightKey]);
+  }, [highlightKey, startPosition]);
 
   const moveSelection = useCallback((direction) => {
     const directionMap = {
