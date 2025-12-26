@@ -371,13 +371,15 @@ def get_or_set_induction_obj(user):
         return ind, None
     return loads(cached['ind_proof']), cached.get('proof_id')
 
-def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, line_number, substitution=''):
+def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, line_number, substitution='', selected_node=None):
     """Save a proof line to the database"""
     from .models import InductionProofLine, InductionProof
     if proof_id is None:
         return
     try:
         proof = InductionProof.objects.get(id=proof_id)
+        # Use selected_node if provided, otherwise default to start_position
+        node_id = selected_node if selected_node is not None else start_position
         InductionProofLine.objects.create(
             proof=proof,
             case=case,
@@ -386,6 +388,7 @@ def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, li
             rule=rule or '',
             substitution=substitution or '',
             start_position=start_position,
+            selected_node=node_id,
             line_number=line_number
         )
     except InductionProof.DoesNotExist:
@@ -582,7 +585,7 @@ def _apply_line(target: ERProof, currentRacket: str, rule: str | None, startPosi
 def apply_rule(request):
     """
     Apply a rule/substitution to the current case+side of the IndProof.
-    Expected JSON: { case, side, currentRacket, rule, startPosition, substitution? }
+    Expected JSON: { case, side, currentRacket, rule, startPosition, selectedNode?, substitution? }
     """
     user = request.user
     data = request.data
@@ -594,6 +597,7 @@ def apply_rule(request):
         currentRacket = data.get("currentRacket", "")
         rule = data.get("rule")
         startPosition = data.get("startPosition", 0)
+        selectedNode = data.get("selectedNode")
         substitution = data.get("substitution")
 
         target = _get_case_side(proof, case, side)
@@ -614,6 +618,7 @@ def apply_rule(request):
             rule_with_sub = last_line.appliedRule or ''
             if substitution:
                 rule_with_sub = f"{rule_with_sub} {substitution}".strip()
+            print(f"[apply_rule] Saving proof line: case={case}, side={side}, rule={rule_with_sub}, startPosition={startPosition}, selectedNode={selectedNode}")
             save_proof_line_to_db(
                 proof_id=proof_id,
                 case=case,
@@ -622,7 +627,8 @@ def apply_rule(request):
                 rule=rule_with_sub,
                 start_position=startPosition,
                 line_number=len(target.proofLines) - 1,
-                substitution=substitution or ''
+                substitution=substitution or '',
+                selected_node=selectedNode
             )
 
         return Response({
@@ -701,7 +707,8 @@ def check_goal(request):
                 racket=goal,
                 rule=last_line.appliedRule or 'Premise',
                 start_position=0,
-                line_number=0
+                line_number=0,
+                selected_node=0
             )
         return Response({"isValid": True, "errors": [], "jsonTree": jsonTree}, status=status.HTTP_200_OK)
     except Exception as e:
@@ -721,6 +728,7 @@ def substitution(request):
             rule = "rewrite math"
         currentRacket = data.get("currentRacket", "")
         startPosition = data.get("startPosition", 0)
+        selectedNode = data.get("selectedNode")
         substitution = data.get("substitution")
 
         target = _get_case_side(proof, case, side)
@@ -746,6 +754,7 @@ def substitution(request):
         # Save to database if we have a valid proof line
         if is_valid and len(target.proofLines) > 0:
             last_line = target.proofLines[-1]
+            print(f"[substitution] Saving proof line: case={case}, side={side}, rule={rule_with_sub}, startPosition={startPosition}, selectedNode={selectedNode}")
             save_proof_line_to_db(
                 proof_id=proof_id,
                 case=case,
@@ -754,7 +763,8 @@ def substitution(request):
                 rule=rule_with_sub,
                 start_position=startPosition,
                 line_number=len(target.proofLines) - 1,
-                substitution=substitution or ''
+                substitution=substitution or '',
+                selected_node=selectedNode
             )
         return Response({
             "isValid": is_valid,

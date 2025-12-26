@@ -15,7 +15,6 @@ import { useOffcanvas } from "../hooks/useOffcanvas";
 import { useInputState } from "../hooks/useInputState";
 import { useFormValidation } from "../hooks/useFormValidation";
 import useInductionCheck from "../hooks/useInductionCheck";
-import { useRacketRuleFields } from "../hooks/useRacketRuleFields";
 import { useCurrentRacketValues } from "../hooks/useCurrentRacketValues";
 import { useFormSubmit } from "../hooks/useFormSubmit";
 import "../scss/_forms.scss";
@@ -31,7 +30,6 @@ import ClickableRowNumber from "../components/ClickableRowNumber";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import { useDynamicHeight } from "../hooks/useDynamicHeight";
 import inductionService from "../services/inductionService";
-import erService from "../services/erService";
 import {
   ARROW_KEYS,
   EMPTY_INITIAL_FIELD,
@@ -73,49 +71,24 @@ const InductionRacket = () => {
     LHS: [EMPTY_INITIAL_FIELD],
     RHS: [EMPTY_INITIAL_FIELD]
   });
-  // const [
-  //   ,
-  //   addFieldWithApiCheck,
-  //   ,
-  //   validationErrors,
-  //   serverError,
-  //   racketErrors,
-  //   deleteLastLine,
-  //   updateShowSubstitution,
-  //   showSubstitution,
-  //   closeSubstitution,
-  //   substituteFieldWithApiCheck,
-  //   substitutionErrors,
-  //   sendProofComplete
-  // ] = useRacketRuleFields(
-  //   startPosition,
-  //   currentRacket,
-  //   formValues.proofName,
-  //   formValues.proofTag,
-  //   showSide
-  // ); // removed to clean warnings
-  const [
-    , // racketRuleFields (unused)
-    addFieldWithApiCheck,
-    , // handleFieldChange
-    validationErrors,
-    serverError,
-    racketErrors,
-    deleteLastLine,
-    updateShowSubstitution,
-    showSubstitution,
-    closeSubstitution,
-    , // substituteFieldWithApiCheck
-    , // substitutionErrors
-    sendProofComplete,
-    clearValidationErrors
-  ] = useRacketRuleFields(
-    startPosition,
-    currentRacket,
-    formValues.proofName,
-    formValues.proofTag,
-    showSide
-  );
+  
+  // Induction-specific state (no dependency on useRacketRuleFields hook)
+  const [validationErrors, setValidationErrors] = useState({ LHS: [], RHS: [] });
+  const [inductionSubErrors, setInductionSubErrors] = useState([]);
+  const [showSubstitution, setShowSubstitution] = useState(false);
+  
+  const clearValidationErrors = useCallback(() => {
+    setValidationErrors({ LHS: [], RHS: [] });
+  }, []);
+
+  const closeSubstitution = useCallback(() => {
+    setShowSubstitution(false);
+  }, []);
+
+  const updateShowSubstitution = useCallback(() => {
+    setShowSubstitution(true);
+  }, []);
+
   const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields, formValues, isGoalChecked);
   const [lhsValue, setLhsValue] = useState("");
   const [rhsValue, setRhsValue] = useState("");
@@ -130,7 +103,6 @@ const InductionRacket = () => {
   const [rightPremise, setRightPremise] = useState({});
   const [isAnchor, setIsAnchor] = useState(false);
   const [proofStarted, setProofStarted] = useState(false);
-  const [inductionSubErrors, setInductionSubErrors] = useState([]);
   const [proofStatus, setProofStatus] = useState(null); // tracks base/leap completeness
 
   // Footer binding and PersistentPad refs - for interactive proof line highlighting
@@ -280,6 +252,51 @@ const InductionRacket = () => {
     return true;
   }, [showSide, lhsPadRefs, rhsPadRefs, racketRuleFields, clearValidationErrors]);
 
+  // Debug logging when side changes
+  useEffect(() => {
+    const sideFields = racketRuleFields[showSide] || [];
+    console.log(`[Side switched to ${showSide}] racketRuleFields:`, sideFields.map((f, i) => ({
+      index: i,
+      racket: (f?.racket || '').substring(0, 30),
+      rule: f?.rule,
+      startPosition: f?.startPosition,
+      selectedNode: f?.selectedNode,
+      hasSelectedNode: f?.selectedNode !== undefined
+    })));
+  }, [showSide, racketRuleFields]);
+
+  // Capture current selections before toggling sides and persist into state
+  const handleToggleSide = useCallback(() => {
+    const currentSide = showSide;
+    const refs = getPadRefs(currentSide, lhsPadRefs, rhsPadRefs);
+
+    // Capture premise selection (pad index 0)
+    const premiseSelected = refs.current[0]?.getStartPosition?.() ?? 0;
+    if (currentSide === 'LHS') {
+      setLeftPremise(prev => ({ ...prev, selectedNode: premiseSelected }));
+    } else {
+      setRightPremise(prev => ({ ...prev, selectedNode: premiseSelected }));
+    }
+
+    // Capture each proof line selection and persist to racketRuleFields
+    setRacketRuleFields(prev => {
+      const updated = { ...prev };
+      const arr = [...(prev[currentSide] || [])];
+      const captured = [];
+      for (let i = 0; i < arr.length; i++) {
+        const padIndex = i + 1; // non-premise pads start at 1
+        const sel = refs.current[padIndex]?.getStartPosition?.() ?? arr[i]?.selectedNode ?? 0;
+        captured.push(sel);
+        arr[i] = { ...arr[i], selectedNode: sel };
+      }
+      updated[currentSide] = arr;
+      return updated;
+    });
+
+    // Finally toggle to the other side
+    toggleSide();
+  }, [showSide, lhsPadRefs, rhsPadRefs, toggleSide, setRacketRuleFields, setLeftPremise, setRightPremise]);
+
   /**
    * Unbind footer from current proof line.
    */
@@ -349,8 +366,11 @@ const InductionRacket = () => {
         case: isAnchor ? 'base' : 'leap',
         currentRacket: previousRacketValue,
         rule: ruleFromFooter,
-        startPosition: previousStartPosition
+        startPosition: previousStartPosition,
+        selectedNode: previousStartPosition
       };
+
+      console.log('[handleGenerateAndCheck] Sending payload:', { previousStartPosition, selectedNode: previousStartPosition, rule: ruleFromFooter, side: showSide });
 
       // Reset status when new line generated
       setProofStatus(null);
@@ -362,7 +382,7 @@ const InductionRacket = () => {
 
       // If the backend returned a valid generated line, append it to the UI
       if (!fullRacket) {
-        console.error("addFieldWithApiCheck returned undefined/null");
+        console.error("applyRule returned undefined/null");
         return;
       }
 
@@ -375,8 +395,11 @@ const InductionRacket = () => {
             jsonTree: fullRacket.jsonTree || {},
             rule: ruleFromFooter,
             startPosition: previousStartPosition,
+            selectedNode: previousStartPosition,
             deleted: false
           };
+
+          console.log('[handleGenerateAndCheck] Created newField:', { rule: newField.rule, startPosition: newField.startPosition, selectedNode: newField.selectedNode, side: showSide });
 
           const sideArray = fields[showSide] || [];
           const hasMatchingField = sideArray.some((field) => (
@@ -448,7 +471,8 @@ const InductionRacket = () => {
         setRightPremise({
           racket: formValues.rHSGoal,
           rule: "Premise",
-          startPosition: 0
+          startPosition: 0,
+          selectedNode: 0
         });
       }
     }
@@ -459,7 +483,8 @@ const InductionRacket = () => {
         setLeftPremise({
           racket: formValues.lHSGoal,
           rule: "Premise",
-          startPosition: 0
+          startPosition: 0,
+          selectedNode: 0
         });
       }
     }
@@ -516,8 +541,7 @@ const InductionRacket = () => {
     formValues.lHSGoal,
     formValues.rHSGoal,
     leftPremise,
-    rightPremise,
-    sendProofComplete
+    rightPremise
   ]);
 
   // Global arrow-key navigation to move highlighting when footer is bound
@@ -777,18 +801,20 @@ const InductionRacket = () => {
                 const baseL = engineSetup.base.LHS || {};
                 const baseR = engineSetup.base.RHS || {};
 
-                setLeftPremise({
-                  racket: baseL.racket || formValues.lHSGoal,
-                  rule: 'Premise',
-                  startPosition: 0,
-                  jsonTree: baseL.jsonTree || {}
-                });
-                setRightPremise({
-                  racket: baseR.racket || formValues.rHSGoal,
-                  rule: 'Premise',
-                  startPosition: 0,
-                  jsonTree: baseR.jsonTree || {}
-                });
+              setLeftPremise({
+                racket: baseL.racket || formValues.lHSGoal,
+                rule: 'Premise',
+                startPosition: 0,
+                selectedNode: 0,
+                jsonTree: baseL.jsonTree || {}
+              });
+              setRightPremise({
+                racket: baseR.racket || formValues.rHSGoal,
+                rule: 'Premise',
+                startPosition: 0,
+                selectedNode: 0,
+                jsonTree: baseR.jsonTree || {}
+              });
 
                 // Preserve separate premise trees; jsonTreeRep will be used as a fallback for non-premise lines
                 setJsonTreeRep(prev => ({
@@ -862,11 +888,13 @@ const InductionRacket = () => {
       }
       
       const startPos = sourcePad?.getStartPosition?.() ?? 0;
+      const selectedNode = sourcePad?.getStartPosition?.() ?? 0;
 
       const payload = {
         substitution,
         rule,
         startPosition: startPos,
+        selectedNode: selectedNode,
         currentRacket: currentRacket,
         side: showSide,
         case: isAnchor ? "base" : "leap"
@@ -885,7 +913,8 @@ const InductionRacket = () => {
           const newField = {
             racket: racketStr,
             rule: response.rule || rule,
-            startPosition: 0,
+            startPosition: startPos,
+            selectedNode: selectedNode,
             jsonTree: response.jsonTree || {},
             deleted: false
           };
@@ -990,9 +1019,22 @@ const InductionRacket = () => {
     const isRuleInvalid = !isPremise && !!validationErrors[side][index];
     const ruleValidationError = validationErrors[side][index];
 
+    // Prefer selectedNode (persisted) over startPosition; hard fallback to 0
     const startPosition = isPremise
-      ? (isLHS ? leftPremise?.startPosition || 0 : rightPremise?.startPosition || 0)
-      : (field.startPosition || 0);
+      ? (isLHS
+        ? (leftPremise && (leftPremise.selectedNode ?? leftPremise.startPosition)) ?? 0
+        : (rightPremise && (rightPremise.selectedNode ?? rightPremise.startPosition)) ?? 0)
+      : ((field && (field.selectedNode ?? field.startPosition)) ?? 0);
+
+    // Debug logging for selectedNode
+    if (!isPremise) {
+      console.log(`[renderPersistentPadRow] Line ${lineNum} (${side}):`, {
+        hasField: !!field,
+        field: field ? { racket: (field.racket || '').substring(0, 30), rule: field.rule, selectedNode: field.selectedNode, startPosition: field.startPosition } : null,
+        calculatedStartPosition: startPosition,
+        side
+      });
+    }
 
     return (
       <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? "premise" : `${side}-field-${padIndex}`}>
@@ -1472,7 +1514,7 @@ const InductionRacket = () => {
                   variant="secondary"
                   size="lg"
                   className="switch-btn"
-                  onClick={toggleSide}
+                  onClick={handleToggleSide}
                 >
                   {showSide === "LHS"
                     ? "Switch to Right Hand Side ⋙"
@@ -1524,18 +1566,6 @@ const InductionRacket = () => {
                   style={{ maxHeight: `${availableHeight}px` }}
                 >
                   <div className="racket-rule-wrap" id="racket-rule">
-                    {serverError && (
-                      <Alert variant={"danger"}>{serverError}</Alert>
-                    )}
-
-                    {racketErrors.length > 0 && (
-                      <Alert variant={"danger"} className="scroll-error">
-                        {racketErrors.map((error, index) => (
-                          <span key={`racket-error-${index}`}>{error}</span>
-                        ))}
-                      </Alert>
-                    )}
-
                     {proofComplete && (
                       <Alert variant={"success"}>Proof Complete!</Alert>
                     )}

@@ -8,6 +8,32 @@ The goal is to get the Induction mode to be working, so you should be looking at
 
 also, you should always stay within the expected structures that have been defined.  So, for example, the backend works primarily with trees, so do NOT try to work with them as strings.
 
+Session from 2025-12-26: selectedNode Implementation
+
+PROBLEM: When switching between LHS/RHS (or base/leap), the node highlighting was being lost because the selected node ID wasn't being stored in the database. Each time a user selected a node to apply a rule to, that selection was only kept in sessionStorage and would reset when switching sides.
+
+SOLUTION: Added a new `selectedNode` field to the InductionProofLine model to persistently store which node was selected when the user applied a rule to that line.
+
+CHANGES MADE:
+1. Backend Model: Added `selected_node = models.IntegerField(default=0)` field to InductionProofLine
+2. Migration: Created and applied migration 0004_inductionproofline_selected_node.py
+3. Backend Views: Updated all three API endpoints to capture and save selectedNode:
+   - apply_rule(): Added selectedNode extraction from request data
+   - substitution(): Added selectedNode extraction from request data  
+   - check_goal(): Added selectedNode=0 for premise lines
+4. Frontend InductionRacket.js: 
+   - Updated both handleGenerateAndCheck and handleInductionSubstitution to capture currentStartPosition and include it as selectedNode in the payload
+   - Updated renderPersistentPadRow to use selectedNode when available (with fallback to startPosition)
+   - Added selectedNode field to premise objects when they're initialized or updated
+   - Updated newField creation in both rule application and substitution handlers to include selectedNode
+
+HOW IT WORKS:
+- When a user selects a node and applies a rule/substitution, the selectedNode (which is the node ID they clicked on) is sent to the backend
+- Backend stores this in the selectedNode field of the InductionProofLine record
+- When the proof is loaded or displayed, the selectedNode value is used as the startPosition prop for PersistentPad
+- PersistentPad uses startPosition to initialize its selection, so the correct node is highlighted
+- Now when switching sides/cases, the highlighting persists because it's based on the stored selectedNode value
+
 Here are some notes that the AI wrote to itself about things it learned last session:
 
 Workflow fundamentals
