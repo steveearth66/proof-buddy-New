@@ -16,6 +16,57 @@ const startInductionProof = async (induction) => {
   }
 };
 
+const setCurrentProof = async (data) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/set-current-proof`,
+      data
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during induction engine setup:");
+    throw error;
+  }
+};
+
+const applyRule = async (data) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/apply-rule`,
+      data
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during induction apply-rule:");
+    throw error;
+  }
+};
+
+const deleteLine = async (caseName, side) => {
+  try {
+    const response = await axiosInstance.delete(
+      `${API_GATEWAY}/delete-line/${caseName}/${side}`
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during induction delete-line:");
+    throw error;
+  }
+};
+
+const substitution = async (data) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/substitution`,
+      data
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during induction substitution:");
+    throw error;
+  }
+};
+
 const clearInduction = async () => {
   try {
     const response = await axiosInstance.post(`${API_GATEWAY}/clear-induction`);
@@ -39,10 +90,28 @@ const checkInduction = async (data) => {
   }
 };
 
+const checkGoal = async (data) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/check-goal`,
+      data
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during induction check-goal:");
+    throw error;
+  }
+};
+
 const inductionService = {
   startInductionProof,
   clearInduction,
-  checkInduction
+  checkInduction,
+  substitution,
+  checkGoal,
+  setCurrentProof,
+  applyRule,
+  deleteLine
 };
 
 export default inductionService;

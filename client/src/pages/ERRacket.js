@@ -227,6 +227,7 @@ const ERRacket = () => {
   const rhsPadRefs = useRef({});
   const footerPadRef = useRef(null);
   const isProcessingRef = useRef(false);
+  const isSubProcessingRef = useRef(false);
 
   const bindFooterToRow = useCallback((rowNum) => {
     const paddedRowNum = rowNum.toString().padStart(3, "0");
@@ -675,7 +676,93 @@ const ERRacket = () => {
             show={showSubstitution}
             handleClose={() => closeSubstitution()}
             racketRuleFields={racketRuleFields[showSide]}
-            handleSubstitution={substituteFieldWithApiCheck}
+            handleSubstitution={async (formValues) => {
+              // Prevent duplicate submissions
+              if (isSubProcessingRef.current) {
+                console.warn("[Substitution] Ignored duplicate submission.");
+                return false;
+              }
+              isSubProcessingRef.current = true;
+
+              // Determine previous row context and fetch its startPosition and racket
+              const padIndex = getPadIndex(userRow.num);
+              const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
+              let previousStartPosition = 0;
+              let previousRacketValue = "";
+
+              if (userRow.num === "000") {
+                // Premise
+                previousStartPosition = padRefs.current[0]?.getStartPosition?.() ?? 0;
+                previousRacketValue = showSide === "LHS" ? leftPremise.racket : rightPremise.racket;
+              } else {
+                const previousRowIndex = padIndex - 1;
+                previousStartPosition = padRefs.current[previousRowIndex]?.getStartPosition?.() ?? 0;
+                if (previousRowIndex === 0) {
+                  // Previous is premise
+                  previousRacketValue = showSide === "LHS" ? leftPremise.racket : rightPremise.racket;
+                } else {
+                  const previousField = racketRuleFields[showSide][previousRowIndex - 1];
+                  previousRacketValue = previousField?.racket || "";
+                }
+              }
+
+              console.log("[Substitution] Payload:", {
+                rule: formValues.rule,
+                substitution: formValues.substitution,
+                boundRow: userRow.num
+              });
+
+              const result = await substituteFieldWithApiCheck(formValues, {
+                startPosition: previousStartPosition,
+                currentRacket: previousRacketValue
+              });
+
+              // If substitution succeeded, add a new proof line to UI
+              if (result && result.isValid) {
+                console.log("[Substitution] Server response:", result);
+                setRacketRuleFields((prevFields) => {
+                  const fields = { ...prevFields };
+                  const newField = {
+                    racket: result.racket || "",
+                    jsonTree: result.jsonTree || {},
+                    rule: `${formValues.rule} as ${formValues.substitution}`,
+                    startPosition: previousStartPosition,
+                    deleted: false
+                  };
+
+                  const lastField = fields[showSide][fields[showSide].length - 1];
+                  const isEmpty = lastField && lastField.racket === "" && lastField.rule === "";
+
+                  // Guard: avoid duplicate insertion of the same line
+                  const hasMatchingField = fields[showSide].some(field =>
+                    field.racket === newField.racket &&
+                    field.rule === newField.rule &&
+                    field.startPosition === newField.startPosition &&
+                    !field.deleted
+                  );
+                  if (hasMatchingField) {
+                    console.warn("[Substitution] Duplicate line detected; not appending.", newField);
+                    return prevFields;
+                  }
+
+                  if (isEmpty) {
+                    fields[showSide][fields[showSide].length - 1] = newField;
+                    fields[showSide].push(EMPTY_INITIAL_FIELD);
+                  } else {
+                    fields[showSide].push(newField);
+                    fields[showSide].push(EMPTY_INITIAL_FIELD);
+                  }
+
+                  return fields;
+                });
+                
+                // Unbind footer after successful substitution to prevent re-adding the same line
+                unbindFooter();
+              }
+
+              isSubProcessingRef.current = false;
+              return result;
+            }}
             errors={substitutionErrors}
           />
         )}

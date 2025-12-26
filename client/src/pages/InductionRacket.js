@@ -31,7 +31,7 @@ import ClickableRowNumber from "../components/ClickableRowNumber";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import { useDynamicHeight } from "../hooks/useDynamicHeight";
 import inductionService from "../services/inductionService";
-// import erService from "../services/erService"; // removed to clean warnings
+import erService from "../services/erService";
 import {
   ARROW_KEYS,
   EMPTY_INITIAL_FIELD,
@@ -95,7 +95,7 @@ const InductionRacket = () => {
   //   showSide
   // ); // removed to clean warnings
   const [
-    , // racketRuleFields - now managed in state above
+    , // racketRuleFields (unused)
     addFieldWithApiCheck,
     , // handleFieldChange
     validationErrors,
@@ -105,9 +105,10 @@ const InductionRacket = () => {
     updateShowSubstitution,
     showSubstitution,
     closeSubstitution,
-    substituteFieldWithApiCheck,
-    substitutionErrors,
-    sendProofComplete
+    , // substituteFieldWithApiCheck
+    , // substitutionErrors
+    sendProofComplete,
+    clearValidationErrors
   ] = useRacketRuleFields(
     startPosition,
     currentRacket,
@@ -129,6 +130,7 @@ const InductionRacket = () => {
   const [rightPremise, setRightPremise] = useState({});
   const [isAnchor, setIsAnchor] = useState(false);
   const [proofStarted, setProofStarted] = useState(false);
+  const [inductionSubErrors, setInductionSubErrors] = useState([]);
 
   // Footer binding and PersistentPad refs - for interactive proof line highlighting
   const lhsPadRefs = useRef({});
@@ -200,6 +202,9 @@ const InductionRacket = () => {
       return false;
     }
 
+  // Clear validation errors when binding to a new row
+  clearValidationErrors();
+
     setUserRow({ num: paddedRowNum });
     setIsBound(true);
 
@@ -229,7 +234,7 @@ const InductionRacket = () => {
     }, 0);
 
     return true;
-  }, [showSide, lhsPadRefs, rhsPadRefs, racketRuleFields]);
+  }, [showSide, lhsPadRefs, rhsPadRefs, racketRuleFields, clearValidationErrors]);
 
   /**
    * Unbind footer from current proof line.
@@ -289,13 +294,15 @@ const InductionRacket = () => {
         }
       }
 
-      const fullRacket = await addFieldWithApiCheck(
-        showSide,
-        ruleFromFooter,
-        previousStartPosition,
-        previousRacketValue,
-        currentIndex
-      );
+      const payload = {
+        side: showSide,
+        case: isAnchor ? 'leap' : 'base',
+        currentRacket: previousRacketValue,
+        rule: ruleFromFooter,
+        startPosition: previousStartPosition
+      };
+
+      const fullRacket = await inductionService.applyRule(payload);
 
       // If the backend returned a valid generated line, append it to the UI
       if (!fullRacket) {
@@ -316,18 +323,36 @@ const InductionRacket = () => {
           };
 
           const sideArray = fields[showSide] || [];
+          const hasMatchingField = sideArray.some((field) => (
+            field && !field.deleted && field.racket === newField.racket && field.rule === newField.rule
+          ));
+          if (hasMatchingField) {
+            return prevFields;
+          }
           const lastField = sideArray[sideArray.length - 1];
-          const isEmpty = lastField && lastField.racket === "" && lastField.rule === "";
+          const lastIsEmpty = lastField && lastField.racket === "" && lastField.rule === "";
+          const isEditingMiddle = typeof currentIndex === 'number' && currentIndex >= 0 && currentIndex < sideArray.length - 1;
 
-          if (isEmpty) {
-            // Replace the last empty field with the new field
-            sideArray[sideArray.length - 1] = newField;
-            // Add a new empty field at the end for the next entry
-            sideArray.push(EMPTY_INITIAL_FIELD);
+          if (isEditingMiddle) {
+            // Replace the targeted middle line without adding a new blank
+            sideArray[currentIndex] = newField;
+            // Ensure there's a trailing blank line; add one only if missing
+            const endLast = sideArray[sideArray.length - 1];
+            const endIsEmpty = endLast && endLast.racket === "" && endLast.rule === "";
+            if (!endIsEmpty) {
+              sideArray.push(EMPTY_INITIAL_FIELD);
+            }
           } else {
-            // Append the new field and an empty one for the next step
-            sideArray.push(newField);
-            sideArray.push(EMPTY_INITIAL_FIELD);
+            // Editing the end (or no specific index): maintain trailing blank behavior
+            if (lastIsEmpty) {
+              // Replace the last empty with the new line and add a new empty at the end
+              sideArray[sideArray.length - 1] = newField;
+              sideArray.push(EMPTY_INITIAL_FIELD);
+            } else {
+              // No empty at end; append new line and then an empty for next input
+              sideArray.push(newField);
+              sideArray.push(EMPTY_INITIAL_FIELD);
+            }
           }
 
           fields[showSide] = sideArray;
@@ -350,7 +375,7 @@ const InductionRacket = () => {
 
   useEffect(() => {
     sessionStorage.removeItem("highlights");
-    sessionStorage.removeItem("definitions");
+    // Keep user-defined UDFs in session; do not clear definitions
 
     const clearProof = async () => {
       await inductionService.clearInduction();
@@ -360,36 +385,51 @@ const InductionRacket = () => {
   }, []);
 
   useEffect(() => {
+    // Do not clear definitions here; keep session-applied definitions intact
+
     if (formValues.rHSGoal !== "") {
-      setRightPremise({
-        racket: formValues.rHSGoal,
-        rule: "Premise",
-        startPosition: 0
-      });
+      // Only update premise from formValues if proof hasn't started yet
+      if (!proofStarted) {
+        setRightPremise({
+          racket: formValues.rHSGoal,
+          rule: "Premise",
+          startPosition: 0
+        });
+      }
     }
 
     if (formValues.lHSGoal !== "") {
-      setLeftPremise({
-        racket: formValues.lHSGoal,
-        rule: "Premise",
-        startPosition: 0
-      });
+      // Only update premise from formValues if proof hasn't started yet
+      if (!proofStarted) {
+        setLeftPremise({
+          racket: formValues.lHSGoal,
+          rule: "Premise",
+          startPosition: 0
+        });
+      }
     }
 
     // keep currentRacket in sync with active side goal for payloads
-    const sideGoal = showSide === "LHS" ? formValues.lHSGoal : formValues.rHSGoal;
-    if (sideGoal !== undefined) {
-      setCurrentRacket(sideGoal);
+    if (!proofStarted) {
+      const sideGoal = showSide === "LHS" ? formValues.lHSGoal : formValues.rHSGoal;
+      if (sideGoal !== undefined) {
+        setCurrentRacket(sideGoal);
+      }
     }
-  }, [showSide, formValues.lHSGoal, formValues.rHSGoal]);
+  }, [showSide, formValues.lHSGoal, formValues.rHSGoal, proofStarted]);
 
   // Debug: log when leftPremise changes
   useEffect(() => {
     if (proofStarted) {
-      console.log("Proof started - leftPremise:", leftPremise);
-      console.log("Proof started - rightPremise:", rightPremise);
+      // Premises set after proof start; leftPremise/rightPremise updated via engine response
     }
   }, [proofStarted, leftPremise, rightPremise]);
+
+  useEffect(() => {
+    if (showSubstitution) {
+      setInductionSubErrors([]);
+    }
+  }, [showSubstitution]);
 
   useEffect(() => {
     const removeBlankRackets = () => {
@@ -578,6 +618,15 @@ const InductionRacket = () => {
     }
 
     try {
+      // Prefer session definitions; include only enabled/applied ones
+      let definitions = [];
+      try {
+        const storedDefs = JSON.parse(sessionStorage.getItem('definitions')) || [];
+        definitions = storedDefs.filter(d => d.applied);
+      } catch (e) {
+        console.error('Error reading session definitions:', e);
+        definitions = [];
+      }
       const inductionData = {
         side: side,
         proof_name: proofName,
@@ -592,17 +641,11 @@ const InductionRacket = () => {
         induction_type: inductionType,
         is_anchor: isAnchorFlag,
         inductive_hypothesis_lhs: inductiveHypothesisLHS,
-        inductive_hypothesis_rhs: inductiveHypothesisRHS
+        inductive_hypothesis_rhs: inductiveHypothesisRHS,
+        definitions
       };
 
-      console.log('=== SENDING INDUCTION DATA ===');
-      console.log(inductionData);
-      
       const response = await inductionService.startInductionProof(inductionData);
-      
-      console.log('=== RESPONSE RECEIVED ===');
-      console.log('Status:', response.status);
-      console.log('Data:', response.data);
 
       if (response && response.data) {
         if (response.status === 201 || response.status === 200) {
@@ -657,70 +700,52 @@ const InductionRacket = () => {
             toast.success('Induction proof started successfully!');
             sessionStorage.setItem('current_proof_id', proofId);
             
-            // Set proof as started and current case
-            setProofStarted(true);
-            
-            // Substitute the induction variable with anchor value in the premise
-            const substitutedLHS = formValues.lHSGoal.replace(
-              new RegExp(`\\b${inductionVariable}\\b`, 'g'),
-              inductionValue
-            );
-            const substitutedRHS = formValues.rHSGoal.replace(
-              new RegExp(`\\b${inductionVariable}\\b`, 'g'),
-              inductionValue
-            );
-            
-            // Update the premise with substituted values
-            if (side === 'LHS') {
-              setLeftPremise({
-                racket: substitutedLHS,
-                rule: "Premise",
-                startPosition: 0
-              });
-            } else {
-              setRightPremise({
-                racket: substitutedRHS,
-                rule: "Premise",
-                startPosition: 0
-              });
-            }
-
-            // Initialize the ER proof engine with the premise by calling checkGoal
-            // This is required so the backend has a premise line to work from
-            const erService = (await import('../services/erService')).default;
+            // Initialize the IndProof engine with UDFs, IH and premises
             try {
-              const checkGoalResponse = await erService.checkGoal({
-                side: side,
-                goal: side === 'LHS' ? substitutedLHS : substitutedRHS,
-                name: proofName,
-                tag: proofTag
+              const normalizeType = (t) => (t || '').replace(/\s*->\s*/g, ' > ').trim();
+              const engineSetup = await inductionService.setCurrentProof({
+                struct: (inductionType || 'integers').toLowerCase() === 'lists' ? 'list' : 'int',
+                ivar: inductionVariable,
+                aval: String(inductionValue),
+                lvar: leapVariable,
+                lhsPremise: formValues.lHSGoal,
+                rhsPremise: formValues.rHSGoal,
+                definitions: definitions.map(d => ({
+                  label: d.label || d.name || '',
+                  type: normalizeType(d.type),
+                  expression: d.expression
+                }))
               });
-              
-              // Update jsonTreeRep with the parsed tree from backend
-              if (checkGoalResponse && checkGoalResponse.jsonTree) {
+
+              // Use engine response to set premises and trees
+              if (engineSetup && engineSetup.base) {
+                const baseL = engineSetup.base.LHS || {};
+                const baseR = engineSetup.base.RHS || {};
+
+                setLeftPremise({
+                  racket: baseL.racket || formValues.lHSGoal,
+                  rule: 'Premise',
+                  startPosition: 0
+                });
+                setRightPremise({
+                  racket: baseR.racket || formValues.rHSGoal,
+                  rule: 'Premise',
+                  startPosition: 0
+                });
+
                 setJsonTreeRep(prev => ({
                   ...prev,
-                  [side]: checkGoalResponse.jsonTree
+                  LHS: baseL.jsonTree || prev.LHS,
+                  RHS: baseR.jsonTree || prev.RHS
                 }));
               }
-            } catch (error) {
-              console.error('Failed to initialize ER premise:', error);
+
+              setProofStarted(true);
+            } catch (err) {
+              console.error('Engine setup failed:', err);
+              toast.error('Failed to initialize induction engine');
             }
           }
-          
-          // Call checkGoal to proceed
-          checkGoal(
-            side,
-            proofName,
-            proofTag,
-            goalForSide,
-            goalForSide,
-            inductionVariable,
-            inductionValue,
-            leapVariable,
-            inductionType,
-            isAnchorFlag
-          );
           
         } else {
           toast.error(`Server returned status: ${response.status}`);
@@ -750,6 +775,94 @@ const InductionRacket = () => {
       return;
     }
   };
+
+  const handleInductionSubstitution = useCallback(
+    async ({ substitution, rule }) => {
+      const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
+      const premisePad = padRefs.current ? padRefs.current[0] : null;
+      const startPos = premisePad?.getStartPosition?.() ?? 0;
+
+      const currentPremise =
+        showSide === "LHS"
+          ? leftPremise?.racket || formValues.lHSGoal
+          : rightPremise?.racket || formValues.rHSGoal;
+
+      const payload = {
+        substitution,
+        rule,
+        startPosition: startPos,
+        currentRacket: currentPremise,
+        side: showSide,
+        case: isAnchor ? "leap" : "base"
+      };
+
+      try {
+        const response = await inductionService.substitution(payload);
+
+        if (response.isValid) {
+          setInductionSubErrors([]);
+          closeSubstitution();
+
+          const racketStr = response.racket || currentPremise;
+
+          // Add a new proof line instead of modifying the premise
+          const newField = {
+            racket: racketStr,
+            rule: rule,
+            startPosition: 0,
+            jsonTree: response.jsonTree || {},
+            deleted: false
+          };
+
+          setRacketRuleFields((prev) => {
+            const currentFields = prev[showSide];
+            // If there's only one field and it's empty, replace it; otherwise append
+            const isOnlyEmptyField = 
+              currentFields.length === 1 && 
+              (!currentFields[0].racket || currentFields[0].racket.trim() === '');
+            
+            const updatedFields = isOnlyEmptyField ? [newField] : [...currentFields, newField];
+            
+            // Add a new empty field at the end only if the last field is not already empty
+            const lastField = updatedFields[updatedFields.length - 1];
+            const needsEmptyField = lastField && lastField.racket && lastField.racket.trim() !== '';
+            
+            return {
+              ...prev,
+              [showSide]: needsEmptyField ? [...updatedFields, EMPTY_INITIAL_FIELD] : updatedFields
+            };
+          });
+
+          // Unbind the footer
+          setIsBound(false);
+          setUserRow({ num: "" });
+
+          if (response.jsonTree) {
+            setJsonTreeRep((prev) => ({ ...prev, [showSide]: response.jsonTree }));
+          }
+
+          setCurrentRacket(racketStr);
+          return response;
+        }
+
+        setInductionSubErrors(response.errors || ["Substitution failed"]);
+        return false;
+      } catch (error) {
+        setInductionSubErrors(["Failed to substitute rule"]);
+        return false;
+      }
+    },
+    [
+      closeSubstitution,
+      formValues.lHSGoal,
+      formValues.rHSGoal,
+      isAnchor,
+      leftPremise,
+      rightPremise,
+      setJsonTreeRep,
+      showSide
+    ]
+  );
 
   const escapeRegExp = (string) => {
     return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -907,8 +1020,8 @@ const InductionRacket = () => {
             show={showSubstitution}
             handleClose={() => closeSubstitution()}
             racketRuleFields={racketRuleFields[showSide]}
-            handleSubstitution={substituteFieldWithApiCheck}
-            errors={substitutionErrors}
+            handleSubstitution={handleInductionSubstitution}
+            errors={inductionSubErrors}
           />
         )}
 
@@ -1418,7 +1531,28 @@ const InductionRacket = () => {
             <Col md="3" className="rules-btn-grp">
               <Button
                 className="orange-btn delete-btn"
-                onClick={() => deleteLastLine(showSide)}
+                onClick={async () => {
+                  try {
+                    await inductionService.deleteLine(isAnchor ? 'leap' : 'base', showSide);
+                    setRacketRuleFields(prev => {
+                      const fields = { ...prev };
+                      const arr = [...fields[showSide]];
+                      for (let i = arr.length - 1; i >= 0; i--) {
+                        if (arr[i] && arr[i].racket && arr[i].racket.trim() !== '') {
+                          arr.splice(i, 1);
+                          break;
+                        }
+                      }
+                      const last = arr[arr.length - 1];
+                      const endIsEmpty = last && (!last.racket || last.racket.trim() === '') && (!last.rule || last.rule.trim() === '');
+                      if (!endIsEmpty) arr.push(EMPTY_INITIAL_FIELD);
+                      fields[showSide] = arr;
+                      return fields;
+                    });
+                  } catch (e) {
+                    toast.error('Failed to delete line');
+                  }
+                }}
               >
                 Delete Line
               </Button>

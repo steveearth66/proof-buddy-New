@@ -304,37 +304,29 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
 
   useEffect(() => {
     const handleGenericsUpdated = (event) => {
-      console.log('=== DEFINITIONS.JSX RECEIVED genericsUpdated EVENT ===');
-      console.log('Event detail:', event.detail);
       
       const { newGeneric, allGenerics } = event.detail;
       
       if (allGenerics) {
-        console.log('Setting generics from allGenerics:', allGenerics);
         setGenerics(allGenerics);
       } else if (newGeneric) {
-        console.log('Adding/updating single generic:', newGeneric);
         setGenerics(prev => {
           const existingIndex = prev.findIndex(g => g.label === newGeneric.label);
           
           if (existingIndex >= 0) {
             const updated = [...prev];
             updated[existingIndex] = newGeneric;
-            console.log('Updated existing generic at index:', existingIndex);
             return updated;
           } else {
-            console.log('Added new generic. Total:', prev.length + 1);
             return [...prev, newGeneric];
           }
         });
       }
     };
 
-    console.log('=== DEFINITIONS.JSX REGISTERING genericsUpdated LISTENER ===');
     window.addEventListener('genericsUpdated', handleGenericsUpdated);
     
     return () => {
-      console.log('=== DEFINITIONS.JSX REMOVING genericsUpdated LISTENER ===');
       window.removeEventListener('genericsUpdated', handleGenericsUpdated);
     };
   }, []);
@@ -496,12 +488,8 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
 
   useEffect(() => {
     erService.getUserGenerics().then(userGenerics => {
-      console.log('=== FETCHED USER GENERICS FROM BACKEND ===');
-      console.log('User generics:', userGenerics);
-      
-      // Merge with any generics already in sessionStorage (from induction)
-      const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
-      console.log('Stored generics:', storedGenerics);
+            // Merge with any generics already in sessionStorage (from induction)
+            const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
       
       // Merge: prefer backend data but keep any that only exist in storage
       const merged = [...userGenerics];
@@ -512,8 +500,6 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
           merged.push(stored);
         }
       });
-      
-      console.log('Merged generics:', merged);
       setGenerics(merged);
       sessionStorage.setItem('generics', JSON.stringify(merged));
     }).catch(error => {
@@ -525,7 +511,6 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
   }, []);
 
   useEffect(() => {
-    sessionStorage.setItem('generics', JSON.stringify(generics));
   }, [generics]);
 
   if (edit) {
@@ -546,7 +531,6 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
       <div className="definitions-container">
         <p className="title">User definitions</p>
         <div className="definitions">
-          {definitions.length === 0 && <p>No definitions found.</p>}
           {definitions.map((def, index) => (
             <Definition
               key={index}
@@ -560,7 +544,6 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
         </div>
         <p className="title">Generics</p>
         <div className="generics">
-          {generics.length === 0 && <p>No generics found.</p>}
           {generics.map((gen, index) => (
             <Generic
               key={index}

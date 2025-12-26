@@ -351,7 +351,8 @@ class ERProofLine(ProofComponent):
         rule = parts[1] if len(parts) > 1 else ""
         if len(parts) > 2 and parts[2] == "with":
             parts.pop(2)  # remove 'with'
-        ruleParams = " ".join(parts[2:]).replace("\u21A6", "=")
+        # Normalize arrows to equals for assignments from UI
+        ruleParams = " ".join(parts[2:]).replace("\u21A6", "=").replace("\u2192", "=")
         ruleParams = ruleParams.replace("'()", "null")  # replace empty list with 'null'
         # normalize spaces around '=' so assignments like 'x = 1' parse correctly
         ruleParams = re.sub(r"\s*=\s*", "=", ruleParams)

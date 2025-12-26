@@ -280,16 +280,22 @@ def substitution(request):
     proof = get_or_set_proof(user)
 
     rule = json_data["rule"]
-
+    # Do not auto-rewrite; require explicit 'rewrite math' from client
     if rule.lower() == "math":
-        print("math", json_data["substitution"])
-        rule = "rewrite math"
+        print("[er-substitution] received 'math' without prefix; client should send 'rewrite math'")
 
     proof.setCurrentSide(json_data["side"])
 
     if proof.currentSide.getPrevRacket() != json_data["currentRacket"]:
         proof.toggleSide()
-        
+    
+    try:
+        print("[er-substitution] startPosition:", json_data.get("startPosition"))
+        print("[er-substitution] currentRacket:", json_data.get("currentRacket"))
+        print("[er-substitution] rule:", rule)
+    except Exception:
+        pass
+
     proof.currentSide.addProofLine(
         json_data["currentRacket"],
         rule,
