@@ -131,6 +131,7 @@ const InductionRacket = () => {
   const [isAnchor, setIsAnchor] = useState(false);
   const [proofStarted, setProofStarted] = useState(false);
   const [inductionSubErrors, setInductionSubErrors] = useState([]);
+  const [proofStatus, setProofStatus] = useState(null); // tracks base/leap completeness
 
   // Footer binding and PersistentPad refs - for interactive proof line highlighting
   const lhsPadRefs = useRef({});
@@ -150,6 +151,49 @@ const InductionRacket = () => {
 
   const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
+  };
+
+  const getLastNonEmpty = (arr = []) => {
+    for (let i = arr.length - 1; i >= 0; i--) {
+      const racket = (arr[i]?.racket || "").trim();
+      if (racket) return { index: i, racket };
+    }
+    return { index: -1, racket: "" };
+  };
+
+  const hasInternalBlanks = (arr = []) => {
+    const { index: lastIdx } = getLastNonEmpty(arr);
+    if (lastIdx <= 0) return false;
+    for (let i = 0; i < lastIdx; i++) {
+      const racket = (arr[i]?.racket || "").trim();
+      if (!racket) return true;
+    }
+    return false;
+  };
+
+  const checkCurrentProofStatus = () => {
+    const lhsLines = racketRuleFields.LHS || [];
+    const rhsLines = racketRuleFields.RHS || [];
+
+    const lhsLast = getLastNonEmpty(lhsLines);
+    const rhsLast = getLastNonEmpty(rhsLines);
+
+    const lhsBlankGap = hasInternalBlanks(lhsLines);
+    const rhsBlankGap = hasInternalBlanks(rhsLines);
+
+    const label = isAnchor ? "BASE CASE" : "LEAP STEP";
+
+    if (
+      lhsLast.racket &&
+      rhsLast.racket &&
+      lhsLast.racket === rhsLast.racket &&
+      !lhsBlankGap &&
+      !rhsBlankGap
+    ) {
+      setProofStatus({ state: "complete", label });
+    } else {
+      setProofStatus({ state: "incomplete", label });
+    }
   };
 
   const { handleSubmit } = useFormSubmit(
@@ -296,11 +340,14 @@ const InductionRacket = () => {
 
       const payload = {
         side: showSide,
-        case: isAnchor ? 'leap' : 'base',
+        case: isAnchor ? 'base' : 'leap',
         currentRacket: previousRacketValue,
         rule: ruleFromFooter,
         startPosition: previousStartPosition
       };
+
+      // Reset status when new line generated
+      setProofStatus(null);
 
       const fullRacket = await inductionService.applyRule(payload);
 
@@ -793,7 +840,7 @@ const InductionRacket = () => {
         startPosition: startPos,
         currentRacket: currentPremise,
         side: showSide,
-        case: isAnchor ? "leap" : "base"
+        case: isAnchor ? "base" : "leap"
       };
 
       try {
@@ -1203,6 +1250,9 @@ const InductionRacket = () => {
                     View Rule Set
                   </Dropdown.Item>
                   <Dropdown.Item href="#">IH</Dropdown.Item>
+                  <Dropdown.Item onClick={checkCurrentProofStatus} href="#">
+                    Check Current Proof
+                  </Dropdown.Item>
                 </Dropdown.Menu>
               </Dropdown>
             </Row>
@@ -1346,6 +1396,21 @@ const InductionRacket = () => {
                   <label htmlFor="eRProofCurrentRHS">Current RHS</label>
                 </Form.Floating>
               </Form.Group>
+              <Col md="2" className="d-flex align-items-center">
+                {proofStatus && (
+                  <span
+                    style={{
+                      fontWeight: "700",
+                      color: proofStatus.state === "complete" ? "green" : "red",
+                      fontSize: "14px"
+                    }}
+                  >
+                    {proofStatus.state === "complete"
+                      ? `${proofStatus.label} COMPLETE`
+                      : `${proofStatus.label} INCOMPLETE`}
+                  </span>
+                )}
+              </Col>
             </Row>
 
             {!isAnchor && (
@@ -1533,7 +1598,7 @@ const InductionRacket = () => {
                 className="orange-btn delete-btn"
                 onClick={async () => {
                   try {
-                    await inductionService.deleteLine(isAnchor ? 'leap' : 'base', showSide);
+                    await inductionService.deleteLine(isAnchor ? 'base' : 'leap', showSide);
                     setRacketRuleFields(prev => {
                       const fields = { ...prev };
                       const arr = [...fields[showSide]];
