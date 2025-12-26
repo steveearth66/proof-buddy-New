@@ -884,7 +884,7 @@ const InductionRacket = () => {
           // Add a new proof line instead of modifying the premise
           const newField = {
             racket: racketStr,
-            rule: rule,
+            rule: response.rule || rule,
             startPosition: 0,
             jsonTree: response.jsonTree || {},
             deleted: false
@@ -892,16 +892,18 @@ const InductionRacket = () => {
 
           setRacketRuleFields((prev) => {
             const currentFields = prev[showSide];
-            // If there's only one field and it's empty, replace it; otherwise append
-            const isOnlyEmptyField = 
-              currentFields.length === 1 && 
-              (!currentFields[0].racket || currentFields[0].racket.trim() === '');
             
-            const updatedFields = isOnlyEmptyField ? [newField] : [...currentFields, newField];
+            // Check if the last field is empty - if so, replace it; otherwise append
+            const lastField = currentFields[currentFields.length - 1];
+            const lastIsEmpty = !lastField?.racket || lastField.racket.trim() === '';
+            
+            const updatedFields = lastIsEmpty 
+              ? [...currentFields.slice(0, -1), newField]  // Replace last empty field
+              : [...currentFields, newField];  // Append new field
             
             // Add a new empty field at the end only if the last field is not already empty
-            const lastField = updatedFields[updatedFields.length - 1];
-            const needsEmptyField = lastField && lastField.racket && lastField.racket.trim() !== '';
+            const finalField = updatedFields[updatedFields.length - 1];
+            const needsEmptyField = finalField && finalField.racket && finalField.racket.trim() !== '';
             
             return {
               ...prev,

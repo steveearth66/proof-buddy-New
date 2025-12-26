@@ -270,6 +270,11 @@
           &.dropdown-toggle {
             + .dropdown-menu {
               top: -2px !important;
+              
+              .dropdown-item {
+                width: 100%;
+                white-space: nowrap;
+              }
             }
           }
         }

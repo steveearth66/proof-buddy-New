@@ -221,6 +221,7 @@ class ProofLineDatabasePersistenceTests(TransactionTestCase):
         self.assertIsNotNone(math_line, "No line with 'rewrite math' rule found")
         self.assertIn('rewrite math', math_line.rule, f"Expected 'rewrite math', got: {math_line.rule}")
         self.assertIn('with', math_line.rule, f"Expected 'with' in rule, got: {math_line.rule}")
+        self.assertIn('as', math_line.rule, f"Expected 'as' in rule, got: {math_line.rule}")
         self.assertIn('0', math_line.rule, f"Expected substitution value in rule, got: {math_line.rule}")
         
         print(f"✓ Saved {proof_lines.count()} proof line(s)")

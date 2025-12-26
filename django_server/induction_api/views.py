@@ -737,6 +737,9 @@ def substitution(request):
         if is_valid and len(target.proofLines) > 0:
             last_line = target.proofLines[-1]
             rule_with_sub = last_line.appliedRule or rule or ''
+            # Append substitution value to show "rewrite math with (* 0 2) as 0"
+            if substitution:
+                rule_with_sub = f"{rule_with_sub} as {substitution}"
 
         save_induction_obj_to_cache(user, proof, proof_id)
         
