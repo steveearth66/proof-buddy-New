@@ -33,6 +33,10 @@ const PersistentPad = forwardRef(function PersistentPad(
   
   const padDivRef = useRef(null);
   const lineNumRef = useRef(lineNum);
+  
+  // Build stable key from lineNum + side + equation hash
+  const equationHash = equation ? equation.substring(0, 50) : '';
+  const highlightKey = `${lineNum}-${side}-${equationHash}`;
 
   useEffect(() => { 
     setRule(ruleValue); 
@@ -42,37 +46,50 @@ const PersistentPad = forwardRef(function PersistentPad(
     setSelected(startPosition);
   }, [startPosition])
 
-  // Session storage management for highlights
+  // Session storage management for highlights and selection
   useEffect(() => {
-    if (!highlightedText) return;
-
+    console.log('[PersistentPad] Saving highlight for key:', highlightKey);
+    console.log('[PersistentPad] Selected node:', selected);
     const savedHighlights = JSON.parse(sessionStorage.getItem("highlights") || "[]");
+    console.log('[PersistentPad] Current sessionStorage highlights:', savedHighlights);
     const filteredHighlights = savedHighlights.filter(
-      highlight => !(highlight.equation === equation && highlight.side === side)
+      h => h.key !== highlightKey
     );
 
     filteredHighlights.push({
+      key: highlightKey,
       equation,
       highlightedText,
       side,
-      selectionRange
+      selectionRange,
+      selected
     });
 
     sessionStorage.setItem("highlights", JSON.stringify(filteredHighlights));
-  }, [highlightedText, side, selectionRange, equation]);
+    console.log('[PersistentPad] Saved highlights to sessionStorage:', filteredHighlights);
+  }, [highlightedText, side, selectionRange, selected, equation, highlightKey]);
 
-  // Load highlights from session storage
+  // Load highlights from session storage (including selection)
   useEffect(() => {
+    console.log('[PersistentPad] Loading highlight for key:', highlightKey);
     const savedHighlights = JSON.parse(sessionStorage.getItem("highlights") || "[]");
+    console.log('[PersistentPad] All saved highlights:', savedHighlights);
     const matchingHighlight = savedHighlights.find(
-      highlight => highlight.equation === equation && highlight.side === side
+      highlight => highlight.key === highlightKey
     );
+    console.log('[PersistentPad] Matching highlight:', matchingHighlight);
 
     if (matchingHighlight) {
       setHighlightedText(matchingHighlight.highlightedText);
       setSelectionRange(matchingHighlight.selectionRange);
+      if (typeof matchingHighlight.selected === 'number') {
+        console.log('[PersistentPad] Restoring selected node:', matchingHighlight.selected);
+        setSelected(matchingHighlight.selected);
+      }
+    } else {
+      console.log('[PersistentPad] No matching highlight found, using default');
     }
-  }, [equation, side]);
+  }, [highlightKey]);
 
   const moveSelection = useCallback((direction) => {
     const directionMap = {

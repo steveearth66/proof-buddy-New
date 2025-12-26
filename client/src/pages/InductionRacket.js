@@ -421,8 +421,7 @@ const InductionRacket = () => {
   };
 
   useEffect(() => {
-    sessionStorage.removeItem("highlights");
-    // Keep user-defined UDFs in session; do not clear definitions
+    // Keep user-defined UDFs and highlights in session; do not clear
 
     const clearProof = async () => {
       await inductionService.clearInduction();
@@ -772,14 +771,17 @@ const InductionRacket = () => {
                 setLeftPremise({
                   racket: baseL.racket || formValues.lHSGoal,
                   rule: 'Premise',
-                  startPosition: 0
+                  startPosition: 0,
+                  jsonTree: baseL.jsonTree || {}
                 });
                 setRightPremise({
                   racket: baseR.racket || formValues.rHSGoal,
                   rule: 'Premise',
-                  startPosition: 0
+                  startPosition: 0,
+                  jsonTree: baseR.jsonTree || {}
                 });
 
+                // Preserve separate premise trees; jsonTreeRep will be used as a fallback for non-premise lines
                 setJsonTreeRep(prev => ({
                   ...prev,
                   LHS: baseL.jsonTree || prev.LHS,
@@ -825,32 +827,63 @@ const InductionRacket = () => {
 
   const handleInductionSubstitution = useCallback(
     async ({ substitution, rule }) => {
+      console.log('\n=== SUBSTITUTION CALLED ===');
+      console.log('Substitution value:', substitution);
+      console.log('Rule:', rule);
+      console.log('Current side:', showSide);
+      console.log('Is anchor:', isAnchor);
+      
+      // Clear previous errors when user attempts a new submission
+      setInductionSubErrors([]);
+      
       const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
-      const premisePad = padRefs.current ? padRefs.current[0] : null;
-      const startPos = premisePad?.getStartPosition?.() ?? 0;
-
-      const currentPremise =
-        showSide === "LHS"
+      const padIndex = getPadIndex(userRow.num);
+      
+      // Source is the PREVIOUS line to the bound line
+      // If binding line 001, source is line 000 (premise)
+      // If binding line 002, source is line 001, etc.
+      let currentRacket;
+      let sourcePad;
+      
+      if (padIndex === 1) {
+        // Source is premise (line 000)
+        currentRacket = showSide === "LHS"
           ? leftPremise?.racket || formValues.lHSGoal
           : rightPremise?.racket || formValues.rHSGoal;
+        sourcePad = padRefs.current ? padRefs.current[0] : null;
+      } else {
+        // Source is the previous line (padIndex - 1 in the pads, which is padIndex - 2 in racketRuleFields)
+        const sourceField = racketRuleFields[showSide][padIndex - 2];
+        currentRacket = sourceField?.racket || "";
+        sourcePad = padRefs.current ? padRefs.current[padIndex - 1] : null;
+      }
+      
+      const startPos = sourcePad?.getStartPosition?.() ?? 0;
+
+      console.log('Binding line:', userRow.num);
+      console.log('Source racket:', currentRacket);
+      console.log('Start position from source:', startPos);
 
       const payload = {
         substitution,
         rule,
         startPosition: startPos,
-        currentRacket: currentPremise,
+        currentRacket: currentRacket,
         side: showSide,
         case: isAnchor ? "base" : "leap"
       };
 
+      console.log('Substitution payload:', payload);
+
       try {
         const response = await inductionService.substitution(payload);
+        console.log('Substitution response:', response);
 
         if (response.isValid) {
           setInductionSubErrors([]);
           closeSubstitution();
 
-          const racketStr = response.racket || currentPremise;
+          const racketStr = response.racket || currentRacket;
 
           // Add a new proof line instead of modifying the premise
           const newField = {
@@ -907,7 +940,11 @@ const InductionRacket = () => {
       leftPremise,
       rightPremise,
       setJsonTreeRep,
-      showSide
+      showSide,
+      userRow.num,
+      racketRuleFields,
+      lhsPadRefs,
+      rhsPadRefs
     ]
   );
 
@@ -947,8 +984,8 @@ const InductionRacket = () => {
     }
     
     const jsonTree = isPremise
-      ? jsonTreeRep[side]
-      : field.jsonTree || jsonTreeRep[side];
+      ? (isLHS ? leftPremise?.jsonTree : rightPremise?.jsonTree)
+      : (field.jsonTree || jsonTreeRep[side]);
     const lineNum = isPremise ? 0 : index + 1;
     const ruleValue = isPremise ? "Premise" : field.rule;
     const rulePlaceholder = isPremise ? `${side} Premise` : `${side} Rule`;
@@ -1012,7 +1049,7 @@ const InductionRacket = () => {
           equation={equation}
           onHighlightChange={() => {}}
           side={showSide}
-          jsonTree={jsonTreeRep[showSide]}
+          jsonTree={showSide === "LHS" ? leftPremise?.jsonTree : rightPremise?.jsonTree}
           lineNum={padIndex}
           startPosition={0}
           tabIndex={0}
@@ -1238,18 +1275,17 @@ const InductionRacket = () => {
                 as={Col}
                 className="d-inline proof-dropdown-btn proof-utilities"
               >
-                <Dropdown.Toggle id="dropdown-autoclose-true">
+                <Dropdown.Toggle id="dropdown-autoclose-true" style={{ minWidth: '240px' }}>
                   Proof Utilities
                 </Dropdown.Toggle>
 
-                <Dropdown.Menu>
+                <Dropdown.Menu style={{ minWidth: '240px' }}>
                   <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">
                     Definitions
                   </Dropdown.Item>
                   <Dropdown.Item onClick={toggleOffcanvas} href="#">
                     View Rule Set
                   </Dropdown.Item>
-                  <Dropdown.Item href="#">IH</Dropdown.Item>
                   <Dropdown.Item onClick={checkCurrentProofStatus} href="#">
                     Check Current Proof
                   </Dropdown.Item>
@@ -1402,7 +1438,7 @@ const InductionRacket = () => {
                     style={{
                       fontWeight: "700",
                       color: proofStatus.state === "complete" ? "green" : "red",
-                      fontSize: "14px"
+                      fontSize: "24px"
                     }}
                   >
                     {proofStatus.state === "complete"

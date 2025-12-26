@@ -371,7 +371,7 @@ def get_or_set_induction_obj(user):
         return ind, None
     return loads(cached['ind_proof']), cached.get('proof_id')
 
-def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, line_number):
+def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, line_number, substitution=''):
     """Save a proof line to the database"""
     from .models import InductionProofLine, InductionProof
     if proof_id is None:
@@ -384,6 +384,7 @@ def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, li
             side=side,
             racket=racket,
             rule=rule or '',
+            substitution=substitution or '',
             start_position=start_position,
             line_number=line_number
         )
@@ -565,18 +566,36 @@ def _get_case_side(proof: IndProof, case: str, side: str) -> ERProof:
 
 
 def _apply_line(target: ERProof, currentRacket: str, rule: str | None, startPosition: int | None, substitution: str | None):
-    if target.getPrevRacket() != currentRacket:
-        # if mismatch, re-add currentRacket as a line to sync
-        # (mirrors racket_api toggle behavior but keeps in the same proof)
-        target.addProofLine(currentRacket)
+    print("\n=== _APPLY_LINE CALLED ===")
+    print(f"Current racket: {currentRacket}")
+    print(f"Rule: {rule}")
+    print(f"Substitution: {substitution}")
+    print(f"Start position: {startPosition}")
+    print(f"ProofLines count BEFORE: {len(target.proofLines)}")
+    if len(target.proofLines) > 0:
+        print(f"Last line BEFORE: {target.proofLines[-1].exprTree}")
+    
     if rule:
+        # Apply rule directly - don't duplicate first
+        # The rule application will create a new line based on currentRacket
+        print("Applying rule to create next line...")
         if substitution is not None and substitution != "":
             target.addProofLine(currentRacket, rule, int(startPosition or 0), substitution)
         else:
             target.addProofLine(currentRacket, rule, int(startPosition or 0))
+        print(f"ProofLines count AFTER rule: {len(target.proofLines)}")
     else:
-        # goal/premise line
+        # goal/premise line only
+        print("Adding goal/premise line only...")
         target.addProofLine(currentRacket)
+    
+    print(f"ProofLines count FINAL: {len(target.proofLines)}")
+    if len(target.proofLines) > 0:
+        print(f"Last line FINAL: {target.proofLines[-1].exprTree}")
+    print("ALL PROOF LINES:")
+    for i, line in enumerate(target.proofLines):
+        print(f"  Line {i}: {line.exprTree} (rule: {line.appliedRule})")
+    print("=== _APPLY_LINE DONE ===\n")
 
 
 @api_view(["POST"]) 
@@ -610,14 +629,18 @@ def apply_rule(request):
         # Save to database if we have a valid proof line
         if is_valid and len(target.proofLines) > 0:
             last_line = target.proofLines[-1]
+            rule_with_sub = last_line.appliedRule or ''
+            if substitution:
+                rule_with_sub = f"{rule_with_sub} {substitution}".strip()
             save_proof_line_to_db(
                 proof_id=proof_id,
                 case=case,
                 side=side,
                 racket=racket_str,
-                rule=last_line.appliedRule or '',
+                rule=rule_with_sub,
                 start_position=startPosition,
-                line_number=len(target.proofLines) - 1
+                line_number=len(target.proofLines) - 1,
+                substitution=substitution or ''
             )
 
         return Response({
@@ -724,6 +747,11 @@ def substitution(request):
         is_valid = len(target.errLog) == 0
         racket_str = target.getPrevRacket() if is_valid else "Error generating racket"
         jsonTree = makeJson(target.proofLines[-1].exprTree)
+        
+        # Build rule with substitution for display
+        rule_with_sub = rule or ''
+        if substitution:
+            rule_with_sub = f"{rule_with_sub} {substitution}".strip()
 
         save_induction_obj_to_cache(user, proof, proof_id)
         
@@ -735,14 +763,16 @@ def substitution(request):
                 case=case,
                 side=side,
                 racket=racket_str,
-                rule=last_line.appliedRule or '',
+                rule=rule_with_sub,
                 start_position=startPosition,
-                line_number=len(target.proofLines) - 1
+                line_number=len(target.proofLines) - 1,
+                substitution=substitution or ''
             )
         return Response({
             "isValid": is_valid,
             "racket": racket_str,
             "jsonTree": jsonTree,
+            "rule": rule_with_sub,
             "errors": target.errLog
         }, status=status.HTTP_200_OK)
     except Exception as e:

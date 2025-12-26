@@ -91,6 +91,7 @@ class InductionProofLine(models.Model):
     side = models.CharField(max_length=3, choices=SIDE_CHOICES)
     racket = models.TextField()  # The expression in racket notation
     rule = models.CharField(max_length=255, blank=True, default='')  # The rule that was applied
+    substitution = models.TextField(blank=True, default='')  # Substitution payload if any
     start_position = models.IntegerField(default=0)  # Position where rule was applied
     line_number = models.IntegerField(default=0)  # Order of line in the proof
     created_at = models.DateTimeField(auto_now_add=True)
