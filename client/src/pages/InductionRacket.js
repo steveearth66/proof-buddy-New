@@ -67,10 +67,23 @@ const InductionRacket = () => {
   } = useInductionCheck(handleChange);
   const [startPosition] = useState(0); // removed to clean warnings
   const [currentRacket, setCurrentRacket] = useState("");
-  const [racketRuleFields, setRacketRuleFields] = useState({
+  
+  // Case state must be declared first since it's used in computed values below
+  const [isAnchor, setIsAnchor] = useState(false);
+  
+  // Separate proof lines for base and leap cases
+  const [baseRacketFields, setBaseRacketFields] = useState({
     LHS: [EMPTY_INITIAL_FIELD],
     RHS: [EMPTY_INITIAL_FIELD]
   });
+  const [leapRacketFields, setLeapRacketFields] = useState({
+    LHS: [EMPTY_INITIAL_FIELD],
+    RHS: [EMPTY_INITIAL_FIELD]
+  });
+  
+  // Computed current racketRuleFields based on isAnchor
+  const racketRuleFields = isAnchor ? baseRacketFields : leapRacketFields;
+  const setRacketRuleFields = isAnchor ? setBaseRacketFields : setLeapRacketFields;
   
   // Induction-specific state (no dependency on useRacketRuleFields hook)
   const [validationErrors, setValidationErrors] = useState({ LHS: [], RHS: [] });
@@ -99,9 +112,15 @@ const InductionRacket = () => {
     useDefinitionsWindow();
   const [showProofComplete, setShowProofComplete] = useState(false);
   const [proofComplete, setProofComplete] = useState(false);
-  const [leftPremise, setLeftPremise] = useState({});
-  const [rightPremise, setRightPremise] = useState({});
-  const [isAnchor, setIsAnchor] = useState(false);
+  
+  // Separate premises for base and leap cases
+  const [basePremises, setBasePremises] = useState({ LHS: {}, RHS: {} });
+  const [leapPremises, setLeapPremises] = useState({ LHS: {}, RHS: {} });
+  
+  // Computed current premises based on isAnchor
+  const leftPremise = (isAnchor ? basePremises : leapPremises).LHS;
+  const rightPremise = (isAnchor ? basePremises : leapPremises).RHS;
+  
   const [proofStarted, setProofStarted] = useState(false);
   const [proofStatus, setProofStatus] = useState(null); // tracks base/leap completeness
 
@@ -272,14 +291,23 @@ const InductionRacket = () => {
 
     // Capture premise selection (pad index 0)
     const premiseSelected = refs.current[0]?.getStartPosition?.() ?? 0;
+    const setPremises = isAnchor ? setBasePremises : setLeapPremises;
+    
     if (currentSide === 'LHS') {
-      setLeftPremise(prev => ({ ...prev, selectedNode: premiseSelected }));
+      setPremises(prev => ({ 
+        ...prev, 
+        LHS: { ...prev.LHS, selectedNode: premiseSelected } 
+      }));
     } else {
-      setRightPremise(prev => ({ ...prev, selectedNode: premiseSelected }));
+      setPremises(prev => ({ 
+        ...prev, 
+        RHS: { ...prev.RHS, selectedNode: premiseSelected } 
+      }));
     }
 
     // Capture each proof line selection and persist to racketRuleFields
-    setRacketRuleFields(prev => {
+    const setFields = isAnchor ? setBaseRacketFields : setLeapRacketFields;
+    setFields(prev => {
       const updated = { ...prev };
       const arr = [...(prev[currentSide] || [])];
       const captured = [];
@@ -295,7 +323,7 @@ const InductionRacket = () => {
 
     // Finally toggle to the other side
     toggleSide();
-  }, [showSide, lhsPadRefs, rhsPadRefs, toggleSide, setRacketRuleFields, setLeftPremise, setRightPremise]);
+  }, [showSide, lhsPadRefs, rhsPadRefs, toggleSide, isAnchor, setBasePremises, setLeapPremises, setBaseRacketFields, setLeapRacketFields]);
 
   /**
    * Unbind footer from current proof line.
@@ -468,24 +496,30 @@ const InductionRacket = () => {
     if (formValues.rHSGoal !== "") {
       // Only update premise from formValues if proof hasn't started yet
       if (!proofStarted) {
-        setRightPremise({
-          racket: formValues.rHSGoal,
-          rule: "Premise",
-          startPosition: 0,
-          selectedNode: 0
-        });
+        setBasePremises(prev => ({
+          ...prev,
+          RHS: {
+            racket: formValues.rHSGoal,
+            rule: "Premise",
+            startPosition: 0,
+            selectedNode: 0
+          }
+        }));
       }
     }
 
     if (formValues.lHSGoal !== "") {
       // Only update premise from formValues if proof hasn't started yet
       if (!proofStarted) {
-        setLeftPremise({
-          racket: formValues.lHSGoal,
-          rule: "Premise",
-          startPosition: 0,
-          selectedNode: 0
-        });
+        setBasePremises(prev => ({
+          ...prev,
+          LHS: {
+            racket: formValues.lHSGoal,
+            rule: "Premise",
+            startPosition: 0,
+            selectedNode: 0
+          }
+        }));
       }
     }
 
@@ -510,6 +544,15 @@ const InductionRacket = () => {
       setInductionSubErrors([]);
     }
   }, [showSubstitution]);
+
+  // Unbind footer when switching between base and leap cases
+  useEffect(() => {
+    if (proofStarted) {
+      unbindFooter();
+      clearValidationErrors();
+      console.log(`[Case switched to ${isAnchor ? 'base' : 'leap'}]`);
+    }
+  }, [isAnchor, proofStarted, unbindFooter, clearValidationErrors]);
 
   useEffect(() => {
     const removeBlankRackets = () => {
@@ -796,25 +839,48 @@ const InductionRacket = () => {
                 }))
               });
 
-              // Use engine response to set premises and trees
-              if (engineSetup && engineSetup.base) {
+              // Use engine response to set premises and trees for both base and leap
+              if (engineSetup && engineSetup.base && engineSetup.leap) {
                 const baseL = engineSetup.base.LHS || {};
                 const baseR = engineSetup.base.RHS || {};
+                const leapL = engineSetup.leap.LHS || {};
+                const leapR = engineSetup.leap.RHS || {};
 
-              setLeftPremise({
-                racket: baseL.racket || formValues.lHSGoal,
-                rule: 'Premise',
-                startPosition: 0,
-                selectedNode: 0,
-                jsonTree: baseL.jsonTree || {}
-              });
-              setRightPremise({
-                racket: baseR.racket || formValues.rHSGoal,
-                rule: 'Premise',
-                startPosition: 0,
-                selectedNode: 0,
-                jsonTree: baseR.jsonTree || {}
-              });
+                // Set base case premises
+                setBasePremises({
+                  LHS: {
+                    racket: baseL.racket || formValues.lHSGoal,
+                    rule: 'Premise',
+                    startPosition: 0,
+                    selectedNode: 0,
+                    jsonTree: baseL.jsonTree || {}
+                  },
+                  RHS: {
+                    racket: baseR.racket || formValues.rHSGoal,
+                    rule: 'Premise',
+                    startPosition: 0,
+                    selectedNode: 0,
+                    jsonTree: baseR.jsonTree || {}
+                  }
+                });
+
+                // Set leap case premises
+                setLeapPremises({
+                  LHS: {
+                    racket: leapL.racket || '',
+                    rule: 'Premise',
+                    startPosition: 0,
+                    selectedNode: 0,
+                    jsonTree: leapL.jsonTree || {}
+                  },
+                  RHS: {
+                    racket: leapR.racket || '',
+                    rule: 'Premise',
+                    startPosition: 0,
+                    selectedNode: 0,
+                    jsonTree: leapR.jsonTree || {}
+                  }
+                });
 
                 // Preserve separate premise trees; jsonTreeRep will be used as a fallback for non-premise lines
                 setJsonTreeRep(prev => ({

@@ -2,7 +2,7 @@ notes for the AI; you should always keep this in mind when implementing anything
 
 You should take on the role of a paired programmer.  you may presume I am have expert level knowledge in math (especially proofs) and pedagogy and in python; however, i only have very rudimentary understanding of frontend (html, css, javascript, react, django, sql, database) so those aspects will have to be explained more fully.
 
-The ERracket mode works for the most part. So, it is critical that you not make any changes there, at least not without alterting me first to exactly what you are doing so we can make sure you don't break something which functions.
+The ERracket mode works for the most part. So, it is critical that you not make any changes there, at least not without alerting me first to exactly what you are doing so we can make sure you don't break something which functions.
 
 The goal is to get the Induction mode to be working, so you should be looking at the ERracket equivalent versions (Frontend, hooks, api, endpoints, etc) and mirroring them accordingly for the induction structure versions.  You should really only be making changes to the Induction version of the code, and not to the ERracket versions unless absolutely necessary (and always informing me first).
 
