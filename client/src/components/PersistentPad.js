@@ -142,31 +142,19 @@ const PersistentPad = forwardRef(function PersistentPad(
     onRuleChange?.(transformedEvent);
   };
 
+  // Determine border colors based on line numbers
+  const currentLineColor = lineNum % 2 === 0 ? '#0066cc' : '#FF8F1C'; // blue for even, orange for odd
+  const previousLineColor = (lineNum - 1) % 2 === 0 ? '#0066cc' : '#FF8F1C'; // color of line above
+
   return (
     <Row className="persistent-pad-row" style={{ alignItems: "flex-start" }}>
-      <Col md="6">
-        <div
-          id={`persistent-pad-${lineNumRef.current}`}
-          ref={padDivRef}
-          tabIndex={0}
-          style={{ 
-            wordWrap: 'break-word', 
-            overflowWrap: 'break-word', 
-            whiteSpace: 'normal',
-            minHeight: '40px'
-          }}
-          {...props}
-        >
-          <DivMakerComponent
-            expr={jsonTree}
-            selected={selected}
-            origTree={jsonTree}
-            lineNumber={lineNumRef.current}
-          />
-        </div>
-      </Col>
-      <Col md="6">
-        <Form.Floating className="mb-3">
+      <Col md={{ span: 10, offset: 2 }}>
+        <div style={{ 
+          borderLeft: `4px solid transparent`,
+          borderImage: `linear-gradient(to bottom, ${previousLineColor} 50%, ${currentLineColor} 50%) 1`,
+          paddingLeft: '8px'
+        }}>
+        <Form.Floating className="mb-2">
           <Form.Control
             as="textarea"
             value={rule}
@@ -176,12 +164,11 @@ const PersistentPad = forwardRef(function PersistentPad(
             isInvalid={isRuleInvalid}
             disabled={!isEditRow}
             style={{ 
-              minHeight: '70px',
+              minHeight: '40px',
               resize: 'none',
               overflow: 'hidden',
               whiteSpace: 'pre-wrap',
-              wordWrap: 'break-word',
-              paddingBottom: '10px'
+              wordWrap: 'break-word'
             }}
             rows={1}
           />
@@ -192,6 +179,36 @@ const PersistentPad = forwardRef(function PersistentPad(
             </Form.Control.Feedback>
           )}
         </Form.Floating>
+        </div>
+      </Col>
+      <Col md="12">
+        <div style={{ 
+          borderLeft: `4px solid ${currentLineColor}`,
+          paddingLeft: '8px'
+        }}>
+        <div
+          id={`persistent-pad-${lineNumRef.current}`}
+          ref={padDivRef}
+          tabIndex={0}
+          style={{ 
+            wordWrap: 'break-word', 
+            overflowWrap: 'break-word', 
+            whiteSpace: 'normal',
+            minHeight: '40px',
+            border: '1px solid #ced4da',
+            borderRadius: '4px',
+            padding: '8px'
+          }}
+          {...props}
+        >
+          <DivMakerComponent
+            expr={jsonTree}
+            selected={selected}
+            origTree={jsonTree}
+            lineNumber={lineNumRef.current}
+          />
+        </div>
+        </div>
       </Col>
     </Row>
   );
