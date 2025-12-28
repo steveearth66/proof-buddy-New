@@ -1499,15 +1499,15 @@ const InductionRacket = () => {
                     name="proofCurrentLHS"
                     type="text"
                     placeholder="Current LHS"
-                    value={lhsValue || currentLHS}
+                    value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')}
                     onChange={(e) => setLhsValue(e.target.value)}
                     onFocus={(e) => {
                       if (showSide !== "LHS") {
                         e.target.blur();
                         return;
                       }
-                      if (!lhsValue && currentLHS) {
-                        setLhsValue(currentLHS);
+                      if (!lhsValue && proofStarted && (leftPremise?.racket || currentLHS)) {
+                        setLhsValue(leftPremise?.racket || currentLHS);
                       }
                     }}
                     style={{ cursor: showSide === "LHS" ? "text" : "not-allowed" }}
@@ -1527,15 +1527,15 @@ const InductionRacket = () => {
                     name="proofCurrentRHS"
                     type="text"
                     placeholder="Current RHS"
-                    value={rhsValue || currentRHS}
+                    value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')}
                     onChange={(e) => setRhsValue(e.target.value)}
                     onFocus={(e) => {
                       if (showSide !== "RHS") {
                         e.target.blur();
                         return;
                       }
-                      if (!rhsValue && currentRHS) {
-                        setRhsValue(currentRHS);
+                      if (!rhsValue && proofStarted && (rightPremise?.racket || currentRHS)) {
+                        setRhsValue(rightPremise?.racket || currentRHS);
                       }
                     }}
                     style={{ cursor: showSide === "RHS" ? "text" : "not-allowed" }}
