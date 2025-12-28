@@ -166,7 +166,7 @@ zeroQ_plus_tests = [
      ["Can only rewrite with zero?+ rule when argument of zero? is a '+' expression"]),
     ("(zero? (+ 0 1))", 
      ["Too few assignments were provided: params 'a', 'k' do not have assignments"]),
-    ("(zero? (+ 0 1))", 'a=1, k=0', ['Value mismatch: expected "0" for a, but "1" was provided']),
+    ("(zero? (+ 0 1))", 'a=1, k=0', '#f'),  # used to fail before making zero?+ flexible with parameter ordering
     ("(zero? (+ 0 1))", 'a=0, k=1', '#f'),
     ("(zero? (+ 1 0))", 'a=1, k=0', '#f'),
     # a: all, b: positive, k: non-negative

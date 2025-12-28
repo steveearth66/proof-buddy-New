@@ -123,6 +123,7 @@ class TwoSidedProof(ProofComponent):
         self.RHS = ERProof(self.ruleSet, self.generics, debug)
         self.currentSide: ERProof = self.LHS
         self.isValid = True
+        self.isComplete = False
         # TODO: is there a way to not have a separate definitions list, 
         # since they are also stored in the ruleSet?
         self.definitions = []
@@ -134,6 +135,62 @@ class TwoSidedProof(ProofComponent):
         if side.upper() not in ('LHS', 'RHS'):
             raise ValueError("Invalid side literal: side must be either 'LHS' or 'RHS'")
         self.currentSide = self.LHS if side == 'LHS' else self.RHS
+    
+    def checkComplete(self):
+        """
+        Check if proof is complete:
+        - Last non-empty lines of LHS and RHS must be the same
+        - No blank lines except possibly the last line (for user input)
+        A line is considered blank if either its expression OR rule is empty
+        """
+        lhs_lines = self.LHS.proofLines
+        rhs_lines = self.RHS.proofLines
+        
+        if not lhs_lines or not rhs_lines:
+            self.isComplete = False
+            return False
+        
+        # Helper to check if a line is blank (either expr or rule is empty)
+        def is_blank(line):
+            expr_blank = not line.exprTree or not str(line.exprTree).strip()
+            rule_blank = not line.appliedRule or not line.appliedRule.strip()
+            return expr_blank or rule_blank
+        
+        # Get last non-blank line from each side
+        lhs_last = None
+        for line in reversed(lhs_lines):
+            if not is_blank(line):
+                lhs_last = str(line.exprTree).strip()
+                break
+        
+        rhs_last = None
+        for line in reversed(rhs_lines):
+            if not is_blank(line):
+                rhs_last = str(line.exprTree).strip()
+                break
+        
+        # Check if last non-blank lines match
+        if not lhs_last or not rhs_last or lhs_last != rhs_last:
+            self.isComplete = False
+            return False
+        
+        # Check for internal blank lines (all but possibly the last should be non-blank)
+        for i, line in enumerate(lhs_lines[:-1]):  # All except last
+            if is_blank(line):
+                self.isComplete = False
+                return False
+        
+        for i, line in enumerate(rhs_lines[:-1]):  # All except last
+            if is_blank(line):
+                self.isComplete = False
+                return False
+        
+        self.isComplete = True
+        return True
+    
+    def markIncomplete(self):
+        """Mark proof as incomplete (called when user edits)"""
+        self.isComplete = False
     
     def updateErrorsAndValidate(self):
         self.errLog.extend(self.currentSide.errLog)

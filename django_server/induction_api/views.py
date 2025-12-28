@@ -369,7 +369,41 @@ def get_or_set_induction_obj(user):
         ind = IndProof()
         save_induction_obj_to_cache(user, ind)
         return ind, None
-    return loads(cached['ind_proof']), cached.get('proof_id')
+    proof_id = cached.get('proof_id')
+    return loads(cached['ind_proof']), proof_id
+
+
+def reload_proof_lines_from_db(proof, proof_id):
+    """Reload all proof lines from database into the IndProof object"""
+    from .models import InductionProofLine
+    
+    if proof_id is None:
+        return
+    
+    try:
+        # Clear existing proof lines
+        proof.baseCase.LHS.proofLines = []
+        proof.baseCase.RHS.proofLines = []
+        proof.leapStep.LHS.proofLines = []
+        proof.leapStep.RHS.proofLines = []
+        
+        # Get all proof lines for this proof, ordered by line number
+        lines = InductionProofLine.objects.filter(proof_id=proof_id).order_by('case', 'side', 'line_number')
+        
+        for line in lines:
+            # Determine which ERProof to add to
+            if line.case == 'base':
+                target = proof.baseCase.LHS if line.side == 'LHS' else proof.baseCase.RHS
+            else:  # leap
+                target = proof.leapStep.LHS if line.side == 'LHS' else proof.leapStep.RHS
+            
+            # Create ERProofLine and add to target
+            proof_line = ERProofLine(line.racket, target.debug, target.ruleSet, generics=target.generics)
+            proof_line.appliedRule = line.rule
+            target.proofLines.append(proof_line)
+    except Exception as e:
+        pass
+
 
 def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, line_number, substitution='', selected_node=None):
     """Save a proof line to the database"""
@@ -430,7 +464,8 @@ def set_current_proof(request):
         if missing:
             return Response({"isValid": False, "errors": [f"Missing fields: {', '.join(missing)}"]}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Create engine object and assign core params (follow tests pattern)
+        # Create a fresh IndProof engine, but preserve existing proof_id if available
+        _, existing_proof_id = get_or_set_induction_obj(user)
         ind = IndProof()
         ind.struct = struct
         ind.ivar = ivar
@@ -518,8 +553,8 @@ def set_current_proof(request):
                 ind.leapStep.LHS.addProofLine(str(lhs_leap_line.exprTree))
                 ind.leapStep.RHS.addProofLine(str(rhs_leap_line.exprTree))
 
-        # Save engine to cache (without proof_id for now, as this is just engine setup)
-        save_induction_obj_to_cache(user, ind)
+        # Save engine to cache, preserving proof_id that was set by start_induction_proof
+        save_induction_obj_to_cache(user, ind, existing_proof_id)
 
         # Build frontend payload with jsonTrees for latest lines
         payload = {
@@ -603,6 +638,11 @@ def apply_rule(request):
         target = _get_case_side(proof, case, side)
         # Clear previous errors before attempting new rule application
         target.errLog = []
+        # Mark proof incomplete when user edits
+        if case == 'base':
+            proof.baseCase.markIncomplete()
+        else:
+            proof.leapStep.markIncomplete()
         _apply_line(target, currentRacket, rule, startPosition, substitution)
 
         is_valid = len(target.errLog) == 0
@@ -618,7 +658,6 @@ def apply_rule(request):
             rule_with_sub = last_line.appliedRule or ''
             if substitution:
                 rule_with_sub = f"{rule_with_sub} {substitution}".strip()
-            print(f"[apply_rule] Saving proof line: case={case}, side={side}, rule={rule_with_sub}, startPosition={startPosition}, selectedNode={selectedNode}")
             save_proof_line_to_db(
                 proof_id=proof_id,
                 case=case,
@@ -647,6 +686,11 @@ def delete_line(request, case, side):
     user = request.user
     proof, proof_id = get_or_set_induction_obj(user)
     try:
+        # Mark proof incomplete when deleting
+        if case == 'base':
+            proof.baseCase.markIncomplete()
+        else:
+            proof.leapStep.markIncomplete()
         target = _get_case_side(proof, case, side)
         line_number = len(target.proofLines) - 1
         if len(target.proofLines) > 0:
@@ -734,6 +778,11 @@ def substitution(request):
         target = _get_case_side(proof, case, side)
         # Clear previous errors before attempting new substitution
         target.errLog = []
+        # Mark proof incomplete when user edits
+        if case == 'base':
+            proof.baseCase.markIncomplete()
+        else:
+            proof.leapStep.markIncomplete()
         _apply_line(target, currentRacket, rule, startPosition, substitution)
 
         is_valid = len(target.errLog) == 0
@@ -754,7 +803,6 @@ def substitution(request):
         # Save to database if we have a valid proof line
         if is_valid and len(target.proofLines) > 0:
             last_line = target.proofLines[-1]
-            print(f"[substitution] Saving proof line: case={case}, side={side}, rule={rule_with_sub}, startPosition={startPosition}, selectedNode={selectedNode}")
             save_proof_line_to_db(
                 proof_id=proof_id,
                 case=case,
@@ -775,3 +823,40 @@ def substitution(request):
         }, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"isValid": False, "errors": [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"])
+def check_completion(request):
+    """
+    Check if a specific case (base or leap) is complete.
+    Expected JSON: { case: 'base' | 'leap' }
+    Returns: { isComplete: bool, label: str }
+    """
+    user = request.user
+    data = request.data
+    proof, proof_id = get_or_set_induction_obj(user)
+    
+    try:
+        # Reload proof lines from database before checking completion
+        reload_proof_lines_from_db(proof, proof_id)
+        
+        case = data.get("case", "base")
+        
+        if case == 'base':
+            is_complete = proof.baseCase.checkComplete()
+            label = "BASE CASE"
+        elif case == 'leap':
+            is_complete = proof.leapStep.checkComplete()
+            label = "LEAP STEP"
+        else:
+            return Response({"error": "Invalid case. Use 'base' or 'leap'."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Save updated completion status to cache
+        save_induction_obj_to_cache(user, proof, proof_id)
+        
+        return Response({
+            "isComplete": is_complete,
+            "label": label
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

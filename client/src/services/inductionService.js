@@ -103,6 +103,19 @@ const checkGoal = async (data) => {
   }
 };
 
+const checkCompletion = async (caseName) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/check-completion`,
+      { case: caseName }
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during induction check-completion:");
+    throw error;
+  }
+};
+
 const inductionService = {
   startInductionProof,
   clearInduction,
@@ -111,7 +124,8 @@ const inductionService = {
   checkGoal,
   setCurrentProof,
   applyRule,
-  deleteLine
+  deleteLine,
+  checkCompletion
 };
 
 export default inductionService;

@@ -185,7 +185,7 @@ class IndProof:
         base_rhs_lines = str(self.baseCase.RHS).splitlines() if hasattr(self, 'baseCase') and self.baseCase else []
         base_rhs_str = "\n".join("        " + line for line in base_rhs_lines) if base_rhs_lines else ""
         
-        base_status = 'complete' if bool(getattr(self.baseCase, 'complete', False)) else 'incomplete'
+        base_status = 'complete' if bool(getattr(self.baseCase, 'isComplete', False)) else 'incomplete'
 
         leap_lhs_lines = str(self.leapStep.LHS).splitlines() if hasattr(self, 'leapStep') and self.leapStep else []
         leap_lhs_str = "\n".join("        " + line for line in leap_lhs_lines) if leap_lhs_lines else ""
@@ -193,10 +193,10 @@ class IndProof:
         leap_rhs_lines = str(self.leapStep.RHS).splitlines() if hasattr(self, 'leapStep') and self.leapStep else []
         leap_rhs_str = "\n".join("        " + line for line in leap_rhs_lines) if leap_rhs_lines else ""
         
-        leap_status = 'complete' if bool(getattr(self.leapStep, 'complete', False)) else 'incomplete'
+        leap_status = 'complete' if bool(getattr(self.leapStep, 'isComplete', False)) else 'incomplete'
 
         # Overall conclusion
-        overall_complete = bool(getattr(self.baseCase, 'complete', False)) and bool(getattr(self.leapStep, 'complete', False))
+        overall_complete = bool(getattr(self.baseCase, 'isComplete', False)) and bool(getattr(self.leapStep, 'isComplete', False))
         conclusion = 'Proof complete' if overall_complete else 'Proof incomplete'
 
         # Compose output with aligned headers
@@ -227,3 +227,22 @@ class IndProof:
         lines.append(f"  Conclusion: {conclusion}")
 
         return "\n".join(lines)
+    
+    def checkComplete(self):
+        """
+        Check if the induction proof is complete:
+        - Both base case and leap step must be complete
+        Updates self.isComplete and returns the status
+        """
+        base_complete = self.baseCase.checkComplete() if self.baseCase else False
+        leap_complete = self.leapStep.checkComplete() if self.leapStep else False
+        self.isComplete = base_complete and leap_complete
+        return self.isComplete
+    
+    def markIncomplete(self):
+        """Mark the induction proof as incomplete (called when user edits)"""
+        self.isComplete = False
+        if self.baseCase:
+            self.baseCase.markIncomplete()
+        if self.leapStep:
+            self.leapStep.markIncomplete()

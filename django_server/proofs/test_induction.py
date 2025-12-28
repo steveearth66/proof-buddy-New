@@ -243,13 +243,13 @@ if len(baseCaseProof.LHS.proofLines) > 0 and len(baseCaseProof.RHS.proofLines) >
     lhs_final = str(baseCaseProof.LHS.proofLines[-1].exprTree)
     rhs_final = str(baseCaseProof.RHS.proofLines[-1].exprTree)
     if lhs_final == rhs_final:
-        indproof2.baseCase.complete = True
+        indproof2.baseCase.isComplete = True
         print(f"\nBase case proven: LHS = RHS = {lhs_final}", always=True)
     else:
-        indproof2.baseCase.complete = False
+        indproof2.baseCase.isComplete = False
         print(f"\nBase case not yet complete: LHS = {lhs_final}, RHS = {rhs_final}", always=True)
 else:
-    indproof2.baseCase.complete = False
+    indproof2.baseCase.isComplete = False
 
 # Build the induction hypothesis by replacing ivar with lvar in both premises
 print(f"\n\nBuilding induction hypothesis:\n")
@@ -471,22 +471,22 @@ if len(indproof2.leapStep.LHS.proofLines) > 0 and len(indproof2.leapStep.RHS.pro
     lhs_final = str(indproof2.leapStep.LHS.proofLines[-1].exprTree)
     rhs_final = str(indproof2.leapStep.RHS.proofLines[-1].exprTree)
     if lhs_final == rhs_final:
-        indproof2.leapStep.complete = True
+        indproof2.leapStep.isComplete = True
         print(f"[PASS] LEAP STEP COMPLETE: LHS = RHS = {lhs_final}", always=True)
     else:
-        indproof2.leapStep.complete = False
+        indproof2.leapStep.isComplete = False
         print(f"[FAIL] Leap step not yet complete:", always=True)
         print(f"  LHS final: {lhs_final}", always=True)
         print(f"  RHS final: {rhs_final}", always=True)
 else:
-    indproof2.leapStep.complete = False
+    indproof2.leapStep.isComplete = False
     print(f"[FAIL] Leap step incomplete: missing proof lines", always=True)
 
 # Final check: verify entire induction proof is complete
-summary_status = "PASS" if (indproof2.baseCase.complete and indproof2.leapStep.complete) else "FAIL"
+summary_status = "PASS" if (indproof2.baseCase.isComplete and indproof2.leapStep.isComplete) else "FAIL"
 print("\n[Summary] Induction Proof Status", always=True)
-print(f"Base case: {'complete' if indproof2.baseCase.complete else 'incomplete'}; "
-      f"Leap step: {'complete' if indproof2.leapStep.complete else 'incomplete'}", always=True)
+print(f"Base case: {'complete' if indproof2.baseCase.isComplete else 'incomplete'}; "
+      f"Leap step: {'complete' if indproof2.leapStep.isComplete else 'incomplete'}", always=True)
 if summary_status == "PASS":
     print(f"Result: Induction proof complete — {lhsPremise} = {rhsPremise}", always=True)
 else:

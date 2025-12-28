@@ -717,8 +717,10 @@ class NullQCons(Axiom):
 
 class ZeroQPlus(Axiom):
     def __init__(self):
-        aFinder: Axiom.ParamFinder = lambda node: (node.children[1].children[1],)
-        kFinder: Axiom.ParamFinder = lambda node: (node.children[1].children[2],)
+        # Return a tuple containing ONE element which is a tuple of alternatives
+        # The outer tuple is for the for-loop iteration, the inner tuple provides position alternatives
+        aFinder: Axiom.ParamFinder = lambda node: ((node.children[1].children[1], node.children[1].children[2]),)
+        kFinder: Axiom.ParamFinder = lambda node: ((node.children[1].children[1], node.children[1].children[2]),)
         super().__init__("zero?+", {'a': aFinder, 'k': kFinder})
 
     def verifyStructure(self, ruleNode: Node) -> tuple[bool, str]:
@@ -755,9 +757,11 @@ class MinusPlus(Axiom):
         super().__init__('-+', {'a': aFinder, 'k': kFinder})
 
     def verifyStructure(self, ruleNode: Node) -> tuple[bool, str]:
-        if ruleNode.children[0] != '-':
-            return False, f'Cannot rewrite with -+ rule when the root operation is {ruleNode.children[0]}'
-        if ruleNode.children[1].data != '(' or ruleNode.children[1].children[0].data != '+':
+        if not ruleNode.children or len(ruleNode.children) < 3:
+            return False, 'Cannot rewrite with -+ rule when node structure is invalid'
+        if ruleNode.children[0].data != '-':
+            return False, f'Cannot rewrite with -+ rule when the root operation is {ruleNode.children[0].data}'
+        if ruleNode.children[1].data != '(' or len(ruleNode.children[1].children) < 3 or ruleNode.children[1].children[0].data != '+':
             return False, f'Cannot rewrite with -+ rule when the first argument of - is not a + expression'
         if str(ruleNode.children[2]) not in (str(ruleNode.children[1].children[1]), str(ruleNode.children[1].children[2])):
             return False, "Cannot rewrite with -+ rule when the second argument of - doesn't match an argument of +"

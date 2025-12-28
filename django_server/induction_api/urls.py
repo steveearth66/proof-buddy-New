@@ -13,4 +13,5 @@ urlpatterns = [
     path("delete-line/<str:case>/<str:side>", views.delete_line, name="delete_line"),
     path("check-goal", views.check_goal, name="check_goal"),
     path("substitution", views.substitution, name="substitution"),
+    path("check-completion", views.check_completion, name="check_completion"),
 ]
