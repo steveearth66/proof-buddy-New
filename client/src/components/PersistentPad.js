@@ -143,12 +143,18 @@ const PersistentPad = forwardRef(function PersistentPad(
   };
 
   return (
-    <Row className="persistent-pad-row" style={{ alignItems: "center" }}>
-      <Col>
+    <Row className="persistent-pad-row" style={{ alignItems: "flex-start" }}>
+      <Col md="6">
         <div
           id={`persistent-pad-${lineNumRef.current}`}
           ref={padDivRef}
           tabIndex={0}
+          style={{ 
+            wordWrap: 'break-word', 
+            overflowWrap: 'break-word', 
+            whiteSpace: 'normal',
+            minHeight: '40px'
+          }}
           {...props}
         >
           <DivMakerComponent
@@ -159,16 +165,25 @@ const PersistentPad = forwardRef(function PersistentPad(
           />
         </div>
       </Col>
-      <Col md="5">
+      <Col md="6">
         <Form.Floating className="mb-3">
           <Form.Control
-            type="text"
+            as="textarea"
             value={rule}
             placeholder={rulePlaceholder}
             onChange={handleRuleChange}
             readOnly={isRuleReadOnly}
             isInvalid={isRuleInvalid}
             disabled={!isEditRow}
+            style={{ 
+              minHeight: '70px',
+              resize: 'none',
+              overflow: 'hidden',
+              whiteSpace: 'pre-wrap',
+              wordWrap: 'break-word',
+              paddingBottom: '10px'
+            }}
+            rows={1}
           />
           <label>{rulePlaceholder}</label>
           {isRuleInvalid && (

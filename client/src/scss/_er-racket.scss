@@ -167,7 +167,9 @@
           color: $color-white;
           font-weight: $font-medium;
           width: 360px;
+          height: 50px;
           border-color: transparent;
+          transition: background-image 0.2s ease, color 0.2s ease;
 
           &:hover {
             color: $color-drexel-blue;

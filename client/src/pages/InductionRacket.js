@@ -276,6 +276,18 @@ const InductionRacket = () => {
     })));
   }, [showSide, racketRuleFields]);
 
+  // Control body overflow when proof is started
+  useEffect(() => {
+    if (proofStarted) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [proofStarted]);
+
   // Capture current selections before toggling sides and persist into state
   const handleToggleSide = useCallback(() => {
     const currentSide = showSide;
@@ -1097,7 +1109,7 @@ const InductionRacket = () => {
 
     return (
       <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? "premise" : `${side}-field-${padIndex}`}>
-        <Col md="1">
+        <Col xs="auto" style={{ minWidth: '50px', paddingRight: '5px' }}>
           <ClickableRowNumber
             padIndex={padIndex}
             isClickable={!isBound}
@@ -1106,7 +1118,7 @@ const InductionRacket = () => {
             title={!isBound ? "Click to bind to footer" : ""}
           />
         </Col>
-        <Col md="11">
+        <Col>
           <PersistentPad
             ref={(el) => { padRefs.current[padIndex] = el; }}
             side={side}
@@ -1618,58 +1630,66 @@ const InductionRacket = () => {
                   </Button>
                 </Row>
               )}
-
-              {proofStarted && (
-                <div 
-                  className="racket-rule-container-wrap"
-                  style={{ maxHeight: `${availableHeight}px` }}
-                >
-                  <div className="racket-rule-wrap" id="racket-rule">
-                    {proofComplete && (
-                      <Alert variant={"success"}>Proof Complete!</Alert>
-                    )}
-
-                    <>
-                      {renderPersistentPadRow({
-                        side: showSide,
-                        isPremise: true,
-                        padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
-                        formValues,
-                        jsonTreeRep,
-                        handleFieldHighlight,
-                        validationErrors,
-                        isBound,
-                        userRow,
-                        handleRowNumberClick,
-                        leftPremise,
-                        rightPremise
-                      })}
-                      {racketRuleFields[showSide].map((field, index) =>
-                        field.deleted
-                          ? null
-                          : renderPersistentPadRow({
-                            side: showSide,
-                            index,
-                            field,
-                            padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
-                            formValues,
-                            jsonTreeRep,
-                            handleFieldHighlight,
-                            validationErrors,
-                            isBound,
-                            userRow,
-                            handleRowNumberClick,
-                            leftPremise,
-                            rightPremise
-                          })
-                      )}
-                    </>
-                  </div>
-                </div>
-              )}
           </div>
         </Form>
       </Container>
+      
+      {proofStarted && (
+        <div 
+          className="racket-rule-container-wrap"
+          style={{ 
+            height: `${availableHeight}px`, 
+            width: '100%', 
+            padding: '0 25px', 
+            margin: 0,
+            overflowY: 'auto',
+            overflowX: 'hidden'
+          }}
+        >
+          <div className="racket-rule-wrap" id="racket-rule" style={{ paddingBottom: '150px' }}>
+            {proofComplete && (
+              <Alert variant={"success"}>Proof Complete!</Alert>
+            )}
+
+            <>
+              {renderPersistentPadRow({
+              side: showSide,
+              isPremise: true,
+              padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
+              formValues,
+              jsonTreeRep,
+              handleFieldHighlight,
+              validationErrors,
+              isBound,
+              userRow,
+              handleRowNumberClick,
+              leftPremise,
+              rightPremise
+            })}
+            {racketRuleFields[showSide].map((field, index) =>
+              field.deleted
+                ? null
+                : renderPersistentPadRow({
+                  side: showSide,
+                  index,
+                  field,
+                  padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
+                  formValues,
+                  jsonTreeRep,
+                  handleFieldHighlight,
+                  validationErrors,
+                  isBound,
+                  userRow,
+                  handleRowNumberClick,
+                  leftPremise,
+                  rightPremise
+                })
+            )}
+          </>
+        </div>
+        </div>
+      )}
+      
       {proofStarted && (
         <div className="floating-footer">
           <Row className="input-row">
