@@ -292,55 +292,105 @@ const InductionRacket = () => {
   const handleToggleSide = useCallback(() => {
     // DEBUG LOG: Highlight toggle - FIRST LINE
     console.log('[TOGGLE] ========== handleToggleSide CALLED ==========', 'showSide:', showSide);
-    const currentSide = showSide;
-    const refs = getPadRefs(currentSide, lhsPadRefs, rhsPadRefs);
-
-    // Capture premise selection (pad index 0)
-    const premiseSelected = refs.current[0]?.getStartPosition?.() ?? 0;
-    // DEBUG LOG: Highlight toggle
-    console.log('[TOGGLE] Capturing selection for side:', currentSide, 'premise selectedNode:', premiseSelected, 'isAnchor:', isAnchor);
+    
+    // Capture BOTH sides' premise and line selections before toggling
+    const lhsPremiseSelected = lhsPadRefs.current[0]?.getStartPosition?.() ?? 0;
+    const rhsPremiseSelected = rhsPadRefs.current[0]?.getStartPosition?.() ?? 0;
+    
+    console.log('[TOGGLE] Capturing selections - LHS premise:', lhsPremiseSelected, 'RHS premise:', rhsPremiseSelected);
+    
     const setPremises = isAnchor ? setBasePremises : setLeapPremises;
     
-    if (currentSide === 'LHS') {
-      setPremises(prev => ({ 
-        ...prev, 
-        LHS: { ...prev.LHS, selectedNode: premiseSelected } 
-      }));
-      // DEBUG LOG: Highlight toggle
-      console.log('[TOGGLE] Saved LHS premise selection:', premiseSelected);
-    } else {
-      setPremises(prev => ({ 
-        ...prev, 
-        RHS: { ...prev.RHS, selectedNode: premiseSelected } 
-      }));
-      // DEBUG LOG: Highlight toggle
-      console.log('[TOGGLE] Saved RHS premise selection:', premiseSelected);
-    }
+    // Update both premises
+    setPremises(prev => ({ 
+      LHS: { ...prev.LHS, selectedNode: lhsPremiseSelected },
+      RHS: { ...prev.RHS, selectedNode: rhsPremiseSelected }
+    }));
 
-    // Capture each proof line selection and persist to racketRuleFields
+    // Capture proof line selections for both sides
     const setFields = isAnchor ? setBaseRacketFields : setLeapRacketFields;
     setFields(prev => {
       const updated = { ...prev };
-      const arr = [...(prev[currentSide] || [])];
-      const captured = [];
-      for (let i = 0; i < arr.length; i++) {
-        const padIndex = i + 1; // non-premise pads start at 1
-        const sel = refs.current[padIndex]?.getStartPosition?.() ?? arr[i]?.selectedNode ?? 0;
-        captured.push(sel);
-        arr[i] = { ...arr[i], selectedNode: sel };
+      
+      // Capture LHS selections
+      const lhsArr = [...(prev.LHS || [])];
+      for (let i = 0; i < lhsArr.length; i++) {
+        const padIndex = i + 1;
+        const sel = lhsPadRefs.current[padIndex]?.getStartPosition?.() ?? lhsArr[i]?.selectedNode ?? 0;
+        lhsArr[i] = { ...lhsArr[i], selectedNode: sel };
       }
-      updated[currentSide] = arr;
+      updated.LHS = lhsArr;
+      
+      // Capture RHS selections
+      const rhsArr = [...(prev.RHS || [])];
+      for (let i = 0; i < rhsArr.length; i++) {
+        const padIndex = i + 1;
+        const sel = rhsPadRefs.current[padIndex]?.getStartPosition?.() ?? rhsArr[i]?.selectedNode ?? 0;
+        rhsArr[i] = { ...rhsArr[i], selectedNode: sel };
+      }
+      updated.RHS = rhsArr;
+      
       return updated;
     });
-
-    // Clear sessionStorage highlights to force fresh render on the other side
-    // DEBUG LOG: Highlight toggle
-    console.log('[TOGGLE] Clearing sessionStorage highlights before switching to:', currentSide === 'LHS' ? 'RHS' : 'LHS');
-    sessionStorage.removeItem('highlights');
 
     // Finally toggle to the other side
     toggleSide();
   }, [showSide, lhsPadRefs, rhsPadRefs, toggleSide, isAnchor, setBasePremises, setLeapPremises, setBaseRacketFields, setLeapRacketFields]);
+
+  /**
+   * Capture current selections before toggling between base and leap cases
+   */
+  const handleToggleCase = useCallback(() => {
+    // Capture selections from both LHS and RHS for current case
+    const lhsRefs = lhsPadRefs;
+    const rhsRefs = rhsPadRefs;
+
+    // Capture premise selections for both sides
+    const lhsPremiseSelected = lhsRefs.current[0]?.getStartPosition?.() ?? 0;
+    const rhsPremiseSelected = rhsRefs.current[0]?.getStartPosition?.() ?? 0;
+    
+    console.log('[TOGGLE CASE] Captured premise selections - LHS:', lhsPremiseSelected, 'RHS:', rhsPremiseSelected);
+    console.log('[TOGGLE CASE] Current case:', isAnchor ? 'base' : 'leap', '→ will save to', isAnchor ? 'basePremises' : 'leapPremises');
+    
+    const setPremises = isAnchor ? setBasePremises : setLeapPremises;
+    setPremises(prev => ({
+      LHS: { ...prev.LHS, selectedNode: lhsPremiseSelected },
+      RHS: { ...prev.RHS, selectedNode: rhsPremiseSelected }
+    }));
+
+    // Capture proof line selections for both sides
+    const setFields = isAnchor ? setBaseRacketFields : setLeapRacketFields;
+    setFields(prev => {
+      const updated = { ...prev };
+      
+      // Capture LHS selections
+      const lhsArr = [...(prev.LHS || [])];
+      for (let i = 0; i < lhsArr.length; i++) {
+        const padIndex = i + 1;
+        const sel = lhsRefs.current[padIndex]?.getStartPosition?.() ?? lhsArr[i]?.selectedNode ?? 0;
+        lhsArr[i] = { ...lhsArr[i], selectedNode: sel };
+      }
+      updated.LHS = lhsArr;
+      
+      // Capture RHS selections
+      const rhsArr = [...(prev.RHS || [])];
+      for (let i = 0; i < rhsArr.length; i++) {
+        const padIndex = i + 1;
+        const sel = rhsRefs.current[padIndex]?.getStartPosition?.() ?? rhsArr[i]?.selectedNode ?? 0;
+        rhsArr[i] = { ...rhsArr[i], selectedNode: sel };
+      }
+      updated.RHS = rhsArr;
+      
+      return updated;
+    });
+
+    // Finally toggle the case
+    setIsAnchor(prev => !prev);
+    
+    // Clear Current LHS/RHS so they update to the new case's premise
+    setLhsValue('');
+    setRhsValue('');
+  }, [isAnchor, lhsPadRefs, rhsPadRefs, setBasePremises, setLeapPremises, setBaseRacketFields, setLeapRacketFields]);
 
   /**
    * Unbind footer from current proof line.
@@ -1105,7 +1155,8 @@ const InductionRacket = () => {
     userRow,
     handleRowNumberClick,
     leftPremise,
-    rightPremise
+    rightPremise,
+    caseType
   }) {
     const isLHS = side === "LHS";
     const padIndex = isPremise ? 0 : index + 1;
@@ -1144,7 +1195,7 @@ const InductionRacket = () => {
     }
 
     return (
-      <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? "premise" : `${side}-field-${padIndex}`}>
+      <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? `premise-${caseType}-${side}` : `${side}-field-${padIndex}`}>
         <Col xs="auto" style={{ minWidth: '50px', paddingRight: '5px' }}>
           <ClickableRowNumber
             padIndex={padIndex}
@@ -1597,12 +1648,7 @@ const InductionRacket = () => {
                 <Button
                   size="lg"
                   className="switch-btn"
-                  onClick={() => {
-                    setIsAnchor((prev) => !prev);
-                    // Clear Current LHS/RHS so they update to the new case's premise
-                    setLhsValue('');
-                    setRhsValue('');
-                  }}
+                  onClick={handleToggleCase}
                   style={{ backgroundImage: 'linear-gradient(135deg, #07294d 0, #006298 100%)', color: '#ffffff', borderColor: 'transparent' }}
                 >
                   {isAnchor ? "Switch to Leap Case" : "Switch to Base Case"}
@@ -1675,7 +1721,7 @@ const InductionRacket = () => {
             overflowX: 'hidden'
           }}
         >
-          <div className="racket-rule-wrap" id="racket-rule" style={{ paddingBottom: '150px' }}>
+          <div className="racket-rule-wrap" id="racket-rule" style={{ paddingTop: '20px', paddingBottom: '150px' }}>
             {proofComplete && (
               <Alert variant={"success"}>Proof Complete!</Alert>
             )}
@@ -1693,7 +1739,8 @@ const InductionRacket = () => {
               userRow,
               handleRowNumberClick,
               leftPremise,
-              rightPremise
+              rightPremise,
+              caseType: isAnchor ? 'base' : 'leap'
             })}
             {racketRuleFields[showSide].map((field, index) =>
               field.deleted
@@ -1711,7 +1758,8 @@ const InductionRacket = () => {
                   userRow,
                   handleRowNumberClick,
                   leftPremise,
-                  rightPremise
+                  rightPremise,
+                  caseType: isAnchor ? 'base' : 'leap'
                 })
             )}
           </>

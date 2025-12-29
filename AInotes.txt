@@ -179,3 +179,57 @@ When beginning a new session or debugging issues, follow these core principles:
    - **Better alternative**: Use `gap: 20px` to create consistent spacing without forcing elements to opposite edges.
    - **Debugging pattern**: When layout changes don't work, check parent container for `justify-content`, `align-items`, `flex-grow` properties that override child settings.
    - **General rule**: Fix root causes (container flexbox rules) before adjusting symptoms (individual element properties).
+
+Session 2025-12-28 — Highlighting Persistence Issues (INCOMPLETE - NEEDS REWORK)
+
+**PROBLEM**: After layout improvements from previous session, highlighting stopped working correctly. Symptoms:
+- Highlighting persists when adding lines to LHS
+- Highlighting disappears for ALL premises (except current side/case) when adding a line to RHS  
+- When switching between base/leap cases on same side, highlighting from one case appears in the other case
+- Newly generated proof lines have no highlighting at all
+- UI overlay issues: Proof Utilities dropdown overlaying substitution modal, proof content overlapping form
+
+**ROOT CAUSE DISCOVERED**:
+1. **Component Reuse**: PersistentPad component instances were being reused between base/leap cases because React key was just `"premise"` for all premises
+   - When toggling from base to leap, the SAME PersistentPad component persisted with its internal `selected` state
+   - This caused leap premise to show base premise's highlighting (and vice versa)
+
+2. **Cache Issue**: The bug appeared on ALL commits (even old working ones) after crash, suggesting corrupted sessionStorage/Django cache was the real culprit
+   - Cleared both Django cache and browser storage, but issue persisted
+   - This indicates the actual problem was in code, not cache
+
+3. **Selection Capture**: `handleToggleSide` and `handleToggleCase` were calling `getStartPosition()` which consistently returned 0 even when highlighting was visible
+   - This means PersistentPad's internal `selected` state wasn't matching what was visually displayed
+   - Captured value (0) was being saved to premise state, then used on next render, losing the highlighting
+
+**ATTEMPTED FIXES** (need verification/completion):
+1. Removed `sessionStorage.removeItem('highlights')` from handleToggleSide - this was clearing ALL highlights on every toggle
+2. Updated `handleToggleSide` to capture BOTH LHS and RHS premise/line selections before toggling (not just current side)
+3. Updated `handleToggleCase` similarly to capture both sides before toggling cases
+4. Added unique React keys to force new PersistentPad instances per case: `key="premise-base-LHS"` vs `key="premise-leap-LHS"`
+5. Added `caseType` parameter to `renderPersistentPadRow` to enable unique keys
+
+**ISSUES INTRODUCED**:
+- After adding unique keys, newly generated lines have NO highlighting at all
+- Clicking on expressions doesn't work (may be due to layout overlap)
+- Z-index issues: Proof Utilities button overlaying substitution modal
+- Layout overlap: proof content overlapping fixed form header
+
+**INCOMPLETE WORK**:
+- The highlighting architecture may be fundamentally flawed for induction mode
+- PersistentPad mixing component state (`selected`) with sessionStorage persistence creates race conditions
+- Premises that change content between cases (base: `(f 0)` vs leap: `(f (+ k 1))`) break sessionStorage key lookups
+- Need to reconsider: should highlighting be purely prop-driven from parent state, not internal PersistentPad state?
+
+**NEXT SESSION PRIORITIES**:
+1. Revert to a known-good commit and analyze the highlighting architecture more carefully
+2. Consider whether premises need different highlighting strategy than proof lines
+3. May need to redesign how PersistentPad manages selection for cases where equation content changes
+4. Fix z-index and layout issues properly
+5. Test incremental changes one at a time - avoid batching multiple fixes
+
+**LESSONS**:
+- When multiple old commits exhibit the same bug, suspect environment/cache issues first, but verify with cache clearing
+- Component reuse in React (via keys) is subtle - same key = same instance with preserved state
+- Debugging highlighting requires understanding the full data flow: user click → component state → sessionStorage → parent state → props → render
+- Layout issues (overlaps, z-index) can block functionality testing - fix layout first, then test logic
