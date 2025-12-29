@@ -16,24 +16,16 @@
     .form-top-section {
       z-index: 99;
       background-color: $color-white;
+      padding-left: 15px;
+      padding-right: 15px;
 
       @media (min-width: $breakpoint-md) {
-        width: 1296px;
+        width: 100%;
         height: 310px;
         position: fixed;
         top: 68px;
-      }
-
-      @media (min-width: $breakpoint-md) {
-        width: 936px;
-      }
-
-      @media (min-width: $breakpoint-lg) {
-        width: 1116px;
-      }
-
-      @media (min-width: $breakpoint-ex-lg) {
-        width: 1296px;
+        left: 0;
+        right: 0;
       }
 
       .page-header-row {
@@ -43,8 +35,8 @@
           font-weight: $font-bold;
         }
         display: flex;
-        justify-content: space-between;
         align-items: center;
+        gap: 20px;
 
         .check-row {
           display: flex;
@@ -95,6 +87,27 @@
         .er-proof-goal-rhs {
           @media (max-width: $breakpoint-sm-min) {
             margin-top: 2rem;
+          }
+        }
+
+        .er-inductive-hypothesis-lhs {
+          position: relative;
+
+          &::after {
+            content: "\003D";
+            font-size: 38px;
+            font-weight: $font-light;
+            position: absolute;
+            top: 44px;
+            left: 53.5%;
+            transform: translate(-50%, -50%);
+            rotate: -90deg;
+
+            @media (min-width: $breakpoint-sm) {
+              top: 29px;
+              left: 100%;
+              rotate: 0deg;
+            }
           }
         }
       }
@@ -435,6 +448,81 @@
           color: #ffffff !important;
           transform: none !important;
           box-shadow: none !important;
+        }
+      }
+    }
+  }
+}
+
+.proof-dropdown-btn {
+  button {
+    &.dropdown-toggle {
+      font-size: 20px;
+      line-height: 22px;
+      padding: 12px 40px 12px 21px;
+      border-radius: 0;
+      font-weight: $font-semi-bold;
+      background-image: $blue-gradient;
+      border-color: transparent;
+      position: relative;
+
+      &::after {
+        content: "";
+        border: 3px solid $color-white;
+        border-width: 0 0 3px 3px;
+        height: 10px;
+        width: 10px;
+        position: absolute;
+        transform: rotate(-45deg);
+        top: 16px;
+        right: 20px;
+      }
+
+      &.show {
+        &::after {
+          transform: rotate(135deg);
+          top: 21px;
+        }
+      }
+
+      + .dropdown-menu {
+        border: 0;
+        border-radius: 0;
+        background-image: $blue-gradient;
+        margin: 0;
+        padding: 0;
+
+        a {
+          font-size: 20px;
+          color: $color-white;
+          padding: 8px 21px;
+          border-top: 1px solid $color-white;
+          width: 181px;
+          font-weight: $font-medium;
+
+          &:hover,
+          &:focus {
+            color: $color-drexel-blue;
+            background-image: $orange-gradient;
+          }
+        }
+      }
+    }
+  }
+
+  &.proof-utilities {
+    text-align: right;
+    width: 181px;
+
+    button {
+      &.dropdown-toggle {
+        + .dropdown-menu {
+          top: -2px !important;
+          
+          .dropdown-item {
+            width: 100%;
+            white-space: nowrap;
+          }
         }
       }
     }

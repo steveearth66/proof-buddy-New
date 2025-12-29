@@ -112,3 +112,70 @@ Session 2025-12-26 — Highlighting Regression Postmortem
 - Fix: Only restore `selected` from sessionStorage when `startPosition === 0` (navigation/toggle scenario). Never override explicit `startPosition` for freshly generated lines. Add `startPosition` to the effect deps.
 - Lesson: When a regression appears, diff the last known-good commit against the first bad one. Small diffs often reveal the culprit faster than adding logs or touching backend state.
 - Principle: Keep concerns separate—initial highlighting comes from the source pad’s `startPosition`; toggle persistence should not rewrite that on creation. Session restore is for navigation, not for new-line initialization.
+
+Session 2025-12-27 — Debugging and Refactoring Principles (for Future Sessions)
+When beginning a new session or debugging issues, follow these core principles:
+
+1. **Incremental Changes with Verification**
+   - Make one change at a time and test immediately. Never batch multiple edits without intermediate verification.
+   - If you make a change and it breaks something, you know exactly which change caused it.
+   - This is exponentially faster than making five changes at once and trying to untangle which one (or which combination) caused the failure.
+
+2. **Verify JSX Structure and Nesting First**
+   - When React components break or render incorrectly, the most common culprit is invalid JSX nesting or improper Bootstrap Grid usage.
+   - Before diving into state management or logic, visually inspect the component hierarchy: are Row/Col properly nested? Are fragments used correctly? Are conditional renders properly wrapped?
+   - Bootstrap Grid rules: Row must contain Col; Col cannot contain Row directly (needs intermediate structure); offset syntax must use object notation in v5.
+
+3. **Console Logging as Surgical Investigation**
+   - Add targeted console.log statements at critical decision points: conditional branches, prop values on render, state values before/after updates.
+   - Don't add excessive logging that clutters output. Focus on the specific variable/path you're investigating.
+   - Once issue is identified, remove or comment out debug logs to keep console clean for future debugging.
+
+4. **Recognize When Reverts Are Better Than Fixes**
+   - If fixing one issue creates two more issues, or if cascading failures appear, it's a signal that the approach is fundamentally flawed.
+   - Don't be afraid to revert to a known-good state and try a different, more focused approach.
+   - Complex refactorings (especially layout changes) often have hidden dependencies. Smaller, targeted changes are safer and easier to debug.
+
+5. **Understand Error Context (User Error vs. System Bug)**
+   - Not all errors indicate bugs. Backend validation rejecting mathematically invalid operations (like asserting 0=2) is correct behavior.
+   - When a user encounters an error, first determine: Is this the system preventing invalid state? Or is it a genuine failure?
+   - Explain to users when errors are actually the system working correctly, not malfunctioning.
+
+6. **Visual Feedback and User Experience**
+   - When implementing UI changes, consider visual clarity: color-coding, spacing, borders can dramatically improve usability.
+   - Stacked layouts with offset positioning can reduce horizontal crowding while maintaining readability.
+   - Alternating colors and gradient transitions help users track relationships between elements.
+
+7. **State and Props Flow**
+   - Always trace where state originates and how it flows through components. Don't assume props have the values you expect.
+   - Conditional rendering should have clear fallback chains: `proofStarted ? premise : ''` is safer than complex nested ternaries.
+   - Separate concerns: display state (what user sees) from data state (what backend knows).
+
+8. **Bootstrap Button Variants and CSS Specificity**
+   - NEVER use `variant="secondary"` (or any Bootstrap variant) when you want custom button colors - it applies Bootstrap's default styling which overrides custom CSS classes.
+   - Bootstrap variant attributes have higher specificity than custom CSS classes, so even if you add `className="switch-btn"` with a blue gradient, the variant will make it grey.
+   - Solution: Either (a) remove the variant attribute entirely and rely only on custom CSS classes, OR (b) use inline styles which have even higher specificity.
+   - The `.switch-btn` class applies the blue gradient (`$blue-gradient`), but only works if no variant is specified.
+   - When troubleshooting button colors: check for variant attributes first before modifying CSS.
+
+9. **Positioning: Bootstrap Grid vs Explicit Pixels**
+   - Bootstrap grid offsets (`offset-md-1`) use percentage-based positioning relative to the container - may not provide enough movement.
+   - For precise positioning (especially to avoid overlap with fixed-position elements), use explicit pixel margins (`marginLeft: '190px'`).
+   - Always verify code state before applying changes - if replacement tool says "Input and output are identical," the code already has those changes.
+   - When visual changes don't appear, check: (1) if code already changed, (2) if approach needs switching (percentage → pixels).
+
+10. **CSS Selector Scoping and DOM Location Dependencies**
+   - **Critical principle**: CSS selectors are path-dependent. When styles are nested (e.g., `.container .form .dropdown`), they only apply when the element exists at that exact location in the DOM tree.
+   - **Moving elements breaks nested CSS**: If you move a component from inside a form to outside a container, its styles may completely disappear if they were defined with parent selectors.
+   - **Solution for portable components**: Define styles at the global level (not nested) so they apply regardless of where the element is placed in the DOM.
+   - **Example failure pattern**: `.er-racket-container .er-racket-form .form-top-section .proof-dropdown-btn` only works when dropdown is inside all those parents. Moving dropdown outside the form = no styles.
+   - **Example fix**: Extract `.proof-dropdown-btn` to global scope so it works anywhere in the application.
+   - **When debugging style loss**: Check if element moved in DOM, then verify CSS selector paths still match the new location.
+
+11. **Flexbox Layout Properties — Root Causes vs Symptoms**
+   - **Watch for active forcing properties**: Properties like `justify-content: space-between` actively force elements to spread apart, overriding column sizes and other layout attempts.
+   - **Changing column sizes won't fix spreading**: If parent container has `justify-content: space-between`, changing child elements from `md="1"` to `md="auto"` has no effect — the flexbox rule dominates.
+   - **Fix the forcing property, not the victims**: Instead of fighting symptoms (adjusting individual element sizes), remove or replace the flexbox property causing the behavior.
+   - **Better alternative**: Use `gap: 20px` to create consistent spacing without forcing elements to opposite edges.
+   - **Debugging pattern**: When layout changes don't work, check parent container for `justify-content`, `align-items`, `flex-grow` properties that override child settings.
+   - **General rule**: Fix root causes (container flexbox rules) before adjusting symptoms (individual element properties).

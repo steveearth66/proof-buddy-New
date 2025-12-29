@@ -69,7 +69,7 @@ const InductionRacket = () => {
   const [currentRacket, setCurrentRacket] = useState("");
   
   // Case state must be declared first since it's used in computed values below
-  const [isAnchor, setIsAnchor] = useState(false);
+  const [isAnchor, setIsAnchor] = useState(true);
   
   // Separate proof lines for base and leap cases
   const [baseRacketFields, setBaseRacketFields] = useState({
@@ -290,11 +290,15 @@ const InductionRacket = () => {
 
   // Capture current selections before toggling sides and persist into state
   const handleToggleSide = useCallback(() => {
+    // DEBUG LOG: Highlight toggle - FIRST LINE
+    console.log('[TOGGLE] ========== handleToggleSide CALLED ==========', 'showSide:', showSide);
     const currentSide = showSide;
     const refs = getPadRefs(currentSide, lhsPadRefs, rhsPadRefs);
 
     // Capture premise selection (pad index 0)
     const premiseSelected = refs.current[0]?.getStartPosition?.() ?? 0;
+    // DEBUG LOG: Highlight toggle
+    console.log('[TOGGLE] Capturing selection for side:', currentSide, 'premise selectedNode:', premiseSelected, 'isAnchor:', isAnchor);
     const setPremises = isAnchor ? setBasePremises : setLeapPremises;
     
     if (currentSide === 'LHS') {
@@ -302,11 +306,15 @@ const InductionRacket = () => {
         ...prev, 
         LHS: { ...prev.LHS, selectedNode: premiseSelected } 
       }));
+      // DEBUG LOG: Highlight toggle
+      console.log('[TOGGLE] Saved LHS premise selection:', premiseSelected);
     } else {
       setPremises(prev => ({ 
         ...prev, 
         RHS: { ...prev.RHS, selectedNode: premiseSelected } 
       }));
+      // DEBUG LOG: Highlight toggle
+      console.log('[TOGGLE] Saved RHS premise selection:', premiseSelected);
     }
 
     // Capture each proof line selection and persist to racketRuleFields
@@ -324,6 +332,11 @@ const InductionRacket = () => {
       updated[currentSide] = arr;
       return updated;
     });
+
+    // Clear sessionStorage highlights to force fresh render on the other side
+    // DEBUG LOG: Highlight toggle
+    console.log('[TOGGLE] Clearing sessionStorage highlights before switching to:', currentSide === 'LHS' ? 'RHS' : 'LHS');
+    sessionStorage.removeItem('highlights');
 
     // Finally toggle to the other side
     toggleSide();
@@ -470,6 +483,13 @@ const InductionRacket = () => {
           fields[showSide] = sideArray;
           return fields;
         });
+
+        // Update the Current LHS/RHS field to show the newly generated expression
+        if (showSide === "LHS") {
+          setLhsValue(fullRacket.racket || "");
+        } else {
+          setRhsValue(fullRacket.racket || "");
+        }
 
         // Unbind the footer after successful generation to reset UI state
         if (isBound) {
@@ -860,6 +880,8 @@ const InductionRacket = () => {
                 const leapR = engineSetup.leap.RHS || {};
 
                 // Set base case premises
+                // DEBUG LOG: Highlight initialization
+                console.log('[INIT] Setting base premises - LHS jsonTree:', baseL.jsonTree, 'RHS jsonTree:', baseR.jsonTree);
                 setBasePremises({
                   LHS: {
                     racket: baseL.racket || formValues.lHSGoal,
@@ -878,6 +900,8 @@ const InductionRacket = () => {
                 });
 
                 // Set leap case premises
+                // DEBUG LOG: Highlight initialization
+                console.log('[INIT] Setting leap premises - LHS jsonTree:', leapL.jsonTree, 'RHS jsonTree:', leapR.jsonTree);
                 setLeapPremises({
                   LHS: {
                     racket: leapL.racket || '',
@@ -1021,6 +1045,13 @@ const InductionRacket = () => {
             };
           });
 
+          // Update the Current LHS/RHS field to show the newly generated expression
+          if (showSide === "LHS") {
+            setLhsValue(racketStr || "");
+          } else {
+            setRhsValue(racketStr || "");
+          }
+
           // Unbind the footer
           setIsBound(false);
           setUserRow({ num: "" });
@@ -1106,6 +1137,11 @@ const InductionRacket = () => {
         ? (leftPremise && (leftPremise.selectedNode ?? leftPremise.startPosition)) ?? 0
         : (rightPremise && (rightPremise.selectedNode ?? rightPremise.startPosition)) ?? 0)
       : ((field && (field.selectedNode ?? field.startPosition)) ?? 0);
+
+    // DEBUG LOG: Highlight rendering
+    if (isPremise) {
+      console.log('[RENDER] Premise', side, 'startPosition:', startPosition, 'leftPremise:', leftPremise, 'rightPremise:', rightPremise);
+    }
 
     return (
       <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? "premise" : `${side}-field-${padIndex}`}>
@@ -1227,11 +1263,11 @@ const InductionRacket = () => {
           onSubmit={handleSubmit}
         >
           <div className="form-top-section">
-            <Row className="page-header-row">
-              <Col>
-                <h1>Induction: Racket</h1>
+            <Row className="page-header-row" style={{ alignItems: 'center' }}>
+              <Col xs="auto">
+                <h1 style={{ marginBottom: 0 }}>Induction: Racket</h1>
               </Col>
-              <Col className="check-row">
+              <Col xs="auto" className="check-row">
                 <Form.Check
                   type="radio"
                   id="integers"
@@ -1251,10 +1287,7 @@ const InductionRacket = () => {
                   disabled
                 />
               </Col>
-            </Row>
-
-            <Row>
-              <Form.Group as={Col} md="3" className="er-proof-name">
+              <Form.Group as={Col} md="auto" className="er-proof-name">
                 <Form.Floating className="mb-3">
                   <Form.Control
                     id="eRProofName"
@@ -1280,7 +1313,7 @@ const InductionRacket = () => {
                   </Form.Control.Feedback>
                 </Form.Floating>
               </Form.Group>
-              <Form.Group as={Col} md="3" className="er-proof-tag">
+              <Form.Group as={Col} md="auto" className="er-proof-tag">
                 <Form.Floating className="mb-3">
                   <Form.Control
                     id="eRProofTag"
@@ -1304,7 +1337,7 @@ const InductionRacket = () => {
                   </Form.Control.Feedback>
                 </Form.Floating>
               </Form.Group>
-              <Form.Group as={Col} md="1" className="er-induction-variable">
+              <Form.Group as={Col} md="auto" className="er-induction-variable">
                 <Form.Floating className="mb-3">
                   <Form.Control
                     id="eRInductionVariable"
@@ -1330,7 +1363,7 @@ const InductionRacket = () => {
                   </Form.Control.Feedback>
                 </Form.Floating>
               </Form.Group>
-              <Form.Group as={Col} md="1" className="er-induction-value">
+              <Form.Group as={Col} md="auto" className="er-induction-value">
                 <Form.Floating className="mb-3">
                   <Form.Control
                     id="eRInductionValue"
@@ -1356,7 +1389,7 @@ const InductionRacket = () => {
                   </Form.Control.Feedback>
                 </Form.Floating>
               </Form.Group>
-              <Form.Group as={Col} md="1" className="er-leap-variable">
+              <Form.Group as={Col} md="auto" className="er-leap-variable">
                 <Form.Floating className="mb-3">
                   <Form.Control
                     id="eRLeapVariable"
@@ -1382,30 +1415,10 @@ const InductionRacket = () => {
                   </Form.Control.Feedback>
                 </Form.Floating>
               </Form.Group>
-              <Dropdown
-                as={Col}
-                className="d-inline proof-dropdown-btn proof-utilities"
-              >
-                <Dropdown.Toggle id="dropdown-autoclose-true" style={{ minWidth: '240px' }}>
-                  Proof Utilities
-                </Dropdown.Toggle>
-
-                <Dropdown.Menu style={{ minWidth: '240px' }}>
-                  <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">
-                    Definitions
-                  </Dropdown.Item>
-                  <Dropdown.Item onClick={toggleOffcanvas} href="#">
-                    View Rule Set
-                  </Dropdown.Item>
-                  <Dropdown.Item onClick={checkCurrentProofStatus} href="#">
-                    Check Current Proof
-                  </Dropdown.Item>
-                </Dropdown.Menu>
-              </Dropdown>
             </Row>
 
             <Row className="g-5">
-              <Form.Group as={Col} md="6" className="er-proof-goal-lhs">
+              <Form.Group as={Col} md="4" className="er-proof-goal-lhs" style={{ marginLeft: '450px' }}>
                 <Form.Floating className="mb-3">
                   <Form.Control
                     id="eRProofLHSGoal"
@@ -1428,7 +1441,7 @@ const InductionRacket = () => {
                   </Form.Control.Feedback>
                 </Form.Floating>
               </Form.Group>
-              <Form.Group as={Col} md="6" className="er-proof-goal-rhs">
+              <Form.Group as={Col} md="4" className="er-proof-goal-rhs">
                 <Form.Floating className="mb-3">
                   <Form.Control
                     id="eRProofRHSGoal"
@@ -1453,9 +1466,9 @@ const InductionRacket = () => {
               </Form.Group>
             </Row>
 
-            {!isAnchor && (
+            {(!proofStarted || !isAnchor) && (
               <Row className="g-5">
-                <Form.Group as={Col} md="5" className="er-inductive-hypothesis-lhs">
+                <Form.Group as={Col} md="4" className="er-inductive-hypothesis-lhs" style={{ marginLeft: '450px' }}>
                   <Form.Floating className="mb-3">
                     <Form.Control
                       id="eRInductiveHypothesisLHS"
@@ -1468,10 +1481,7 @@ const InductionRacket = () => {
                     <label htmlFor="eRInductiveHypothesisLHS">IH LHS</label>
                   </Form.Floating>
                 </Form.Group>
-                <Col md="2" className="d-flex align-items-center justify-content-center">
-                  <span style={{ fontSize: '34px' }}>=</span>
-                </Col>
-                <Form.Group as={Col} md="5" className="er-inductive-hypothesis-rhs">
+                <Form.Group as={Col} md="4" className="er-inductive-hypothesis-rhs">
                   <Form.Floating className="mb-3">
                     <Form.Control
                       id="eRInductiveHypothesisRHS"
@@ -1487,11 +1497,12 @@ const InductionRacket = () => {
               </Row>
             )}
 
-            <Row className="er-current-state">
+            <Row className="er-current-state" style={{ alignItems: 'center', position: 'relative' }}>
               <Form.Group
                 as={Col}
-                md="5"
+                md="4"
                 className={`er-proof-current-lhs ${showSide === "LHS" ? "active" : ""}`}
+                style={{ marginLeft: '450px' }}
               >
                 <Form.Floating className="mb-3">
                   <Form.Control
@@ -1500,17 +1511,8 @@ const InductionRacket = () => {
                     type="text"
                     placeholder="Current LHS"
                     value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')}
-                    onChange={(e) => setLhsValue(e.target.value)}
-                    onFocus={(e) => {
-                      if (showSide !== "LHS") {
-                        e.target.blur();
-                        return;
-                      }
-                      if (!lhsValue && proofStarted && (leftPremise?.racket || currentLHS)) {
-                        setLhsValue(leftPremise?.racket || currentLHS);
-                      }
-                    }}
-                    style={{ cursor: showSide === "LHS" ? "text" : "not-allowed" }}
+                    readOnly
+                    style={{ cursor: "not-allowed" }}
                   />
                   <label htmlFor="eRProofCurrentLHS">Current LHS</label>
                 </Form.Floating>
@@ -1518,7 +1520,7 @@ const InductionRacket = () => {
 
               <Form.Group
                 as={Col}
-                md="5"
+                md="4"
                 className={`er-proof-current-rhs ${showSide === "RHS" ? "active" : ""}`}
               >
                 <Form.Floating className="mb-3">
@@ -1528,21 +1530,14 @@ const InductionRacket = () => {
                     type="text"
                     placeholder="Current RHS"
                     value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')}
-                    onChange={(e) => setRhsValue(e.target.value)}
-                    onFocus={(e) => {
-                      if (showSide !== "RHS") {
-                        e.target.blur();
-                        return;
-                      }
-                      if (!rhsValue && proofStarted && (rightPremise?.racket || currentRHS)) {
-                        setRhsValue(rightPremise?.racket || currentRHS);
-                      }
-                    }}
-                    style={{ cursor: showSide === "RHS" ? "text" : "not-allowed" }}
+                    readOnly
+                    style={{ cursor: "not-allowed" }}
                   />
                   <label htmlFor="eRProofCurrentRHS">Current RHS</label>
                 </Form.Floating>
               </Form.Group>
+              
+              {!proofStarted && (
               <Col md="2" className="d-flex align-items-center">
                 {proofStatus[isAnchor ? 'base' : 'leap'] && (
                   <span
@@ -1558,6 +1553,7 @@ const InductionRacket = () => {
                   </span>
                 )}
               </Col>
+              )}
             </Row>
 
             {!isAnchor && (
@@ -1577,32 +1573,45 @@ const InductionRacket = () => {
             ></Form.Text> )}
           </div>
 
-          <div className="form-bottom-part">
-
-            <Row className="switch-btn-wrap" style={{ marginTop: '380.5px' }}>
-              <Col>
+          {proofStarted && (
+            <>
+              <div style={{ position: 'fixed', left: '10px', top: '215px', zIndex: 9999, color: '#F2A007', fontWeight: 'bold', fontSize: '20px' }}>
+                CURRENT = {showSide}
+              </div>
+              <div style={{ position: 'fixed', left: '10px', top: '245px', zIndex: 9999 }}>
                 <Button
-                  variant="secondary"
                   size="lg"
                   className="switch-btn"
                   onClick={handleToggleSide}
+                  style={{ backgroundImage: 'linear-gradient(135deg, #07294d 0, #006298 100%)', color: '#ffffff', borderColor: 'transparent' }}
                 >
                   {showSide === "LHS"
                     ? "Switch to Right Hand Side ⋙"
                     : "⋘ Switch to Left Hand Side"}
                 </Button>
-              </Col>
-              <Col>
+              </div>
+              <div style={{ position: 'fixed', right: '10px', top: '215px', zIndex: 9999, color: '#F2A007', fontWeight: 'bold', fontSize: '20px' }}>
+                CURRENT = {isAnchor ? "BASE" : "LEAP"}
+              </div>
+              <div style={{ position: 'fixed', right: '10px', top: '245px', zIndex: 9999 }}>
                 <Button
-                  variant="secondary"
                   size="lg"
                   className="switch-btn"
-                  onClick={() => setIsAnchor((prev) => !prev)}
+                  onClick={() => {
+                    setIsAnchor((prev) => !prev);
+                    // Clear Current LHS/RHS so they update to the new case's premise
+                    setLhsValue('');
+                    setRhsValue('');
+                  }}
+                  style={{ backgroundImage: 'linear-gradient(135deg, #07294d 0, #006298 100%)', color: '#ffffff', borderColor: 'transparent' }}
                 >
                   {isAnchor ? "Switch to Leap Case" : "Switch to Base Case"}
                 </Button>
-              </Col>
-            </Row>
+              </div>
+            </>
+          )}
+
+          <div className="form-bottom-part">
 
             {!proofStarted && 
               !isGoalChecked[showSide]?.LeapGoal &&
@@ -1633,6 +1642,26 @@ const InductionRacket = () => {
           </div>
         </Form>
       </Container>
+      
+      <div style={{ position: 'fixed', right: '375px', top: '65px', zIndex: 9999 }}>
+        <Dropdown className="proof-dropdown-btn proof-utilities">
+          <Dropdown.Toggle id="dropdown-autoclose-true" style={{ minWidth: '200px' }}>
+            Proof Utilities
+          </Dropdown.Toggle>
+
+          <Dropdown.Menu style={{ minWidth: '200px' }}>
+            <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">
+              Definitions
+            </Dropdown.Item>
+            <Dropdown.Item onClick={toggleOffcanvas} href="#">
+              View Rule Set
+            </Dropdown.Item>
+            <Dropdown.Item onClick={checkCurrentProofStatus} href="#">
+              Check Current Proof
+            </Dropdown.Item>
+          </Dropdown.Menu>
+        </Dropdown>
+      </div>
       
       {proofStarted && (
         <div 
@@ -1739,6 +1768,7 @@ const InductionRacket = () => {
             <Col md="3" className="rules-btn-grp">
               <Button
                 className="orange-btn delete-btn"
+                disabled={!isBound}
                 onClick={async () => {
                   const caseKey = isAnchor ? 'base' : 'leap';
                   setProofStatus(prev => ({ ...prev, [caseKey]: null }));
