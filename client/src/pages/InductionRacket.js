@@ -165,11 +165,14 @@ const InductionRacket = () => {
   const checkCurrentProofStatus = async () => {
     try {
       const caseName = isAnchor ? 'base' : 'leap';
+      console.log('[CHECK PROOF] Checking case:', caseName);
       const result = await inductionService.checkCompletion(caseName);
+      console.log('[CHECK PROOF] Result:', result);
       
       const status = result.isComplete 
         ? { state: "complete", label: result.label }
         : { state: "incomplete", label: result.label };
+      console.log('[CHECK PROOF] Setting status:', status);
       setProofStatus(prev => ({ ...prev, [caseName]: status }));
     } catch (error) {
       console.error('Error checking proof completion:', error);
@@ -524,8 +527,6 @@ const InductionRacket = () => {
             selectedNode: previousStartPosition,
             deleted: false
           };
-
-          console.log('[handleGenerateAndCheck] Created newField:', { rule: newField.rule, startPosition: newField.startPosition, selectedNode: newField.selectedNode, side: showSide });
 
           const sideArray = fields[showSide] || [];
           const hasMatchingField = sideArray.some((field) => (
@@ -1619,24 +1620,6 @@ const InductionRacket = () => {
                   <label htmlFor="eRProofCurrentRHS">Current RHS</label>
                 </Form.Floating>
               </Form.Group>
-              
-              {!proofStarted && (
-              <Col md="2" className="d-flex align-items-center">
-                {proofStatus[isAnchor ? 'base' : 'leap'] && (
-                  <span
-                    style={{
-                      fontWeight: "700",
-                      color: proofStatus[isAnchor ? 'base' : 'leap'].state === "complete" ? "green" : "red",
-                      fontSize: "24px"
-                    }}
-                  >
-                    {proofStatus[isAnchor ? 'base' : 'leap'].state === "complete"
-                      ? `${proofStatus[isAnchor ? 'base' : 'leap'].label} COMPLETE`
-                      : `${proofStatus[isAnchor ? 'base' : 'leap'].label} INCOMPLETE`}
-                  </span>
-                )}
-              </Col>
-              )}
             </Row>
 
             {!isAnchor && (
@@ -1740,6 +1723,22 @@ const InductionRacket = () => {
           </Dropdown.Menu>
         </Dropdown>
       </div>
+      
+      {proofStarted && proofStatus[isAnchor ? 'base' : 'leap'] && (
+        <div style={{ position: 'fixed', right: '50px', top: '65px', zIndex: 9999 }}>
+          <span
+            style={{
+              fontWeight: "700",
+              color: proofStatus[isAnchor ? 'base' : 'leap'].state === "complete" ? "green" : "red",
+              fontSize: "28px"
+            }}
+          >
+            {proofStatus[isAnchor ? 'base' : 'leap'].state === "complete"
+              ? `${proofStatus[isAnchor ? 'base' : 'leap'].label} COMPLETE`
+              : `${proofStatus[isAnchor ? 'base' : 'leap'].label} INCOMPLETE`}
+          </span>
+        </div>
+      )}
       
       {proofStarted && (
         <div 
