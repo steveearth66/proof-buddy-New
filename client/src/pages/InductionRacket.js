@@ -1588,7 +1588,13 @@ const InductionRacket = () => {
                 className={`er-proof-current-lhs ${showSide === "LHS" ? "active" : ""}`}
                 style={{ marginLeft: '450px' }}
               >
-                <Form.Floating className="mb-3">
+                <Form.Floating 
+                  className="mb-3"
+                  style={{ 
+                    border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da',
+                    borderRadius: '0.375rem'
+                  }}
+                >
                   <Form.Control
                     id="eRProofCurrentLHS"
                     name="proofCurrentLHS"
@@ -1596,7 +1602,7 @@ const InductionRacket = () => {
                     placeholder="Current LHS"
                     value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')}
                     readOnly
-                    style={{ cursor: "not-allowed" }}
+                    style={{ cursor: "not-allowed", border: 'none' }}
                   />
                   <label htmlFor="eRProofCurrentLHS">Current LHS</label>
                 </Form.Floating>
@@ -1607,7 +1613,13 @@ const InductionRacket = () => {
                 md="4"
                 className={`er-proof-current-rhs ${showSide === "RHS" ? "active" : ""}`}
               >
-                <Form.Floating className="mb-3">
+                <Form.Floating 
+                  className="mb-3"
+                  style={{ 
+                    border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da',
+                    borderRadius: '0.375rem'
+                  }}
+                >
                   <Form.Control
                     id="eRProofCurrentRHS"
                     name="proofCurrentRHS"
@@ -1615,7 +1627,7 @@ const InductionRacket = () => {
                     placeholder="Current RHS"
                     value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')}
                     readOnly
-                    style={{ cursor: "not-allowed" }}
+                    style={{ cursor: "not-allowed", border: 'none' }}
                   />
                   <label htmlFor="eRProofCurrentRHS">Current RHS</label>
                 </Form.Floating>
