@@ -36,8 +36,8 @@ export const useDynamicHeight = (dependencies = []) => {
     const floatingFooterHeight = floatingFooter ? floatingFooter.offsetHeight : 120; // fallback to default
     
     // Calculate available height for the scrollable container
-    // Add some padding (40px) to provide space between content and footer
-    const calculated = window.innerHeight - headerHeight - formTopSectionHeight - floatingFooterHeight - 40;
+    // Add some padding (80px) to provide space between content and footer and prevent scrollbar arrows from being hidden
+    const calculated = window.innerHeight - headerHeight - formTopSectionHeight - floatingFooterHeight - 80;
     
     setAvailableHeight(Math.max(200, calculated)); // Minimum height of 200px
   }, [...depsArray]);
