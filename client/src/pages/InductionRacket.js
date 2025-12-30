@@ -281,7 +281,6 @@ const InductionRacket = () => {
    */
   const loadProofLinesFromDatabase = useCallback(async () => {
     try {
-      console.log('[loadProofLines] Fetching proof lines from database...');
       const proofLines = await inductionService.getProofLines();
       
       // Build racketRuleFields from database proof lines
@@ -370,18 +369,30 @@ const InductionRacket = () => {
    * Toggle between base and leap cases - state already contains both cases
    */
   const handleToggleCase = useCallback(() => {
-    console.log('[TOGGLE CASE] Switching from', isAnchor ? 'base' : 'leap');
-    
     // Toggle the case - baseRacketFields and leapRacketFields are separate in state
-    setIsAnchor(prev => !prev);
+    const newIsAnchor = !isAnchor;
+    setIsAnchor(newIsAnchor);
     
-    // Clear Current LHS/RHS so they update to the new case's premise
-    setLhsValue('');
-    setRhsValue('');
+    // Update Current LHS/RHS to match the new case's last non-empty line (or premise)
+    const targetFields = newIsAnchor ? baseRacketFields : leapRacketFields;
+    const targetPremises = newIsAnchor ? basePremises : leapPremises;
+    const lhsLines = targetFields.LHS || [];
+    const rhsLines = targetFields.RHS || [];
+    
+    // Find last non-empty line (skip trailing blank)
+    const lastLhsLine = lhsLines.length > 0 && lhsLines[lhsLines.length - 1].racket === '' 
+      ? (lhsLines.length > 1 ? lhsLines[lhsLines.length - 2] : null)
+      : (lhsLines.length > 0 ? lhsLines[lhsLines.length - 1] : null);
+    const lastRhsLine = rhsLines.length > 0 && rhsLines[rhsLines.length - 1].racket === '' 
+      ? (rhsLines.length > 1 ? rhsLines[rhsLines.length - 2] : null)
+      : (rhsLines.length > 0 ? rhsLines[rhsLines.length - 1] : null);
+    
+    setLhsValue(lastLhsLine?.racket || targetPremises.LHS?.racket || '');
+    setRhsValue(lastRhsLine?.racket || targetPremises.RHS?.racket || '');
     
     // No database reload - state already contains both base and leap cases
     // Reloading would reset any highlighting changes made by clicking (not applying rules)
-  }, [isAnchor]);
+  }, [isAnchor, baseRacketFields, leapRacketFields, basePremises, leapPremises]);
 
   /**
    * Unbind footer from current proof line.
@@ -485,8 +496,6 @@ const InductionRacket = () => {
         startPosition: previousStartPosition,
         selectedNode: previousStartPosition
       };
-
-      console.log('[handleGenerateAndCheck] Sending payload:', { previousStartPosition, selectedNode: previousStartPosition, rule: ruleFromFooter, side: showSide });
 
       // Reset status when new line generated
       const caseKey = isAnchor ? 'base' : 'leap';
@@ -654,7 +663,6 @@ const InductionRacket = () => {
       });
       unbindFooter();
       clearValidationErrors();
-      console.log(`[Case switched to ${isAnchor ? 'base' : 'leap'}]`);
     }
   }, [isAnchor, proofStarted, unbindFooter, clearValidationErrors]);
 
@@ -955,8 +963,6 @@ const InductionRacket = () => {
                 const leapR = engineSetup.leap.RHS || {};
 
                 // Set base case premises
-                // DEBUG LOG: Highlight initialization
-                console.log('[INIT] Setting base premises - LHS jsonTree:', baseL.jsonTree, 'RHS jsonTree:', baseR.jsonTree);
                 setBasePremises({
                   LHS: {
                     racket: baseL.racket || formValues.lHSGoal,
@@ -975,8 +981,6 @@ const InductionRacket = () => {
                 });
 
                 // Set leap case premises
-                // DEBUG LOG: Highlight initialization
-                console.log('[INIT] Setting leap premises - LHS jsonTree:', leapL.jsonTree, 'RHS jsonTree:', leapR.jsonTree);
                 setLeapPremises({
                   LHS: {
                     racket: leapL.racket || '',
