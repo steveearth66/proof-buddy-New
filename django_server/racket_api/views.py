@@ -358,60 +358,69 @@ def get_user_proofs(request):
 @api_view(["GET"])
 def get_proof(request, proof_id):
     user = request.user
-    proof_data = user_proof(user, proof_id)
-    proof = load_proof(proof_data)
+    try:
+        proof_data = user_proof(user, proof_id)
+        proof = load_proof(proof_data)
 
-    frontend_json = {
-        "name": proof_data["name"],
-        "tag": proof_data["tag"],
-        "lHSGoal": proof_data["lhs"],
-        "rHSGoal": proof_data["rhs"],
-        "leftRacketsAndRules": [],
-        "rightRacketsAndRules": [],
-        "definitions": proof_data["definitions"],
-        "generics": proof_data["generics"],
-        "loadedInServer": True
-    }
+        frontend_json = {
+            "name": proof_data["name"],
+            "tag": proof_data["tag"],
+            "lHSGoal": proof_data["lhs"],
+            "rHSGoal": proof_data["rhs"],
+            "leftRacketsAndRules": [],
+            "rightRacketsAndRules": [],
+            "definitions": proof_data["definitions"],
+            "generics": proof_data["generics"],
+            "loadedInServer": True
+        }
 
-    leftIndex = rightIndex = 0
-    for line in proof_data["proofLines"]:
-        if line.pop("leftSide"):
-            line["jsonTree"] = makeJson(proof.LHS.proofLines[leftIndex].exprTree)
-            if line["rule"] == "Premise":
-                frontend_json["leftPremise"] = line
-                frontend_json["lHSGoal"] = line["racket"]
+        leftIndex = rightIndex = 0
+        for line in proof_data["proofLines"]:
+            if line.pop("leftSide"):
+                line["jsonTree"] = makeJson(proof.LHS.proofLines[leftIndex].exprTree)
+                if line["rule"] == "Premise":
+                    frontend_json["leftPremise"] = line
+                    frontend_json["lHSGoal"] = line["racket"]
+                else:
+                    frontend_json["leftRacketsAndRules"].append(line)
+                leftIndex += 1
             else:
-                frontend_json["leftRacketsAndRules"].append(line)
-            leftIndex += 1
-        else:
-            line["jsonTree"] = makeJson(proof.RHS.proofLines[rightIndex].exprTree)
-            if line["rule"] == "Premise":
-                frontend_json["rightPremise"] = line
-                frontend_json["rHSGoal"] = line["racket"]
+                line["jsonTree"] = makeJson(proof.RHS.proofLines[rightIndex].exprTree)
+                if line["rule"] == "Premise":
+                    frontend_json["rightPremise"] = line
+                    frontend_json["rHSGoal"] = line["racket"]
+                else:
+                    frontend_json["rightRacketsAndRules"].append(line)
+                rightIndex += 1
+        
+        for side in ("left", "right"):
+            if frontend_json.get(side + "Premise") is not None:
+                frontend_json[side + "RacketsAndRules"].append(
+                    {
+                        "racket": "",
+                        "jsonTree": {},
+                        "rule": "",
+                        "deleted": False,
+                        "errors": []
+                    }
+                )
             else:
-                frontend_json["rightRacketsAndRules"].append(line)
-            rightIndex += 1
-    
-    for side in ("left", "right"):
-        if frontend_json.get(side + "Premise") is not None:
-            frontend_json[side + "RacketsAndRules"].append(
-                {
-                    "racket": "",
-                    "jsonTree": {},
-                    "rule": "",
-                    "deleted": False,
-                    "errors": []
+                frontend_json[side + "Premise"] = {
+                    "racket": proof_data["lhs"] if side == "left" else proof_data["rhs"],
+                    "rule": "Premise",
+                    "startPosition": 0
                 }
-            )
-        else:
-            frontend_json[side + "Premise"] = {
-                "racket": proof_data["lhs"] if side == "left" else proof_data["rhs"],
-                "rule": "Premise",
-                "startPosition": 0
-            }
 
-    save_proof_to_cache(user, proof)
-    return Response(frontend_json, status=status.HTTP_200_OK)
+        save_proof_to_cache(user, proof)
+        return Response(frontend_json, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response(
+            {
+                "error": "incompatible_version",
+                "message": f"This proof was created with an incompatible version and cannot be loaded. Error: {str(e)}"
+            },
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
 
 @api_view(["GET"])

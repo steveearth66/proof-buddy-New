@@ -30,7 +30,7 @@ import ClickableRowNumber from "../components/ClickableRowNumber";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import { useDynamicHeight } from "../hooks/useDynamicHeight";
 import erService from "../services/erService";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import {
   ARROW_KEYS,
@@ -187,6 +187,7 @@ const ERRacket = () => {
   const [rightPremise, setRightPremise] = useState(INITIAL_PREMISE_STATE);
   const [loadedProof, setLoadedProof] = useState(null);
   const [isBound, setIsBound] = useState(false);
+  const navigate = useNavigate();
 
   const loadRacketProof = useCallback((loadedProof) => {
     if (loadedProof) {
@@ -228,6 +229,7 @@ const ERRacket = () => {
   const footerPadRef = useRef(null);
   const isProcessingRef = useRef(false);
   const isSubProcessingRef = useRef(false);
+  const loadErrorShownRef = useRef(false);
 
   const bindFooterToRow = useCallback((rowNum) => {
     const paddedRowNum = rowNum.toString().padStart(3, "0");
@@ -483,10 +485,23 @@ const ERRacket = () => {
   }, [currentLHS, currentRHS, racketRuleFields, formValues, leftPremise, rightPremise]);
 
   useEffect(() => {
-    if (location?.state?.id) {
-      erService.getRacketProof(location.state.id).then(setLoadedProof);
+    if (location?.state?.id && !loadErrorShownRef.current) {
+      erService.getRacketProof(location.state.id)
+        .then(setLoadedProof)
+        .catch((error) => {
+          if (!loadErrorShownRef.current) {
+            loadErrorShownRef.current = true;
+            console.error("Error loading proof:", error);
+            if (error.response?.data?.error === 'incompatible_version') {
+              alert(`Unable to load proof: ${error.response.data.message}\n\nThis proof may have been created with an older or incompatible version of Proof Buddy.`);
+            } else {
+              alert("An error occurred while loading the proof. It may be corrupted or from an incompatible version.");
+            }
+            navigate('/proofs', { replace: true });
+          }
+        });
     }
-  }, [location]);
+  }, [location, navigate]);
 
   useEffect(() => {
     if (loadedProof) {
@@ -669,7 +684,7 @@ const ERRacket = () => {
           <Definitions toggleDefinitionsWindow={toggleDefinitionsWindow} />
         )}
 
-        {proofComplete && <ProofComplete />}
+        {proofComplete && <ProofComplete onDismiss={() => setProofComplete(false)} />}
 
         {showSubstitution && (
           <Substitution

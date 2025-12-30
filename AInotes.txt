@@ -1,5 +1,15 @@
 notes for the AI; you should always keep this in mind when implementing anything in this proofbuddy project.
 
+HOW TO USE THESE NOTES:
+1. READ FIRST: General principles (Workflow fundamentals, Architecture boundaries, State management)
+2. READ SECOND: Most recent session summary (understand what was just fixed and why)
+3. REFERENCE AS NEEDED: Quick diagnostic patterns at end of recent sessions
+4. SKIP OR SKIM: Older session details unless investigating related bugs
+
+Focus on understanding PRINCIPLES and PATTERNS, not memorizing specific code changes.
+
+---
+
 You should take on the role of a paired programmer.  you may presume I am have expert level knowledge in math (especially proofs) and pedagogy and in python; however, i only have very rudimentary understanding of frontend (html, css, javascript, react, django, sql, database) so those aspects will have to be explained more fully.
 
 The ERracket mode works for the most part. So, it is critical that you not make any changes there, at least not without alerting me first to exactly what you are doing so we can make sure you don't break something which functions.
@@ -9,6 +19,7 @@ The goal is to get the Induction mode to be working, so you should be looking at
 also, you should always stay within the expected structures that have been defined.  So, for example, the backend works primarily with trees, so do NOT try to work with them as strings.
 When debugging, you may print to the browser dev console log as well as to the backend powershell terminal; however, you should put in a comment in the source code next to each print to make it easier to find and remove them when have found the error and no longer need them. make sure when you remove them to do so carefully and not accidentally delete any adjacent code/parentheses. also do not create any consecutive blank lines 
 You (the AI) should never add into this AInotes.txt file of your own accord mid-session; instead, we will wait until the session is complete and at the end I (the human user) will have you create a summary and approve it to be appended into this prompt file.
+when trying to fix bugs, don't get fixated on the symptoms, look for the root cause
 
 Session from 2025-12-26: selectedNode Implementation
 
@@ -235,3 +246,83 @@ Session 2025-12-28 — Highlighting Persistence Issues (INCOMPLETE - NEEDS REWOR
 - Component reuse in React (via keys) is subtle - same key = same instance with preserved state
 - Debugging highlighting requires understanding the full data flow: user click → component state → sessionStorage → parent state → props → render
 - Layout issues (overlaps, z-index) can block functionality testing - fix layout first, then test logic
+
+Session 2025-12-29 — Highlighting & Rendering Architecture Fix
+
+**CORE PROBLEM:**
+Highlighting disappeared on toggle. Worse: after toggling LHS/RHS, all LHS lines displayed as premise instead of actual expressions. RHS worked fine.
+
+**WHY IT TOOK SO LONG TO DIAGNOSE:**
+
+The symptoms were misleading:
+- RHS worked correctly → masked that the underlying architecture was broken
+- Database had `selectedNode` field from previous session → seemed like persistence was handled
+- Logging showed racket strings loading correctly → distracted from the real issue
+- Seemed like a state management or data retrieval bug → led down wrong debugging paths
+
+**THE TRUE ROOT CAUSE (Architecture Mismatch):**
+
+Frontend renders using `jsonTree` objects (not racket strings). Database stored racket strings but NOT jsonTree. 
+
+When loading from database:
+- Code had fallback: `field.jsonTree || jsonTreeRep[side]`
+- `field.jsonTree` was always undefined (not in database)
+- Fell back to `jsonTreeRep[side]` which was a shared tree that got overwritten
+- `jsonTreeRep['LHS']` had premise tree → all LHS lines showed premise
+- `jsonTreeRep['RHS']` had recent tree from rule applications → accidentally worked
+
+Highlighting issue:
+- Database reload happened on EVERY toggle (side or case)
+- User clicks updated PersistentPad internal state only
+- Click handlers (`handleFieldHighlight`, `handlePremiseHighlight`) were no-ops
+- Toggle → database reload → lost all click data → highlighting reset
+
+**THE SOLUTION PATTERN:**
+
+1. Backend API must parse racket strings → jsonTree before sending to frontend
+2. Frontend field objects must include jsonTree from API response
+3. Database reload is ONLY for: proof start, page refresh
+4. Database reload is NEVER for: side toggle, case toggle (state already has both sides/cases)
+5. Click handlers must update parent React state (premises and proof lines separately)
+6. Premises and proof lines = different state trees (base vs leap = different trees)
+
+**KEY ARCHITECTURAL PRINCIPLES:**
+
+**Database vs React State:**
+- Database = persistence across page refreshes
+- React state = authoritative during active session
+- Never reload database when React state already contains needed data
+- Reloading database on every toggle loses UI state (clicks, selections)
+
+**Data Flow:**
+- Database stores persistence data (racket, selectedNode)
+- Backend API enriches with computed data (jsonTree from parsing racket)
+- Frontend receives complete objects, stores in React state
+- User interactions update React state only
+- Toggles use existing React state without database round-trips
+
+**Separation of Concerns:**
+- Premises ≠ proof lines (different state)
+- Base case ≠ leap case (different state)
+- LHS ≠ RHS (different sides of same state)
+- Component internal state ≠ parent state (clicks must update parent)
+
+**QUICK DIAGNOSTIC PATTERNS FOR FUTURE SESSIONS:**
+
+When highlighting breaks:
+1. Check if database reload happening on toggles (wrong scope)
+2. Verify click handlers update parent state (not just component)
+3. Confirm premises and proof lines tracked separately
+
+When rendering shows wrong/stale content:
+1. Check if display data (jsonTree) is in API response
+2. Look for fallback patterns that mask missing data
+3. Verify backend computes display data from persistence data
+
+When toggle behavior is wrong:
+1. Remember: React state already has both sides/cases loaded
+2. Only reload database on proof start or page refresh
+3. Avoid useEffect with state dependencies that trigger on every click
+
+**DEBUG LOG CLEANUP LESSON:**
+Bulk removal sometimes causes mysterious errors. Remove logs incrementally, testing after each removal. Include full context (3+ lines) to avoid deleting adjacent code.
