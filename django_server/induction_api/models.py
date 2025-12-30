@@ -102,6 +102,12 @@ class InductionProofLine(models.Model):
         indexes = [
             models.Index(fields=['proof', 'case', 'side', 'line_number']),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['proof', 'case', 'side', 'line_number'],
+                name='unique_proof_line'
+            ),
+        ]
     
     def __str__(self):
         return f"{self.case} {self.side} Line {self.line_number}: {self.racket[:50]}"

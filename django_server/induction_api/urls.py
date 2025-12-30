@@ -14,4 +14,6 @@ urlpatterns = [
     path("check-goal", views.check_goal, name="check_goal"),
     path("substitution", views.substitution, name="substitution"),
     path("check-completion", views.check_completion, name="check_completion"),
+    path("get-proof-lines", views.get_proof_lines, name="get_proof_lines"),
+    path("clear-all-proof-lines", views.clear_all_proof_lines, name="clear_all_proof_lines"),
 ]

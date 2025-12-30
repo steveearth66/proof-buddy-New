@@ -110,9 +110,6 @@ def start_induction_proof(request):
     user = request.user
     json_data = request.data
     
-    print(f"User: {user.username}")
-    print("Received induction data:", json_data)
-    
     try:
         # Extract all data
         side = json_data.get('side', 'LHS')
@@ -129,8 +126,6 @@ def start_induction_proof(request):
         is_anchor = json_data.get('is_anchor', False)
         inductive_hypothesis_lhs = json_data.get('inductive_hypothesis_lhs', '')
         inductive_hypothesis_rhs = json_data.get('inductive_hypothesis_rhs', '')
-        
-        print(f"Processing induction proof for user: {user.username}")
         
         # Validate required fields
         if not all([proof_name, induction_variable, anchor_value is not None, leap_variable]):
@@ -233,8 +228,6 @@ def start_induction_proof(request):
             'is_valid': True,
             'definition': [generic_definition],
         }
-        
-        print("Proof data for serializer:", proof_data)
         
         serializer = InductionProofSerializer(data=proof_data)
         
@@ -390,6 +383,8 @@ def reload_proof_lines_from_db(proof, proof_id):
         # Get all proof lines for this proof, ordered by line number
         lines = InductionProofLine.objects.filter(proof_id=proof_id).order_by('case', 'side', 'line_number')
         
+        print(f"[RELOAD PROOF LINES] Loading {lines.count()} proof lines from database")
+        
         for line in lines:
             # Determine which ERProof to add to
             if line.case == 'base':
@@ -400,8 +395,12 @@ def reload_proof_lines_from_db(proof, proof_id):
             # Create ERProofLine and add to target
             proof_line = ERProofLine(line.racket, target.debug, target.ruleSet, generics=target.generics)
             proof_line.appliedRule = line.rule
+            proof_line.appliedRuleNodeId = line.selected_node  # Restore highlighting position
             target.proofLines.append(proof_line)
+            
+            print(f"[RELOAD] Restored {line.case} {line.side} line {line.line_number}: selectedNode={line.selected_node}")
     except Exception as e:
+        print(f"[RELOAD ERROR] {str(e)}")
         pass
 
 
@@ -414,16 +413,19 @@ def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, li
         proof = InductionProof.objects.get(id=proof_id)
         # Use selected_node if provided, otherwise default to start_position
         node_id = selected_node if selected_node is not None else start_position
-        InductionProofLine.objects.create(
+        # Use update_or_create to avoid duplicates
+        InductionProofLine.objects.update_or_create(
             proof=proof,
             case=case,
             side=side,
-            racket=racket,
-            rule=rule or '',
-            substitution=substitution or '',
-            start_position=start_position,
-            selected_node=node_id,
-            line_number=line_number
+            line_number=line_number,
+            defaults={
+                'racket': racket,
+                'rule': rule or '',
+                'substitution': substitution or '',
+                'start_position': start_position,
+                'selected_node': node_id,
+            }
         )
     except InductionProof.DoesNotExist:
         pass  # Proof doesn't exist in DB yet
@@ -658,6 +660,9 @@ def apply_rule(request):
             rule_with_sub = last_line.appliedRule or ''
             if substitution:
                 rule_with_sub = f"{rule_with_sub} {substitution}".strip()
+            
+            calculated_line_number = len(target.proofLines) - 1
+            
             save_proof_line_to_db(
                 proof_id=proof_id,
                 case=case,
@@ -665,7 +670,7 @@ def apply_rule(request):
                 racket=racket_str,
                 rule=rule_with_sub,
                 start_position=startPosition,
-                line_number=len(target.proofLines) - 1,
+                line_number=calculated_line_number,
                 substitution=substitution or '',
                 selected_node=selectedNode
             )
@@ -860,3 +865,103 @@ def check_completion(request):
         }, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["GET"])
+def get_proof_lines(request):
+    """
+    Get all proof lines from the database for the current proof.
+    Returns: {
+        base: {
+            LHS: [{ racket, rule, startPosition, selectedNode, lineNumber }, ...],
+            RHS: [{ racket, rule, startPosition, selectedNode, lineNumber }, ...]
+        },
+        leap: {
+            LHS: [{ racket, rule, startPosition, selectedNode, lineNumber }, ...],
+            RHS: [{ racket, rule, startPosition, selectedNode, lineNumber }, ...]
+        }
+    }
+    """
+    user = request.user
+    _, proof_id = get_or_set_induction_obj(user)
+    
+    if proof_id is None:
+        return Response({
+            "base": {"LHS": [], "RHS": []},
+            "leap": {"LHS": [], "RHS": []}
+        }, status=status.HTTP_200_OK)
+    
+    try:
+        from .models import InductionProofLine
+        
+        # Get all proof lines for this proof
+        lines = InductionProofLine.objects.filter(proof_id=proof_id).order_by('case', 'side', 'line_number')
+        
+        # Organize by case and side
+        result = {
+            'base': {'LHS': [], 'RHS': []},
+            'leap': {'LHS': [], 'RHS': []}
+        }
+        
+        for line in lines:
+            # Parse racket string to jsonTree so frontend can render it
+            from expression_tree.Parser import parse_to_tree
+            try:
+                tree = parse_to_tree(line.racket) if line.racket else None
+                json_tree = makeJson(tree) if tree else {}
+            except Exception as parse_error:
+                print(f"[get_proof_lines] Failed to parse line {line.line_number}: {parse_error}")
+                json_tree = {}
+            
+            line_data = {
+                'racket': line.racket,
+                'rule': line.rule,
+                'startPosition': line.start_position,
+                'selectedNode': line.selected_node,
+                'lineNumber': line.line_number,
+                'substitution': line.substitution,
+                'jsonTree': json_tree  # Add parsed tree for rendering
+            }
+            result[line.case][line.side].append(line_data)
+        
+        return Response(result, status=status.HTTP_200_OK)
+    except Exception as e:
+        print(f"Error in get_proof_lines: {str(e)}")
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["DELETE"])
+def clear_all_proof_lines(request):
+    """
+    Delete all proof lines for the current proof from the database.
+    Useful for starting fresh without creating a new proof.
+    """
+    user = request.user
+    proof, proof_id = get_or_set_induction_obj(user)
+    
+    if proof_id is None:
+        return Response({"message": "No active proof to clear"}, status=status.HTTP_200_OK)
+    
+    try:
+        from .models import InductionProofLine
+        
+        # Delete all proof lines for this proof
+        deleted_count = InductionProofLine.objects.filter(proof_id=proof_id).delete()[0]
+        
+        # Clear the in-memory proof lines too
+        proof.baseCase.LHS.proofLines = []
+        proof.baseCase.RHS.proofLines = []
+        proof.leapStep.LHS.proofLines = []
+        proof.leapStep.RHS.proofLines = []
+        
+        save_induction_obj_to_cache(user, proof, proof_id)
+        
+        print(f"[CLEAR] Deleted {deleted_count} proof lines from database")
+        return Response({
+            "message": f"Cleared {deleted_count} proof lines",
+            "deleted_count": deleted_count
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        print(f"Error in clear_all_proof_lines: {str(e)}")
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+

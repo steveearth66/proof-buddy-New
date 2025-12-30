@@ -263,19 +263,6 @@ const InductionRacket = () => {
     return true;
   }, [showSide, lhsPadRefs, rhsPadRefs, racketRuleFields, clearValidationErrors]);
 
-  // Debug logging when side changes
-  useEffect(() => {
-    const sideFields = racketRuleFields[showSide] || [];
-    console.log(`[Side switched to ${showSide}] racketRuleFields:`, sideFields.map((f, i) => ({
-      index: i,
-      racket: (f?.racket || '').substring(0, 30),
-      rule: f?.rule,
-      startPosition: f?.startPosition,
-      selectedNode: f?.selectedNode,
-      hasSelectedNode: f?.selectedNode !== undefined
-    })));
-  }, [showSide, racketRuleFields]);
-
   // Control body overflow when proof is started
   useEffect(() => {
     if (proofStarted) {
@@ -288,109 +275,113 @@ const InductionRacket = () => {
     };
   }, [proofStarted]);
 
-  // Capture current selections before toggling sides and persist into state
+  /**
+   * Load proof lines from the database and populate racketRuleFields with highlighting data.
+   * This ensures that when switching sides/cases, the highlighting persists.
+   */
+  const loadProofLinesFromDatabase = useCallback(async () => {
+    try {
+      console.log('[loadProofLines] Fetching proof lines from database...');
+      const proofLines = await inductionService.getProofLines();
+      
+      // Build racketRuleFields from database proof lines
+      const buildFieldsFromLines = (lines) => {
+        if (!lines || lines.length === 0) {
+          return [EMPTY_INITIAL_FIELD];
+        }
+        
+        // Skip the premise (line 0) - it's displayed separately at the top
+        // racketRuleFields contains only the generated proof lines (1, 2, 3, ...)
+        const fields = lines
+          .filter(line => line.lineNumber > 0)
+          .sort((a, b) => a.lineNumber - b.lineNumber)  // Ensure correct order
+          .map(line => {
+            const field = {
+              racket: line.racket || '',
+              rule: line.rule || '',
+              startPosition: line.startPosition || 0,
+              selectedNode: line.selectedNode || 0,  // This is the key field for highlighting!
+              substitution: line.substitution || '',
+              jsonTree: line.jsonTree || {},  // Include jsonTree from backend for rendering
+              deleted: false
+            };
+            return field;
+          });
+        
+        // Always add empty field at the end
+        fields.push(EMPTY_INITIAL_FIELD);
+        return fields;
+      };
+      
+      // Build the new state
+      const newBaseLHS = buildFieldsFromLines(proofLines.base?.LHS || []);
+      const newBaseRHS = buildFieldsFromLines(proofLines.base?.RHS || []);
+      const newLeapLHS = buildFieldsFromLines(proofLines.leap?.LHS || []);
+      const newLeapRHS = buildFieldsFromLines(proofLines.leap?.RHS || []);
+      
+      // Update base case fields
+      setBaseRacketFields({
+        LHS: newBaseLHS,
+        RHS: newBaseRHS
+      });
+      
+      // Update leap case fields
+      setLeapRacketFields({
+        LHS: newLeapLHS,
+        RHS: newLeapRHS
+      });
+      
+      // Update premises with selectedNode from database (line 0)
+      // Only update if premise exists and selectedNode is valid
+      const baseLHSPremise = proofLines.base?.LHS?.find(l => l.lineNumber === 0);
+      const baseRHSPremise = proofLines.base?.RHS?.find(l => l.lineNumber === 0);
+      const leapLHSPremise = proofLines.leap?.LHS?.find(l => l.lineNumber === 0);
+      const leapRHSPremise = proofLines.leap?.RHS?.find(l => l.lineNumber === 0);
+      
+      if (baseLHSPremise || baseRHSPremise) {
+        setBasePremises(prev => ({
+          LHS: baseLHSPremise && prev.LHS ? { ...prev.LHS, selectedNode: baseLHSPremise.selectedNode || 0 } : prev.LHS,
+          RHS: baseRHSPremise && prev.RHS ? { ...prev.RHS, selectedNode: baseRHSPremise.selectedNode || 0 } : prev.RHS
+        }));
+      }
+      
+      if (leapLHSPremise || leapRHSPremise) {
+        setLeapPremises(prev => ({
+          LHS: leapLHSPremise && prev.LHS ? { ...prev.LHS, selectedNode: leapLHSPremise.selectedNode || 0 } : prev.LHS,
+          RHS: leapRHSPremise && prev.RHS ? { ...prev.RHS, selectedNode: leapRHSPremise.selectedNode || 0 } : prev.RHS
+        }));
+      }
+
+    } catch (error) {
+      console.error('[loadProofLines] Error loading proof lines:', error);
+      // Don't show error to user - this is a background operation
+    }
+  }, [setBaseRacketFields, setLeapRacketFields, setBasePremises, setLeapPremises]);
+
+  // Toggle sides - no database reload needed, state already has both sides
   const handleToggleSide = useCallback(() => {
-    // DEBUG LOG: Highlight toggle - FIRST LINE
-    console.log('[TOGGLE] ========== handleToggleSide CALLED ==========', 'showSide:', showSide);
-    
-    // Capture BOTH sides' premise and line selections before toggling
-    const lhsPremiseSelected = lhsPadRefs.current[0]?.getStartPosition?.() ?? 0;
-    const rhsPremiseSelected = rhsPadRefs.current[0]?.getStartPosition?.() ?? 0;
-    
-    console.log('[TOGGLE] Capturing selections - LHS premise:', lhsPremiseSelected, 'RHS premise:', rhsPremiseSelected);
-    
-    const setPremises = isAnchor ? setBasePremises : setLeapPremises;
-    
-    // Update both premises
-    setPremises(prev => ({ 
-      LHS: { ...prev.LHS, selectedNode: lhsPremiseSelected },
-      RHS: { ...prev.RHS, selectedNode: rhsPremiseSelected }
-    }));
-
-    // Capture proof line selections for both sides
-    const setFields = isAnchor ? setBaseRacketFields : setLeapRacketFields;
-    setFields(prev => {
-      const updated = { ...prev };
-      
-      // Capture LHS selections
-      const lhsArr = [...(prev.LHS || [])];
-      for (let i = 0; i < lhsArr.length; i++) {
-        const padIndex = i + 1;
-        const sel = lhsPadRefs.current[padIndex]?.getStartPosition?.() ?? lhsArr[i]?.selectedNode ?? 0;
-        lhsArr[i] = { ...lhsArr[i], selectedNode: sel };
-      }
-      updated.LHS = lhsArr;
-      
-      // Capture RHS selections
-      const rhsArr = [...(prev.RHS || [])];
-      for (let i = 0; i < rhsArr.length; i++) {
-        const padIndex = i + 1;
-        const sel = rhsPadRefs.current[padIndex]?.getStartPosition?.() ?? rhsArr[i]?.selectedNode ?? 0;
-        rhsArr[i] = { ...rhsArr[i], selectedNode: sel };
-      }
-      updated.RHS = rhsArr;
-      
-      return updated;
-    });
-
-    // Finally toggle to the other side
+    // Just toggle to the other side - state already contains both LHS and RHS data
     toggleSide();
-  }, [showSide, lhsPadRefs, rhsPadRefs, toggleSide, isAnchor, setBasePremises, setLeapPremises, setBaseRacketFields, setLeapRacketFields]);
+    
+    // No database reload - we want to preserve current UI state including any highlighting changes
+  }, [showSide, toggleSide]);
 
   /**
-   * Capture current selections before toggling between base and leap cases
+   * Toggle between base and leap cases - state already contains both cases
    */
   const handleToggleCase = useCallback(() => {
-    // Capture selections from both LHS and RHS for current case
-    const lhsRefs = lhsPadRefs;
-    const rhsRefs = rhsPadRefs;
-
-    // Capture premise selections for both sides
-    const lhsPremiseSelected = lhsRefs.current[0]?.getStartPosition?.() ?? 0;
-    const rhsPremiseSelected = rhsRefs.current[0]?.getStartPosition?.() ?? 0;
+    console.log('[TOGGLE CASE] Switching from', isAnchor ? 'base' : 'leap');
     
-    console.log('[TOGGLE CASE] Captured premise selections - LHS:', lhsPremiseSelected, 'RHS:', rhsPremiseSelected);
-    console.log('[TOGGLE CASE] Current case:', isAnchor ? 'base' : 'leap', '→ will save to', isAnchor ? 'basePremises' : 'leapPremises');
-    
-    const setPremises = isAnchor ? setBasePremises : setLeapPremises;
-    setPremises(prev => ({
-      LHS: { ...prev.LHS, selectedNode: lhsPremiseSelected },
-      RHS: { ...prev.RHS, selectedNode: rhsPremiseSelected }
-    }));
-
-    // Capture proof line selections for both sides
-    const setFields = isAnchor ? setBaseRacketFields : setLeapRacketFields;
-    setFields(prev => {
-      const updated = { ...prev };
-      
-      // Capture LHS selections
-      const lhsArr = [...(prev.LHS || [])];
-      for (let i = 0; i < lhsArr.length; i++) {
-        const padIndex = i + 1;
-        const sel = lhsRefs.current[padIndex]?.getStartPosition?.() ?? lhsArr[i]?.selectedNode ?? 0;
-        lhsArr[i] = { ...lhsArr[i], selectedNode: sel };
-      }
-      updated.LHS = lhsArr;
-      
-      // Capture RHS selections
-      const rhsArr = [...(prev.RHS || [])];
-      for (let i = 0; i < rhsArr.length; i++) {
-        const padIndex = i + 1;
-        const sel = rhsRefs.current[padIndex]?.getStartPosition?.() ?? rhsArr[i]?.selectedNode ?? 0;
-        rhsArr[i] = { ...rhsArr[i], selectedNode: sel };
-      }
-      updated.RHS = rhsArr;
-      
-      return updated;
-    });
-
-    // Finally toggle the case
+    // Toggle the case - baseRacketFields and leapRacketFields are separate in state
     setIsAnchor(prev => !prev);
     
     // Clear Current LHS/RHS so they update to the new case's premise
     setLhsValue('');
     setRhsValue('');
-  }, [isAnchor, lhsPadRefs, rhsPadRefs, setBasePremises, setLeapPremises, setBaseRacketFields, setLeapRacketFields]);
+    
+    // No database reload - state already contains both base and leap cases
+    // Reloading would reset any highlighting changes made by clicking (not applying rules)
+  }, [isAnchor]);
 
   /**
    * Unbind footer from current proof line.
@@ -412,9 +403,39 @@ const InductionRacket = () => {
 
   /**
    * Handle field highlighting change for proof lines.
+   * Updates the field's selectedNode so highlighting persists across toggles.
    */
-  const handleFieldHighlight = () => {
-    // No-op handler for PersistentPad - removed params to clean warnings
+  const handleFieldHighlight = (side, index, selectedNode) => {
+    const caseKey = isAnchor ? 'base' : 'leap';
+    const setFields = caseKey === 'base' ? setBaseRacketFields : setLeapRacketFields;
+    
+    setFields(prev => {
+      const updated = { ...prev };
+      if (updated[side] && updated[side][index]) {
+        updated[side][index] = {
+          ...updated[side][index],
+          selectedNode: selectedNode || 0
+        };
+      }
+      return updated;
+    });
+  };
+
+  /**
+   * Handle premise highlighting change.
+   * Updates the premise's selectedNode so highlighting persists across toggles.
+   */
+  const handlePremiseHighlight = (side, selectedNode) => {
+    const caseKey = isAnchor ? 'base' : 'leap';
+    const setPremises = caseKey === 'base' ? setBasePremises : setLeapPremises;
+    
+    setPremises(prev => ({
+      ...prev,
+      [side]: {
+        ...prev[side],
+        selectedNode: selectedNode || 0
+      }
+    }));
   };
 
   const handleGenerateAndCheck = async () => {
@@ -638,24 +659,28 @@ const InductionRacket = () => {
   }, [isAnchor, proofStarted, unbindFooter, clearValidationErrors]);
 
   useEffect(() => {
-    const removeBlankRackets = () => {
-      racketRuleFields.LHS.splice(-1);
-      racketRuleFields.RHS.splice(-1);
-    };
+    // Disabled: Confetti should only show when BOTH base AND leap cases are complete
+    // Currently this triggers when just one case/side matches, which is incorrect
+    // TODO: Re-enable when we have proper full proof completion detection
+    
+    // const removeBlankRackets = () => {
+    //   racketRuleFields.LHS.splice(-1);
+    //   racketRuleFields.RHS.splice(-1);
+    // };
 
-    const sendProofComplete = async () => {};
+    // const sendProofComplete = async () => {};
 
-    if (lhsValue !== "" && rhsValue !== "" && currentLHS !== "") {
-      if (currentLHS === currentRHS || currentLHS === rhsValue) {
-        removeBlankRackets();
-        setShowProofComplete(true);
-        setProofComplete(true);
-        sendProofComplete();
-        setTimeout(() => {
-          setShowProofComplete(false);
-        }, 5000);
-      }
-    }
+    // if (lhsValue !== "" && rhsValue !== "" && currentLHS !== "") {
+    //   if (currentLHS === currentRHS || currentLHS === rhsValue) {
+    //     removeBlankRackets();
+    //     setShowProofComplete(true);
+    //     setProofComplete(true);
+    //     sendProofComplete();
+    //     setTimeout(() => {
+    //       setShowProofComplete(false);
+    //     }, 5000);
+    //   }
+    // }
   }, [
     currentLHS,
     currentRHS,
@@ -978,6 +1003,11 @@ const InductionRacket = () => {
               }
 
               setProofStarted(true);
+              
+              // Load any existing proof lines from database to restore highlighting
+              setTimeout(() => {
+                loadProofLinesFromDatabase();
+              }, 100);
             } catch (err) {
               console.error('Engine setup failed:', err);
               toast.error('Failed to initialize induction engine');
@@ -1176,6 +1206,7 @@ const InductionRacket = () => {
     const jsonTree = isPremise
       ? (isLHS ? leftPremise?.jsonTree : rightPremise?.jsonTree)
       : (field.jsonTree || jsonTreeRep[side]);
+    
     const lineNum = isPremise ? 0 : index + 1;
     const ruleValue = isPremise ? "Premise" : field.rule;
     const rulePlaceholder = isPremise ? `${side} Premise` : `${side} Rule`;
@@ -1188,11 +1219,6 @@ const InductionRacket = () => {
         ? (leftPremise && (leftPremise.selectedNode ?? leftPremise.startPosition)) ?? 0
         : (rightPremise && (rightPremise.selectedNode ?? rightPremise.startPosition)) ?? 0)
       : ((field && (field.selectedNode ?? field.startPosition)) ?? 0);
-
-    // DEBUG LOG: Highlight rendering
-    if (isPremise) {
-      console.log('[RENDER] Premise', side, 'startPosition:', startPosition, 'leftPremise:', leftPremise, 'rightPremise:', rightPremise);
-    }
 
     return (
       <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? `premise-${caseType}-${side}` : `${side}-field-${padIndex}`}>
@@ -1213,7 +1239,7 @@ const InductionRacket = () => {
             jsonTree={jsonTree}
             lineNum={lineNum}
             startPosition={startPosition}
-            onHighlightChange={(selected) => handleFieldHighlight()}
+            onHighlightChange={(selected) => isPremise ? handlePremiseHighlight(side, selected) : handleFieldHighlight(side, index, selected)}
             ruleValue={ruleValue}
             onRuleChange={() => {}}
             isRuleReadOnly={true}
@@ -1262,6 +1288,8 @@ const InductionRacket = () => {
       const field = racketRuleFields[showSide][padIndex - 1];
       if (!field) return null;
 
+      const calculatedStartPosition = field.selectedNode || field.startPosition || 0;
+
       return (
         <PersistentPad
           ref={footerPadRef}
@@ -1270,7 +1298,7 @@ const InductionRacket = () => {
           side={showSide}
           jsonTree={field.jsonTree || jsonTreeRep[showSide]}
           lineNum={padIndex}
-          startPosition={0}
+          startPosition={calculatedStartPosition}
           tabIndex={0}
           ruleValue={footerRule}
           onRuleChange={e => setFooterRule(e.target.value.trim())}
@@ -1747,6 +1775,7 @@ const InductionRacket = () => {
                 ? null
                 : renderPersistentPadRow({
                   side: showSide,
+                  isPremise: false,
                   index,
                   field,
                   padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
