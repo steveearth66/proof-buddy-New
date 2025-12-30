@@ -22,7 +22,7 @@ LABEL_LIBRARY = [
     Label(r'^\($', Type.TEMP),
     Label(r'#t|#T', Type.BOOL),  # True boolean values
     Label(r'#f|#F', Type.BOOL),  # False boolean values
-    Label(r'(\d+)', Type.INT),  # integers
+    Label(r'-?\d+', Type.INT),  # integers (including negative)
 ]
 
 # list of built-in Racket functions

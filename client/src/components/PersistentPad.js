@@ -15,6 +15,7 @@ const PersistentPad = forwardRef(function PersistentPad(
     lineNum,
     // editableLineNum, // removed to clean warnings
     startPosition,
+    resultNode,
     ruleValue,
     onRuleChange,
     isRuleReadOnly,
@@ -204,6 +205,7 @@ const PersistentPad = forwardRef(function PersistentPad(
           <DivMakerComponent
             expr={jsonTree}
             selected={selected}
+            resultNode={resultNode}
             origTree={jsonTree}
             lineNumber={lineNumRef.current}
           />

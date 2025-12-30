@@ -275,6 +275,7 @@ class ERProofLine(ProofComponent):
         self.positions = dict() # a dict of 4-tuples of the next pos when hitting up,down,left,right. keyd by startpos
         self.appliedRule = None # stores the rule that was applied to generate this line
         self.appliedRuleNodeId = None # stores the node ID where the rule was applied on the previous line
+        self.resultNodeId = None # stores the node ID of the changed portion in this line's result
 
         tokenList, self.errLog = Parser.preProcess(goal, errLog=self.errLog, debug=self.debug,udf=isUdf)
         if self.errLog == []:
@@ -469,9 +470,10 @@ class ERProofLine(ProofComponent):
         targetNode.replaceWith(newNode)
         updatePositions(self.exprTree)
         
-        # Successfully applied the rule, so store the full rule string and the node ID where it was applied
+        # Successfully applied the rule, so store the full rule string and the node IDs
         self.appliedRule = fullRuleString
-        self.appliedRuleNodeId = startPos
+        self.appliedRuleNodeId = startPos  # Where rule was applied (on previous line)
+        self.resultNodeId = targetNode.startPosition  # The changed node in result (on this line)
 
     def applySubstitution(self, rule: str, startPos: int, subLine: 'ERProofLine'):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
@@ -495,7 +497,10 @@ class ERProofLine(ProofComponent):
         if self.errLog == []:
             targetNode.replaceWith(replacementExprTree)
             updatePositions(self.exprTree)
-            # Record the applied rule and node id for display purposes
+            # Record the applied rule and node ids for display purposes
+            self.appliedRuleNodeId = startPos  # Where substitution was applied (on previous line)
+            self.resultNodeId = targetNode.startPosition  # The changed node in result (on this line)
+            # Record the applied rule
             try:
                 # Build a full rule string including substitution expression
                 sub_str = str(subLine.exprTree) if subLine and subLine.exprTree is not None else ""

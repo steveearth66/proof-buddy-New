@@ -525,6 +525,7 @@ const InductionRacket = () => {
             rule: ruleFromFooter,
             startPosition: previousStartPosition,
             selectedNode: previousStartPosition,
+            resultNode: fullRacket.resultNodeId ?? 0,
             deleted: false
           };
 
@@ -1063,6 +1064,7 @@ const InductionRacket = () => {
       // If binding line 002, source is line 001, etc.
       let currentRacket;
       let sourcePad;
+      let sourceSelectedNode;
       
       if (padIndex === 1) {
         // Source is premise (line 000)
@@ -1070,15 +1072,21 @@ const InductionRacket = () => {
           ? leftPremise?.racket || formValues.lHSGoal
           : rightPremise?.racket || formValues.rHSGoal;
         sourcePad = padRefs.current ? padRefs.current[0] : null;
+        // Get selectedNode from premise state
+        sourceSelectedNode = showSide === "LHS"
+          ? (leftPremise?.selectedNode ?? leftPremise?.startPosition ?? 0)
+          : (rightPremise?.selectedNode ?? rightPremise?.startPosition ?? 0);
       } else {
         // Source is the previous line (padIndex - 1 in the pads, which is padIndex - 2 in racketRuleFields)
         const sourceField = racketRuleFields[showSide][padIndex - 2];
         currentRacket = sourceField?.racket || "";
         sourcePad = padRefs.current ? padRefs.current[padIndex - 1] : null;
+        // Get selectedNode from the source field state
+        sourceSelectedNode = sourceField?.selectedNode ?? sourceField?.startPosition ?? 0;
       }
       
       const startPos = sourcePad?.getStartPosition?.() ?? 0;
-      const selectedNode = sourcePad?.getStartPosition?.() ?? 0;
+      const selectedNode = sourceSelectedNode;
 
       const payload = {
         substitution,
@@ -1093,6 +1101,13 @@ const InductionRacket = () => {
       try {
         const response = await inductionService.substitution(payload);
 
+        console.log('[SUBSTITUTION] Response:', {
+          isValid: response.isValid,
+          resultNodeId: response.resultNodeId,
+          selectedNode: selectedNode,
+          racket: response.racket
+        });
+
         if (response.isValid) {
           setInductionSubErrors([]);
           closeSubstitution();
@@ -1105,9 +1120,12 @@ const InductionRacket = () => {
             rule: response.rule || rule,
             startPosition: startPos,
             selectedNode: selectedNode,
+            resultNode: response.resultNodeId ?? 0,
             jsonTree: response.jsonTree || {},
             deleted: false
           };
+
+          console.log('[SUBSTITUTION] New field:', newField);
 
           setRacketRuleFields((prev) => {
             const currentFields = prev[showSide];
@@ -1219,11 +1237,33 @@ const InductionRacket = () => {
     const ruleValidationError = validationErrors[side][index];
 
     // Prefer selectedNode (persisted) over startPosition; hard fallback to 0
-    const startPosition = isPremise
-      ? (isLHS
-        ? (leftPremise && (leftPremise.selectedNode ?? leftPremise.startPosition)) ?? 0
-        : (rightPremise && (rightPremise.selectedNode ?? rightPremise.startPosition)) ?? 0)
-      : ((field && (field.selectedNode ?? field.startPosition)) ?? 0);
+    // Show target highlight only if:
+    // 1. User is currently bound to the next line, OR
+    // 2. The next line has already been generated (has content)
+    const boundPadIndex = isBound ? parseInt(userRow.num, 10) : -1;
+    const isUserBoundToNextLine = boundPadIndex === padIndex + 1;
+    
+    let startPosition;
+    if (isPremise) {
+      // For premise, check if line 1 exists with content OR user is bound to line 1
+      const nextLineHasContent = racketRuleFields[side] && racketRuleFields[side][0]?.racket;
+      const showHighlight = nextLineHasContent || isUserBoundToNextLine;
+      startPosition = showHighlight
+        ? (isLHS
+          ? (leftPremise && (leftPremise.selectedNode ?? leftPremise.startPosition)) ?? 0
+          : (rightPremise && (rightPremise.selectedNode ?? rightPremise.startPosition)) ?? 0)
+        : undefined;
+    } else {
+      // For regular lines, check if next line has content OR user is bound to it
+      const nextLineHasContent = racketRuleFields[side] && racketRuleFields[side][index + 1]?.racket;
+      const showHighlight = nextLineHasContent || isUserBoundToNextLine;
+      startPosition = showHighlight
+        ? ((field && (field.selectedNode ?? field.startPosition)) ?? 0)
+        : undefined;
+    }
+
+    // Extract resultNode from current line (shows what changed in this line's transformation)
+    const resultNodeValue = isPremise ? undefined : (field && field.resultNode);
 
     return (
       <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? `premise-${caseType}-${side}` : `${side}-field-${padIndex}`}>
@@ -1244,6 +1284,7 @@ const InductionRacket = () => {
             jsonTree={jsonTree}
             lineNum={lineNum}
             startPosition={startPosition}
+            resultNode={resultNodeValue}
             onHighlightChange={(selected) => isPremise ? handlePremiseHighlight(side, selected) : handleFieldHighlight(side, index, selected)}
             ruleValue={ruleValue}
             onRuleChange={() => {}}

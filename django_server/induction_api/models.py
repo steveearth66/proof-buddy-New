@@ -94,6 +94,7 @@ class InductionProofLine(models.Model):
     substitution = models.TextField(blank=True, default='')  # Substitution payload if any
     start_position = models.IntegerField(default=0)  # Position where rule was applied
     selected_node = models.IntegerField(default=0)  # Node ID selected by user for rule application (for highlighting preservation)
+    result_node = models.IntegerField(default=0)  # Node ID of the changed portion in the result expression (for dual highlighting)
     line_number = models.IntegerField(default=0)  # Order of line in the proof
     created_at = models.DateTimeField(auto_now_add=True)
     

@@ -384,6 +384,9 @@ def reload_proof_lines_from_db(proof, proof_id):
         lines = InductionProofLine.objects.filter(proof_id=proof_id).order_by('case', 'side', 'line_number')
         
         print(f"[RELOAD PROOF LINES] Loading {lines.count()} proof lines from database")
+        print("[DB LOAD] Result node values from database:")
+        for line in lines:
+            print(f"  Line {line.line_number} ({line.case} {line.side}): result_node={line.result_node}, selected_node={line.selected_node}")
         
         for line in lines:
             # Determine which ERProof to add to
@@ -404,7 +407,7 @@ def reload_proof_lines_from_db(proof, proof_id):
         pass
 
 
-def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, line_number, substitution='', selected_node=None):
+def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, line_number, substitution='', selected_node=None, result_node=None):
     """Save a proof line to the database"""
     from .models import InductionProofLine, InductionProof
     if proof_id is None:
@@ -413,6 +416,10 @@ def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, li
         proof = InductionProof.objects.get(id=proof_id)
         # Use selected_node if provided, otherwise default to start_position
         node_id = selected_node if selected_node is not None else start_position
+        # Use result_node if provided, otherwise default to 0
+        result_node_id = result_node if result_node is not None else 0
+        # LOG: Verify result_node is being saved
+        print(f"[DB SAVE] Line {line_number} ({case} {side}): result_node={result_node_id}, selected_node={node_id}")
         # Use update_or_create to avoid duplicates
         InductionProofLine.objects.update_or_create(
             proof=proof,
@@ -425,6 +432,7 @@ def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, li
                 'substitution': substitution or '',
                 'start_position': start_position,
                 'selected_node': node_id,
+                'result_node': result_node_id,
             }
         )
     except InductionProof.DoesNotExist:
@@ -650,6 +658,11 @@ def apply_rule(request):
         is_valid = len(target.errLog) == 0
         racket_str = target.getPrevRacket() if is_valid else "Error generating racket"
         jsonTree = makeJson(target.proofLines[-1].exprTree) if len(target.proofLines) else {}
+        
+        # Extract resultNodeId from the last proof line if available
+        result_node_id = None
+        if is_valid and len(target.proofLines) > 0:
+            result_node_id = target.proofLines[-1].resultNodeId
 
         # Save to cache
         save_induction_obj_to_cache(user, proof, proof_id)
@@ -672,7 +685,8 @@ def apply_rule(request):
                 start_position=startPosition,
                 line_number=calculated_line_number,
                 substitution=substitution or '',
-                selected_node=selectedNode
+                selected_node=selectedNode,
+                result_node=result_node_id
             )
 
         return Response({
@@ -680,7 +694,8 @@ def apply_rule(request):
             "racket": racket_str,
             "errors": target.errLog,
             "jsonTree": jsonTree,
-            "lineNum": max(0, len(target.proofLines) - 1)
+            "lineNum": max(0, len(target.proofLines) - 1),
+            "resultNodeId": result_node_id
         }, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"isValid": False, "errors": [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
@@ -805,6 +820,11 @@ def substitution(request):
 
         save_induction_obj_to_cache(user, proof, proof_id)
         
+        # Extract resultNodeId from the last proof line
+        result_node_id = 0
+        if is_valid and len(target.proofLines) > 0:
+            result_node_id = target.proofLines[-1].resultNodeId
+        
         # Save to database if we have a valid proof line
         if is_valid and len(target.proofLines) > 0:
             last_line = target.proofLines[-1]
@@ -817,13 +837,15 @@ def substitution(request):
                 start_position=startPosition,
                 line_number=len(target.proofLines) - 1,
                 substitution=substitution or '',
-                selected_node=selectedNode
+                selected_node=selectedNode,
+                result_node=result_node_id
             )
         return Response({
             "isValid": is_valid,
             "racket": racket_str,
             "jsonTree": jsonTree,
             "rule": rule_with_sub,
+            "resultNodeId": result_node_id,
             "errors": target.errLog
         }, status=status.HTTP_200_OK)
     except Exception as e:
