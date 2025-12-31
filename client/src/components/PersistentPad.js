@@ -143,9 +143,10 @@ const PersistentPad = forwardRef(function PersistentPad(
     onRuleChange?.(transformedEvent);
   };
 
-  // Determine border colors based on line numbers
-  const currentLineColor = lineNum % 2 === 0 ? '#0066cc' : '#FF8F1C'; // blue for even, orange for odd
-  const previousLineColor = (lineNum - 1) % 2 === 0 ? '#0066cc' : '#FF8F1C'; // color of line above
+  // Determine border colors based on line numbers - cycles through yellow, blue, red, green
+  const colors = ['#DAA520', '#0066cc', '#cc0000', '#228B22']; // yellow, blue, red, green
+  const currentLineColor = colors[lineNum % 4];
+  const previousLineColor = colors[(lineNum - 1) % 4];
 
   return (
     <Row className="persistent-pad-row" style={{ alignItems: "flex-start" }}>

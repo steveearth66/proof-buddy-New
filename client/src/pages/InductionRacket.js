@@ -2097,8 +2097,21 @@ const InductionRacket = () => {
         </div>
       )}
       
-      {proofStarted && (
-        <div className="floating-footer">
+      {proofStarted && (() => {
+        // Calculate bicolor border based on bound row
+        const colors = ['#DAA520', '#0066cc', '#cc0000', '#228B22']; // yellow, blue, red, green
+        const padIndex = userRow.num && userRow.num !== "" ? parseInt(userRow.num, 10) : 0;
+        const currentColor = colors[padIndex % 4];
+        const nextColor = colors[(padIndex + 1) % 4];
+        
+        return (
+        <div 
+          className="floating-footer"
+          style={{
+            borderTop: `3px solid transparent`,
+            borderImage: `linear-gradient(to right, ${currentColor} 50%, ${nextColor} 50%) 1`
+          }}
+        >
           <Row className="input-row">
             <Col md="1">
               <Form.Floating className="mb-3">
@@ -2195,7 +2208,8 @@ const InductionRacket = () => {
             </Col>
           </Row>
         </div>
-      )}
+        );
+      })()}
     </MainLayout>
   );
 };
