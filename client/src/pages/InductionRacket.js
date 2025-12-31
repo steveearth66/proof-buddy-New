@@ -132,6 +132,7 @@ const InductionRacket = () => {
   const [userRow, setUserRow] = useState({ num: "" });
   const [isBound, setIsBound] = useState(false);
   const [footerRule, setFooterRule] = useState("");
+  const [footerRuleError, setFooterRuleError] = useState("");
   
   // Hook for getting available height for scrollable proof area
   const availableHeight = useDynamicHeight();
@@ -232,6 +233,7 @@ const InductionRacket = () => {
 
   // Clear validation errors and proof status when binding to a new row
   clearValidationErrors();
+  setFooterRuleError('');
   const caseKey = isAnchor ? 'base' : 'leap';
   setProofStatus(prev => ({ ...prev, [caseKey]: null }));
 
@@ -403,6 +405,7 @@ const InductionRacket = () => {
   const unbindFooter = useCallback(() => {
     setUserRow({ num: "" });
     setIsBound(false);
+    setFooterRuleError('');
   }, []);
 
   /**
@@ -484,6 +487,15 @@ const InductionRacket = () => {
           currentIndex = userIndex - 1; // index of the field being edited in footer
         }
       }
+
+      // Validate rule is entered
+      if (!ruleFromFooter || ruleFromFooter.trim() === '') {
+        setFooterRuleError('Must enter a rule');
+        return;
+      }
+
+      // Clear validation error if rule is valid
+      setFooterRuleError('');
 
       // Validate payload before sending
       if (!previousRacketValue || previousRacketValue.trim() === '') {
@@ -1347,11 +1359,14 @@ const InductionRacket = () => {
           startPosition={calculatedStartPosition}
           tabIndex={0}
           ruleValue={footerRule}
-          onRuleChange={e => setFooterRule(e.target.value.trim())}
+          onRuleChange={e => {
+            setFooterRule(e.target.value.trim());
+            setFooterRuleError('');
+          }}
           isRuleReadOnly={false}
           rulePlaceholder={`${showSide} Rule`}
-          isRuleInvalid={!!validationErrors[showSide][padIndex - 1]}
-          ruleValidationError={validationErrors[showSide][padIndex - 1]}
+          isRuleInvalid={!!footerRuleError}
+          ruleValidationError={footerRuleError}
           isEditRow={true}
         />
       );
