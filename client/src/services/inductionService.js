@@ -128,6 +128,18 @@ const getProofLines = async () => {
   }
 };
 
+const getCurrentProof = async () => {
+  try {
+    const response = await axiosInstance.get(
+      `${API_GATEWAY}/get-current-proof`
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error fetching current induction proof:");
+    throw error;
+  }
+};
+
 const inductionService = {
   startInductionProof,
   clearInduction,
@@ -138,7 +150,8 @@ const inductionService = {
   applyRule,
   deleteLine,
   checkCompletion,
-  getProofLines
+  getProofLines,
+  getCurrentProof
 };
 
 export default inductionService;

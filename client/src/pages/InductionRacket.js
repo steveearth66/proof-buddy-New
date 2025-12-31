@@ -53,7 +53,7 @@ const InductionRacket = () => {
   };
 
   const [showSide, toggleSide] = useToggleSide();
-  const [formValues, handleChange] = useInputState(initialValues);
+  const [formValues, handleChange, setFormValues] = useInputState(initialValues);
   const [validationMessages, handleBlur, setAllTouched, isFormValid] =
     useFormValidation(formValues, validateField);
   const [validated, setValidated] = useState(false);
@@ -477,12 +477,20 @@ const InductionRacket = () => {
           const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
 
           if (previousRowIndex === 0) {
+            // Getting from premise
             previousRacketValue = showSide === "LHS" ? leftPremise.racket : rightPremise.racket;
-            previousStartPosition = padRefs.current[previousRowIndex]?.getStartPosition() ?? 0;
+            // Get the actual selected node from the premise state, not getStartPosition
+            const premiseData = showSide === "LHS" ? leftPremise : rightPremise;
+            previousStartPosition = premiseData.selectedNode ?? premiseData.startPosition ?? 0;
+            console.log(`[GENERATE] From premise: selectedNode=${previousStartPosition}`);
           } else {
             const previousField = racketRuleFields[showSide][previousRowIndex - 1];
             previousRacketValue = previousField?.racket || "";
-            previousStartPosition = padRefs.current[previousRowIndex]?.getStartPosition() ?? 0;
+            // Get the selected node from the field if available (restored), otherwise from PersistentPad's current selection
+            const fromField = previousField?.selectedNode;
+            const fromPad = padRefs.current[previousRowIndex]?.getStartPosition();
+            previousStartPosition = fromField ?? fromPad ?? 0;
+            console.log(`[GENERATE] From line ${previousRowIndex}: fromField=${fromField}, fromPad=${fromPad}, using=${previousStartPosition}`);
           }
           currentIndex = userIndex - 1; // index of the field being edited in footer
         }
@@ -600,13 +608,203 @@ const InductionRacket = () => {
   };
 
   useEffect(() => {
-    // Keep user-defined UDFs and highlights in session; do not clear
+    // On mount, attempt to restore proof from database only if we're in an active session
+    // Use sessionStorage to distinguish between page refresh (restore) and new navigation (clear)
+    const restoreProof = async () => {
+      try {
+        const isActiveSession = sessionStorage.getItem('inductionProofActive') === 'true';
+        
+        if (!isActiveSession) {
+          // New session - clear any old proof data and start fresh
+          await inductionService.clearInduction();
+          return;
+        }
+        
+        // Active session - attempt to restore from database (page refresh scenario)
+        const proofData = await inductionService.getCurrentProof();
+        
+        if (proofData.hasProof) {
+          // Restore form values
+          setFormValues(prev => ({
+            ...prev,
+            inductionVariable: proofData.inductionVariable || '',
+            inductionValue: proofData.anchorValue !== undefined ? proofData.anchorValue.toString() : '',
+            leapVariable: proofData.leapVariable || '',
+            lHSGoal: proofData.lhsAnchorGoal || '',
+            rHSGoal: proofData.rhsAnchorGoal || '',
+            proofName: proofData.proofName || '',
+            proofTag: proofData.tag || ''
+          }));
+          
+          // Restore inductive hypotheses
+          setInductiveHypothesisLHS(proofData.inductiveHypothesisLHS || '');
+          setInductiveHypothesisRHS(proofData.inductiveHypothesisRHS || '');
+          
+          // Re-initialize the proof engine to get proper jsonTrees for premises
+          try {
+            const normalizeType = (t) => (t || '').replace(/\s*->\s*/g, ' > ').trim();
+            const definitions = JSON.parse(sessionStorage.getItem('definitions') || '[]');
+            
+            const engineSetup = await inductionService.setCurrentProof({
+              struct: (proofData.inductionType || 'integers').toLowerCase() === 'lists' ? 'list' : 'int',
+              ivar: proofData.inductionVariable,
+              aval: String(proofData.anchorValue),
+              lvar: proofData.leapVariable,
+              lhsPremise: proofData.lhsAnchorGoal,
+              rhsPremise: proofData.rhsAnchorGoal,
+              definitions: definitions.map(d => ({
+                label: d.label || d.name || '',
+                type: normalizeType(d.type),
+                expression: d.expression
+              }))
+            });
 
-    const clearProof = async () => {
-      await inductionService.clearInduction();
+            if (engineSetup && engineSetup.base && engineSetup.leap) {
+              const baseL = engineSetup.base.LHS || {};
+              const baseR = engineSetup.base.RHS || {};
+              const leapL = engineSetup.leap.LHS || {};
+              const leapR = engineSetup.leap.RHS || {};
+
+              // Set base case premises with proper jsonTrees
+              setBasePremises({
+                LHS: {
+                  racket: baseL.racket || proofData.lhsAnchorGoal || '',
+                  rule: 'Premise',
+                  startPosition: 0,
+                  selectedNode: 0,
+                  jsonTree: baseL.jsonTree || {}
+                },
+                RHS: {
+                  racket: baseR.racket || proofData.rhsAnchorGoal || '',
+                  rule: 'Premise',
+                  startPosition: 0,
+                  selectedNode: 0,
+                  jsonTree: baseR.jsonTree || {}
+                }
+              });
+
+              // Set leap case premises with proper jsonTrees
+              setLeapPremises({
+                LHS: {
+                  racket: leapL.racket || proofData.lhsLeapGoal || '',
+                  rule: 'Premise',
+                  startPosition: 0,
+                  selectedNode: 0,
+                  jsonTree: leapL.jsonTree || {}
+                },
+                RHS: {
+                  racket: leapR.racket || proofData.rhsLeapGoal || '',
+                  rule: 'Premise',
+                  startPosition: 0,
+                  selectedNode: 0,
+                  jsonTree: leapR.jsonTree || {}
+                }
+              });
+
+              setJsonTreeRep({
+                LHS: baseL.jsonTree || {},
+                RHS: baseR.jsonTree || {}
+              });
+            }
+          } catch (engineError) {
+            console.error('[RESTORE] Failed to re-initialize proof engine:', engineError);
+            // Fall back to simple initialization without jsonTrees
+            setBasePremises({
+              LHS: { racket: proofData.lhsAnchorGoal || '', jsonTree: {}, rule: 'Premise', startPosition: 0, selectedNode: 0 },
+              RHS: { racket: proofData.rhsAnchorGoal || '', jsonTree: {}, rule: 'Premise', startPosition: 0, selectedNode: 0 }
+            });
+            setLeapPremises({
+              LHS: { racket: proofData.lhsLeapGoal || '', jsonTree: {}, rule: 'Premise', startPosition: 0, selectedNode: 0 },
+              RHS: { racket: proofData.rhsLeapGoal || '', jsonTree: {}, rule: 'Premise', startPosition: 0, selectedNode: 0 }
+            });
+          }
+          
+          // Initialize fields
+          setBaseRacketFields({ LHS: [EMPTY_INITIAL_FIELD], RHS: [EMPTY_INITIAL_FIELD] });
+          setLeapRacketFields({ LHS: [EMPTY_INITIAL_FIELD], RHS: [EMPTY_INITIAL_FIELD] });
+          
+          // Get proof lines and restore them
+          try {
+            const lines = await inductionService.getProofLines();
+            
+            if (lines && typeof lines === 'object') {
+              console.log('[RESTORE] Got proof lines from database:', lines);
+              
+              // Helper function to convert database lines to UI field format
+              const convertLinesToFields = (dbLines) => {
+                if (!Array.isArray(dbLines) || dbLines.length === 0) {
+                  return [EMPTY_INITIAL_FIELD];
+                }
+                
+                // Filter out line 0 (premise) - it's displayed separately
+                const proofLines = dbLines.filter(line => line.lineNumber > 0);
+                
+                if (proofLines.length === 0) {
+                  return [EMPTY_INITIAL_FIELD];
+                }
+                
+                // Convert to field format
+                const fields = proofLines.map(line => {
+                  const field = {
+                    racket: line.racket || '',
+                    jsonTree: line.jsonTree || {},
+                    rule: line.rule || '',
+                    startPosition: line.startPosition || 0,
+                    selectedNode: line.selectedNode || 0,
+                    resultNode: line.resultNode || 0,
+                    deleted: false
+                  };
+                  console.log(`[RESTORE] Converting line ${line.lineNumber}: selectedNode=${line.selectedNode}, resultNode=${line.resultNode}`);
+                  return field;
+                });
+                
+                // Add trailing empty field
+                fields.push(EMPTY_INITIAL_FIELD);
+                
+                return fields;
+              };
+              
+              // Restore base case fields
+              if (lines.base) {
+                const baseLHS = convertLinesToFields(lines.base.LHS);
+                const baseRHS = convertLinesToFields(lines.base.RHS);
+                setBaseRacketFields({ LHS: baseLHS, RHS: baseRHS });
+                console.log('[RESTORE] Restored base case fields:', { LHS: baseLHS.length, RHS: baseRHS.length });
+              }
+              
+              // Restore leap case fields  
+              if (lines.leap) {
+                const leapLHS = convertLinesToFields(lines.leap.LHS);
+                const leapRHS = convertLinesToFields(lines.leap.RHS);
+                setLeapRacketFields({ LHS: leapLHS, RHS: leapRHS });
+                console.log('[RESTORE] Restored leap case fields:', { LHS: leapLHS.length, RHS: leapRHS.length });
+              }
+            }
+          } catch (linesError) {
+            console.error('[RESTORE] Failed to load proof lines:', linesError);
+            // Continue anyway - at least form values and IH are restored
+          }
+          
+          setProofStarted(true);
+          sessionStorage.setItem('inductionProofActive', 'true');
+          
+          console.log('[RESTORE] Successfully restored proof metadata from database');
+        } else {
+          // No existing proof, clear to start fresh
+          await inductionService.clearInduction();
+        }
+      } catch (error) {
+        console.error('[RESTORE] Error restoring proof:', error);
+        // On error, clear to start fresh
+        try {
+          await inductionService.clearInduction();
+        } catch (clearError) {
+          console.error('[RESTORE] Failed to clear induction:', clearError);
+        }
+      }
     };
 
-    clearProof();
+    restoreProof();
   }, []);
 
   useEffect(() => {
@@ -1022,6 +1220,9 @@ const InductionRacket = () => {
 
               setProofStarted(true);
               
+              // Mark this as an active proof session for restoration on page refresh
+              sessionStorage.setItem('inductionProofActive', 'true');
+              
               // Load any existing proof lines from database to restore highlighting
               setTimeout(() => {
                 loadProofLinesFromDatabase();
@@ -1249,7 +1450,7 @@ const InductionRacket = () => {
     const ruleValidationError = validationErrors[side][index];
 
     // Prefer selectedNode (persisted) over startPosition; hard fallback to 0
-    // Show target highlight only if:
+    // Show target highlight if:
     // 1. User is currently bound to the next line, OR
     // 2. The next line has already been generated (has content)
     const boundPadIndex = isBound ? parseInt(userRow.num, 10) : -1;
@@ -1276,6 +1477,10 @@ const InductionRacket = () => {
 
     // Extract resultNode from current line (shows what changed in this line's transformation)
     const resultNodeValue = isPremise ? undefined : (field && field.resultNode);
+
+    if (!isPremise) {
+      console.log(`[RENDER] Line ${lineNum} (${side}): selectedNode=${field?.selectedNode}, resultNode=${resultNodeValue}, startPosition=${startPosition}`);
+    }
 
     return (
       <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? `premise-${caseType}-${side}` : `${side}-field-${padIndex}`}>

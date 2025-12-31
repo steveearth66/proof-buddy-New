@@ -407,7 +407,7 @@ def reload_proof_lines_from_db(proof, proof_id):
         pass
 
 
-def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, line_number, substitution='', selected_node=None, result_node=None):
+def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, line_number, substitution='', selected_node=None, result_node=None, json_tree=None):
     """Save a proof line to the database"""
     from .models import InductionProofLine, InductionProof
     if proof_id is None:
@@ -433,10 +433,15 @@ def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, li
                 'start_position': start_position,
                 'selected_node': node_id,
                 'result_node': result_node_id,
+                'json_tree': json_tree or {},
             }
         )
+        print(f"[DB SAVE] Successfully saved line {line_number}")
     except InductionProof.DoesNotExist:
-        pass  # Proof doesn't exist in DB yet
+        print(f"[DB SAVE ERROR] Proof {proof_id} doesn't exist")
+    except Exception as e:
+        print(f"[DB SAVE ERROR] Failed to save line {line_number}: {e}")
+        raise  # Re-raise to see full error
 
 
 # ---- Induction Engine Endpoints (frontend -> ER engine) ----
@@ -632,6 +637,7 @@ def apply_rule(request):
     Apply a rule/substitution to the current case+side of the IndProof.
     Expected JSON: { case, side, currentRacket, rule, startPosition, selectedNode?, substitution? }
     """
+    from .models import InductionProofLine
     user = request.user
     data = request.data
     proof, proof_id = get_or_set_induction_obj(user)
@@ -644,6 +650,13 @@ def apply_rule(request):
         startPosition = data.get("startPosition", 0)
         selectedNode = data.get("selectedNode")
         substitution = data.get("substitution")
+
+        # Check if proof engine is initialized
+        if not hasattr(proof, 'baseCase') or not hasattr(proof, 'leapStep'):
+            return Response({
+                "isValid": False, 
+                "errors": ["Proof engine not initialized. Please click 'Start Induction Proof' first."]
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         target = _get_case_side(proof, case, side)
         # Clear previous errors before attempting new rule application
@@ -663,6 +676,7 @@ def apply_rule(request):
         result_node_id = None
         if is_valid and len(target.proofLines) > 0:
             result_node_id = target.proofLines[-1].resultNodeId
+            print(f"[APPLY_RULE] selectedNode from request: {selectedNode}, startPosition from request: {startPosition}, result_node_id from ERProof: {result_node_id}")
 
         # Save to cache
         save_induction_obj_to_cache(user, proof, proof_id)
@@ -676,6 +690,33 @@ def apply_rule(request):
             
             calculated_line_number = len(target.proofLines) - 1
             
+            print(f"[APPLY_RULE] About to save line {calculated_line_number}: proof_id={proof_id}, case={case}, side={side}")
+            
+            # Update the PREVIOUS line's selected_node (where user clicked to generate this line)
+            if calculated_line_number > 0:
+                try:
+                    prev_line_exists = InductionProofLine.objects.filter(
+                        proof_id=proof_id,
+                        case=case.lower(),
+                        side=side.upper(),
+                        line_number=calculated_line_number - 1
+                    ).exists()
+                    
+                    if prev_line_exists:
+                        print(f"[APPLY_RULE] Updating line {calculated_line_number - 1} selected_node to {startPosition}")
+                        InductionProofLine.objects.filter(
+                            proof_id=proof_id,
+                            case=case.lower(),
+                            side=side.upper(),
+                            line_number=calculated_line_number - 1
+                        ).update(selected_node=startPosition)
+                    else:
+                        print(f"[APPLY_RULE] Line {calculated_line_number - 1} doesn't exist in DB (probably premise), skipping update")
+                except Exception as e:
+                    print(f"[APPLY_RULE ERROR] Failed to update previous line: {e}")
+                    # Continue anyway - this shouldn't block saving the new line
+            
+            # Save the NEW line with selected_node=None (unknown until next line generated)
             save_proof_line_to_db(
                 proof_id=proof_id,
                 case=case,
@@ -685,8 +726,9 @@ def apply_rule(request):
                 start_position=startPosition,
                 line_number=calculated_line_number,
                 substitution=substitution or '',
-                selected_node=selectedNode,
-                result_node=result_node_id
+                selected_node=None,  # Unknown until user generates next line
+                result_node=result_node_id,
+                json_tree=jsonTree
             )
 
         return Response({
@@ -781,6 +823,7 @@ def check_goal(request):
 
 @api_view(["POST"]) 
 def substitution(request):
+    from .models import InductionProofLine
     user = request.user
     data = request.data
     proof, proof_id = get_or_set_induction_obj(user)
@@ -824,10 +867,34 @@ def substitution(request):
         result_node_id = 0
         if is_valid and len(target.proofLines) > 0:
             result_node_id = target.proofLines[-1].resultNodeId
+            print(f"[SUBSTITUTION] selectedNode from request: {selectedNode}, startPosition from request: {startPosition}, result_node_id from ERProof: {result_node_id}")
         
         # Save to database if we have a valid proof line
         if is_valid and len(target.proofLines) > 0:
             last_line = target.proofLines[-1]
+            calculated_line_number = len(target.proofLines) - 1
+            
+            # Update the PREVIOUS line's selected_node (where user clicked to generate this line)
+            if calculated_line_number > 0:
+                prev_line_exists = InductionProofLine.objects.filter(
+                    proof_id=proof_id,
+                    case=case.lower(),
+                    side=side.upper(),
+                    line_number=calculated_line_number - 1
+                ).exists()
+                
+                if prev_line_exists:
+                    print(f"[SUBSTITUTION] Updating line {calculated_line_number - 1} selected_node to {startPosition}")
+                    InductionProofLine.objects.filter(
+                        proof_id=proof_id,
+                        case=case.lower(),
+                        side=side.upper(),
+                        line_number=calculated_line_number - 1
+                    ).update(selected_node=startPosition)
+                else:
+                    print(f"[SUBSTITUTION] Line {calculated_line_number - 1} doesn't exist in DB (probably premise), skipping update")
+            
+            # Save the NEW line with selected_node=None (unknown until next line generated)
             save_proof_line_to_db(
                 proof_id=proof_id,
                 case=case,
@@ -835,9 +902,9 @@ def substitution(request):
                 racket=racket_str,
                 rule=rule_with_sub,
                 start_position=startPosition,
-                line_number=len(target.proofLines) - 1,
+                line_number=calculated_line_number,
                 substitution=substitution or '',
-                selected_node=selectedNode,
+                selected_node=None,  # Unknown until user generates next line
                 result_node=result_node_id
             )
         return Response({
@@ -926,29 +993,95 @@ def get_proof_lines(request):
         }
         
         for line in lines:
-            # Parse racket string to jsonTree so frontend can render it
-            from expression_tree.Parser import parse_to_tree
-            try:
-                tree = parse_to_tree(line.racket) if line.racket else None
-                json_tree = makeJson(tree) if tree else {}
-            except Exception as parse_error:
-                print(f"[get_proof_lines] Failed to parse line {line.line_number}: {parse_error}")
-                json_tree = {}
+            # Use stored jsonTree if available, otherwise try to parse racket string
+            json_tree = line.json_tree
+            
+            # If json_tree is empty (old data before migration), try to parse it
+            if not json_tree or not isinstance(json_tree, dict) or len(json_tree) == 0:
+                try:
+                    # Get the proof engine to access rulesets and generics
+                    ind, _ = get_or_set_induction_obj(request.user)
+                    
+                    # Determine which case/side to use for parsing context
+                    if line.case == 'base':
+                        target = ind.baseCase.LHS if line.side == 'LHS' else ind.baseCase.RHS
+                    else:
+                        target = ind.leapStep.LHS if line.side == 'LHS' else ind.leapStep.RHS
+                    
+                    # Parse with proper context
+                    from expression_tree.ERProofEngine import ERProofLine
+                    temp_line = ERProofLine(
+                        line.racket, 
+                        target.debug, 
+                        target.ruleSet, 
+                        generics=target.generics
+                    )
+                    if temp_line.exprTree and not temp_line.errLog:
+                        json_tree = makeJson(temp_line.exprTree)
+                        # Update the database with the parsed tree
+                        line.json_tree = json_tree
+                        line.save()
+                        print(f"[get_proof_lines] Parsed and saved jsonTree for line {line.line_number}")
+                    else:
+                        json_tree = {}
+                except Exception as parse_error:
+                    print(f"[get_proof_lines] Failed to parse line {line.line_number}: {parse_error}")
+                    json_tree = {}
             
             line_data = {
                 'racket': line.racket,
                 'rule': line.rule,
                 'startPosition': line.start_position,
                 'selectedNode': line.selected_node,
+                'resultNode': line.result_node,
                 'lineNumber': line.line_number,
                 'substitution': line.substitution,
-                'jsonTree': json_tree  # Add parsed tree for rendering
+                'jsonTree': json_tree
             }
+            print(f"[get_proof_lines] Line {line.line_number} ({line.case} {line.side}): selectedNode={line.selected_node}, resultNode={line.result_node}")
             result[line.case][line.side].append(line_data)
         
         return Response(result, status=status.HTTP_200_OK)
     except Exception as e:
         print(f"Error in get_proof_lines: {str(e)}")
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["GET"])
+def get_current_proof(request):
+    """
+    Get the current proof metadata from the database.
+    Returns proof parameters like induction_variable, anchor_value, goals, etc.
+    """
+    user = request.user
+    _, proof_id = get_or_set_induction_obj(user)
+    
+    if proof_id is None:
+        return Response({"hasProof": False}, status=status.HTTP_200_OK)
+    
+    try:
+        proof = InductionProof.objects.get(id=proof_id, user=user)
+        
+        return Response({
+            "hasProof": True,
+            "inductionVariable": proof.induction_variable,
+            "anchorValue": proof.anchor_value,
+            "leapVariable": proof.leap_variable,
+            "lhsAnchorGoal": proof.lhs_anchor_goal or "",
+            "rhsAnchorGoal": proof.rhs_anchor_goal or "",
+            "lhsLeapGoal": proof.lhs_leap_goal or "",
+            "rhsLeapGoal": proof.rhs_leap_goal or "",
+            "inductiveHypothesisLHS": proof.inductive_hypothesis_lhs or "",
+            "inductiveHypothesisRHS": proof.inductive_hypothesis_rhs or "",
+            "currentSide": proof.current_side,
+            "isAnchorCase": proof.is_anchor_case,
+            "proofName": proof.name or "",
+            "tag": proof.tag or ""
+        }, status=status.HTTP_200_OK)
+    except InductionProof.DoesNotExist:
+        return Response({"hasProof": False}, status=status.HTTP_200_OK)
+    except Exception as e:
+        print(f"Error in get_current_proof: {str(e)}")
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 

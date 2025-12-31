@@ -202,13 +202,17 @@ const PersistentPad = forwardRef(function PersistentPad(
           }}
           {...props}
         >
-          <DivMakerComponent
-            expr={jsonTree}
-            selected={selected}
-            resultNode={resultNode}
-            origTree={jsonTree}
-            lineNumber={lineNumRef.current}
-          />
+          {jsonTree && jsonTree[0] ? (
+            <DivMakerComponent
+              expr={jsonTree}
+              selected={selected}
+              resultNode={resultNode}
+              origTree={jsonTree}
+              lineNumber={lineNumRef.current}
+            />
+          ) : (
+            <div>{equation || '\u00A0'}</div>
+          )}
         </div>
         </div>
       </Col>

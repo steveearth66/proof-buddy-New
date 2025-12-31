@@ -11,6 +11,7 @@ class InductionProofSerializer(serializers.ModelSerializer):
             'induction_variable', 'anchor_value', 'leap_variable',
             'lhs_leap_goal', 'rhs_leap_goal', 
             'lhs_anchor_goal', 'rhs_anchor_goal',
+            'inductive_hypothesis_lhs', 'inductive_hypothesis_rhs',
             'induction_type', 'current_side', 'is_anchor_case',
             'current_goal', 'is_valid', 'definition', 'created_at', 'updated_at'
         ]

@@ -15,5 +15,6 @@ urlpatterns = [
     path("substitution", views.substitution, name="substitution"),
     path("check-completion", views.check_completion, name="check_completion"),
     path("get-proof-lines", views.get_proof_lines, name="get_proof_lines"),
+    path("get-current-proof", views.get_current_proof, name="get_current_proof"),
     path("clear-all-proof-lines", views.clear_all_proof_lines, name="clear_all_proof_lines"),
 ]
