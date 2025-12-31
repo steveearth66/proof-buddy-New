@@ -455,6 +455,27 @@ const InductionRacket = () => {
     }));
   };
 
+  const handleClearProof = async () => {
+    if (!window.confirm('Are you sure you want to clear this proof? This will archive it and start a new proof.')) {
+      return;
+    }
+
+    try {
+      await inductionService.clearInduction();
+      
+      // Clear sessionStorage flag so we don't restore from DB on reload
+      sessionStorage.removeItem('inductionProofActive');
+      
+      toast.success('Proof archived successfully');
+      
+      // Reload the page to start fresh
+      window.location.reload();
+    } catch (error) {
+      console.error('Error clearing proof:', error);
+      toast.error('Failed to clear proof');
+    }
+  };
+
   const handleGenerateAndCheck = async () => {
     if (isProcessingRef.current) {
       return;
@@ -1992,6 +2013,10 @@ const InductionRacket = () => {
             </Dropdown.Item>
             <Dropdown.Item onClick={checkCurrentProofStatus} href="#">
               Check Current Proof
+            </Dropdown.Item>
+            <Dropdown.Divider />
+            <Dropdown.Item onClick={handleClearProof} href="#" style={{ color: 'red' }}>
+              Clear Proof
             </Dropdown.Item>
           </Dropdown.Menu>
         </Dropdown>

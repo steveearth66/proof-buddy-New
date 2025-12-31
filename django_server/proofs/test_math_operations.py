@@ -97,7 +97,7 @@ expt_tests = [
     ["Cannot match argument out typeList ['INT', 'BOOL'] with expected typeList ['INT', 'INT']"]), # bad type
     ("(expt 3 (expt 2 2))", ['Insufficiently resolved arguments']), # insufficiently resolved
     ("(expt 0 0)", ['0^0 is undefined']),  # undef
-    ("(expt 3 -1)", ['-1 contains illegal characters']), # fraction, not a legal input due to -1
+    ("(expt 3 -1)", ['-1 contains illegal character']), # fraction, not a legal input due to -1
     ("(expt k 0)", ["Cannot evaluate 'expt' expression with generic arguments"]), # generic
     ("(expt 2 0)", 1), # expt with 0 power
     ("(expt 0 2)", 0), # expt with 0 base

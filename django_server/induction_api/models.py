@@ -51,6 +51,7 @@ class InductionProof(models.Model):
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)  # Soft delete: False = archived
     
     class Meta:
         ordering = ['-created_at']
@@ -58,7 +59,10 @@ class InductionProof(models.Model):
             models.Index(fields=['user', '-created_at']),
             models.Index(fields=['proof_type']),
             models.Index(fields=['induction_type']),
+            models.Index(fields=['user', 'name', 'tag', 'is_active']),  # Index for faster queries
         ]
+        # Note: MySQL doesn't support conditional constraints, so we enforce uniqueness in code
+        # Only one active proof per user+name+tag is allowed (checked in views)
     
     def __str__(self):
         if self.name:

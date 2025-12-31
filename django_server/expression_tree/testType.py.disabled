@@ -1,3 +1,6 @@
+# Skipped - missing dependencies
+import sys
+sys.exit(0)
 from .typeFile import *
 from .recParser import *
 

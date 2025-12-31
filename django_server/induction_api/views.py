@@ -44,8 +44,8 @@ def create_induction_proof(request):
         'leap_variable': validated_data['leap_variable'],
         'lhs_expression': validated_data['lhs_expression'],
         'rhs_expression': validated_data['rhs_expression'],
-        'inductive_hypothesis_lhs' : validated_data['inductive_hypothesis_lhs'],
-        'inductive_hypothesis_rhs' : validated_data['inductive_hypothesis_rhs'],
+        'inductive_hypothesis_lhs' : validated_data.get('inductive_hypothesis_lhs', ''),
+        'inductive_hypothesis_rhs' : validated_data.get('inductive_hypothesis_rhs', ''),
         'is_valid': True,
         'definition': [],
     }
@@ -104,6 +104,37 @@ def create_induction_proof(request):
         },
         status=status.HTTP_400_BAD_REQUEST
     )
+
+@api_view(["POST"])
+def clear_induction(request):
+    """Archive (soft delete) the current active proof for the user"""
+    from .models import InductionProof
+    user = request.user
+    
+    try:
+        # Find the active proof
+        proof = InductionProof.objects.filter(user=user, is_active=True).order_by('-created_at').first()
+        
+        if proof:
+            # Archive it (soft delete)
+            proof.is_active = False
+            proof.save()
+            
+            # Clear the cache
+            cache.delete(f"induction_obj_{user.username}")
+            
+            return Response({
+                "message": "Proof archived successfully",
+                "proof_name": proof.name or "Unnamed proof"
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                "message": "No active proof found"
+            }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({
+            "error": str(e)
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(["POST"])
 def start_induction_proof(request):
@@ -291,19 +322,6 @@ def start_induction_proof(request):
         )
 
 @api_view(["POST"])
-def clear_induction(request):
-    user = request.user
-    clear_induction_proof(user)
-    
-    delete_all = request.data.get('delete_all', False)
-    if delete_all:
-        InductionProof.objects.filter(user=user).delete()
-    
-    return Response(
-        {"message": "Induction proof cleared successfully"},
-        status=status.HTTP_200_OK
-    )
-
 @api_view(["GET"])
 def get_induction_proofs(request):
     user = request.user

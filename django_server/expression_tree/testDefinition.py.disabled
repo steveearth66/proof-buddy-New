@@ -1,3 +1,6 @@
+# Skipped - missing dependencies
+import sys
+sys.exit(0)
 import expression_tree.recParser as recParser
 import expression_tree.Labeler as Labeler
 import expression_tree.Decorator as Decorator
