@@ -482,6 +482,9 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
       });
       setDefinitions(newDefinitions);
       sessionStorage.setItem('definitions', JSON.stringify(newDefinitions));
+    }).catch((error) => {
+      console.error('Failed to load user definitions:', error);
+      toast.error('Failed to load definitions. Please try refreshing the page.');
     });
     // eslint-disable-next-line
   }, []);

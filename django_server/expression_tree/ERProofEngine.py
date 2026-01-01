@@ -141,12 +141,31 @@ class TwoSidedProof(ProofComponent):
         Check if proof is complete:
         - Last non-empty lines of LHS and RHS must be the same
         - No blank lines except possibly the last line (for user input)
+        - Special case: If both sides have only premises (no derivations), compare first lines
         A line is considered blank if either its expression OR rule is empty
         """
         lhs_lines = self.LHS.proofLines
         rhs_lines = self.RHS.proofLines
         
+        print(f"[CHECK COMPLETE] LHS has {len(lhs_lines)} lines, RHS has {len(rhs_lines)} lines")
+        
+        # Special case: If both sides have exactly 1 line (just premise), compare them
+        if len(lhs_lines) == 1 and len(rhs_lines) == 1:
+            lhs_expr = str(lhs_lines[0].exprTree).strip() if lhs_lines[0].exprTree else ""
+            rhs_expr = str(rhs_lines[0].exprTree).strip() if rhs_lines[0].exprTree else ""
+            print(f"[CHECK COMPLETE] Only premises - LHS expr: '{lhs_expr}', RHS expr: '{rhs_expr}'")
+            
+            if lhs_expr and rhs_expr and lhs_expr == rhs_expr:
+                print(f"[CHECK COMPLETE] Premises match - proof complete!")
+                self.isComplete = True
+                return True
+            else:
+                print(f"[CHECK COMPLETE] Premises don't match or missing - incomplete")
+                self.isComplete = False
+                return False
+        
         if not lhs_lines or not rhs_lines:
+            print(f"[CHECK COMPLETE] Missing lines - returning False")
             self.isComplete = False
             return False
         
@@ -154,23 +173,30 @@ class TwoSidedProof(ProofComponent):
         def is_blank(line):
             expr_blank = not line.exprTree or not str(line.exprTree).strip()
             rule_blank = not line.appliedRule or not line.appliedRule.strip()
-            return expr_blank or rule_blank
+            is_blank_result = expr_blank or rule_blank
+            print(f"[CHECK COMPLETE]   Line: expr='{line.exprTree}', rule='{line.appliedRule}', blank={is_blank_result}")
+            return is_blank_result
         
         # Get last non-blank line from each side
         lhs_last = None
+        print(f"[CHECK COMPLETE] Checking LHS lines:")
         for line in reversed(lhs_lines):
             if not is_blank(line):
                 lhs_last = str(line.exprTree).strip()
+                print(f"[CHECK COMPLETE]   LHS last non-blank: '{lhs_last}'")
                 break
         
         rhs_last = None
+        print(f"[CHECK COMPLETE] Checking RHS lines:")
         for line in reversed(rhs_lines):
             if not is_blank(line):
                 rhs_last = str(line.exprTree).strip()
+                print(f"[CHECK COMPLETE]   RHS last non-blank: '{rhs_last}'")
                 break
         
         # Check if last non-blank lines match
         if not lhs_last or not rhs_last or lhs_last != rhs_last:
+            print(f"[CHECK COMPLETE] Lines don't match: LHS='{lhs_last}', RHS='{rhs_last}' - returning False")
             self.isComplete = False
             return False
         

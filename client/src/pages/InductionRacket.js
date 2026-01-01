@@ -165,16 +165,35 @@ const InductionRacket = () => {
 
   const checkCurrentProofStatus = async () => {
     try {
-      const caseName = isAnchor ? 'base' : 'leap';
-      console.log('[CHECK PROOF] Checking case:', caseName);
-      const result = await inductionService.checkCompletion(caseName);
-      console.log('[CHECK PROOF] Result:', result);
+      // Check both base and leap cases
+      const baseResult = await inductionService.checkCompletion('base');
+      const leapResult = await inductionService.checkCompletion('leap');
       
-      const status = result.isComplete 
-        ? { state: "complete", label: result.label }
-        : { state: "incomplete", label: result.label };
-      console.log('[CHECK PROOF] Setting status:', status);
-      setProofStatus(prev => ({ ...prev, [caseName]: status }));
+      console.log('[CHECK PROOF] Base result:', baseResult);
+      console.log('[CHECK PROOF] Leap result:', leapResult);
+      
+      const baseStatus = baseResult.isComplete 
+        ? { state: "complete", label: baseResult.label }
+        : { state: "incomplete", label: baseResult.label };
+      
+      const leapStatus = leapResult.isComplete 
+        ? { state: "complete", label: leapResult.label }
+        : { state: "incomplete", label: leapResult.label };
+      
+      setProofStatus({
+        base: baseStatus,
+        leap: leapStatus
+      });
+      
+      // Show confetti if BOTH cases are complete
+      if (baseResult.isComplete && leapResult.isComplete) {
+        console.log('[CHECK PROOF] Both cases complete - showing confetti!');
+        setShowProofComplete(true);
+        setProofComplete(true);
+      } else {
+        setShowProofComplete(false);
+        setProofComplete(false);
+      }
     } catch (error) {
       console.error('Error checking proof completion:', error);
       toast.error('Failed to check proof completion');
@@ -1610,7 +1629,7 @@ const InductionRacket = () => {
           <Definitions toggleDefinitionsWindow={toggleDefinitionsWindow} />
         )}
 
-        {showProofComplete && <ProofComplete />}
+        {showProofComplete && <ProofComplete onDismiss={() => setShowProofComplete(false)} />}
 
         {showSubstitution && (
           <Substitution
@@ -1670,6 +1689,7 @@ const InductionRacket = () => {
                       !!validationMessages.proofName ||
                       !!proofValidationMessage.name
                     }
+                    disabled={proofStarted}
                     required
                   />
                   <label htmlFor="eRProofName">Name</label>
@@ -1695,6 +1715,7 @@ const InductionRacket = () => {
                     isInvalid={
                       !!proofValidationMessage.tag || !!validationMessages.tag
                     }
+                    disabled={proofStarted}
                     required
                   />
                   <label htmlFor="eRProofTag"># Tag</label>
@@ -1720,6 +1741,7 @@ const InductionRacket = () => {
                       !!validationMessages.inductionVariable ||
                       !!proofValidationMessage.inductionVariable
                     }
+                    disabled={proofStarted}
                     required
                   />
                   <label htmlFor="eRInductionVariable">IVar</label>
@@ -1746,6 +1768,7 @@ const InductionRacket = () => {
                       !!validationMessages.inductionValue ||
                       !!proofValidationMessage.inductionValue
                     }
+                    disabled={proofStarted}
                     required
                   />
                   <label htmlFor="eRInductionValue">AVal</label>
@@ -1772,6 +1795,7 @@ const InductionRacket = () => {
                       !!validationMessages.leapVariable ||
                       !!proofValidationMessage.leapVariable
                     }
+                    disabled={proofStarted}
                     required
                   />
                   <label htmlFor="eRLeapVariable">LVar</label>
@@ -1798,6 +1822,7 @@ const InductionRacket = () => {
                       !!validationMessages.lHSGoal ||
                       !!goalValidationMessage.LHS.Goal
                     }
+                    disabled={proofStarted}
                     required
                   />
                   <label htmlFor="eRProofLHSGoal">LHS Goal</label>
@@ -1821,6 +1846,7 @@ const InductionRacket = () => {
                       !!validationMessages.rHSGoal ||
                       !!goalValidationMessage.RHS.Goal
                     }
+                    disabled={proofStarted}
                     required
                   />
                   <label htmlFor="eRProofRHSGoal">RHS Goal</label>
@@ -1843,6 +1869,7 @@ const InductionRacket = () => {
                       placeholder="Inductive Hypothesis LHS"
                       value={inductiveHypothesisLHS}
                       onChange={(e) => setInductiveHypothesisLHS(e.target.value)}
+                      disabled={proofStarted}
                     />
                     <label htmlFor="eRInductiveHypothesisLHS">IH LHS</label>
                   </Form.Floating>
@@ -1856,6 +1883,7 @@ const InductionRacket = () => {
                       placeholder="Inductive Hypothesis RHS"
                       value={inductiveHypothesisRHS}
                       onChange={(e) => setInductiveHypothesisRHS(e.target.value)}
+                      disabled={proofStarted}
                     />
                     <label htmlFor="eRInductiveHypothesisRHS">IH RHS</label>
                   </Form.Floating>

@@ -287,6 +287,9 @@ def start_induction_proof(request):
             ind_proof, _ = get_or_set_induction_obj(user)
             save_induction_obj_to_cache(user, ind_proof, proof.id)
             
+            # Note: Premises will be saved to database when set_current_proof is called
+            # with the properly substituted values (ivar->aval for base, ivar->(+lvar 1) for leap)
+            
             return Response(
                 {
                     "message": "Induction proof started successfully",
@@ -588,6 +591,55 @@ def set_current_proof(request):
 
         # Save engine to cache, preserving proof_id that was set by start_induction_proof
         save_induction_obj_to_cache(user, ind, existing_proof_id)
+        
+        # Now save the properly initialized premises to database
+        if existing_proof_id:
+            # Save base case premises (these have ivar substituted with aval)
+            if ind.baseCase.LHS.proofLines:
+                save_proof_line_to_db(
+                    proof_id=existing_proof_id,
+                    case='base',
+                    side='LHS',
+                    racket=str(ind.baseCase.LHS.proofLines[0].exprTree),
+                    rule='Premise',
+                    start_position=0,
+                    line_number=0,
+                    selected_node=0
+                )
+            if ind.baseCase.RHS.proofLines:
+                save_proof_line_to_db(
+                    proof_id=existing_proof_id,
+                    case='base',
+                    side='RHS',
+                    racket=str(ind.baseCase.RHS.proofLines[0].exprTree),
+                    rule='Premise',
+                    start_position=0,
+                    line_number=0,
+                    selected_node=0
+                )
+            # Save leap step premises (these have ivar substituted with (+ lvar 1))
+            if ind.leapStep.LHS.proofLines:
+                save_proof_line_to_db(
+                    proof_id=existing_proof_id,
+                    case='leap',
+                    side='LHS',
+                    racket=str(ind.leapStep.LHS.proofLines[0].exprTree),
+                    rule='Premise',
+                    start_position=0,
+                    line_number=0,
+                    selected_node=0
+                )
+            if ind.leapStep.RHS.proofLines:
+                save_proof_line_to_db(
+                    proof_id=existing_proof_id,
+                    case='leap',
+                    side='RHS',
+                    racket=str(ind.leapStep.RHS.proofLines[0].exprTree),
+                    rule='Premise',
+                    start_position=0,
+                    line_number=0,
+                    selected_node=0
+                )
 
         # Build frontend payload with jsonTrees for latest lines
         payload = {
@@ -806,6 +858,13 @@ def check_goal(request):
         case = data.get("case", "base")
         goal = data.get("goal")
         target = _get_case_side(proof, case, side)
+        
+        # Mark proof incomplete when resetting premise
+        if case == 'base':
+            proof.baseCase.markIncomplete()
+        else:
+            proof.leapStep.markIncomplete()
+        
         # Clear and set goal
         if len(target.proofLines) != 0:
             target.proofLines.clear()
@@ -942,7 +1001,7 @@ def check_completion(request):
     """
     Check if a specific case (base or leap) is complete.
     Expected JSON: { case: 'base' | 'leap' }
-    Returns: { isComplete: bool, label: str }
+    Returns: { isComplete: bool, label: str, overallComplete: bool }
     """
     user = request.user
     data = request.data
@@ -963,12 +1022,16 @@ def check_completion(request):
         else:
             return Response({"error": "Invalid case. Use 'base' or 'leap'."}, status=status.HTTP_400_BAD_REQUEST)
         
+        # Check overall completion and update indProof.isComplete
+        overall_complete = proof.checkComplete()
+        
         # Save updated completion status to cache
         save_induction_obj_to_cache(user, proof, proof_id)
         
         return Response({
             "isComplete": is_complete,
-            "label": label
+            "label": label,
+            "overallComplete": overall_complete
         }, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
