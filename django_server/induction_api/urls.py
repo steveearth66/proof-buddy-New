@@ -10,7 +10,7 @@ urlpatterns = [
     # ER engine wiring endpoints (mirroring racket_api pattern)
     path("set-current-proof", views.set_current_proof, name="set_current_proof"),
     path("apply-rule", views.apply_rule, name="apply_rule"),
-    path("delete-line/<str:case>/<str:side>", views.delete_line, name="delete_line"),
+    path("delete-line/<str:case>/<str:side>/<int:line_number>", views.delete_line, name="delete_line"),
     path("check-goal", views.check_goal, name="check_goal"),
     path("substitution", views.substitution, name="substitution"),
     path("check-completion", views.check_completion, name="check_completion"),

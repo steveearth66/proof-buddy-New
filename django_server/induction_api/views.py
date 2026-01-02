@@ -814,34 +814,67 @@ def apply_rule(request):
 
 
 @api_view(["DELETE"]) 
-def delete_line(request, case, side):
+def delete_line(request, case, side, line_number):
+    """Clear a proof line (blank out racket expression and rule) instead of deleting it"""
     user = request.user
     proof, proof_id = get_or_set_induction_obj(user)
     try:
-        # Mark proof incomplete when deleting
+        # Mark proof incomplete when clearing
         if case == 'base':
             proof.baseCase.markIncomplete()
         else:
             proof.leapStep.markIncomplete()
+        proof.isComplete = False
+        
         target = _get_case_side(proof, case, side)
-        line_number = len(target.proofLines) - 1
-        if len(target.proofLines) > 0:
-            target.deleteProofLine()
-            # Delete from database if we have proof_id
+        
+        if line_number > 0 and len(target.proofLines) > line_number:
+            # Clear the line in memory by replacing it with an empty line
+            # Empty string is now allowed thanks to special case in ERProofLine.__init__
+            empty_line = ERProofLine("", target.debug, target.ruleSet, generics=target.generics)
+            target.proofLines[line_number] = empty_line
+            
+            # Clear in database - update the line to have empty racket and rule
             if proof_id:
                 from .models import InductionProofLine
+                # Clear the current line (racket, rule, and all position markers)
                 InductionProofLine.objects.filter(
                     proof_id=proof_id,
                     case=case,
                     side=side,
                     line_number=line_number
-                ).delete()
+                ).update(
+                    racket='',
+                    rule='',
+                    start_position=0,
+                    selected_node=0,
+                    result_node=0
+                )
+                
+                # Also clear the rule on the next line (if it exists)
+                InductionProofLine.objects.filter(
+                    proof_id=proof_id,
+                    case=case,
+                    side=side,
+                    line_number=line_number + 1
+                ).update(rule='')
+                
+                # Clear selected_node (target highlight) on the previous line (if it exists)
+                if line_number > 0:
+                    InductionProofLine.objects.filter(
+                        proof_id=proof_id,
+                        case=case,
+                        side=side,
+                        line_number=line_number - 1
+                    ).update(selected_node=0)
+        
         save_induction_obj_to_cache(user, proof, proof_id)
         return Response(status=status.HTTP_200_OK)
     except Exception as e:
-        # Log error but still return 200 if deletion completed
-        print(f"Warning in delete_line: {e}")
-        return Response(status=status.HTTP_200_OK)
+        print(f"Error in delete_line: {e}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["POST"]) 

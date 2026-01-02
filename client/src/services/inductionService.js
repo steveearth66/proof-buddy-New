@@ -42,10 +42,10 @@ const applyRule = async (data) => {
   }
 };
 
-const deleteLine = async (caseName, side) => {
+const deleteLine = async (caseName, side, lineNumber) => {
   try {
     const response = await axiosInstance.delete(
-      `${API_GATEWAY}/delete-line/${caseName}/${side}`
+      `${API_GATEWAY}/delete-line/${caseName}/${side}/${lineNumber}`
     );
     return response.data;
   } catch (error) {

@@ -303,6 +303,13 @@ class ERProofLine(ProofComponent):
         self.appliedRuleNodeId = None # stores the node ID where the rule was applied on the previous line
         self.resultNodeId = None # stores the node ID of the changed portion in this line's result
 
+        # Special case: allow blank lines (used for cleared lines)
+        if goal == "" or goal is None or (isinstance(goal, str) and goal.strip() == ""):
+            # Create a minimal empty tree node
+            self.exprTree = Node("")
+            self.positions = {}
+            return
+
         tokenList, self.errLog = Parser.preProcess(goal, errLog=self.errLog, debug=self.debug,udf=isUdf)
         if self.errLog == []:
             tree = Parser.buildTree(tokenList, debug=self.debug)[0]  # might not need to pass errLog

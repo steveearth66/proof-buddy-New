@@ -6,6 +6,7 @@ import Form from "react-bootstrap/Form";
 import Col from "react-bootstrap/Col";
 import Row from "react-bootstrap/Row";
 import Alert from "react-bootstrap/Alert";
+import Modal from "react-bootstrap/Modal";
 import { toast } from "react-toastify";
 import MainLayout from "../layouts/MainLayout";
 import validateField from "../utils/inductionFormValidation";
@@ -133,6 +134,7 @@ const InductionRacket = () => {
   const [isBound, setIsBound] = useState(false);
   const [footerRule, setFooterRule] = useState("");
   const [footerRuleError, setFooterRuleError] = useState("");
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   
   // Hook for getting available height for scrollable proof area
   const availableHeight = useDynamicHeight();
@@ -304,32 +306,51 @@ const InductionRacket = () => {
    * This ensures that when switching sides/cases, the highlighting persists.
    */
   const loadProofLinesFromDatabase = useCallback(async () => {
+    console.log('[loadProofLinesFromDatabase] CALLED');
     try {
       const proofLines = await inductionService.getProofLines();
+      console.log('[loadProofLinesFromDatabase] Got proof lines from API:', proofLines);
       
       // Build racketRuleFields from database proof lines
       const buildFieldsFromLines = (lines) => {
+        console.log('[buildFieldsFromLines] Input lines:', JSON.stringify(lines, null, 2));
+        
         if (!lines || lines.length === 0) {
           return [EMPTY_INITIAL_FIELD];
         }
         
-        // Skip the premise (line 0) - it's displayed separately at the top
-        // racketRuleFields contains only the generated proof lines (1, 2, 3, ...)
-        const fields = lines
-          .filter(line => line.lineNumber > 0)
-          .sort((a, b) => a.lineNumber - b.lineNumber)  // Ensure correct order
-          .map(line => {
-            const field = {
-              racket: line.racket || '',
-              rule: line.rule || '',
-              startPosition: line.startPosition || 0,
-              selectedNode: line.selectedNode || 0,  // This is the key field for highlighting!
-              substitution: line.substitution || '',
-              jsonTree: line.jsonTree || {},  // Include jsonTree from backend for rendering
-              deleted: false
-            };
-            return field;
-          });
+        // Find all lines excluding premise (line 0)
+        const nonPremiseLines = lines.filter(line => line.lineNumber > 0);
+        
+        if (nonPremiseLines.length === 0) {
+          return [EMPTY_INITIAL_FIELD];
+        }
+        
+        // Find max line number to size array
+        const maxLineNum = Math.max(...nonPremiseLines.map(l => l.lineNumber));
+        
+        // Create array where index matches database line number
+        // Initialize all slots with empty fields to avoid null
+        const fields = [];
+        for (let i = 0; i <= maxLineNum; i++) {
+          fields[i] = { racket: '', rule: '', deleted: false, startPosition: 0, selectedNode: 0, substitution: '', jsonTree: {} };
+        }
+        
+        // Fill in actual line data at correct indices
+        nonPremiseLines.forEach(line => {
+          fields[line.lineNumber] = {
+            racket: line.racket || '',
+            rule: line.rule || '',
+            startPosition: line.startPosition || 0,
+            selectedNode: line.selectedNode || 0,
+            substitution: line.substitution || '',
+            jsonTree: line.jsonTree || {},
+            deleted: false
+          };
+        });
+        
+        console.log('[buildFieldsFromLines] Max line number:', maxLineNum);
+        console.log('[buildFieldsFromLines] Output fields array length:', fields.length);
         
         // Always add empty field at the end
         fields.push(EMPTY_INITIAL_FIELD);
@@ -2187,33 +2208,28 @@ const InductionRacket = () => {
             <Col md="3" className="rules-btn-grp">
               <Button
                 className="orange-btn delete-btn"
-                disabled={!isBound}
-                onClick={async () => {
-                  const caseKey = isAnchor ? 'base' : 'leap';
-                  setProofStatus(prev => ({ ...prev, [caseKey]: null }));
-                  try {
-                    await inductionService.deleteLine(isAnchor ? 'base' : 'leap', showSide);
-                    setRacketRuleFields(prev => {
-                      const fields = { ...prev };
-                      const arr = [...fields[showSide]];
-                      for (let i = arr.length - 1; i >= 0; i--) {
-                        if (arr[i] && arr[i].racket && arr[i].racket.trim() !== '') {
-                          arr.splice(i, 1);
-                          break;
-                        }
-                      }
-                      const last = arr[arr.length - 1];
-                      const endIsEmpty = last && (!last.racket || last.racket.trim() === '') && (!last.rule || last.rule.trim() === '');
-                      if (!endIsEmpty) arr.push(EMPTY_INITIAL_FIELD);
-                      fields[showSide] = arr;
-                      return fields;
-                    });
-                  } catch (e) {
-                    toast.error('Failed to delete line');
-                  }
-                }}
+                disabled={(() => {
+                  // Disabled if not bound
+                  if (!isBound) return true;
+                  
+                  const lineNum = parseInt(userRow.num, 10);
+                  
+                  // Disabled if premise line (line 0)
+                  if (lineNum === 0) return true;
+                  
+                  // Disabled if line is blank
+                  const fields = racketRuleFields[showSide];
+                  if (!fields || !fields[lineNum]) return true;
+                  
+                  const racket = (fields[lineNum].racket || '').trim();
+                  if (racket === '') return true;
+                  
+                  // Enable for non-blank, non-premise lines
+                  return false;
+                })()}
+                onClick={() => setShowClearConfirm(true)}
               >
-                Delete Line
+                Clear Line
               </Button>
             </Col>
             <Col md="2" className="rules-btn-grp">
@@ -2238,6 +2254,54 @@ const InductionRacket = () => {
         </div>
         );
       })()}
+
+      {/* Clear Line Confirmation Modal */}
+      <Modal show={showClearConfirm} onHide={() => setShowClearConfirm(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Clear Line</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          This will clear the racket expression and rule justifications for line {userRow.num}. Do you wish to proceed?
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowClearConfirm(false)}>
+            No
+          </Button>
+          <Button variant="danger" onClick={async () => {
+            console.log('[CLEAR LINE] Starting clear operation');
+            setShowClearConfirm(false);
+            const caseKey = isAnchor ? 'base' : 'leap';
+            const lineNum = parseInt(userRow.num, 10);
+            
+            console.log('[CLEAR LINE] Case:', caseKey, 'Side:', showSide, 'LineNum:', lineNum);
+            
+            // Reset proof status
+            setProofStatus(prev => ({ ...prev, [caseKey]: null }));
+            
+            try {
+              // Call backend to clear line in database and reset completion flags
+              console.log('[CLEAR LINE] Calling deleteLine API...');
+              await inductionService.deleteLine(isAnchor ? 'base' : 'leap', showSide, lineNum);
+              console.log('[CLEAR LINE] deleteLine API succeeded');
+              
+              // Reload the proof lines from backend to sync the UI
+              console.log('[CLEAR LINE] Calling loadProofLinesFromDatabase...');
+              await loadProofLinesFromDatabase();
+              console.log('[CLEAR LINE] loadProofLinesFromDatabase completed');
+              
+              // Unbind the line after clearing
+              setIsBound(false);
+              setUserRow({ num: "" });
+              console.log('[CLEAR LINE] Clear operation completed');
+            } catch (e) {
+              console.error('[CLEAR LINE] Error:', e);
+              toast.error('Failed to clear line');
+            }
+          }}>
+            Yes
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </MainLayout>
   );
 };
