@@ -319,15 +319,15 @@ const InductionRacket = () => {
           return [EMPTY_INITIAL_FIELD];
         }
         
-        // Find all lines excluding premise (line 0)
-        const nonPremiseLines = lines.filter(line => line.lineNumber > 0);
+        // Include ALL lines (including premise at line 0) so array index = database line_number
+        const allLines = lines.sort((a, b) => a.lineNumber - b.lineNumber);
         
-        if (nonPremiseLines.length === 0) {
+        if (allLines.length === 0) {
           return [EMPTY_INITIAL_FIELD];
         }
         
         // Find max line number to size array
-        const maxLineNum = Math.max(...nonPremiseLines.map(l => l.lineNumber));
+        const maxLineNum = Math.max(...allLines.map(l => l.lineNumber));
         
         // Create array where index matches database line number
         // Initialize all slots with empty fields to avoid null
@@ -336,8 +336,8 @@ const InductionRacket = () => {
           fields[i] = { racket: '', rule: '', deleted: false, startPosition: 0, selectedNode: 0, substitution: '', jsonTree: {} };
         }
         
-        // Fill in actual line data at correct indices
-        nonPremiseLines.forEach(line => {
+        // Fill in actual line data at correct indices (INCLUDING line 0)
+        allLines.forEach(line => {
           fields[line.lineNumber] = {
             racket: line.racket || '',
             rule: line.rule || '',
@@ -351,6 +351,12 @@ const InductionRacket = () => {
         
         console.log('[buildFieldsFromLines] Max line number:', maxLineNum);
         console.log('[buildFieldsFromLines] Output fields array length:', fields.length);
+        console.log('[buildFieldsFromLines] Fields array structure:');
+        fields.forEach((field, idx) => {
+          if (idx < maxLineNum + 1) {
+            console.log(`  [${idx}]: racket="${field.racket?.substring(0, 20)}...", rule="${field.rule}", deleted=${field.deleted}`);
+          }
+        });
         
         // Always add empty field at the end
         fields.push(EMPTY_INITIAL_FIELD);
@@ -797,16 +803,19 @@ const InductionRacket = () => {
                   return [EMPTY_INITIAL_FIELD];
                 }
                 
-                // Filter out line 0 (premise) - it's displayed separately
-                const proofLines = dbLines.filter(line => line.lineNumber > 0);
+                // Find the highest line number to size the array
+                const maxLineNum = Math.max(...dbLines.map(line => line.lineNumber));
                 
-                if (proofLines.length === 0) {
-                  return [EMPTY_INITIAL_FIELD];
+                // Create array where index = database line_number
+                // Start with empty fields for all positions
+                const fields = [];
+                for (let i = 0; i <= maxLineNum; i++) {
+                  fields[i] = { ...EMPTY_INITIAL_FIELD };
                 }
                 
-                // Convert to field format
-                const fields = proofLines.map(line => {
-                  const field = {
+                // Fill in the actual data from database
+                dbLines.forEach(line => {
+                  fields[line.lineNumber] = {
                     racket: line.racket || '',
                     jsonTree: line.jsonTree || {},
                     rule: line.rule || '',
@@ -815,13 +824,13 @@ const InductionRacket = () => {
                     resultNode: line.resultNode || 0,
                     deleted: false
                   };
-                  console.log(`[RESTORE] Converting line ${line.lineNumber}: selectedNode=${line.selectedNode}, resultNode=${line.resultNode}`);
-                  return field;
+                  console.log(`[RESTORE] Line ${line.lineNumber}: racket="${line.racket}", rule="${line.rule}"`);
                 });
                 
-                // Add trailing empty field
+                // Add trailing empty field for next line
                 fields.push(EMPTY_INITIAL_FIELD);
                 
+                console.log(`[RESTORE] Built fields array: length=${fields.length}, maxLineNum=${maxLineNum}`);
                 return fields;
               };
               
@@ -1351,8 +1360,8 @@ const InductionRacket = () => {
           ? (leftPremise?.selectedNode ?? leftPremise?.startPosition ?? 0)
           : (rightPremise?.selectedNode ?? rightPremise?.startPosition ?? 0);
       } else {
-        // Source is the previous line (padIndex - 1 in the pads, which is padIndex - 2 in racketRuleFields)
-        const sourceField = racketRuleFields[showSide][padIndex - 2];
+        // Source is the previous line (padIndex - 1 in array, since array index = line number)
+        const sourceField = racketRuleFields[showSide][padIndex - 1];
         currentRacket = sourceField?.racket || "";
         sourcePad = padRefs.current ? padRefs.current[padIndex - 1] : null;
         // Get selectedNode from the source field state
@@ -1486,7 +1495,8 @@ const InductionRacket = () => {
     caseType
   }) {
     const isLHS = side === "LHS";
-    const padIndex = isPremise ? 0 : index + 1;
+    // Since array index now equals database line_number, use index directly as padIndex
+    const padIndex = index;
     
     // For premise in Induction, use the substituted premise from state
     let equation;
@@ -1504,7 +1514,8 @@ const InductionRacket = () => {
       ? (isLHS ? leftPremise?.jsonTree : rightPremise?.jsonTree)
       : (field.jsonTree || jsonTreeRep[side]);
     
-    const lineNum = isPremise ? 0 : index + 1;
+    // Since array index now equals database line_number, use index directly
+    const lineNum = index;
     const ruleValue = isPremise ? "Premise" : field.rule;
     const rulePlaceholder = isPremise ? `${side} Premise` : `${side} Rule`;
     const isRuleInvalid = !isPremise && !!validationErrors[side][index];
@@ -1520,7 +1531,7 @@ const InductionRacket = () => {
     let startPosition;
     if (isPremise) {
       // For premise, check if line 1 exists with content OR user is bound to line 1
-      const nextLineHasContent = racketRuleFields[side] && racketRuleFields[side][0]?.racket;
+      const nextLineHasContent = racketRuleFields[side] && racketRuleFields[side][1]?.racket;
       const showHighlight = nextLineHasContent || isUserBoundToNextLine;
       startPosition = showHighlight
         ? (isLHS
@@ -2105,27 +2116,12 @@ const InductionRacket = () => {
             )}
 
             <>
-              {renderPersistentPadRow({
-              side: showSide,
-              isPremise: true,
-              padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
-              formValues,
-              jsonTreeRep,
-              handleFieldHighlight,
-              validationErrors,
-              isBound,
-              userRow,
-              handleRowNumberClick,
-              leftPremise,
-              rightPremise,
-              caseType: isAnchor ? 'base' : 'leap'
-            })}
             {racketRuleFields[showSide].map((field, index) =>
               field.deleted
                 ? null
                 : renderPersistentPadRow({
                   side: showSide,
-                  isPremise: false,
+                  isPremise: index === 0,
                   index,
                   field,
                   padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
@@ -2210,21 +2206,40 @@ const InductionRacket = () => {
                 className="orange-btn delete-btn"
                 disabled={(() => {
                   // Disabled if not bound
-                  if (!isBound) return true;
+                  if (!isBound) {
+                    console.log('[CLEAR DISABLED] Not bound');
+                    return true;
+                  }
                   
                   const lineNum = parseInt(userRow.num, 10);
+                  console.log('[CLEAR DISABLED CHECK] userRow.num:', userRow.num, 'lineNum:', lineNum);
                   
                   // Disabled if premise line (line 0)
-                  if (lineNum === 0) return true;
+                  if (lineNum === 0) {
+                    console.log('[CLEAR DISABLED] Line 0 is premise');
+                    return true;
+                  }
                   
                   // Disabled if line is blank
                   const fields = racketRuleFields[showSide];
-                  if (!fields || !fields[lineNum]) return true;
+                  console.log('[CLEAR DISABLED CHECK] showSide:', showSide, 'fields array length:', fields?.length);
+                  console.log('[CLEAR DISABLED CHECK] fields[lineNum]:', fields?.[lineNum]);
+                  
+                  if (!fields || !fields[lineNum]) {
+                    console.log('[CLEAR DISABLED] No field at index', lineNum);
+                    return true;
+                  }
                   
                   const racket = (fields[lineNum].racket || '').trim();
-                  if (racket === '') return true;
+                  console.log('[CLEAR DISABLED CHECK] racket:', racket);
+                  
+                  if (racket === '') {
+                    console.log('[CLEAR DISABLED] Racket is blank');
+                    return true;
+                  }
                   
                   // Enable for non-blank, non-premise lines
+                  console.log('[CLEAR ENABLED] Line', lineNum, 'has content:', racket);
                   return false;
                 })()}
                 onClick={() => setShowClearConfirm(true)}
@@ -2284,15 +2299,49 @@ const InductionRacket = () => {
               await inductionService.deleteLine(isAnchor ? 'base' : 'leap', showSide, lineNum);
               console.log('[CLEAR LINE] deleteLine API succeeded');
               
-              // Reload the proof lines from backend to sync the UI
-              console.log('[CLEAR LINE] Calling loadProofLinesFromDatabase...');
-              await loadProofLinesFromDatabase();
-              console.log('[CLEAR LINE] loadProofLinesFromDatabase completed');
+              // Update local state to clear the line
+              const fields = isAnchor 
+                ? (showSide === 'LHS' ? baseRacketFields : baseRacketFields)
+                : (showSide === 'LHS' ? leapRacketFields : leapRacketFields);
               
-              // Unbind the line after clearing
-              setIsBound(false);
-              setUserRow({ num: "" });
-              console.log('[CLEAR LINE] Clear operation completed');
+              const updatedFields = { ...fields };
+              updatedFields[showSide] = [...updatedFields[showSide]];
+              
+              // Clear the line at lineNum index
+              updatedFields[showSide][lineNum] = {
+                racket: '',
+                jsonTree: {},
+                rule: '',
+                startPosition: 0,
+                selectedNode: 0,
+                resultNode: 0,
+                deleted: false
+              };
+              
+              // Clear highlights on next line if it exists
+              if (updatedFields[showSide][lineNum + 1]) {
+                updatedFields[showSide][lineNum + 1] = {
+                  ...updatedFields[showSide][lineNum + 1],
+                  rule: ''
+                };
+              }
+              
+              // Clear selectedNode on previous line if it exists and isn't premise
+              if (lineNum > 1 && updatedFields[showSide][lineNum - 1]) {
+                updatedFields[showSide][lineNum - 1] = {
+                  ...updatedFields[showSide][lineNum - 1],
+                  selectedNode: 0
+                };
+              }
+              
+              // Update the appropriate state
+              if (isAnchor) {
+                setBaseRacketFields(updatedFields);
+              } else {
+                setLeapRacketFields(updatedFields);
+              }
+              
+              console.log('[CLEAR LINE] Local state updated successfully');
             } catch (e) {
               console.error('[CLEAR LINE] Error:', e);
               toast.error('Failed to clear line');

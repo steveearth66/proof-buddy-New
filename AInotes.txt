@@ -326,3 +326,39 @@ When toggle behavior is wrong:
 
 **DEBUG LOG CLEANUP LESSON:**
 Bulk removal sometimes causes mysterious errors. Remove logs incrementally, testing after each removal. Include full context (3+ lines) to avoid deleting adjacent code.
+
+---
+
+Session from 2026-01-01: Clear Line Implementation & Array Indexing Alignment
+
+**ROOT CAUSE OF ALL FAILURES:**
+The premise was rendered separately (hardcoded) but NOT included in the racketRuleFields array. This created a fundamental indexing mismatch:
+- UI Array: index 0 = line 001, index 1 = line 002, etc.
+- Database: line 0 = premise, line 1 = line 001, line 2 = line 002, etc.
+- Result: racketRuleFields[0] pointed to database line 1, racketRuleFields[1] to line 2, etc.
+
+**WHY STATE UPDATES KEPT FAILING:**
+When clearing line 002 (database line_number=2), the code updated racketRuleFields[2], but that was actually database line 3 because of the off-by-one error. State updates targeted wrong indices because array position ≠ database line_number.
+
+**WHY WINDOW.LOCATION.RELOAD() "WORKED":**
+Page refresh reloaded everything from database (which had correct data), masking the underlying architectural problem. This was treating the symptom, not the root cause.
+
+**THE ACTUAL FIX:**
+Include premise in racketRuleFields array at index 0. Now array index === database line_number:
+- racketRuleFields[0] = premise (line 0)
+- racketRuleFields[1] = line 001 (line 1)  
+- racketRuleFields[2] = line 002 (line 2)
+
+Once indexing aligned, state updates worked correctly without any page refresh.
+
+**CRITICAL LESSON - ARRAY INDEXING ALIGNMENT:**
+When you have parallel data structures (UI array, database records), their indexing MUST align. If database uses line_number 0-N, UI array indices must also be 0-N pointing to the same items. Never create separate renderings that cause index mismatches.
+
+**WARNING SIGNS OF INDEX MISALIGNMENT:**
+- Calculations like `arrayIndex = databaseLineNumber - 1` or `+ 1`
+- Separate rendering for "special" items (premise) that should be in the array
+- State updates that only work after page refresh
+- Off-by-one errors when accessing array elements by line number
+
+**FIX PATTERN:**
+Don't work around index mismatches with arithmetic adjustments. Fix the architecture so indices align naturally, then all code becomes simpler and correct.

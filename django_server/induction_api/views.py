@@ -818,6 +818,9 @@ def delete_line(request, case, side, line_number):
     """Clear a proof line (blank out racket expression and rule) instead of deleting it"""
     user = request.user
     proof, proof_id = get_or_set_induction_obj(user)
+    
+    print(f"[DELETE_LINE] Called with case={case}, side={side}, line_number={line_number}")
+    
     try:
         # Mark proof incomplete when clearing
         if case == 'base':
@@ -827,6 +830,7 @@ def delete_line(request, case, side, line_number):
         proof.isComplete = False
         
         target = _get_case_side(proof, case, side)
+        print(f"[DELETE_LINE] Target has {len(target.proofLines)} proof lines")
         
         if line_number > 0 and len(target.proofLines) > line_number:
             # Clear the line in memory by replacing it with an empty line
