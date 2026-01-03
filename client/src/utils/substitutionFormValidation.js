@@ -14,8 +14,8 @@ const validatedField = (fieldName, value) => {
     if (!trimmed) {
       return "Please provide a rule.";
     }
-    if (!trimmed.startsWith("rewrite")) {
-      return "Rule must start with 'rewrite' (e.g., 'rewrite math')";
+    if (!trimmed.startsWith("rewrite") && !trimmed.startsWith("eval")) {
+      return "Rule must start with 'rewrite' or 'eval' (e.g., 'rewrite math', 'eval if')";
     }
     return "";
   } else {

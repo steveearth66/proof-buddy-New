@@ -960,10 +960,13 @@ def substitution(request):
         selectedNode = data.get("selectedNode")
         substitution = data.get("substitution")
         lineNumber = data.get("lineNumber")
+        print(f"[SUBSTITUTION] Received: rule='{rule}', substitution='{substitution}', currentRacket='{currentRacket}', startPosition={startPosition}")  # DEBUG REMOVE
 
         target = _get_case_side(proof, case, side)
         # Clear previous errors before attempting new substitution
         target.errLog = []
+        print(f"[SUBSTITUTION] target.ruleSet['apply'] keys: {list(target.ruleSet['apply'].keys())}")  # DEBUG REMOVE
+        print(f"[SUBSTITUTION] target.generics: {target.generics}")  # DEBUG REMOVE
         # Mark proof incomplete when user edits
         if case == 'base':
             proof.baseCase.markIncomplete()
@@ -972,8 +975,10 @@ def substitution(request):
         _apply_line(target, currentRacket, rule, startPosition, substitution)
 
         is_valid = len(target.errLog) == 0
+        print(f"[SUBSTITUTION] After _apply_line: is_valid={is_valid}, errLog={target.errLog}")  # DEBUG REMOVE
         racket_str = target.getPrevRacket() if is_valid else "Error generating racket"
-        jsonTree = makeJson(target.proofLines[-1].exprTree)
+        jsonTree = makeJson(target.proofLines[-1].exprTree) if is_valid and len(target.proofLines) > 0 else {}
+        print(f"[SUBSTITUTION] racket_str='{racket_str}'")  # DEBUG REMOVE
         
         # Get the rule from the engine - it formats it correctly with "with" keyword
         rule_with_sub = ''
