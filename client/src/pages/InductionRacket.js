@@ -263,8 +263,8 @@ const InductionRacket = () => {
 
     // Set footer rule initially to what the field has
     if (paddedRowNum !== "000") {
-      const fieldIndex = userIndex - 1; // Convert line number to array index
-      const field = racketRuleFields[showSide]?.[fieldIndex];
+      // Array index now equals line number, so use userIndex directly
+      const field = racketRuleFields[showSide]?.[userIndex];
       setFooterRule(field?.rule || "");
     } else {
       setFooterRule("Premise");
@@ -430,13 +430,20 @@ const InductionRacket = () => {
     const lhsLines = targetFields.LHS || [];
     const rhsLines = targetFields.RHS || [];
     
-    // Find last non-empty line (skip trailing blank)
-    const lastLhsLine = lhsLines.length > 0 && lhsLines[lhsLines.length - 1].racket === '' 
-      ? (lhsLines.length > 1 ? lhsLines[lhsLines.length - 2] : null)
-      : (lhsLines.length > 0 ? lhsLines[lhsLines.length - 1] : null);
-    const lastRhsLine = rhsLines.length > 0 && rhsLines[rhsLines.length - 1].racket === '' 
-      ? (rhsLines.length > 1 ? rhsLines[rhsLines.length - 2] : null)
-      : (rhsLines.length > 0 ? rhsLines[rhsLines.length - 1] : null);
+    // Find last non-empty, non-premise line (premise is at index 0)
+    const findLastNonEmptyLine = (lines) => {
+      // Start from the end and work backwards, skipping empties
+      for (let i = lines.length - 1; i > 0; i--) {
+        if (lines[i] && lines[i].racket && lines[i].racket.trim() !== '') {
+          return lines[i];
+        }
+      }
+      // If no non-empty proof line found, return null (will fall back to premise)
+      return null;
+    };
+    
+    const lastLhsLine = findLastNonEmptyLine(lhsLines);
+    const lastRhsLine = findLastNonEmptyLine(rhsLines);
     
     setLhsValue(lastLhsLine?.racket || targetPremises.LHS?.racket || '');
     setRhsValue(lastRhsLine?.racket || targetPremises.RHS?.racket || '');
@@ -551,7 +558,8 @@ const InductionRacket = () => {
             previousStartPosition = premiseData.selectedNode ?? premiseData.startPosition ?? 0;
             console.log(`[GENERATE] From premise: selectedNode=${previousStartPosition}`);
           } else {
-            const previousField = racketRuleFields[showSide][previousRowIndex - 1];
+            // Since array index now equals line number, use previousRowIndex directly
+            const previousField = racketRuleFields[showSide][previousRowIndex];
             previousRacketValue = previousField?.racket || "";
             // Get the selected node from the field if available (restored), otherwise from PersistentPad's current selection
             const fromField = previousField?.selectedNode;
@@ -559,7 +567,7 @@ const InductionRacket = () => {
             previousStartPosition = fromField ?? fromPad ?? 0;
             console.log(`[GENERATE] From line ${previousRowIndex}: fromField=${fromField}, fromPad=${fromPad}, using=${previousStartPosition}`);
           }
-          currentIndex = userIndex - 1; // index of the field being edited in footer
+          currentIndex = userIndex; // index in array now equals line number
         }
       }
 
@@ -584,7 +592,8 @@ const InductionRacket = () => {
         currentRacket: previousRacketValue,
         rule: ruleFromFooter,
         startPosition: previousStartPosition,
-        selectedNode: previousStartPosition
+        selectedNode: previousStartPosition,
+        ...(typeof currentIndex === 'number' && { lineNumber: currentIndex })
       };
 
       // Reset status when new line generated
@@ -603,62 +612,71 @@ const InductionRacket = () => {
       }
 
       if (fullRacket && fullRacket.isValid) {
+        const newField = {
+          racket: fullRacket.racket || "",
+          jsonTree: fullRacket.jsonTree || {},
+          rule: ruleFromFooter,
+          startPosition: previousStartPosition,
+          selectedNode: previousStartPosition,
+          resultNode: fullRacket.resultNodeId ?? 0,
+          deleted: false
+        };
+
+        console.log('[GENERATE] Creating new field:', { currentIndex, newField, showSide, isAnchor });
+
         setRacketRuleFields((prevFields) => {
-          const fields = { ...prevFields };
-
-          const newField = {
-            racket: fullRacket.racket || "",
-            jsonTree: fullRacket.jsonTree || {},
-            rule: ruleFromFooter,
-            startPosition: previousStartPosition,
-            selectedNode: previousStartPosition,
-            resultNode: fullRacket.resultNodeId ?? 0,
-            deleted: false
-          };
-
-          const sideArray = fields[showSide] || [];
+          const sideArray = [...(prevFields[showSide] || [])];
+          
+          console.log('[GENERATE] Before update - sideArray length:', sideArray.length, 'currentIndex:', currentIndex);
+          
+          // Check for duplicate
           const hasMatchingField = sideArray.some((field) => (
             field && !field.deleted && field.racket === newField.racket && field.rule === newField.rule
           ));
           if (hasMatchingField) {
+            console.log('[GENERATE] Duplicate found, skipping update');
             return prevFields;
           }
-          const lastField = sideArray[sideArray.length - 1];
-          const lastIsEmpty = lastField && lastField.racket === "" && lastField.rule === "";
+
           const isEditingMiddle = typeof currentIndex === 'number' && currentIndex >= 0 && currentIndex < sideArray.length - 1;
+          console.log('[GENERATE] isEditingMiddle:', isEditingMiddle);
 
           if (isEditingMiddle) {
-            // Replace the targeted middle line without adding a new blank
+            // Replace the targeted middle line
             sideArray[currentIndex] = newField;
-            // Ensure there's a trailing blank line; add one only if missing
+            console.log('[GENERATE] Replaced middle line at index', currentIndex);
+            // Ensure there's a trailing blank line
             const endLast = sideArray[sideArray.length - 1];
             const endIsEmpty = endLast && endLast.racket === "" && endLast.rule === "";
             if (!endIsEmpty) {
               sideArray.push(EMPTY_INITIAL_FIELD);
             }
           } else {
-            // Editing the end (or no specific index): maintain trailing blank behavior
+            // Editing the end
+            const lastField = sideArray[sideArray.length - 1];
+            const lastIsEmpty = lastField && lastField.racket === "" && lastField.rule === "";
+            
             if (lastIsEmpty) {
-              // Replace the last empty with the new line and add a new empty at the end
               sideArray[sideArray.length - 1] = newField;
               sideArray.push(EMPTY_INITIAL_FIELD);
+              console.log('[GENERATE] Replaced last empty and added new trailing empty');
             } else {
-              // No empty at end; append new line and then an empty for next input
               sideArray.push(newField);
               sideArray.push(EMPTY_INITIAL_FIELD);
+              console.log('[GENERATE] Appended new field and trailing empty');
             }
           }
 
-          fields[showSide] = sideArray;
-          return fields;
+          console.log('[GENERATE] After update - sideArray length:', sideArray.length);
+          console.log('[GENERATE] Updated field at index', currentIndex, ':', sideArray[currentIndex]);
+
+          return {
+            ...prevFields,
+            [showSide]: sideArray
+          };
         });
 
-        // Update the Current LHS/RHS field to show the newly generated expression
-        if (showSide === "LHS") {
-          setLhsValue(fullRacket.racket || "");
-        } else {
-          setRhsValue(fullRacket.racket || "");
-        }
+        // Note: Current LHS/RHS will be updated by the useEffect that watches racketRuleFields
 
         // Unbind the footer after successful generation to reset UI state
         if (isBound) {
@@ -774,7 +792,6 @@ const InductionRacket = () => {
               });
             }
           } catch (engineError) {
-            console.error('[RESTORE] Failed to re-initialize proof engine:', engineError);
             // Fall back to simple initialization without jsonTrees
             setBasePremises({
               LHS: { racket: proofData.lhsAnchorGoal || '', jsonTree: {}, rule: 'Premise', startPosition: 0, selectedNode: 0 },
@@ -795,8 +812,6 @@ const InductionRacket = () => {
             const lines = await inductionService.getProofLines();
             
             if (lines && typeof lines === 'object') {
-              console.log('[RESTORE] Got proof lines from database:', lines);
-              
               // Helper function to convert database lines to UI field format
               const convertLinesToFields = (dbLines) => {
                 if (!Array.isArray(dbLines) || dbLines.length === 0) {
@@ -824,13 +839,11 @@ const InductionRacket = () => {
                     resultNode: line.resultNode || 0,
                     deleted: false
                   };
-                  console.log(`[RESTORE] Line ${line.lineNumber}: racket="${line.racket}", rule="${line.rule}"`);
                 });
                 
                 // Add trailing empty field for next line
                 fields.push(EMPTY_INITIAL_FIELD);
                 
-                console.log(`[RESTORE] Built fields array: length=${fields.length}, maxLineNum=${maxLineNum}`);
                 return fields;
               };
               
@@ -839,7 +852,6 @@ const InductionRacket = () => {
                 const baseLHS = convertLinesToFields(lines.base.LHS);
                 const baseRHS = convertLinesToFields(lines.base.RHS);
                 setBaseRacketFields({ LHS: baseLHS, RHS: baseRHS });
-                console.log('[RESTORE] Restored base case fields:', { LHS: baseLHS.length, RHS: baseRHS.length });
               }
               
               // Restore leap case fields  
@@ -847,29 +859,24 @@ const InductionRacket = () => {
                 const leapLHS = convertLinesToFields(lines.leap.LHS);
                 const leapRHS = convertLinesToFields(lines.leap.RHS);
                 setLeapRacketFields({ LHS: leapLHS, RHS: leapRHS });
-                console.log('[RESTORE] Restored leap case fields:', { LHS: leapLHS.length, RHS: leapRHS.length });
               }
             }
           } catch (linesError) {
-            console.error('[RESTORE] Failed to load proof lines:', linesError);
             // Continue anyway - at least form values and IH are restored
           }
           
           setProofStarted(true);
           sessionStorage.setItem('inductionProofActive', 'true');
-          
-          console.log('[RESTORE] Successfully restored proof metadata from database');
         } else {
           // No existing proof, clear to start fresh
           await inductionService.clearInduction();
         }
       } catch (error) {
-        console.error('[RESTORE] Error restoring proof:', error);
         // On error, clear to start fresh
         try {
           await inductionService.clearInduction();
         } catch (clearError) {
-          console.error('[RESTORE] Failed to clear induction:', clearError);
+          // Silent fail
         }
       }
     };
@@ -947,6 +954,32 @@ const InductionRacket = () => {
       clearValidationErrors();
     }
   }, [isAnchor, proofStarted, unbindFooter, clearValidationErrors]);
+
+  // Update Current LHS/RHS display to show the last non-empty line
+  useEffect(() => {
+    if (!proofStarted) return;
+    
+    const targetFields = isAnchor ? baseRacketFields : leapRacketFields;
+    const targetPremises = isAnchor ? basePremises : leapPremises;
+    const lhsLines = targetFields.LHS || [];
+    const rhsLines = targetFields.RHS || [];
+    
+    // Find last non-empty, non-premise line (premise is at index 0)
+    const findLastNonEmptyLine = (lines) => {
+      for (let i = lines.length - 1; i > 0; i--) {
+        if (lines[i] && lines[i].racket && lines[i].racket.trim() !== '') {
+          return lines[i];
+        }
+      }
+      return null;
+    };
+    
+    const lastLhsLine = findLastNonEmptyLine(lhsLines);
+    const lastRhsLine = findLastNonEmptyLine(rhsLines);
+    
+    setLhsValue(lastLhsLine?.racket || targetPremises.LHS?.racket || '');
+    setRhsValue(lastRhsLine?.racket || targetPremises.RHS?.racket || '');
+  }, [proofStarted, isAnchor, baseRacketFields, leapRacketFields, basePremises, leapPremises]);
 
   useEffect(() => {
     // Disabled: Confetti should only show when BOTH base AND leap cases are complete
@@ -1378,7 +1411,8 @@ const InductionRacket = () => {
         selectedNode: selectedNode,
         currentRacket: currentRacket,
         side: showSide,
-        case: isAnchor ? "base" : "leap"
+        case: isAnchor ? "base" : "leap",
+        lineNumber: padIndex  // Tell backend which line to update
       };
 
       try {
@@ -1412,31 +1446,45 @@ const InductionRacket = () => {
 
           setRacketRuleFields((prev) => {
             const currentFields = prev[showSide];
+            const sideArray = [...currentFields];
             
-            // Check if the last field is empty - if so, replace it; otherwise append
-            const lastField = currentFields[currentFields.length - 1];
-            const lastIsEmpty = !lastField?.racket || lastField.racket.trim() === '';
+            // If we're editing a middle line (bound line), replace it
+            // Otherwise append to the end
+            const isEditingMiddle = padIndex >= 0 && padIndex < sideArray.length - 1;
             
-            const updatedFields = lastIsEmpty 
-              ? [...currentFields.slice(0, -1), newField]  // Replace last empty field
-              : [...currentFields, newField];  // Append new field
+            console.log('[SUBSTITUTION] padIndex:', padIndex, 'sideArray.length:', sideArray.length, 'isEditingMiddle:', isEditingMiddle);
             
-            // Add a new empty field at the end only if the last field is not already empty
-            const finalField = updatedFields[updatedFields.length - 1];
-            const needsEmptyField = finalField && finalField.racket && finalField.racket.trim() !== '';
+            if (isEditingMiddle) {
+              // Replace the bound line at padIndex
+              sideArray[padIndex] = newField;
+              console.log('[SUBSTITUTION] Replaced line at index', padIndex);
+              // Ensure there's a trailing blank line
+              const endLast = sideArray[sideArray.length - 1];
+              const endIsEmpty = endLast && endLast.racket === "" && endLast.rule === "";
+              if (!endIsEmpty) {
+                sideArray.push(EMPTY_INITIAL_FIELD);
+              }
+            } else {
+              // Editing the end - check if the last field is empty
+              const lastField = sideArray[sideArray.length - 1];
+              const lastIsEmpty = !lastField?.racket || lastField.racket.trim() === '';
+              
+              if (lastIsEmpty) {
+                sideArray[sideArray.length - 1] = newField;  // Replace last empty field
+                sideArray.push(EMPTY_INITIAL_FIELD);  // Add new trailing empty
+                console.log('[SUBSTITUTION] Replaced last empty and added new trailing empty');
+              } else {
+                sideArray.push(newField);  // Append new field
+                sideArray.push(EMPTY_INITIAL_FIELD);  // Add trailing empty
+                console.log('[SUBSTITUTION] Appended new field and trailing empty');
+              }
+            }
             
             return {
               ...prev,
-              [showSide]: needsEmptyField ? [...updatedFields, EMPTY_INITIAL_FIELD] : updatedFields
+              [showSide]: sideArray
             };
           });
-
-          // Update the Current LHS/RHS field to show the newly generated expression
-          if (showSide === "LHS") {
-            setLhsValue(racketStr || "");
-          } else {
-            setRhsValue(racketStr || "");
-          }
 
           // Unbind the footer
           setIsBound(false);
@@ -1550,10 +1598,6 @@ const InductionRacket = () => {
     // Extract resultNode from current line (shows what changed in this line's transformation)
     const resultNodeValue = isPremise ? undefined : (field && field.resultNode);
 
-    if (!isPremise) {
-      console.log(`[RENDER] Line ${lineNum} (${side}): selectedNode=${field?.selectedNode}, resultNode=${resultNodeValue}, startPosition=${startPosition}`);
-    }
-
     return (
       <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? `premise-${caseType}-${side}` : `${side}-field-${padIndex}`}>
         <Col xs="auto" style={{ minWidth: '50px', paddingRight: '5px' }}>
@@ -1620,7 +1664,8 @@ const InductionRacket = () => {
         />
       );
     } else {
-      const field = racketRuleFields[showSide][padIndex - 1];
+      // Array index now equals line number, so use padIndex directly
+      const field = racketRuleFields[showSide][padIndex];
       if (!field) return null;
 
       const calculatedStartPosition = field.selectedNode || field.startPosition || 0;
@@ -2207,39 +2252,30 @@ const InductionRacket = () => {
                 disabled={(() => {
                   // Disabled if not bound
                   if (!isBound) {
-                    console.log('[CLEAR DISABLED] Not bound');
                     return true;
                   }
                   
                   const lineNum = parseInt(userRow.num, 10);
-                  console.log('[CLEAR DISABLED CHECK] userRow.num:', userRow.num, 'lineNum:', lineNum);
                   
                   // Disabled if premise line (line 0)
                   if (lineNum === 0) {
-                    console.log('[CLEAR DISABLED] Line 0 is premise');
                     return true;
                   }
                   
                   // Disabled if line is blank
                   const fields = racketRuleFields[showSide];
-                  console.log('[CLEAR DISABLED CHECK] showSide:', showSide, 'fields array length:', fields?.length);
-                  console.log('[CLEAR DISABLED CHECK] fields[lineNum]:', fields?.[lineNum]);
                   
                   if (!fields || !fields[lineNum]) {
-                    console.log('[CLEAR DISABLED] No field at index', lineNum);
                     return true;
                   }
                   
                   const racket = (fields[lineNum].racket || '').trim();
-                  console.log('[CLEAR DISABLED CHECK] racket:', racket);
                   
                   if (racket === '') {
-                    console.log('[CLEAR DISABLED] Racket is blank');
                     return true;
                   }
                   
                   // Enable for non-blank, non-premise lines
-                  console.log('[CLEAR ENABLED] Line', lineNum, 'has content:', racket);
                   return false;
                 })()}
                 onClick={() => setShowClearConfirm(true)}
@@ -2283,28 +2319,21 @@ const InductionRacket = () => {
             No
           </Button>
           <Button variant="danger" onClick={async () => {
-            console.log('[CLEAR LINE] Starting clear operation');
             setShowClearConfirm(false);
             const caseKey = isAnchor ? 'base' : 'leap';
             const lineNum = parseInt(userRow.num, 10);
-            
-            console.log('[CLEAR LINE] Case:', caseKey, 'Side:', showSide, 'LineNum:', lineNum);
             
             // Reset proof status
             setProofStatus(prev => ({ ...prev, [caseKey]: null }));
             
             try {
               // Call backend to clear line in database and reset completion flags
-              console.log('[CLEAR LINE] Calling deleteLine API...');
               await inductionService.deleteLine(isAnchor ? 'base' : 'leap', showSide, lineNum);
-              console.log('[CLEAR LINE] deleteLine API succeeded');
               
               // Update local state to clear the line
-              const fields = isAnchor 
-                ? (showSide === 'LHS' ? baseRacketFields : baseRacketFields)
-                : (showSide === 'LHS' ? leapRacketFields : leapRacketFields);
+              const targetFields = isAnchor ? baseRacketFields : leapRacketFields;
               
-              const updatedFields = { ...fields };
+              const updatedFields = { ...targetFields };
               updatedFields[showSide] = [...updatedFields[showSide]];
               
               // Clear the line at lineNum index
@@ -2318,16 +2347,17 @@ const InductionRacket = () => {
                 deleted: false
               };
               
-              // Clear highlights on next line if it exists
+              // Clear result-highlight on next line if it exists
               if (updatedFields[showSide][lineNum + 1]) {
                 updatedFields[showSide][lineNum + 1] = {
                   ...updatedFields[showSide][lineNum + 1],
-                  rule: ''
+                  rule: '',
+                  resultNode: 0
                 };
               }
               
               // Clear selectedNode on previous line if it exists and isn't premise
-              if (lineNum > 1 && updatedFields[showSide][lineNum - 1]) {
+              if (lineNum > 0 && updatedFields[showSide][lineNum - 1]) {
                 updatedFields[showSide][lineNum - 1] = {
                   ...updatedFields[showSide][lineNum - 1],
                   selectedNode: 0
@@ -2340,10 +2370,7 @@ const InductionRacket = () => {
               } else {
                 setLeapRacketFields(updatedFields);
               }
-              
-              console.log('[CLEAR LINE] Local state updated successfully');
             } catch (e) {
-              console.error('[CLEAR LINE] Error:', e);
               toast.error('Failed to clear line');
             }
           }}>

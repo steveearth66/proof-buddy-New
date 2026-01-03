@@ -439,8 +439,6 @@ def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, li
         node_id = selected_node if selected_node is not None else start_position
         # Use result_node if provided, otherwise default to 0
         result_node_id = result_node if result_node is not None else 0
-        # LOG: Verify result_node is being saved
-        print(f"[DB SAVE] Line {line_number} ({case} {side}): result_node={result_node_id}, selected_node={node_id}")
         # Use update_or_create to avoid duplicates
         InductionProofLine.objects.update_or_create(
             proof=proof,
@@ -457,11 +455,9 @@ def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, li
                 'json_tree': json_tree or {},
             }
         )
-        print(f"[DB SAVE] Successfully saved line {line_number}")
     except InductionProof.DoesNotExist:
-        print(f"[DB SAVE ERROR] Proof {proof_id} doesn't exist")
+        pass
     except Exception as e:
-        print(f"[DB SAVE ERROR] Failed to save line {line_number}: {e}")
         raise  # Re-raise to see full error
 
 
@@ -705,7 +701,7 @@ def _apply_line(target: ERProof, currentRacket: str, rule: str | None, startPosi
 def apply_rule(request):
     """
     Apply a rule/substitution to the current case+side of the IndProof.
-    Expected JSON: { case, side, currentRacket, rule, startPosition, selectedNode?, substitution? }
+    Expected JSON: { case, side, currentRacket, rule, startPosition, selectedNode?, substitution?, lineNumber? }
     """
     from .models import InductionProofLine
     user = request.user
@@ -720,6 +716,7 @@ def apply_rule(request):
         startPosition = data.get("startPosition", 0)
         selectedNode = data.get("selectedNode")
         substitution = data.get("substitution")
+        lineNumber = data.get("lineNumber")
 
         # Check if proof engine is initialized
         if not hasattr(proof, 'baseCase') or not hasattr(proof, 'leapStep'):
@@ -746,7 +743,6 @@ def apply_rule(request):
         result_node_id = None
         if is_valid and len(target.proofLines) > 0:
             result_node_id = target.proofLines[-1].resultNodeId
-            print(f"[APPLY_RULE] selectedNode from request: {selectedNode}, startPosition from request: {startPosition}, result_node_id from ERProof: {result_node_id}")
 
         # Save to cache
         save_induction_obj_to_cache(user, proof, proof_id)
@@ -758,9 +754,8 @@ def apply_rule(request):
             if substitution:
                 rule_with_sub = f"{rule_with_sub} {substitution}".strip()
             
-            calculated_line_number = len(target.proofLines) - 1
-            
-            print(f"[APPLY_RULE] About to save line {calculated_line_number}: proof_id={proof_id}, case={case}, side={side}")
+            # Use lineNumber from frontend if provided (editing specific line), otherwise calculate from array length (appending)
+            calculated_line_number = lineNumber if lineNumber is not None else (len(target.proofLines) - 1)
             
             # Update the PREVIOUS line's selected_node (where user clicked to generate this line)
             if calculated_line_number > 0:
@@ -773,7 +768,6 @@ def apply_rule(request):
                     ).exists()
                     
                     if prev_line_exists:
-                        print(f"[APPLY_RULE] Updating line {calculated_line_number - 1} selected_node to {startPosition}")
                         InductionProofLine.objects.filter(
                             proof_id=proof_id,
                             case=case.lower(),
@@ -781,10 +775,10 @@ def apply_rule(request):
                             line_number=calculated_line_number - 1
                         ).update(selected_node=startPosition)
                     else:
-                        print(f"[APPLY_RULE] Line {calculated_line_number - 1} doesn't exist in DB (probably premise), skipping update")
+                        pass
                 except Exception as e:
-                    print(f"[APPLY_RULE ERROR] Failed to update previous line: {e}")
                     # Continue anyway - this shouldn't block saving the new line
+                    pass
             
             # Save the NEW line with selected_node=None (unknown until next line generated)
             save_proof_line_to_db(
@@ -842,24 +836,38 @@ def delete_line(request, case, side, line_number):
             if proof_id:
                 from .models import InductionProofLine
                 # Clear the current line (racket, rule, and all position markers)
-                InductionProofLine.objects.filter(
+                # Normalize case to lowercase and side to uppercase to match database storage
+                
+                # Check if line exists before update
+                exists = InductionProofLine.objects.filter(
                     proof_id=proof_id,
-                    case=case,
-                    side=side,
+                    case=case.lower(),
+                    side=side.upper(),
                     line_number=line_number
-                ).update(
-                    racket='',
-                    rule='',
-                    start_position=0,
-                    selected_node=0,
-                    result_node=0
-                )
+                ).exists()
+                
+                if exists:
+                    updated_count = InductionProofLine.objects.filter(
+                        proof_id=proof_id,
+                        case=case.lower(),
+                        side=side.upper(),
+                        line_number=line_number
+                    ).update(
+                        racket='',
+                        rule='',
+                        start_position=0,
+                        selected_node=0,
+                        result_node=0
+                    )
+                else:
+                    # Line not found, cannot clear
+                    pass
                 
                 # Also clear the rule on the next line (if it exists)
                 InductionProofLine.objects.filter(
                     proof_id=proof_id,
-                    case=case,
-                    side=side,
+                    case=case.lower(),
+                    side=side.upper(),
                     line_number=line_number + 1
                 ).update(rule='')
                 
@@ -867,8 +875,8 @@ def delete_line(request, case, side, line_number):
                 if line_number > 0:
                     InductionProofLine.objects.filter(
                         proof_id=proof_id,
-                        case=case,
-                        side=side,
+                        case=case.lower(),
+                        side=side.upper(),
                         line_number=line_number - 1
                     ).update(selected_node=0)
         
@@ -951,6 +959,7 @@ def substitution(request):
         startPosition = data.get("startPosition", 0)
         selectedNode = data.get("selectedNode")
         substitution = data.get("substitution")
+        lineNumber = data.get("lineNumber")
 
         target = _get_case_side(proof, case, side)
         # Clear previous errors before attempting new substitution
@@ -981,12 +990,12 @@ def substitution(request):
         result_node_id = 0
         if is_valid and len(target.proofLines) > 0:
             result_node_id = target.proofLines[-1].resultNodeId
-            print(f"[SUBSTITUTION] selectedNode from request: {selectedNode}, startPosition from request: {startPosition}, result_node_id from ERProof: {result_node_id}")
         
         # Save to database if we have a valid proof line
         if is_valid and len(target.proofLines) > 0:
             last_line = target.proofLines[-1]
-            calculated_line_number = len(target.proofLines) - 1
+            # Use lineNumber from frontend if provided (editing specific line), otherwise calculate from array length (appending)
+            calculated_line_number = lineNumber if lineNumber is not None else (len(target.proofLines) - 1)
             
             # Update the PREVIOUS line's selected_node (where user clicked to generate this line)
             if calculated_line_number > 0:
@@ -998,7 +1007,6 @@ def substitution(request):
                 ).exists()
                 
                 if prev_line_exists:
-                    print(f"[SUBSTITUTION] Updating line {calculated_line_number - 1} selected_node to {startPosition}")
                     InductionProofLine.objects.filter(
                         proof_id=proof_id,
                         case=case.lower(),
@@ -1006,7 +1014,7 @@ def substitution(request):
                         line_number=calculated_line_number - 1
                     ).update(selected_node=startPosition)
                 else:
-                    print(f"[SUBSTITUTION] Line {calculated_line_number - 1} doesn't exist in DB (probably premise), skipping update")
+                    pass
             
             # Save the NEW line with selected_node=None (unknown until next line generated)
             save_proof_line_to_db(
@@ -1139,11 +1147,9 @@ def get_proof_lines(request):
                         # Update the database with the parsed tree
                         line.json_tree = json_tree
                         line.save()
-                        print(f"[get_proof_lines] Parsed and saved jsonTree for line {line.line_number}")
                     else:
                         json_tree = {}
                 except Exception as parse_error:
-                    print(f"[get_proof_lines] Failed to parse line {line.line_number}: {parse_error}")
                     json_tree = {}
             
             line_data = {
@@ -1156,7 +1162,6 @@ def get_proof_lines(request):
                 'substitution': line.substitution,
                 'jsonTree': json_tree
             }
-            print(f"[get_proof_lines] Line {line.line_number} ({line.case} {line.side}): selectedNode={line.selected_node}, resultNode={line.result_node}")
             result[line.case][line.side].append(line_data)
         
         return Response(result, status=status.HTTP_200_OK)
