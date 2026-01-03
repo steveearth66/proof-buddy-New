@@ -93,8 +93,6 @@ def remTemps(inputTree: Node, errLog=None, debug=False, racketLabels=None) -> li
         errLog.append(f"The first argument of an if function must be Boolean but {str(inputTree.children[1].type.getType())} was provided")
         return errLog
     n1, n2 = inputTree.children[2], inputTree.children[3] #note, even if these are ifs, they'll have been designated types in the recursive call
-    print(f"[DECORATOR IF CHECK] n1={n1.data}, n1.type={n1.type}, n1.type.getType()={n1.type.getType()}")  # DEBUG REMOVE
-    print(f"[DECORATOR IF CHECK] n2={n2.data}, n2.type={n2.type}, n2.type.getType()={n2.type.getType()}")  # DEBUG REMOVE
     t1 = n1.type.getType()
     t2 = n2.type.getType()
     # Unwrap RacType to Type enum if needed for comparison
@@ -103,8 +101,6 @@ def remTemps(inputTree: Node, errLog=None, debug=False, racketLabels=None) -> li
     if isinstance(t2, RacType):
         t2 = t2.getType()
     if not (t1 == t2):
-        print(f"[DECORATOR IF CHECK] Type mismatch: t1={t1} (type={type(t1)}), t2={t2} (type={type(t2)})")  # DEBUG REMOVE
-        print(f"[DECORATOR IF CHECK] t1 == t2: {t1 == t2}, t1 is t2: {t1 is t2}")  # DEBUG REMOVE
         if not (t1 in FLEX_TYPES or t2 in FLEX_TYPES):  # TODO temporary fix for if functions with different types
             errLog.append(f"Final arguments of an if function must have matching types, but {str(t1)} and {str(t2)} were provided")
         return errLog

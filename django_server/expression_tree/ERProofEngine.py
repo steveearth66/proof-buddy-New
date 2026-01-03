@@ -238,12 +238,8 @@ class ERProof(ProofComponent):
         # prooflines now contain pointers to their proof's ruleset so they can refer to UDFs
         if substitution != None:
             subLine = ERProofLine(substitution, self.debug, self.ruleSet, generics=self.generics)
-            print(f"[ADD_PROOF_LINE] Created subLine from substitution='{substitution}'")  # DEBUG REMOVE
-            print(f"[ADD_PROOF_LINE] subLine.exprTree={subLine.exprTree}, subLine.errLog={subLine.errLog}")  # DEBUG REMOVE
 
         proofLine = ERProofLine(lineStr, self.debug, self.ruleSet, generics=self.generics)
-        print(f"[ADD_PROOF_LINE] Created proofLine from lineStr='{lineStr}'")  # DEBUG REMOVE
-        print(f"[ADD_PROOF_LINE] proofLine.exprTree={proofLine.exprTree}, proofLine.errLog={proofLine.errLog}")  # DEBUG REMOVE
 
         if proofLine.errLog == None:
             proofLine.errLog = []
@@ -513,7 +509,6 @@ class ERProofLine(ProofComponent):
         self.resultNodeId = targetNode.startPosition  # The changed node in result (on this line)
 
     def applySubstitution(self, rule: str, startPos: int, subLine: 'ERProofLine'):
-        print(f"[APPLY_SUBSTITUTION] Starting with rule='{rule}', startPos={startPos}")  # DEBUG REMOVE
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
         if targetNode == None:
             self.errLog.append(
@@ -524,22 +519,14 @@ class ERProofLine(ProofComponent):
         if "'(" in targetNode.ancestors():
             self.errLog.append(f"Cannot apply rules within a quoted expression")
         if self.errLog == []:
-            print(f"[APPLY_SUBSTITUTION] targetNode before: {str(targetNode)}")  # DEBUG REMOVE
-            print(f"[APPLY_SUBSTITUTION] subLine.exprTree before: {str(subLine.exprTree)}")  # DEBUG REMOVE
             replacementExprTree = copy.deepcopy(subLine.exprTree)
-            print(f"[APPLY_SUBSTITUTION] replacementExprTree (copy): {str(replacementExprTree)}")  # DEBUG REMOVE
             subLine.applyRule(rule, 0, targetNode)
-            print(f"[APPLY_SUBSTITUTION] After applyRule, subLine.exprTree: {str(subLine.exprTree)}")  # DEBUG REMOVE
-            print(f"[APPLY_SUBSTITUTION] subLine.errLog: {subLine.errLog}")  # DEBUG REMOVE
             if subLine.errLog != []:
                 self.errLog.extend(subLine.errLog)
             elif not isMatch(subLine.exprTree, targetNode):
-                print(f"[APPLY_SUBSTITUTION] isMatch failed! subLine={str(subLine.exprTree)}, target={str(targetNode)}")  # DEBUG REMOVE
                 self.errLog.append(
                     f"substitution evaluated to {str(subLine.exprTree)} but expected {str(targetNode)}"
                 )
-            else:
-                print(f"[APPLY_SUBSTITUTION] isMatch SUCCESS!")  # DEBUG REMOVE
         if self.errLog == []:
             targetNode.replaceWith(replacementExprTree)
             updatePositions(self.exprTree)

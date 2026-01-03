@@ -268,8 +268,8 @@ class EngineEndpointTests(TransactionTestCase):
         }
         self.client.post(f'{BASE_URL}set-current-proof', init_data, format='json')
         
-        # Delete a line
-        response = self.client.delete(f'{BASE_URL}delete-line/base/LHS')
+        # Delete line 0 (the premise line)
+        response = self.client.delete(f'{BASE_URL}delete-line/base/LHS/0')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 

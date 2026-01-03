@@ -278,17 +278,22 @@ class ProofLineDatabasePersistenceTests(TransactionTestCase):
         lines_before = InductionProofLine.objects.filter(proof=proof, case='base', side='LHS').count()
         self.assertGreater(lines_before, 0, "No lines saved before delete")
         
-        # Delete the line
-        response = self.client.delete('/api/v1/induction/delete-line/base/LHS')
+        # Delete line 1 (the generated line after the premise at line 0)
+        response = self.client.delete('/api/v1/induction/delete-line/base/LHS/1')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
-        # Verify line was removed
+        # Verify line was cleared (not removed - the record still exists but is empty)
         lines_after = InductionProofLine.objects.filter(proof=proof, case='base', side='LHS').count()
-        self.assertEqual(lines_after, lines_before - 1, "Line was not removed from database")
+        self.assertEqual(lines_after, lines_before, "Line count should stay the same (cleared, not removed)")
+        
+        # Verify the line is now empty
+        cleared_line = InductionProofLine.objects.get(proof=proof, case='base', side='LHS', line_number=1)
+        self.assertEqual(cleared_line.racket, '', "Cleared line should have empty racket")
+        self.assertEqual(cleared_line.rule, '', "Cleared line should have empty rule")
         
         print(f"✓ Lines before delete: {lines_before}")
         print(f"✓ Lines after delete: {lines_after}")
-        print(f"✓ Successfully removed line from database")
+        print(f"✓ Successfully cleared line in database")
     
     def test_proof_line_organization(self):
         """Test that proof lines are properly organized by case, side, and line number"""

@@ -152,12 +152,17 @@ class ProofLinePersistenceTest(TransactionTestCase):
         lines_before = InductionProofLine.objects.filter(proof=proof, case='base', side='LHS').count()
         self.assertGreater(lines_before, 0, "No lines saved before delete")
         
-        # 5. Delete the line
-        response = self.client.delete('/api/v1/induction/delete-line/base/LHS')
+        # 5. Delete line 1 (the generated line after the premise at line 0)
+        response = self.client.delete('/api/v1/induction/delete-line/base/LHS/1')
         self.assertEqual(response.status_code, 200)
         
-        # 6. Verify line was removed from database
+        # 6. Verify line was cleared (not removed - the record still exists but is empty)
         lines_after = InductionProofLine.objects.filter(proof=proof, case='base', side='LHS').count()
-        self.assertEqual(lines_after, lines_before - 1, "Line was not removed from database")
+        self.assertEqual(lines_after, lines_before, "Line count should stay the same (cleared, not removed)")
+        
+        # Verify the line is now empty
+        cleared_line = InductionProofLine.objects.get(proof=proof, case='base', side='LHS', line_number=1)
+        self.assertEqual(cleared_line.racket, '', "Cleared line should have empty racket")
+        self.assertEqual(cleared_line.rule, '', "Cleared line should have empty rule")
         
         print(f"\n✓ Delete test passed! Lines before: {lines_before}, after: {lines_after}")
