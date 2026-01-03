@@ -2116,11 +2116,25 @@ const InductionRacket = () => {
             <Dropdown.Item onClick={toggleOffcanvas} href="#">
               View Rule Set
             </Dropdown.Item>
-            <Dropdown.Item onClick={checkCurrentProofStatus} href="#">
+            <Dropdown.Item 
+              onClick={checkCurrentProofStatus} 
+              href="#" 
+              disabled={!proofStarted}
+              style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}
+            >
               Check Current Proof
             </Dropdown.Item>
             <Dropdown.Divider />
-            <Dropdown.Item onClick={handleClearProof} href="#" style={{ color: 'red' }}>
+            <Dropdown.Item 
+              onClick={handleClearProof} 
+              href="#" 
+              disabled={!proofStarted}
+              style={{ 
+                color: proofStarted ? 'red' : '#999', 
+                opacity: proofStarted ? 1 : 0.4,
+                cursor: proofStarted ? 'pointer' : 'not-allowed'
+              }}
+            >
               Clear Proof
             </Dropdown.Item>
           </Dropdown.Menu>
