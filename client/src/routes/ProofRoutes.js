@@ -6,6 +6,7 @@ import NaturalDeductionPropositionalLogic from'../pages/NaturalDeductionProposit
 import { RouteWithAuth } from '../utils/routeAuthUtils';
 import ERRacket from '../pages/ERRacket';
 import InductionRacket from "../pages/InductionRacket";
+import EquationalReasoning from "../pages/EquationalReasoning";
 
 /**
  * A component that renders a group of routes related to proof process.
@@ -36,6 +37,10 @@ const ProofRoutes = () => {
       <Route
         path="/induction-racket"
         element={<RouteWithAuth component={InductionRacket} />}
+      />
+      <Route
+        path="/equational-reasoning"
+        element={<RouteWithAuth component={EquationalReasoning} />}
       />
     </>
   );

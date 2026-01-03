@@ -18,7 +18,7 @@ import '../scss/_home.scss';
 const Home = () => {
   // Accessing the current user's information from the AuthContext.
   const { user } = useAuth();
-  const [proofType, setProofType] = useState('/er-racket');
+  const [proofType, setProofType] = useState('/equational-reasoning');
 
   return (
     <MainLayout>
@@ -51,8 +51,11 @@ const Home = () => {
                             setProofType(e.target.value);
                           }}
                         >
+                          <option value="/equational-reasoning">
+                            Equational Reasoning
+                          </option>
                           <option value="/er-racket">
-                            Equational Reasoning: Racket
+                            Equational Reasoning: Racket (Legacy)
                           </option>
                           <option value="/induction-racket">
                             Equational Reasoning: Induction
