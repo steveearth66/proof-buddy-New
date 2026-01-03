@@ -1600,7 +1600,7 @@ const InductionRacket = () => {
 
     return (
       <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? `premise-${caseType}-${side}` : `${side}-field-${padIndex}`}>
-        <Col xs="auto" style={{ minWidth: '50px', paddingRight: '5px' }}>
+        <Col xs="auto" style={{ minWidth: '50px', paddingRight: '5px', position: 'relative', top: '35px' }}>
           <ClickableRowNumber
             padIndex={padIndex}
             isClickable={!isBound}

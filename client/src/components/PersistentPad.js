@@ -150,7 +150,7 @@ const PersistentPad = forwardRef(function PersistentPad(
 
   return (
     <Row className="persistent-pad-row" style={{ alignItems: "flex-start" }}>
-      <Col md={{ span: 10, offset: 2 }}>
+      <Col md={{ span: 11, offset: 1 }}>
         <div style={{ 
           borderLeft: `4px solid transparent`,
           borderImage: `linear-gradient(to bottom, ${previousLineColor} 50%, ${currentLineColor} 50%) 1`,
