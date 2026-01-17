@@ -13,6 +13,15 @@ import ClickableRowNumber from "../components/ClickableRowNumber";
 import "../scss/_forms.scss";
 import "../scss/_er-racket.scss";
 
+import OffcanvasRuleSet from "../components/OffcanvasRuleSet";
+import { useOffcanvas } from "../hooks/useOffcanvas";
+import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
+import { useDynamicHeight } from "../hooks/useDynamicHeight";
+
+import {
+  Definitions
+} from "../components";
+
 /**
  * EquationalReasoning - Full-featured component with 3-pane layout
  * Header | Middle (proof lines) | Footer (binding pane)
@@ -384,148 +393,228 @@ const EquationalReasoning = () => {
       />
     );
   };
+
+  const [proofComplete, setProofComplete] = useState(false);
+  const [isOffcanvasActive, toggleOffcanvas] = useOffcanvas();  
+  const [showDefinitionsWindow, toggleDefinitionsWindow] =
+      useDefinitionsWindow();
+
+  // Hook for getting available height for scrollable proof area
+    const availableHeight = useDynamicHeight();
   
   return (
     <MainLayout>
-      <Container className="er-racket-container">
-        <h2>Equational Reasoning</h2>
+      <Container 
+        fluid 
+        className="er-racket-container" 
+        style={{ width: '100%', maxWidth: '100%' }}>
+        <OffcanvasRuleSet
+          isActive={isOffcanvasActive}
+          toggleFunction={toggleOffcanvas}
+        ></OffcanvasRuleSet>
+        {showDefinitionsWindow && (
+          <Definitions toggleDefinitionsWindow={toggleDefinitionsWindow} />
+        )}
+
+        {proofComplete && <ProofComplete onDismiss={() => setProofComplete(false)} />}
         
         {/* Header Pane - Proof Parameters */}
-        <Form onSubmit={handleStartProof}>
-          <Row className="mb-3">
-            <Form.Group as={Col} md="6">
-              <Form.Floating>
-                <Form.Control
-                  type="text"
-                  placeholder="Name"
-                  value={proofName}
-                  onChange={(e) => setProofName(e.target.value)}
-                  disabled={proofStarted}
-                />
-                <label># Name</label>
-              </Form.Floating>
-            </Form.Group>
-            
-            <Form.Group as={Col} md="6">
-              <Form.Floating>
-                <Form.Control
-                  type="text"
-                  placeholder="Tag"
-                  value={proofTag}
-                  onChange={(e) => setProofTag(e.target.value)}
-                  disabled={proofStarted}
-                />
-                <label># Tag</label>
-              </Form.Floating>
-            </Form.Group>
-          </Row>
-          
-          <Row className="mb-3">
-            <Form.Group as={Col} md="6">
-              <Form.Floating>
-                <Form.Control
-                  type="text"
-                  placeholder="LHS Goal"
-                  value={lhsGoal}
-                  onChange={(e) => setLhsGoal(e.target.value)}
-                  disabled={proofStarted}
-                  required
-                />
-                <label>LHS Goal</label>
-              </Form.Floating>
-            </Form.Group>
-            
-            <Col md="auto" className="d-flex align-items-center">
-              <span style={{ fontSize: '24px', fontWeight: 'bold' }}>=</span>
-            </Col>
-            
-            <Form.Group as={Col} md="5">
-              <Form.Floating>
-                <Form.Control
-                  type="text"
-                  placeholder="RHS Goal"
-                  value={rhsGoal}
-                  onChange={(e) => setRhsGoal(e.target.value)}
-                  disabled={proofStarted}
-                  required
-                />
-                <label>RHS Goal</label>
-              </Form.Floating>
-            </Form.Group>
-          </Row>
-          
-          {proofStarted && (
-            <Row className="mb-3">
-              <Form.Group as={Col} md="6">
-                <Form.Floating>
+        <Form onSubmit={handleStartProof} className="er-racket-form">
+          <div className="form-top-section">
+            <Row className="page-header-row" style={{ alignItems: 'center' }}>
+              <Col xs="auto">
+                <h1 style={{ marginBottom: 0 }}>Equational Reasoning</h1>
+              </Col>
+              <Form.Group as={Col} md="3" className="er-proof-name">
+                <Form.Floating className="mb-3">
                   <Form.Control
                     type="text"
-                    value={currentLHS}
-                    readOnly
-                    style={{ backgroundColor: '#f8f9fa' }}
+                    placeholder="Name"
+                    value={proofName}
+                    onChange={(e) => setProofName(e.target.value)}
+                    disabled={proofStarted}
                   />
-                  <label>Current LHS</label>
+                  <label># Name</label>
                 </Form.Floating>
               </Form.Group>
               
-              <Form.Group as={Col} md="6">
-                <Form.Floating>
+              <Form.Group as={Col} md="3" className="er-proof-tag">
+                <Form.Floating className="mb-3">
                   <Form.Control
                     type="text"
-                    value={currentRHS}
-                    readOnly
-                    style={{ backgroundColor: '#f8f9fa' }}
+                    placeholder="Tag"
+                    value={proofTag}
+                    onChange={(e) => setProofTag(e.target.value)}
+                    disabled={proofStarted}
                   />
-                  <label>Current RHS</label>
+                  <label># Tag</label>
                 </Form.Floating>
               </Form.Group>
             </Row>
-          )}
           
-          {!proofStarted && (
-            <Button variant="primary" type="submit">
-              Start Proof
-            </Button>
-          )}
+            <Row className="g-5">
+              <Form.Group as={Col} md="4" className="er-proof-goal-lhs" style={{ marginLeft: '450px' }}>
+                <Form.Floating className="mb-3">
+                  <Form.Control
+                    type="text"
+                    placeholder="LHS Goal"
+                    value={lhsGoal}
+                    onChange={(e) => setLhsGoal(e.target.value)}
+                    disabled={proofStarted}
+                    required
+                  />
+                  <label>LHS Goal</label>
+                </Form.Floating>
+              </Form.Group>
+              
+              <Form.Group as={Col} md="4" className="er-proof-goal-rhs">
+                <Form.Floating className="mb-3">
+                  <Form.Control
+                    type="text"
+                    placeholder="RHS Goal"
+                    value={rhsGoal}
+                    onChange={(e) => setRhsGoal(e.target.value)}
+                    disabled={proofStarted}
+                    required
+                  />
+                  <label>RHS Goal</label>
+                </Form.Floating>
+              </Form.Group>
+            </Row>
+          
+            {proofStarted && (
+              <Row className="er-current-state" style={{ alignItems: 'center', position: 'relative' }}>
+                <Form.Group as={Col} md="4"
+                  className={`er-proof-current-lhs ${showSide === "LHS" ? "active" : ""}`}
+                  style={{ marginLeft: '450px' }}
+                >
+                  <Form.Floating
+                    className="mb-3"
+                    style={{ 
+                      border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da',
+                      borderRadius: '0.375rem'
+                  }}
+                  >
+                    <Form.Control
+                      type="text"
+                      placeholder="Current LHS"
+                      value={currentLHS}
+                      readOnly
+                      style={{ cursor: "not-allowed", border: 'none' }}
+                    />
+                    <label>Current LHS</label>
+                  </Form.Floating>
+                </Form.Group>
+                
+                <Form.Group as={Col} md="4"
+                  className={`er-proof-current-rhs ${showSide === "RHS" ? "active" : ""}`}
+                >
+                  <Form.Floating
+                    className="mb-3"
+                    style={{ 
+                      border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da',
+                      borderRadius: '0.375rem'
+                    }}
+                  >
+                    <Form.Control
+                      type="text"
+                      placeholder="Current RHS"
+                      value={currentRHS}
+                      readOnly
+                      style={{ cursor: "not-allowed", border: 'none' }}
+                    />
+                    <label>Current RHS</label>
+                  </Form.Floating>
+                </Form.Group>
+              </Row>
+            )}
+
+            <Form.Text
+                as={"div"}
+                id="formSeparator"
+                className="form-separator"
+                style={{ marginTop: '10px' }}
+              ></Form.Text> 
+          </div>
+          <div className="form-bottom-part">
+            {!proofStarted && (
+              <Row className="goal-btn-wrap">
+                <Button 
+                  type="submit" 
+                  className="orange-btn"
+                >
+                  Start Proof
+                </Button>
+              </Row>
+            )}
+          </div>
         </Form>
         
         {/* Current Side Status */}
         {proofStarted && (
-          <div className="mb-3">
-            <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#ff8c00' }}>
+          <>
+            <div style={{ position: 'fixed', left: '10px', top: '215px', zIndex: 9999, color: '#F2A007', fontWeight: 'bold', fontSize: '20px' }}>
               CURRENT = {showSide}
             </div>
-            <Button variant="primary" onClick={handleToggleSide}>
-              Switch to {showSide === "LHS" ? "Right" : "Left"} Hand Side &gt;&gt;
-            </Button>
-            
-            <div style={{ position: 'fixed', right: '375px', top: '65px', zIndex: 9999 }}>
-              <Dropdown className="proof-dropdown-btn proof-utilities">
-                <Dropdown.Toggle id="dropdown-proof-utils" style={{ minWidth: '200px' }}>
-                  Proof Utilities
-                </Dropdown.Toggle>
-                <Dropdown.Menu style={{ minWidth: '200px' }}>
-                  <Dropdown.Item onClick={handleCheckCompletion} disabled={!proofStarted}>
-                    Check Current Proof
-                  </Dropdown.Item>
-                </Dropdown.Menu>
-              </Dropdown>
+            <div style={{ position: 'fixed', left: '10px', top: '245px', zIndex: 9999 }}>
+              <Button 
+                size="lg"
+                className="switch-btn"
+                onClick={handleToggleSide}
+                style={{ backgroundImage: 'linear-gradient(135deg, #07294d 0, #006298 100%)', color: '#ffffff', borderColor: 'transparent' }}
+                >
+                {showSide === "LHS"
+                    ? "Switch to Right Hand Side ⋙"
+                    : "⋘ Switch to Left Hand Side"}
+              </Button>
             </div>
-          </div>
+          </>
         )}
+        <div style={{ position: 'fixed', right: '375px', top: '65px', zIndex: 9999 }}>
+          <Dropdown className="proof-dropdown-btn proof-utilities">
+            <Dropdown.Toggle id="dropdown-proof-utils" style={{ minWidth: '200px' }}>
+              Proof Utilities
+            </Dropdown.Toggle>
+            <Dropdown.Menu style={{ minWidth: '200px' }}>
+              <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">
+                Definitions
+              </Dropdown.Item>
+              <Dropdown.Item onClick={toggleOffcanvas} href="#">
+                View Rule Set
+              </Dropdown.Item>
+              <Dropdown.Item 
+                onClick={handleCheckCompletion} 
+                disabled={!proofStarted}
+                style={{ 
+                  color: proofStarted ? 'red' : '#999', 
+                  opacity: proofStarted ? 1 : 0.4,
+                  cursor: proofStarted ? 'pointer' : 'not-allowed'
+                }}
+              >
+                Check Current Proof
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown>
+        </div>
         
         {/* Error Display */}
         {errors.length > 0 && (
-          <div className="alert alert-danger">
+          <div className="alert alert-danger" style={{ marginTop: '15px' }}>
             {errors.map((err, idx) => <div key={idx}>{err}</div>)}
           </div>
         )}
         
         {/* Middle Pane - Proof Lines */}
         {proofStarted && (
-          <div className="proof-lines-container mb-3">
-            <h4>{showSide} Proof Lines</h4>
-            
+          <div className="racket-rule-container-wrap" 
+          style={{ 
+            height: `${availableHeight}px`, 
+            width: '100%', 
+            padding: '0 25px', 
+            margin: 0,
+            overflowY: 'auto',
+            overflowX: 'hidden'
+          }}>
             {racketFields[showSide].map((line, idx) => {
               const boundLineIndex = isBound ? parseInt(userRow.num, 10) : -1;
               const isUserBoundToNextLine = boundLineIndex === idx + 1;
@@ -533,7 +622,7 @@ const EquationalReasoning = () => {
               const showHighlight = nextLineExists || isUserBoundToNextLine;
               
               return (
-                <Row key={idx} className="racket-rule-row mb-2" id={`racket-row-${idx}`}>
+                <Row key={idx} className="racket-rule-row" id={`racket-row-${racketFields[showSide].length}`} >
                   <Col xs="auto" style={{ minWidth: '50px', paddingRight: '5px', position: 'relative', top: '35px' }}>
                     <ClickableRowNumber
                       padIndex={idx}
@@ -559,7 +648,7 @@ const EquationalReasoning = () => {
                       ruleValue={line.rule || ""}
                       onRuleChange={() => {}}
                       isRuleReadOnly={true}
-                      rulePlaceholder={idx === 0 ? "Premise" : "Rule"}
+                      rulePlaceholder={idx === 0 ? `${showSide} Premise` : "Rule"}
                       isRuleInvalid={false}
                       ruleValidationError=""
                       isEditRow={false}
@@ -570,7 +659,7 @@ const EquationalReasoning = () => {
             })}
             
             {/* Blank line for next entry */}
-            <Row className="racket-rule-row mb-2" id={`racket-row-${racketFields[showSide].length}`}>
+            <Row className="racket-rule-row" id={`racket-row-${racketFields[showSide].length}`}>
               <Col xs="auto" style={{ minWidth: '50px', paddingRight: '5px', position: 'relative', top: '35px' }}>
                 <ClickableRowNumber
                   padIndex={racketFields[showSide].length}
@@ -590,9 +679,20 @@ const EquationalReasoning = () => {
         )}
         
         {/* Footer Pane - Binding Editor */}
-        {proofStarted && (
-          <div className="footer-pane" style={{ borderTop: '2px solid #ccc', paddingTop: '20px', marginTop: '20px' }}>
-            <Row>
+        {proofStarted && (() => {
+        // Calculate bicolor border based on bound row
+        const colors = ['#DAA520', '#0066cc', '#cc0000', '#228B22']; // yellow, blue, red, green
+        const padIndex = userRow.num && userRow.num !== "" ? parseInt(userRow.num, 10) : 0;
+        const currentColor = colors[padIndex % 4];
+        const nextColor = colors[(padIndex + 1) % 4];
+        return (
+          <div 
+          className="floating-footer" 
+          style={{
+            borderTop: `3px solid transparent`,
+            borderImage: `linear-gradient(to right, ${currentColor} 50%, ${nextColor} 50%) 1`
+          }}>
+            <Row className="input-row">
               <Col md="1">
                 <Form.Floating className="mb-3">
                   <Form.Control
@@ -612,7 +712,7 @@ const EquationalReasoning = () => {
                     variant="primary"
                     onClick={() => bindFooterToRow(userRow.num)}
                   >
-                    FILL VALUES
+                    Fill Values
                   </Button>
                 </Col>
               )}
@@ -620,39 +720,50 @@ const EquationalReasoning = () => {
               <Col md={isBound ? "9" : "7"}>
                 {isBound && renderFooterPad()}
               </Col>
-              
               {isBound && (
-                <>
-                  <Col md="2" className="rules-btn-grp">
+                  <Col md="2" className="d-flex align-items-center">
                     <Button
-                      variant="danger"
+                      variant="secondary"
+                      onClick={() => unbindFooter()}
+                    >
+                      Cancel
+                    </Button>
+                  </Col>
+                )}
+              </Row>
+              {isBound && (
+                <Row className="button-row">
+                  <Col md="5"></Col>
+                  <Col md="3" className="rules-btn-grp">
+                    <Button
+                      className="orange-btn delete-btn"
                       onClick={handleClearLine}
                       disabled={parseInt(userRow.num, 10) === 0}
                     >
-                      CLEAR LINE
+                      Clear Line
                     </Button>
                   </Col>
                   <Col md="2" className="rules-btn-grp">
                     <Button
-                      variant="success"
+                      className="orange-btn green-btn"
                       onClick={handleGenerateAndCheck}
                     >
-                      GENERATE & CHECK
+                      Generate & Check
                     </Button>
                   </Col>
                   <Col md="2" className="rules-btn-grp">
                     <Button
-                      variant="info"
+                      className="orange-btn green-btn"
                       onClick={() => setShowSubstitution(true)}
                     >
-                      SUBSTITUTION
+                      Substitution
                     </Button>
                   </Col>
-                </>
+                </Row>
               )}
-            </Row>
           </div>
-        )}
+          );
+        })()}
         
         {/* Modals */}
         {showSubstitution && (

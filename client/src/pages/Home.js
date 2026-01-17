@@ -18,7 +18,7 @@ import '../scss/_home.scss';
 const Home = () => {
   // Accessing the current user's information from the AuthContext.
   const { user } = useAuth();
-  const [proofType, setProofType] = useState('/equational-reasoning');
+  const [proofType, setProofType] = useState('/equational-reasoning-new');
 
   return (
     <MainLayout>
@@ -47,6 +47,7 @@ const Home = () => {
                         <Form.Select
                           aria-label="Floating label proof type select"
                           id="proofType"
+                          value={proofType}
                           onChange={(e) => {
                             setProofType(e.target.value);
                           }}
