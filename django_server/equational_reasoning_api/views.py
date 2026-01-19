@@ -7,11 +7,13 @@ from dill import dumps, loads
 from django.core.cache import cache
 from .models import EquationalProof, EquationalProofLine
 from .serializers import EquationalProofSerializer
+from proofs.views import use_uploaded_generic
 
 # ER Engine imports
 from expression_tree.ERProofEngine import TwoSidedProof, ERProof, ERProofLine
 from expression_tree.ERCommon import makeJson
 from expression_tree.ERRuleset import isMatch
+from expression_tree.default_udfs import DEFAULT_UDFS
 
 User = get_user_model()
 
@@ -113,16 +115,26 @@ def set_current_proof(request):
     Initialize a new equational proof with LHS and RHS goals.
     Expected JSON: { lhsPremise, rhsPremise, definitions: [] }
     """
+    import sys
+    print("[DEBUG] equational set_current_proof called", flush=True)  # Log to console for debugging
+    sys.stdout.flush()
     user = request.user
     data = request.data
+    print(f"[DEBUG] User: {user.username}, Data keys: {data.keys()}", flush=True)  # Log to console for debugging
+    sys.stdout.flush()
     
     try:
         lhs_premise = data.get("lhsPremise")
         rhs_premise = data.get("rhsPremise")
         definitions = data.get("definitions", [])
+        generics = data.get("generics", [])
+        print(f"[DEBUG] lhs_premise: {lhs_premise}, rhs_premise: {rhs_premise}", flush=True)
+        print(f"[DEBUG] Received {len(definitions)} definitions: {definitions}", flush=True)
+        print(f"[DEBUG] Received {len(generics)} generics: {generics}", flush=True)  # Log to console for debugging
         
         # Basic validation
         if not lhs_premise or not rhs_premise:
+            print("[DEBUG] Missing premise - returning 400", flush=True)  # Log to console for debugging
             return Response({
                 "isValid": False, 
                 "errors": ["Both lhsPremise and rhsPremise are required"]
@@ -134,6 +146,9 @@ def set_current_proof(request):
         
         # Add user definitions (UDF) to both LHS and RHS rule sets
         for d in definitions:
+            # Check if this is a default UDF (skip database operations)
+            is_default = d.get("is_default", False) or d.get("deletable", True) == False
+            
             label = d.get("label")
             type_str = d.get("type")
             body = d.get("expression")
@@ -142,10 +157,26 @@ def set_current_proof(request):
             proof_obj.LHS.addUDF(label, type_str, body)
             proof_obj.RHS.addUDF(label, type_str, body)
         
+        # Add generics to both LHS and RHS
+        errors = []
+        for g in generics:
+            try:
+                use_uploaded_generic(user, proof_obj, g)
+            except Exception as e:
+                errors.append(str(e))
+        
+        if errors:
+            return Response({
+                "isValid": False,
+                "errors": errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
         # Build premises and add as first proof lines
         # LHS
+        print(f"[DEBUG] Creating LHS line from: {lhs_premise}", flush=True)  # Log to console for debugging
         lhs_line = ERProofLine(lhs_premise, proof_obj.LHS.debug, proof_obj.LHS.ruleSet, generics=proof_obj.LHS.generics)
         if lhs_line.errLog != []:
+            print(f"[DEBUG] LHS line has errors: {lhs_line.errLog}", flush=True)  # Log to console for debugging
             return Response({
                 "isValid": False,
                 "errors": lhs_line.errLog
@@ -154,14 +185,20 @@ def set_current_proof(request):
         proof_obj.LHS.proofLines.append(lhs_line)
         
         # RHS
+        print(f"[DEBUG] Creating RHS line from: {rhs_premise}", flush=True)  # Log to console for debugging
         rhs_line = ERProofLine(rhs_premise, proof_obj.RHS.debug, proof_obj.RHS.ruleSet, generics=proof_obj.RHS.generics)
         if rhs_line.errLog != []:
+            print(f"[DEBUG] RHS line has errors: {rhs_line.errLog}", flush=True)  # Log to console for debugging
             return Response({
                 "isValid": False,
                 "errors": rhs_line.errLog
             }, status=status.HTTP_400_BAD_REQUEST)
         rhs_line.appliedRule = "Premise"
         proof_obj.RHS.proofLines.append(rhs_line)
+        
+        # Debug: Check generics before saving
+        print(f"[DEBUG] LHS generics before cache: {proof_obj.LHS.generics}", flush=True)
+        print(f"[DEBUG] RHS generics before cache: {proof_obj.RHS.generics}", flush=True)
         
         # Save to cache
         save_equational_obj_to_cache(user, proof_obj, existing_proof_id)
@@ -194,14 +231,18 @@ def set_current_proof(request):
         }, status=status.HTTP_200_OK)
         
     except Exception as e:
+        import traceback
+        error_msg = f"Exception in set_current_proof: {str(e)}"
+        print(error_msg, flush=True)  # Log to console for debugging
+        print(traceback.format_exc(), flush=True)  # Log full stack trace for debugging
         return Response({
             "isValid": False,
-            "errors": [str(e)]
+            "errors": [error_msg]
         }, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])  
+@permission_classes([IsAuthenticated])
 def apply_rule(request):
     """
     Apply a rule to the current side of the proof.
@@ -211,6 +252,10 @@ def apply_rule(request):
     user = request.user
     data = request.data
     proof_obj, proof_id = get_or_set_equational_obj(user)
+    
+    # Debug: Check generics after loading from cache
+    print(f"[DEBUG] apply_rule - LHS generics from cache: {proof_obj.LHS.generics}", flush=True)
+    print(f"[DEBUG] apply_rule - RHS generics from cache: {proof_obj.RHS.generics}", flush=True)
     
     try:
         side = data.get("side", "LHS")

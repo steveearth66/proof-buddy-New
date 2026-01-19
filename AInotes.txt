@@ -362,3 +362,91 @@ When you have parallel data structures (UI array, database records), their index
 
 **FIX PATTERN:**
 Don't work around index mismatches with arithmetic adjustments. Fix the architecture so indices align naturally, then all code becomes simpler and correct.
+
+---
+
+Session 2026-01-18: Default UDFs, Error Display, and Generic Variables
+
+**PROBLEM (a): Default UDF Implementation**
+
+*Dead-end attempts:*
+- Initially added DEFAULT_UDFS support only to racket_api, not realizing EquationalReasoningNew.js uses a separate equational_reasoning_api module
+- Modified get_definition() and set_current_proof in racket_api while the actual endpoint being called was /api/v1/equational/
+
+*Why the mistake:*
+- Saw "Equational Reasoning" UI and assumed it used the same racket_api as the legacy version
+- Didn't verify the actual API endpoint by checking Network tab or URL routing
+- The file structure has BOTH racket_api (legacy) and equational_reasoning_api (new) for the same proof mode
+
+*What actually fixed it:*
+- Created django_server/expression_tree/default_udfs.py with DEFAULT_UDFS array
+- Added DEFAULT_UDFS import and handling to BOTH racket_api AND equational_reasoning_api
+- Modified get_definition() in proofs/views.py to check default UDFs before database lookup
+- Updated frontend to disable Edit button when is_default === true or deletable === false
+- Added logic in set_current_proof to skip database operations for default UDFs (check is_default flag)
+
+*Why it worked:*
+- Default UDFs are code-based (not in database), injected at API response level
+- Each proof mode API module needs its own DEFAULT_UDFS handling - they don't share code paths
+- Frontend and backend both need to recognize defaults to prevent editing/deletion
+- Checking is_default flag prevents trying to save defaults to database
+
+*Key lesson:* Always verify which API module the frontend is calling - file/route names can be misleading.
+
+**PROBLEM (b): Error Display for Quote Validation**
+
+*Dead-end attempts:*
+- Improved error message in Parser.py from "only lists can be quoted" to more helpful text
+- Added exception handlers and logging to backend set_current_proof
+- Modified backend Response to include errors array
+- All of this successfully RETURNED errors but user still saw nothing
+
+*Why the mistake:*
+- Focused entirely on backend error generation, assuming frontend would automatically display any errors in response
+- Didn't verify that the errors state variable was actually rendered in the UI
+- Saw errors being SET in state but didn't check if errors were DISPLAYED
+
+*What actually fixed it:*
+- Added JSX rendering for errors in EquationalReasoningNew.js (it was completely missing):
+  ```jsx
+  {!proofStarted && errors.length > 0 && (
+    <Alert variant="danger">
+      {errors.map((error, index) => <div key={index}>{error}</div>)}
+    </Alert>
+  )}
+  ```
+- Fixed frontend catch block to preserve backend error messages instead of replacing with generic "Error starting proof"
+
+*Why it worked:*
+- The errors state variable existed and was being set correctly, but had ZERO JSX rendering
+- Backend was returning errors perfectly; frontend just never displayed them
+- Must have BOTH: (1) error state management AND (2) error rendering in JSX
+
+*Key lesson:* When errors aren't displaying, check if the state variable is rendered in JSX, not just if it's being set. State without rendering is invisible.
+
+**PROBLEM (c): "No definition found for label 'a'" Issue**
+
+*Dead-end attempts:*
+- Added generics parameter to backend set_current_proof and called use_uploaded_generic()
+- Added debug logging showing generics were empty when received by backend
+- Modified frontend to send generics array in correct format with restrictions object
+- Backend code was perfect; still received empty generics array
+
+*Why the mistake:*
+- Assumed the issue was backend processing or data format
+- Focused on backend when problem was actually frontend data collection
+- Didn't verify what was actually in sessionStorage vs what was being read from it
+
+*What actually fixed it:*
+1. Changed filter from `g.applied` to `g.enabled` (generics use different property than definitions)
+2. Updated enableGeneric() function in Definitions.jsx to save updated generics to sessionStorage after toggling (it only updated React state, not sessionStorage)
+
+*Why it worked:*
+- Inconsistent naming: definitions use "applied" property, generics use "enabled" property
+- enableGeneric() modified state with setGenerics() but NEVER persisted to sessionStorage
+- Frontend startProof reads from sessionStorage (not React state), so enabled generics were lost between enable-click and start-proof
+- Must update BOTH state and sessionStorage when toggling - state is for immediate UI, sessionStorage is for cross-component data
+
+*Key lesson:* When data seems to disappear between actions, check if state updates are persisted to sessionStorage. State and sessionStorage are separate - updating one doesn't update the other. For data shared across components or surviving navigation, BOTH must be updated.
+
+*General pattern discovered:* Definitions and Generics use different property names (applied vs enabled) - always verify property names when filtering sessionStorage data.

@@ -121,12 +121,21 @@ const EquationalReasoningNew = () => {
       );
       const normalizeType = (t) => (t || '').replace(/\s*->\s*/g, ' > ').trim();
       let definitions = [];
+      let generics = [];
       try {
         const storedDefs = JSON.parse(sessionStorage.getItem('definitions')) || [];
-        definitions = storedDefs.filter(d => d.applied);
+        // Only include UDFs (definitions with expressions), not generics
+        definitions = storedDefs.filter(d => d.applied && d.expression);
+        
+        const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
+        console.log('[DEBUG] sessionStorage generics:', storedGenerics);
+        // Include enabled generics (note: generics use 'enabled' not 'applied')
+        generics = storedGenerics.filter(g => g.enabled);
+        console.log('[DEBUG] Filtered enabled generics:', generics);
       } catch (e) {
-        console.error('Error reading session definitions:', e);
+        console.error('Error reading session definitions/generics:', e);
         definitions = [];
+        generics = [];
       }
       // 2. Initialize backend
       const response = await equationalService.setCurrentProof({
@@ -138,6 +147,14 @@ const EquationalReasoningNew = () => {
                   label: d.label || d.name || '',
                   type: normalizeType(d.type),
                   expression: d.expression
+                })),
+        generics: generics.map(g => ({
+                  label: g.label || g.name || '',
+                  type: normalizeType(g.type),
+                  restrictions: {
+                    assumption: g.assumption || g.restrictions?.assumption || 'None',
+                    neverNull: g.neverNull || g.restrictions?.neverNull || false
+                  }
                 }))
       });
 
@@ -187,7 +204,11 @@ const EquationalReasoningNew = () => {
       }
     } catch (error) {
       console.error("Error starting proof:", error);
-      setErrors(["Error starting proof"]);
+      // Extract error messages from backend response if available
+      const errorMessages = error.response?.data?.errors || 
+                           (error.response?.data?.error ? [error.response.data.error] : null) ||
+                           ["Error starting proof"];
+      setErrors(errorMessages);
     }
   };
 
@@ -1672,6 +1693,18 @@ const EquationalReasoningNew = () => {
           )}
 
           <div className="form-bottom-part">
+
+            {!proofStarted && errors.length > 0 && (
+              <Row>
+                <Col>
+                  <Alert variant="danger" dismissible onClose={() => setErrors([])}>
+                    {errors.map((error, index) => (
+                      <div key={index}>{error}</div>
+                    ))}
+                  </Alert>
+                </Col>
+              </Row>
+            )}
 
             {!proofStarted && (
                 <Row className="goal-btn-wrap">

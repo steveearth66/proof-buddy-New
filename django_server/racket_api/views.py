@@ -109,70 +109,104 @@ def check_goal(request):
 # Any errors will result in the server proof state being unchanged EXCEPT for definitions
 @api_view(["POST"])
 def set_current_proof(request):
+    import sys
+    print("[DEBUG] set_current_proof called", flush=True)  # Log to console for debugging
+    sys.stdout.flush()
     user = request.user
     json_data = request.data
+    print(f"[DEBUG] User: {user.username}, Data keys: {json_data.keys()}", flush=True)  # Log to console for debugging
+    sys.stdout.flush()
 
-    # create a new proof!
-    proof = TwoSidedProof()
+    try:
+        # create a new proof!
+        proof = TwoSidedProof()
 
-    # set definitions. 
-    # NOTE- This will override definitions with the same labels created by the user even if there is an error at any point in the validation
-    errors = []
-    for definition in json_data["definitions"]:
-        saved_definition = create_or_override_definition(user, definition)
-        if not saved_definition:
-            errors.append("Unable to add definition with label " + definition["label"])
-        else:
-            label = saved_definition["label"]
-            def_type = saved_definition["def_type"]
-            expression = saved_definition["expression"]
-            saved_definition["applied"] = True
+        # set definitions. 
+        # NOTE- This will override definitions with the same labels created by the user even if there is an error at any point in the validation
+        errors = []
+        for definition in json_data["definitions"]:
+            # Check if this is a default UDF (skip database operations)
+            is_default = definition.get("is_default", False) or definition.get("deletable", True) == False
+            
+            if is_default:
+                # Default UDFs don't need database operations, just apply to proof
+                label = definition["label"]
+                def_type = definition["type"]
+                expression = definition["expression"]
+                proof.addUDF(label, def_type, expression)
+                proof.definitions.append({
+                    "label": label,
+                    "def_type": def_type,
+                    "expression": expression,
+                    "applied": True
+                })
+            else:
+                # User-created definitions need database operations
+                saved_definition = create_or_override_definition(user, definition)
+                if not saved_definition:
+                    errors.append("Unable to add definition with label " + definition["label"])
+                else:
+                    label = saved_definition["label"]
+                    def_type = saved_definition["def_type"]
+                    expression = saved_definition["expression"]
+                    saved_definition["applied"] = True
 
-            proof.addUDF(label, def_type, expression)
-            proof.definitions.append(saved_definition)
-    
-    for generic in json_data["generics"]:
-        try:
-            use_uploaded_generic(user, proof, generic)
-        except Exception as e:
-            errors.append(str(e))
+                    proof.addUDF(label, def_type, expression)
+                    proof.definitions.append(saved_definition)
+        
+        for generic in json_data["generics"]:
+            try:
+                use_uploaded_generic(user, proof, generic)
+            except Exception as e:
+                errors.append(str(e))
 
-    if len(errors) > 0:
-        return get_error_response(errors)
-
-
-    # Set LHS and RHS goals
-    if json_data["leftGoalChecked"]:
-        proof.LHS.addProofLine(json_data["lHSGoal"])
-        errors = update_and_validate(proof, "LHS")
-        if not proof.isValid:
+        if len(errors) > 0:
             return get_error_response(errors)
 
-    if json_data["rightGoalChecked"]:
-        proof.RHS.addProofLine(json_data["rHSGoal"])
-        errors = update_and_validate(proof, "RHS")
-        if not proof.isValid:
-            return get_error_response(errors)
-    
-    # Add all LHS and RHS and validate
-    for side in ("LHS", "RHS"):
-        for line in json_data[side]:
-            errors = add_proof_line(line, proof, side)
+
+        # Set LHS and RHS goals
+        if json_data["leftGoalChecked"]:
+            proof.LHS.addProofLine(json_data["lHSGoal"])
+            errors = update_and_validate(proof, "LHS")
             if not proof.isValid:
                 return get_error_response(errors)
-            save_proof_to_cache(user, proof)
-            
-    # Import Successful! Let's officiall overrite the cache
-    # clear working cache for the user
-    cache.delete(f"proofs_{user.username}")
-    save_proof_to_cache(user, proof)
 
-    return Response(
-        {"isValid": "True", "errors": []},
-        status=status.HTTP_201_CREATED,
-    )
+        if json_data["rightGoalChecked"]:
+            proof.RHS.addProofLine(json_data["rHSGoal"])
+            errors = update_and_validate(proof, "RHS")
+            if not proof.isValid:
+                return get_error_response(errors)
+        
+        # Add all LHS and RHS and validate
+        for side in ("LHS", "RHS"):
+            for line in json_data[side]:
+                errors = add_proof_line(line, proof, side)
+                if not proof.isValid:
+                    return get_error_response(errors)
+                save_proof_to_cache(user, proof)
+                
+        # Import Successful! Let's officiall overrite the cache
+        # clear working cache for the user
+        cache.delete(f"proofs_{user.username}")
+        save_proof_to_cache(user, proof)
+
+        return Response(
+            {"isValid": "True", "errors": []},
+            status=status.HTTP_201_CREATED,
+        )
+    
+    except Exception as e:
+        import traceback
+        error_msg = f"Exception in set_current_proof: {str(e)}"
+        print(error_msg)  # Log to console for debugging
+        print(traceback.format_exc())  # Log full stack trace for debugging
+        return Response(
+            {"isValid": False, "errors": [error_msg]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
 def get_error_response(errors):
+    print(f"[ERROR] Returning error response: {errors}")  # Log to console for debugging
     return Response(
         {
             "isValid": False,

@@ -42,7 +42,7 @@ def preProcess(inputString: str, errLog: list[str] = None, debug=False,udf=False
         errLog.append("cannot end an expression with a single quote")
     for i in range(len(nospace)-1):
         if nospace[i] == "'" and nospace[i+1] != "(":
-            errLog.append("only lists can be quoted")
+            errLog.append("Error: Quotes (') should only appear before lists, not individual atoms. For example, use '(a b) not 'a")
 
     if inputString == "" and not udf:  # needed to avoid an issue in checking first character as (, udf's can be blank to be arbitrary
         # can't return the append directly since append changes in place and doesn't return a value!!

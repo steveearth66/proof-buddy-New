@@ -437,12 +437,16 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
           success: 'Generic successfully disabled.',
           error: 'An error occurred. Please try again.'
         });
-        setGenerics(prev => prev.map(gen => {
-          if (gen.id === generic.id) {
-            gen.enabled = false;
-          }
-          return gen;
-        }));
+        setGenerics(prev => {
+          const updated = prev.map(gen => {
+            if (gen.id === generic.id) {
+              gen.enabled = false;
+            }
+            return gen;
+          });
+          sessionStorage.setItem('generics', JSON.stringify(updated));
+          return updated;
+        });
       } catch (error) {
         console.error(error)
       }
@@ -453,12 +457,16 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
           success: 'Generic successfully enabled.',
           error: 'An error occurred. Please try again.'
         });
-        setGenerics(prev => prev.map(gen => {
-          if (gen.id === generic.id) {
-            gen.enabled = true;
-          }
-          return gen;
-        }));
+        setGenerics(prev => {
+          const updated = prev.map(gen => {
+            if (gen.id === generic.id) {
+              gen.enabled = true;
+            }
+            return gen;
+          });
+          sessionStorage.setItem('generics', JSON.stringify(updated));
+          return updated;
+        });
       } catch (error) {
         if (error.response?.data?.message)
           console.error(error.response.data.message);
@@ -575,6 +583,8 @@ function Definition({
   updateEdit,
   applyDefinition
 }) {
+  const isDefaultUDF = definition.is_default === true || definition.deletable === false;
+  
   return (
     <Accordion>
       <Accordion.Item eventKey={eventKey}>
@@ -596,6 +606,7 @@ function Definition({
             <Button
               variant="outline-primary"
               onClick={() => updateEdit(definition)}
+              disabled={isDefaultUDF}
             >
               Edit
             </Button>
