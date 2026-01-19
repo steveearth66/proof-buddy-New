@@ -9,105 +9,225 @@ import Alert from "react-bootstrap/Alert";
 import Modal from "react-bootstrap/Modal";
 import { toast } from "react-toastify";
 import MainLayout from "../layouts/MainLayout";
-import validateField from "../utils/inductionFormValidation";
+import validateField from "../utils/eRFormValidationUtils";
 import OffcanvasRuleSet from "../components/OffcanvasRuleSet";
 import { useToggleSide } from "../hooks/useToggleSide";
 import { useOffcanvas } from "../hooks/useOffcanvas";
 import { useInputState } from "../hooks/useInputState";
 import { useFormValidation } from "../hooks/useFormValidation";
-import useInductionCheck from "../hooks/useInductionCheck";
+import { useGoalCheck } from "../hooks/useGoalCheck";
 import { useCurrentRacketValues } from "../hooks/useCurrentRacketValues";
 import { useFormSubmit } from "../hooks/useFormSubmit";
 import "../scss/_forms.scss";
 import "../scss/_er-racket.scss";
-// import { useExportToLocalMachine } from "../hooks/useExportToLocalMachine"; // removed to clean warnings
+import { useRacketRuleFields } from "../hooks/useRacketRuleFields";
+import { ProofComplete, Substitution, PersistentPad } from "../components";
 import {
-  Definitions,
-  ProofComplete,
-  PersistentPad,
-  Substitution
+  Definitions
 } from "../components";
 import ClickableRowNumber from "../components/ClickableRowNumber";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import { useDynamicHeight } from "../hooks/useDynamicHeight";
-import inductionService from "../services/inductionService";
+import equationalService from "../services/equationalService";
+import erService from "../services/erService";
 import {
   ARROW_KEYS,
+  INITIAL_FORM_VALUES,
+  INITIAL_PREMISE_STATE,
   EMPTY_INITIAL_FIELD,
   getPadRefs,
-  getPadIndex
+  getPadIndex,
+  isFormComplete,
+  convertFormToJSON,
+  clearSessionData,
+  updatePremises
 } from "../utils/erRacketUtils";
 
 /**
- * InductionRacket component facilitates the Equational Reasoning Racket.
+ * Equational Reasoning component facilitates the Equational Reasoning Racket.
  */
-const InductionRacket = () => {
-  const initialValues = {
-    proofName: "",
-    proofTag: "",
-    lHSGoal: "",
-    rHSGoal: "",
-    inductionVariable: "",
-    inductionValue: "",
-    leapVariable: "",
-    inductionType: "integers"
+const EquationalReasoningNew = () => {
+    const [showSide, toggleSide] = useToggleSide();
+    const [formValues, handleChange, setFormValues] = useInputState(INITIAL_FORM_VALUES);
+    const [validationMessages, handleBlur, setAllTouched, isFormValid] =
+        useFormValidation(formValues, validateField);
+    const [validated, setValidated] = useState(false);
+    const [
+        isGoalChecked,
+        checkGoal,
+        goalValidationMessage,
+        enhancedHandleChange,
+        proofValidationMessage,
+        clearProofValidationMessage,
+        loadRacketGoal,
+        jsonTreeRep
+    ] = useGoalCheck(handleChange);
+    const [currentRacket, setCurrentRacket] = useState("");
+    const [
+        ,
+        addFieldWithApiCheck,
+        ,
+        validationErrors,
+        serverError,
+        racketErrors,
+        ,
+        updateShowSubstitution,
+        showSubstitution,
+        closeSubstitution,
+        substituteFieldWithApiCheck,
+        substitutionErrors,
+        loadProofInServer,
+        clearValidationErrors
+    ] = useRacketRuleFields(
+        0, // Default startPosition since we now get it from pad refs
+        currentRacket,
+        formValues.proofName,
+        formValues.proofTag,
+        showSide
+    );
+
+    // Current values (computed from last line)
+      const [currentLHS, setCurrentLHS] = useState("");
+      const [currentRHS, setCurrentRHS] = useState("");
+    const [racketFields, setRacketFields] = useState({
+        LHS: [],
+        RHS: []
+      });
+    const [errors, setErrors] = useState([]);
+    // Start proof
+  const handleStartProof = async (e) => {
+    e.preventDefault();
+    setErrors([]);
+
+    if (!formValues.lHSGoal.trim() || !formValues.rHSGoal.trim()) {
+      setErrors(["Both LHS and RHS goals are required"]);
+      return;
+    }
+
+    if (formValues.lHSGoal.trim() === formValues.rHSGoal.trim()) {
+      setErrors(["LHS and RHS goals cannot be identical"]);
+      return;
+    }
+
+    try {
+      // 1. Run checkGoal validation
+      await checkGoal(
+        showSide,
+        formValues[`${showSide[0].toLowerCase()}HSGoal`],
+        formValues.proofName,
+        formValues.proofTag,
+        formValues.lHSGoal,
+        formValues.rHSGoal
+      );
+      const normalizeType = (t) => (t || '').replace(/\s*->\s*/g, ' > ').trim();
+      let definitions = [];
+      try {
+        const storedDefs = JSON.parse(sessionStorage.getItem('definitions')) || [];
+        definitions = storedDefs.filter(d => d.applied);
+      } catch (e) {
+        console.error('Error reading session definitions:', e);
+        definitions = [];
+      }
+      // 2. Initialize backend
+      const response = await equationalService.setCurrentProof({
+        lhsPremise: formValues.lHSGoal.trim(),
+        rhsPremise: formValues.rHSGoal.trim(),
+        name: formValues.proofName,
+        tag: formValues.proofTag,
+        definitions: definitions.map(d => ({
+                  label: d.label || d.name || '',
+                  type: normalizeType(d.type),
+                  expression: d.expression
+                }))
+      });
+
+      if (response.isValid) {
+        // 3. Construct the Premise lines (Line 000)
+        const lhsPremiseLine = {
+            racket: formValues.lHSGoal.trim(),
+            rule: "Premise",
+            lineNumber: 0,
+            selectedNode: 0,
+            startPosition: 0,
+            jsonTree: response.lhsJsonTree || {},
+            deleted: false
+        };
+
+        const rhsPremiseLine = {
+            racket: formValues.rHSGoal.trim(),
+            rule: "Premise",
+            lineNumber: 0,
+            selectedNode: 0,
+            startPosition: 0,
+            jsonTree: response.rhsJsonTree || {},
+            deleted: false
+        };
+
+        // 4. Update State: [Premise, EmptyField]
+        // This ensures Line 000 (Premise) and Line 001 (Empty) both appear
+        setRacketRuleFields({
+          LHS: [lhsPremiseLine, EMPTY_INITIAL_FIELD],
+          RHS: [rhsPremiseLine, EMPTY_INITIAL_FIELD]
+        });
+        
+        // Explicitly set the separate premise state variables as well
+        // (These are still used in some parts of your render logic)
+        setLeftPremise(prev => ({ ...prev, ...lhsPremiseLine }));
+        setRightPremise(prev => ({ ...prev, ...rhsPremiseLine }));
+
+        setCurrentLHS(formValues.lHSGoal.trim());
+        setCurrentRHS(formValues.rHSGoal.trim());
+        if (response.proofId || response.id) {
+          sessionStorage.setItem('current_proof_id', response.proofId || response.id);
+        }
+        setProofStarted(true);
+        toast.success("Proof started!");
+      } else {
+        setErrors(response.errors || ["Failed to start proof"]);
+      }
+    } catch (error) {
+      console.error("Error starting proof:", error);
+      setErrors(["Error starting proof"]);
+    }
   };
 
-  const [showSide, toggleSide] = useToggleSide();
-  const [formValues, handleChange, setFormValues] = useInputState(initialValues);
-  const [validationMessages, handleBlur, setAllTouched, isFormValid] =
-    useFormValidation(formValues, validateField);
-  const [validated, setValidated] = useState(false);
-  const {
-    isGoalChecked,
-    checkGoal,
-    goalValidationMessage,
-    enhancedHandleChange,
-    proofValidationMessage,
-    clearProofValidationMessage
-  } = useInductionCheck(handleChange);
-  const [startPosition] = useState(0); // removed to clean warnings
-  const [currentRacket, setCurrentRacket] = useState("");
-  
-  // Case state must be declared first since it's used in computed values below
-  const [isAnchor, setIsAnchor] = useState(true);
-  
-  // Separate proof lines for base and leap cases
-  const [baseRacketFields, setBaseRacketFields] = useState({
-    LHS: [EMPTY_INITIAL_FIELD],
-    RHS: [EMPTY_INITIAL_FIELD]
-  });
-  const [leapRacketFields, setLeapRacketFields] = useState({
-    LHS: [EMPTY_INITIAL_FIELD],
-    RHS: [EMPTY_INITIAL_FIELD]
-  });
-  
-  // Computed current racketRuleFields based on isAnchor
-  const racketRuleFields = isAnchor ? baseRacketFields : leapRacketFields;
-  const setRacketRuleFields = isAnchor ? setBaseRacketFields : setLeapRacketFields;
-  
-  // Induction-specific state (no dependency on useRacketRuleFields hook)
-  const [validationErrors, setValidationErrors] = useState({ LHS: [], RHS: [] });
-  const [inductionSubErrors, setInductionSubErrors] = useState([]);
-  const [showSubstitution, setShowSubstitution] = useState(false);
-  
-  const clearValidationErrors = useCallback(() => {
-    setValidationErrors({ LHS: [], RHS: [] });
-  }, []);
+    // const [proofValidationMessage, setProofValidationMessage] = useState({
+    //     name: "",
+    //     tag: ""
+    // });
 
-  const closeSubstitution = useCallback(() => {
-    setShowSubstitution(false);
-  }, []);
+//     const clearProofValidationMessage = useCallback(() => {
+//     setProofValidationMessage({
+//       name: "",
+//       tag: ""
+//     });
+//   }, []);
+    
+    // Computed current racketRuleFields
+    const [racketRuleFields, setRacketRuleFields] = useState({
+        LHS: [EMPTY_INITIAL_FIELD],
+        RHS: [EMPTY_INITIAL_FIELD]
+      });
+  
+    // Induction-specific state (no dependency on useRacketRuleFields hook)
+    //const [validationErrors, setValidationErrors] = useState({ LHS: [], RHS: [] });
+    const [inductionSubErrors, setInductionSubErrors] = useState([]);
+    //const [showSubstitution, setShowSubstitution] = useState(false);
+  
+    // const clearValidationErrors = useCallback(() => {
+    //     setValidationErrors({ LHS: [], RHS: [] });
+    // }, []);
 
-  const updateShowSubstitution = useCallback(() => {
-    setShowSubstitution(true);
-  }, []);
+    // const closeSubstitution = useCallback(() => {
+    //     setShowSubstitution(false);
+    // }, []);
 
-  const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields, formValues, isGoalChecked);
+    // const updateShowSubstitution = useCallback(() => {
+    //     setShowSubstitution(true);
+    // }, []);
+
   const [lhsValue, setLhsValue] = useState("");
   const [rhsValue, setRhsValue] = useState("");
-  const [inductiveHypothesisLHS, setInductiveHypothesisLHS] = useState("");
-  const [inductiveHypothesisRHS, setInductiveHypothesisRHS] = useState("");
   const [isOffcanvasActive, toggleOffcanvas] = useOffcanvas();
   const [showDefinitionsWindow, toggleDefinitionsWindow] =
     useDefinitionsWindow();
@@ -115,15 +235,11 @@ const InductionRacket = () => {
   const [proofComplete, setProofComplete] = useState(false);
   
   // Separate premises for base and leap cases
-  const [basePremises, setBasePremises] = useState({ LHS: {}, RHS: {} });
-  const [leapPremises, setLeapPremises] = useState({ LHS: {}, RHS: {} });
-  
-  // Computed current premises based on isAnchor
-  const leftPremise = (isAnchor ? basePremises : leapPremises).LHS;
-  const rightPremise = (isAnchor ? basePremises : leapPremises).RHS;
+  const [leftPremise, setLeftPremise] = useState(INITIAL_PREMISE_STATE);
+  const [rightPremise, setRightPremise] = useState(INITIAL_PREMISE_STATE);
   
   const [proofStarted, setProofStarted] = useState(false);
-  const [proofStatus, setProofStatus] = useState({ base: null, leap: null }); // tracks base/leap completeness separately
+  const [proofStatus, setProofStatus] = useState({ base: null }); // tracks base completeness
 
   // Footer binding and PersistentPad refs - for interactive proof line highlighting
   const lhsPadRefs = useRef({});
@@ -141,7 +257,7 @@ const InductionRacket = () => {
 
   // Initialize jsonTreeRep as empty object for passing to renderPersistentPadRow
   // It gets populated by the backend when goals are checked
-  const [jsonTreeRep, setJsonTreeRep] = useState({ LHS: {}, RHS: {} });
+//   const [jsonTreeRep, setJsonTreeRep] = useState({ LHS: {}, RHS: {} });
 
   const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
@@ -168,28 +284,21 @@ const InductionRacket = () => {
   const checkCurrentProofStatus = async () => {
     try {
       // Check both base and leap cases
-      const baseResult = await inductionService.checkCompletion('base');
-      const leapResult = await inductionService.checkCompletion('leap');
+      const result = await equationalService.checkCompletion();
       
-      console.log('[CHECK PROOF] Base result:', baseResult);
-      console.log('[CHECK PROOF] Leap result:', leapResult);
+      console.log('[CHECK PROOF] Result:', result);
       
-      const baseStatus = baseResult.isComplete 
-        ? { state: "complete", label: baseResult.label }
-        : { state: "incomplete", label: baseResult.label };
-      
-      const leapStatus = leapResult.isComplete 
-        ? { state: "complete", label: leapResult.label }
-        : { state: "incomplete", label: leapResult.label };
+      const baseStatus = result.isComplete 
+        ? { state: "complete", label: "PROOF" }
+        : { state: "incomplete", label: "PROOF" };
       
       setProofStatus({
-        base: baseStatus,
-        leap: leapStatus
+        base: baseStatus
       });
       
-      // Show confetti if BOTH cases are complete
-      if (baseResult.isComplete && leapResult.isComplete) {
-        console.log('[CHECK PROOF] Both cases complete - showing confetti!');
+      // Show confetti if case is complete
+      if (result.isComplete) {
+        console.log('[CHECK PROOF] Case complete - showing confetti!');
         setShowProofComplete(true);
         setProofComplete(true);
       } else {
@@ -255,7 +364,7 @@ const InductionRacket = () => {
   // Clear validation errors and proof status when binding to a new row
   clearValidationErrors();
   setFooterRuleError('');
-  const caseKey = isAnchor ? 'base' : 'leap';
+  const caseKey = 'base';
   setProofStatus(prev => ({ ...prev, [caseKey]: null }));
 
     setUserRow({ num: paddedRowNum });
@@ -264,7 +373,7 @@ const InductionRacket = () => {
     // Set footer rule initially to what the field has
     if (paddedRowNum !== "000") {
       // Array index now equals line number, so use userIndex directly
-      const field = racketRuleFields[showSide]?.[userIndex];
+      const field = (racketRuleFields?.[showSide] || [])[userIndex];
       setFooterRule(field?.rule || "");
     } else {
       setFooterRule("Premise");
@@ -308,7 +417,7 @@ const InductionRacket = () => {
   const loadProofLinesFromDatabase = useCallback(async () => {
     console.log('[loadProofLinesFromDatabase] CALLED');
     try {
-      const proofLines = await inductionService.getProofLines();
+      const proofLines = await equationalService.getProofLines();
       console.log('[loadProofLinesFromDatabase] Got proof lines from API:', proofLines);
       
       // Build racketRuleFields from database proof lines
@@ -364,41 +473,30 @@ const InductionRacket = () => {
       };
       
       // Build the new state
-      const newBaseLHS = buildFieldsFromLines(proofLines.base?.LHS || []);
-      const newBaseRHS = buildFieldsFromLines(proofLines.base?.RHS || []);
-      const newLeapLHS = buildFieldsFromLines(proofLines.leap?.LHS || []);
-      const newLeapRHS = buildFieldsFromLines(proofLines.leap?.RHS || []);
+      const newBaseLHS = buildFieldsFromLines(proofLines.LHS || []);
+      const newBaseRHS = buildFieldsFromLines(proofLines.RHS || []);
       
       // Update base case fields
-      setBaseRacketFields({
+      setRacketRuleFields({
         LHS: newBaseLHS,
         RHS: newBaseRHS
       });
       
-      // Update leap case fields
-      setLeapRacketFields({
-        LHS: newLeapLHS,
-        RHS: newLeapRHS
-      });
-      
       // Update premises with selectedNode from database (line 0)
       // Only update if premise exists and selectedNode is valid
-      const baseLHSPremise = proofLines.base?.LHS?.find(l => l.lineNumber === 0);
-      const baseRHSPremise = proofLines.base?.RHS?.find(l => l.lineNumber === 0);
-      const leapLHSPremise = proofLines.leap?.LHS?.find(l => l.lineNumber === 0);
-      const leapRHSPremise = proofLines.leap?.RHS?.find(l => l.lineNumber === 0);
+      const baseLHSPremise = proofLines.LHS.find(l => l.lineNumber === 0);
+      const baseRHSPremise = proofLines.RHS.find(l => l.lineNumber === 0);
       
       if (baseLHSPremise || baseRHSPremise) {
-        setBasePremises(prev => ({
-          LHS: baseLHSPremise && prev.LHS ? { ...prev.LHS, selectedNode: baseLHSPremise.selectedNode || 0 } : prev.LHS,
-          RHS: baseRHSPremise && prev.RHS ? { ...prev.RHS, selectedNode: baseRHSPremise.selectedNode || 0 } : prev.RHS
+        setLeftPremise(prev => ({
+            ...prev,
+            racket: formValues.lHSGoal,
+            selectedNode: baseLHSPremise.selectedNode || 0
         }));
-      }
-      
-      if (leapLHSPremise || leapRHSPremise) {
-        setLeapPremises(prev => ({
-          LHS: leapLHSPremise && prev.LHS ? { ...prev.LHS, selectedNode: leapLHSPremise.selectedNode || 0 } : prev.LHS,
-          RHS: leapRHSPremise && prev.RHS ? { ...prev.RHS, selectedNode: leapRHSPremise.selectedNode || 0 } : prev.RHS
+        setRightPremise(prev => ({
+            ...prev,
+            racket: formValues.rHSGoal,
+            selectedNode: baseLHSPremise.selectedNode || 0
         }));
       }
 
@@ -406,7 +504,7 @@ const InductionRacket = () => {
       console.error('[loadProofLines] Error loading proof lines:', error);
       // Don't show error to user - this is a background operation
     }
-  }, [setBaseRacketFields, setLeapRacketFields, setBasePremises, setLeapPremises]);
+  }, [setRacketRuleFields, setLeftPremise, setRightPremise]);
 
   // Toggle sides - no database reload needed, state already has both sides
   const handleToggleSide = useCallback(() => {
@@ -415,42 +513,6 @@ const InductionRacket = () => {
     
     // No database reload - we want to preserve current UI state including any highlighting changes
   }, [showSide, toggleSide]);
-
-  /**
-   * Toggle between base and leap cases - state already contains both cases
-   */
-  const handleToggleCase = useCallback(() => {
-    // Toggle the case - baseRacketFields and leapRacketFields are separate in state
-    const newIsAnchor = !isAnchor;
-    setIsAnchor(newIsAnchor);
-    
-    // Update Current LHS/RHS to match the new case's last non-empty line (or premise)
-    const targetFields = newIsAnchor ? baseRacketFields : leapRacketFields;
-    const targetPremises = newIsAnchor ? basePremises : leapPremises;
-    const lhsLines = targetFields.LHS || [];
-    const rhsLines = targetFields.RHS || [];
-    
-    // Find last non-empty, non-premise line (premise is at index 0)
-    const findLastNonEmptyLine = (lines) => {
-      // Start from the end and work backwards, skipping empties
-      for (let i = lines.length - 1; i > 0; i--) {
-        if (lines[i] && lines[i].racket && lines[i].racket.trim() !== '') {
-          return lines[i];
-        }
-      }
-      // If no non-empty proof line found, return null (will fall back to premise)
-      return null;
-    };
-    
-    const lastLhsLine = findLastNonEmptyLine(lhsLines);
-    const lastRhsLine = findLastNonEmptyLine(rhsLines);
-    
-    setLhsValue(lastLhsLine?.racket || targetPremises.LHS?.racket || '');
-    setRhsValue(lastRhsLine?.racket || targetPremises.RHS?.racket || '');
-    
-    // No database reload - state already contains both base and leap cases
-    // Reloading would reset any highlighting changes made by clicking (not applying rules)
-  }, [isAnchor, baseRacketFields, leapRacketFields, basePremises, leapPremises]);
 
   /**
    * Unbind footer from current proof line.
@@ -476,8 +538,7 @@ const InductionRacket = () => {
    * Updates the field's selectedNode so highlighting persists across toggles.
    */
   const handleFieldHighlight = (side, index, selectedNode) => {
-    const caseKey = isAnchor ? 'base' : 'leap';
-    const setFields = caseKey === 'base' ? setBaseRacketFields : setLeapRacketFields;
+    const setFields = setRacketRuleFields;
     
     setFields(prev => {
       const updated = { ...prev };
@@ -496,16 +557,20 @@ const InductionRacket = () => {
    * Updates the premise's selectedNode so highlighting persists across toggles.
    */
   const handlePremiseHighlight = (side, selectedNode) => {
-    const caseKey = isAnchor ? 'base' : 'leap';
-    const setPremises = caseKey === 'base' ? setBasePremises : setLeapPremises;
-    
-    setPremises(prev => ({
-      ...prev,
-      [side]: {
-        ...prev[side],
-        selectedNode: selectedNode || 0
-      }
-    }));
+    if (side === "LHS") {
+        setLeftPremise(prev => ({
+            ...prev,
+            racket: formValues.lHSGoal,
+            selectedNode: selectedNode || 0
+        }));
+    }
+    else {
+        setRightPremise(prev => ({
+            ...prev,
+            racket: formValues.rHSGoal,
+            selectedNode: selectedNode || 0
+        }));
+    }
   };
 
   const handleClearProof = async () => {
@@ -514,10 +579,10 @@ const InductionRacket = () => {
     }
 
     try {
-      await inductionService.clearInduction();
+      await erService.clearProof();
       
       // Clear sessionStorage flag so we don't restore from DB on reload
-      sessionStorage.removeItem('inductionProofActive');
+      sessionStorage.removeItem('erProofActive');
       
       toast.success('Proof archived successfully');
       
@@ -559,7 +624,7 @@ const InductionRacket = () => {
             console.log(`[GENERATE] From premise: selectedNode=${previousStartPosition}`);
           } else {
             // Since array index now equals line number, use previousRowIndex directly
-            const previousField = racketRuleFields[showSide][previousRowIndex];
+            const previousField = racketRuleFields?.[showSide][previousRowIndex];
             previousRacketValue = previousField?.racket || "";
             // Get the selected node from the field if available (restored), otherwise from PersistentPad's current selection
             const fromField = previousField?.selectedNode;
@@ -588,7 +653,6 @@ const InductionRacket = () => {
 
       const payload = {
         side: showSide,
-        case: isAnchor ? 'base' : 'leap',
         currentRacket: previousRacketValue,
         rule: ruleFromFooter,
         startPosition: previousStartPosition,
@@ -597,13 +661,13 @@ const InductionRacket = () => {
       };
 
       // Reset status when new line generated
-      const caseKey = isAnchor ? 'base' : 'leap';
+      const caseKey = 'base';
       setProofStatus(prev => ({ ...prev, [caseKey]: null }));
 
       // Dismiss any previous error toasts before trying again
       toast.dismiss();
 
-      const fullRacket = await inductionService.applyRule(payload);
+      const fullRacket = await equationalService.applyRule(payload);
 
       // If the backend returned a valid generated line, append it to the UI
       if (!fullRacket) {
@@ -622,7 +686,7 @@ const InductionRacket = () => {
           deleted: false
         };
 
-        console.log('[GENERATE] Creating new field:', { currentIndex, newField, showSide, isAnchor });
+        console.log('[GENERATE] Creating new field:', { currentIndex, newField, showSide });
 
         setRacketRuleFields((prevFields) => {
           const sideArray = [...(prevFields[showSide] || [])];
@@ -682,6 +746,8 @@ const InductionRacket = () => {
         if (isBound) {
           unbindFooter();
         }
+
+        await checkCurrentProofStatus();
       } else {
         // Show a toast on invalid rule
         const message = (fullRacket && fullRacket.errors && fullRacket.errors[0]) || "Invalid rule";
@@ -697,44 +763,33 @@ const InductionRacket = () => {
     // Use sessionStorage to distinguish between page refresh (restore) and new navigation (clear)
     const restoreProof = async () => {
       try {
-        const isActiveSession = sessionStorage.getItem('inductionProofActive') === 'true';
+        const isActiveSession = sessionStorage.getItem('erProofActive') === 'true';
         
         if (!isActiveSession) {
           // New session - clear any old proof data and start fresh
-          await inductionService.clearInduction();
+          await erService.clearProof();
           return;
         }
         
         // Active session - attempt to restore from database (page refresh scenario)
-        const proofData = await inductionService.getCurrentProof();
+        const proofData = await equationalService.getProofLines();
         
         if (proofData.hasProof) {
           // Restore form values
           setFormValues(prev => ({
             ...prev,
-            inductionVariable: proofData.inductionVariable || '',
-            inductionValue: proofData.anchorValue !== undefined ? proofData.anchorValue.toString() : '',
-            leapVariable: proofData.leapVariable || '',
             lHSGoal: proofData.lhsAnchorGoal || '',
             rHSGoal: proofData.rhsAnchorGoal || '',
             proofName: proofData.proofName || '',
             proofTag: proofData.tag || ''
           }));
           
-          // Restore inductive hypotheses
-          setInductiveHypothesisLHS(proofData.inductiveHypothesisLHS || '');
-          setInductiveHypothesisRHS(proofData.inductiveHypothesisRHS || '');
-          
           // Re-initialize the proof engine to get proper jsonTrees for premises
           try {
             const normalizeType = (t) => (t || '').replace(/\s*->\s*/g, ' > ').trim();
             const definitions = JSON.parse(sessionStorage.getItem('definitions') || '[]');
             
-            const engineSetup = await inductionService.setCurrentProof({
-              struct: (proofData.inductionType || 'integers').toLowerCase() === 'lists' ? 'list' : 'int',
-              ivar: proofData.inductionVariable,
-              aval: String(proofData.anchorValue),
-              lvar: proofData.leapVariable,
+            const engineSetup = await equationalService.setCurrentProof({
               lhsPremise: proofData.lhsAnchorGoal,
               rhsPremise: proofData.rhsAnchorGoal,
               definitions: definitions.map(d => ({
@@ -747,69 +802,55 @@ const InductionRacket = () => {
             if (engineSetup && engineSetup.base && engineSetup.leap) {
               const baseL = engineSetup.base.LHS || {};
               const baseR = engineSetup.base.RHS || {};
-              const leapL = engineSetup.leap.LHS || {};
-              const leapR = engineSetup.leap.RHS || {};
-
               // Set base case premises with proper jsonTrees
-              setBasePremises({
-                LHS: {
-                  racket: baseL.racket || proofData.lhsAnchorGoal || '',
-                  rule: 'Premise',
-                  startPosition: 0,
-                  selectedNode: 0,
-                  jsonTree: baseL.jsonTree || {}
-                },
-                RHS: {
-                  racket: baseR.racket || proofData.rhsAnchorGoal || '',
-                  rule: 'Premise',
-                  startPosition: 0,
-                  selectedNode: 0,
-                  jsonTree: baseR.jsonTree || {}
-                }
-              });
+              setLeftPremise(prev => ({
+                    ...prev,
+                    racket: baseL.racket || proofData.lhsAnchorGoal || '',
+                    jsonTree: baseL.jsonTree || {}, 
+                    rule: 'Premise', 
+                    startPosition: 0, 
+                    selectedNode: 0
+                }));
+                setRightPremise(prev => ({
+                    ...prev,
+                    racket: baseR.racket || proofData.rhsAnchorGoal || '',
+                    jsonTree: baseR.jsonTree || {}, 
+                    rule: 'Premise', 
+                    startPosition: 0, 
+                    selectedNode: 0
+                }));
 
-              // Set leap case premises with proper jsonTrees
-              setLeapPremises({
-                LHS: {
-                  racket: leapL.racket || proofData.lhsLeapGoal || '',
-                  rule: 'Premise',
-                  startPosition: 0,
-                  selectedNode: 0,
-                  jsonTree: leapL.jsonTree || {}
-                },
-                RHS: {
-                  racket: leapR.racket || proofData.rhsLeapGoal || '',
-                  rule: 'Premise',
-                  startPosition: 0,
-                  selectedNode: 0,
-                  jsonTree: leapR.jsonTree || {}
-                }
-              });
-
-              setJsonTreeRep({
-                LHS: baseL.jsonTree || {},
-                RHS: baseR.jsonTree || {}
-              });
+            //   setJsonTreeRep({
+            //     LHS: baseL.jsonTree || {},
+            //     RHS: baseR.jsonTree || {}
+            //   });
             }
           } catch (engineError) {
             // Fall back to simple initialization without jsonTrees
-            setBasePremises({
-              LHS: { racket: proofData.lhsAnchorGoal || '', jsonTree: {}, rule: 'Premise', startPosition: 0, selectedNode: 0 },
-              RHS: { racket: proofData.rhsAnchorGoal || '', jsonTree: {}, rule: 'Premise', startPosition: 0, selectedNode: 0 }
-            });
-            setLeapPremises({
-              LHS: { racket: proofData.lhsLeapGoal || '', jsonTree: {}, rule: 'Premise', startPosition: 0, selectedNode: 0 },
-              RHS: { racket: proofData.rhsLeapGoal || '', jsonTree: {}, rule: 'Premise', startPosition: 0, selectedNode: 0 }
-            });
+            setLeftPremise(prev => ({
+                ...prev,
+                racket: formValues.lHSGoal,
+                jsonTree: {}, 
+                rule: 'Premise', 
+                startPosition: 0, 
+                selectedNode: 0
+            }));
+            setRightPremise(prev => ({
+                ...prev,
+                racket: formValues.rHSGoal,
+                jsonTree: {}, 
+                rule: 'Premise', 
+                startPosition: 0, 
+                selectedNode: 0
+            }));
           }
           
           // Initialize fields
-          setBaseRacketFields({ LHS: [EMPTY_INITIAL_FIELD], RHS: [EMPTY_INITIAL_FIELD] });
-          setLeapRacketFields({ LHS: [EMPTY_INITIAL_FIELD], RHS: [EMPTY_INITIAL_FIELD] });
+          setRacketFields({ LHS: [EMPTY_INITIAL_FIELD], RHS: [EMPTY_INITIAL_FIELD] });
           
           // Get proof lines and restore them
           try {
-            const lines = await inductionService.getProofLines();
+            const lines = await equationalService.getProofLines();
             
             if (lines && typeof lines === 'object') {
               // Helper function to convert database lines to UI field format
@@ -851,14 +892,8 @@ const InductionRacket = () => {
               if (lines.base) {
                 const baseLHS = convertLinesToFields(lines.base.LHS);
                 const baseRHS = convertLinesToFields(lines.base.RHS);
-                setBaseRacketFields({ LHS: baseLHS, RHS: baseRHS });
-              }
-              
-              // Restore leap case fields  
-              if (lines.leap) {
-                const leapLHS = convertLinesToFields(lines.leap.LHS);
-                const leapRHS = convertLinesToFields(lines.leap.RHS);
-                setLeapRacketFields({ LHS: leapLHS, RHS: leapRHS });
+
+                setRacketFields({ LHS: baseLHS, RHS: baseRHS });
               }
             }
           } catch (linesError) {
@@ -866,15 +901,15 @@ const InductionRacket = () => {
           }
           
           setProofStarted(true);
-          sessionStorage.setItem('inductionProofActive', 'true');
+          sessionStorage.setItem('erProofActive', 'true');
         } else {
           // No existing proof, clear to start fresh
-          await inductionService.clearInduction();
+          await erService.clearProof();
         }
       } catch (error) {
         // On error, clear to start fresh
         try {
-          await inductionService.clearInduction();
+          await erService.clearProof();
         } catch (clearError) {
           // Silent fail
         }
@@ -890,14 +925,12 @@ const InductionRacket = () => {
     if (formValues.rHSGoal !== "") {
       // Only update premise from formValues if proof hasn't started yet
       if (!proofStarted) {
-        setBasePremises(prev => ({
-          ...prev,
-          RHS: {
+        setRightPremise(prev => ({
+            ...prev,
             racket: formValues.rHSGoal,
             rule: "Premise",
             startPosition: 0,
             selectedNode: 0
-          }
         }));
       }
     }
@@ -905,14 +938,12 @@ const InductionRacket = () => {
     if (formValues.lHSGoal !== "") {
       // Only update premise from formValues if proof hasn't started yet
       if (!proofStarted) {
-        setBasePremises(prev => ({
-          ...prev,
-          LHS: {
+        setLeftPremise(prev => ({
+            ...prev,
             racket: formValues.lHSGoal,
             rule: "Premise",
             startPosition: 0,
             selectedNode: 0
-          }
         }));
       }
     }
@@ -943,7 +974,7 @@ const InductionRacket = () => {
   useEffect(() => {
     if (proofStarted) {
       // Only clear incomplete status, preserve complete status
-      const caseKey = isAnchor ? 'base' : 'leap';
+      const caseKey = 'base';
       setProofStatus(prev => {
         if (prev[caseKey]?.state === 'incomplete') {
           return { ...prev, [caseKey]: null };
@@ -953,14 +984,13 @@ const InductionRacket = () => {
       unbindFooter();
       clearValidationErrors();
     }
-  }, [isAnchor, proofStarted, unbindFooter, clearValidationErrors]);
+  }, [proofStarted, unbindFooter, clearValidationErrors]);
 
   // Update Current LHS/RHS display to show the last non-empty line
   useEffect(() => {
     if (!proofStarted) return;
     
-    const targetFields = isAnchor ? baseRacketFields : leapRacketFields;
-    const targetPremises = isAnchor ? basePremises : leapPremises;
+    const targetFields = racketRuleFields;
     const lhsLines = targetFields.LHS || [];
     const rhsLines = targetFields.RHS || [];
     
@@ -977,9 +1007,9 @@ const InductionRacket = () => {
     const lastLhsLine = findLastNonEmptyLine(lhsLines);
     const lastRhsLine = findLastNonEmptyLine(rhsLines);
     
-    setLhsValue(lastLhsLine?.racket || targetPremises.LHS?.racket || '');
-    setRhsValue(lastRhsLine?.racket || targetPremises.RHS?.racket || '');
-  }, [proofStarted, isAnchor, baseRacketFields, leapRacketFields, basePremises, leapPremises]);
+    setLhsValue(lastLhsLine?.racket || leftPremise.racket || '');
+    setRhsValue(lastRhsLine?.racket || rightPremise.racket || '');
+  }, [proofStarted, racketRuleFields, leftPremise, rightPremise]);
 
   useEffect(() => {
     // Disabled: Confetti should only show when BOTH base AND leap cases are complete
@@ -1084,292 +1114,11 @@ const InductionRacket = () => {
     return null;
   };
 
-  /**
-   * Validates:
-   * - induction variable is a parameter of a (top-level) function in LHS or RHS goal
-   * - anchor/induction value is a nonnegative integer
-   * - leap variable does not appear in LHS, RHS, or equal induction variable
-   *
-   * On success, calls checkGoal(...) to proceed.
-   *
-   * Uses exact error messages requested:
-   * "Induction variable must be a parameter of a function in your goal."
-   * "Anchor value must be a nonnegative integer."
-   * "Leap variable must not overlap with variables in the goal."
-   */
-  const validateAndStart = async (
-    side,
-    proofName,
-    proofTag,
-    goalForSide,
-    inductionVariable,
-    inductionValue,
-    leapVariable,
-    inductionType,
-    isAnchorFlag
-  ) => {
-    const leftGoal = formValues.lHSGoal;
-    const rightGoal = formValues.rHSGoal;
-    const selectedGoal = goalForSide || "";
-
-    if (!/^\d+$/.test(inductionValue || "")) {
-      toast.error("Anchor value must be a nonnegative integer.");
-      return;
-    }
-    const parsedVal = parseInt(inductionValue, 10);
-    if (isNaN(parsedVal) || parsedVal < 0) {
-      toast.error("Anchor value must be a nonnegative integer.");
-      return;
-    }
-
-    if (leapVariable && inductionVariable && leapVariable === inductionVariable) {
-      toast.error("Leap variable must not overlap with variables in the goal.");
-      return;
-    }
-
-    const leapVarWord = leapVariable ? `\\b${escapeRegExp(leapVariable)}\\b` : null;
-    if (leapVarWord) {
-      const re = new RegExp(leapVarWord);
-      if (re.test(leftGoal) || re.test(rightGoal) || re.test(selectedGoal)) {
-        toast.error("Leap variable must not overlap with variables in the goal.");
-        return;
-      }
-    }
-
-    const ivar = inductionVariable ? inductionVariable.trim() : "";
-    if (!ivar) {
-      toast.error("Induction variable must be a parameter of a function in your goal.");
-      return;
-    }
-
-    const leftApp = parseTopLevelApplication(leftGoal);
-    const rightApp = parseTopLevelApplication(rightGoal);
-    const selectedApp = parseTopLevelApplication(selectedGoal);
-
-    const appearsInParams = (app) => {
-      if (!app || !app.params) return false;
-      return app.params.some((p) => p === ivar);
-    };
-
-    if (
-      !appearsInParams(leftApp) &&
-      !appearsInParams(rightApp) &&
-      !appearsInParams(selectedApp)
-    ) {
-      toast.error("Induction variable must be a parameter of a function in your goal.");
-      return;
-    }
-
-    if (!inductiveHypothesisLHS || inductiveHypothesisLHS.trim() === "") {
-      toast.error("Inductive hypothesis for LHS must be provided.");
-      return;
-    }
-
-    if (!inductiveHypothesisRHS || inductiveHypothesisRHS.trim() === "") {
-      toast.error("Inductive hypothesis for RHS must be provided.");
-      return;
-    }
-
-    try {
-      // Prefer session definitions; include only enabled/applied ones
-      let definitions = [];
-      try {
-        const storedDefs = JSON.parse(sessionStorage.getItem('definitions')) || [];
-        definitions = storedDefs.filter(d => d.applied);
-      } catch (e) {
-        console.error('Error reading session definitions:', e);
-        definitions = [];
-      }
-      const inductionData = {
-        side: side,
-        proof_name: proofName,
-        proof_tag: proofTag,
-        lhs_leap_goal: formValues.lHSGoal,
-        rhs_leap_goal: formValues.rHSGoal,
-        lhs_anchor_goal: formValues.lHSGoal,
-        rhs_anchor_goal: formValues.rHSGoal,
-        induction_variable: inductionVariable,
-        anchor_value: inductionValue,
-        leap_variable: leapVariable,
-        induction_type: inductionType,
-        is_anchor: isAnchorFlag,
-        inductive_hypothesis_lhs: inductiveHypothesisLHS,
-        inductive_hypothesis_rhs: inductiveHypothesisRHS,
-        definitions
-      };
-
-      const response = await inductionService.startInductionProof(inductionData);
-
-      if (response && response.data) {
-        if (response.status === 201 || response.status === 200) {
-          const genericDef = response.data.generic_definition_created;
-          
-          if (genericDef) {
-            let generics = [];
-            try {
-              const storedGenerics = sessionStorage.getItem('generics');
-              generics = storedGenerics ? JSON.parse(storedGenerics) : [];
-            } catch (e) {
-              console.error('Error parsing generics:', e);
-              generics = [];
-            }
-            
-            const newGeneric = {
-              id: genericDef.id || `generic_${Date.now()}`,
-              label: genericDef.name,
-              type: genericDef.type,
-              notes: genericDef.description || `Generic variable for leap case in induction on ${inductionVariable}`,
-              restrictions: {
-                assumption: 'Non-negative',
-                neverNull: false
-              },
-              enabled: true
-            };
-            
-            const existingIndex = generics.findIndex(g => g.label === newGeneric.label);
-            
-            if (existingIndex >= 0) {
-              generics[existingIndex] = newGeneric;
-            } else {
-              generics.push(newGeneric);
-            }
-            
-            sessionStorage.setItem('generics', JSON.stringify(generics));
-            
-            const event = new CustomEvent('genericsUpdated', {
-              detail: { 
-                newGeneric: newGeneric,
-                allGenerics: generics 
-              }
-            });
-            window.dispatchEvent(event);
-            
-            toast.success(`Generic variable "${genericDef.name}" created for leap case`);
-          }
-
-          const proofId = response.data.proof_id || response.data.id;
-          
-          if (proofId) {
-            toast.success('Induction proof started successfully!');
-            sessionStorage.setItem('current_proof_id', proofId);
-            
-            // Initialize the IndProof engine with UDFs, IH and premises
-            try {
-              const normalizeType = (t) => (t || '').replace(/\s*->\s*/g, ' > ').trim();
-              const engineSetup = await inductionService.setCurrentProof({
-                struct: (inductionType || 'integers').toLowerCase() === 'lists' ? 'list' : 'int',
-                ivar: inductionVariable,
-                aval: String(inductionValue),
-                lvar: leapVariable,
-                lhsPremise: formValues.lHSGoal,
-                rhsPremise: formValues.rHSGoal,
-                definitions: definitions.map(d => ({
-                  label: d.label || d.name || '',
-                  type: normalizeType(d.type),
-                  expression: d.expression
-                }))
-              });
-
-              // Use engine response to set premises and trees for both base and leap
-              if (engineSetup && engineSetup.base && engineSetup.leap) {
-                const baseL = engineSetup.base.LHS || {};
-                const baseR = engineSetup.base.RHS || {};
-                const leapL = engineSetup.leap.LHS || {};
-                const leapR = engineSetup.leap.RHS || {};
-
-                // Set base case premises
-                setBasePremises({
-                  LHS: {
-                    racket: baseL.racket || formValues.lHSGoal,
-                    rule: 'Premise',
-                    startPosition: 0,
-                    selectedNode: 0,
-                    jsonTree: baseL.jsonTree || {}
-                  },
-                  RHS: {
-                    racket: baseR.racket || formValues.rHSGoal,
-                    rule: 'Premise',
-                    startPosition: 0,
-                    selectedNode: 0,
-                    jsonTree: baseR.jsonTree || {}
-                  }
-                });
-
-                // Set leap case premises
-                setLeapPremises({
-                  LHS: {
-                    racket: leapL.racket || '',
-                    rule: 'Premise',
-                    startPosition: 0,
-                    selectedNode: 0,
-                    jsonTree: leapL.jsonTree || {}
-                  },
-                  RHS: {
-                    racket: leapR.racket || '',
-                    rule: 'Premise',
-                    startPosition: 0,
-                    selectedNode: 0,
-                    jsonTree: leapR.jsonTree || {}
-                  }
-                });
-
-                // Preserve separate premise trees; jsonTreeRep will be used as a fallback for non-premise lines
-                setJsonTreeRep(prev => ({
-                  ...prev,
-                  LHS: baseL.jsonTree || prev.LHS,
-                  RHS: baseR.jsonTree || prev.RHS
-                }));
-              }
-
-              setProofStarted(true);
-              
-              // Mark this as an active proof session for restoration on page refresh
-              sessionStorage.setItem('inductionProofActive', 'true');
-              
-              // Load any existing proof lines from database to restore highlighting
-              setTimeout(() => {
-                loadProofLinesFromDatabase();
-              }, 100);
-            } catch (err) {
-              console.error('Engine setup failed:', err);
-              toast.error('Failed to initialize induction engine');
-            }
-          }
-          
-        } else {
-          toast.error(`Server returned status: ${response.status}`);
-        }
-      } else {
-        toast.error('No response data received from server');
-      }
-    } catch (error) {
-      console.error('=== ERROR IN INDUCTION PROOF ===');
-      console.error('Error object:', error);
-      
-      if (error.response) {
-        console.error('Error response data:', error.response.data);
-        console.error('Error response status:', error.response.status);
-        
-        const errorData = error.response.data;
-        const errorMessage = errorData.error || errorData.details || 'Unknown server error';
-        toast.error(`Failed to start induction proof: ${errorMessage}`);
-      } else if (error.request) {
-        console.error('No response received:', error.request);
-        toast.error('Cannot connect to server. Please check your connection.');
-      } else {
-        console.error('Error message:', error.message);
-        toast.error(`Error: ${error.message}`);
-      }
-      
-      return;
-    }
-  };
-
   const handleInductionSubstitution = useCallback(
     async ({ substitution, rule }) => {
       // Clear previous errors when user attempts a new submission
       setInductionSubErrors([]);
-      const caseKey = isAnchor ? 'base' : 'leap';
+      const caseKey = 'base';
       setProofStatus(prev => ({ ...prev, [caseKey]: null }));
       
       const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
@@ -1394,7 +1143,7 @@ const InductionRacket = () => {
           : (rightPremise?.selectedNode ?? rightPremise?.startPosition ?? 0);
       } else {
         // Source is the previous line (padIndex - 1 in array, since array index = line number)
-        const sourceField = racketRuleFields[showSide][padIndex - 1];
+        const sourceField = racketRuleFields?.[showSide][padIndex - 1];
         currentRacket = sourceField?.racket || "";
         sourcePad = padRefs.current ? padRefs.current[padIndex - 1] : null;
         // Get selectedNode from the source field state
@@ -1411,12 +1160,12 @@ const InductionRacket = () => {
         selectedNode: selectedNode,
         currentRacket: currentRacket,
         side: showSide,
-        case: isAnchor ? "base" : "leap",
+        case: "base",
         lineNumber: padIndex  // Tell backend which line to update
       };
 
       try {
-        const response = await inductionService.substitution(payload);
+        const response = await equationalService.substitution(payload);
 
         console.log('[SUBSTITUTION] Response:', {
           isValid: response.isValid,
@@ -1490,9 +1239,9 @@ const InductionRacket = () => {
           setIsBound(false);
           setUserRow({ num: "" });
 
-          if (response.jsonTree) {
-            setJsonTreeRep((prev) => ({ ...prev, [showSide]: response.jsonTree }));
-          }
+        //   if (response.jsonTree) {
+        //     setJsonTreeRep((prev) => ({ ...prev, [showSide]: response.jsonTree }));
+        //   }
 
           setCurrentRacket(racketStr);
           return response;
@@ -1509,10 +1258,8 @@ const InductionRacket = () => {
       closeSubstitution,
       formValues.lHSGoal,
       formValues.rHSGoal,
-      isAnchor,
       leftPremise,
       rightPremise,
-      setJsonTreeRep,
       showSide,
       userRow.num,
       racketRuleFields,
@@ -1665,7 +1412,7 @@ const InductionRacket = () => {
       );
     } else {
       // Array index now equals line number, so use padIndex directly
-      const field = racketRuleFields[showSide][padIndex];
+      const field = racketRuleFields?.[showSide][padIndex];
       if (!field) return null;
 
       const calculatedStartPosition = field.selectedNode || field.startPosition || 0;
@@ -1695,6 +1442,15 @@ const InductionRacket = () => {
     }
   };
 
+  if (!proofValidationMessage) {
+    console.log('DEBUG CHECK:', {
+        onPage: 'New Page',
+        inputParam: handleChange, // Is this undefined?
+        hookResult: proofValidationMessage   // Is this undefined or empty object?
+    });
+    return <div>Loading...</div>;
+  }
+    
   return (
     <MainLayout>
       <Container className="er-racket-container">
@@ -1712,7 +1468,7 @@ const InductionRacket = () => {
           <Substitution
             show={showSubstitution}
             handleClose={() => closeSubstitution()}
-            racketRuleFields={racketRuleFields[showSide]}
+            racketRuleFields={(racketRuleFields?.[showSide] || [])}
             handleSubstitution={handleInductionSubstitution}
             errors={inductionSubErrors}
           />
@@ -1722,34 +1478,14 @@ const InductionRacket = () => {
           noValidate
           validated={validated}
           className="er-racket-form"
-          onSubmit={handleSubmit}
+          onSubmit={handleStartProof}
         >
           <div className="form-top-section">
             <Row className="page-header-row" style={{ alignItems: 'center' }}>
               <Col xs="auto">
-                <h1 style={{ marginBottom: 0 }}>Induction: Racket</h1>
+                <h1 style={{ marginBottom: 0 }}>Equational Reasoning</h1>
               </Col>
-              <Col xs="auto" className="check-row">
-                <Form.Check
-                  type="radio"
-                  id="integers"
-                  label="Integers"
-                  name="inductionType"
-                  value="integers"
-                  onChange={handleChange}
-                  defaultChecked
-                />
-                <Form.Check
-                  type="radio"
-                  id="lists"
-                  label="Lists"
-                  name="inductionType"
-                  value="lists"
-                  onChange={handleChange}
-                  disabled
-                />
-              </Col>
-              <Form.Group as={Col} md="auto" className="er-proof-name">
+              <Form.Group as={Col} md="3" className="er-proof-name">
                 <Form.Floating className="mb-3">
                   <Form.Control
                     id="eRProofName"
@@ -1776,7 +1512,7 @@ const InductionRacket = () => {
                   </Form.Control.Feedback>
                 </Form.Floating>
               </Form.Group>
-              <Form.Group as={Col} md="auto" className="er-proof-tag">
+              <Form.Group as={Col} md="3" className="er-proof-tag">
                 <Form.Floating className="mb-3">
                   <Form.Control
                     id="eRProofTag"
@@ -1790,95 +1526,14 @@ const InductionRacket = () => {
                     }}
                     onChange={handleChange}
                     isInvalid={
-                      !!proofValidationMessage.tag || !!validationMessages.tag
+                      !!validationMessages.tag || !!proofValidationMessage.tag
                     }
                     disabled={proofStarted}
                     required
                   />
                   <label htmlFor="eRProofTag"># Tag</label>
                   <Form.Control.Feedback type="invalid" tooltip>
-                    {proofValidationMessage.tag || validationMessages.tag}
-                  </Form.Control.Feedback>
-                </Form.Floating>
-              </Form.Group>
-              <Form.Group as={Col} md="auto" className="er-induction-variable">
-                <Form.Floating className="mb-3">
-                  <Form.Control
-                    id="eRInductionVariable"
-                    name="inductionVariable"
-                    type="text"
-                    placeholder="Induction Variable"
-                    value={formValues.inductionVariable}
-                    onBlur={() => {
-                      handleBlur("inductionVariable");
-                      clearProofValidationMessage();
-                    }}
-                    onChange={handleChange}
-                    isInvalid={
-                      !!validationMessages.inductionVariable ||
-                      !!proofValidationMessage.inductionVariable
-                    }
-                    disabled={proofStarted}
-                    required
-                  />
-                  <label htmlFor="eRInductionVariable">IVar</label>
-                  <Form.Control.Feedback type="invalid" tooltip>
-                    {validationMessages.inductionVariable ||
-                      proofValidationMessage.inductionVariable}
-                  </Form.Control.Feedback>
-                </Form.Floating>
-              </Form.Group>
-              <Form.Group as={Col} md="auto" className="er-induction-value">
-                <Form.Floating className="mb-3">
-                  <Form.Control
-                    id="eRInductionValue"
-                    name="inductionValue"
-                    type="text"
-                    placeholder="Induction Value"
-                    value={formValues.inductionValue}
-                    onBlur={() => {
-                      handleBlur("inductionValue");
-                      clearProofValidationMessage();
-                    }}
-                    onChange={handleChange}
-                    isInvalid={
-                      !!validationMessages.inductionValue ||
-                      !!proofValidationMessage.inductionValue
-                    }
-                    disabled={proofStarted}
-                    required
-                  />
-                  <label htmlFor="eRInductionValue">AVal</label>
-                  <Form.Control.Feedback type="invalid" tooltip>
-                    {validationMessages.inductionValue ||
-                      proofValidationMessage.inductionValue}
-                  </Form.Control.Feedback>
-                </Form.Floating>
-              </Form.Group>
-              <Form.Group as={Col} md="auto" className="er-leap-variable">
-                <Form.Floating className="mb-3">
-                  <Form.Control
-                    id="eRLeapVariable"
-                    name="leapVariable"
-                    type="text"
-                    placeholder="Leap Variable"
-                    value={formValues.leapVariable}
-                    onBlur={() => {
-                      handleBlur("leapVariable");
-                      clearProofValidationMessage();
-                    }}
-                    onChange={handleChange}
-                    isInvalid={
-                      !!validationMessages.leapVariable ||
-                      !!proofValidationMessage.leapVariable
-                    }
-                    disabled={proofStarted}
-                    required
-                  />
-                  <label htmlFor="eRLeapVariable">LVar</label>
-                  <Form.Control.Feedback type="invalid" tooltip>
-                    {validationMessages.leapVariable ||
-                      proofValidationMessage.leapVariable}
+                    {validationMessages.tag || proofValidationMessage.tag}
                   </Form.Control.Feedback>
                 </Form.Floating>
               </Form.Group>
@@ -1897,7 +1552,7 @@ const InductionRacket = () => {
                     onChange={enhancedHandleChange}
                     isInvalid={
                       !!validationMessages.lHSGoal ||
-                      !!goalValidationMessage.LHS.Goal
+                      !!goalValidationMessage?.LHS
                     }
                     disabled={proofStarted}
                     required
@@ -1905,7 +1560,7 @@ const InductionRacket = () => {
                   <label htmlFor="eRProofLHSGoal">LHS Goal</label>
                   <Form.Control.Feedback type="invalid" tooltip>
                     {validationMessages.lHSGoal ||
-                      goalValidationMessage.LHS.Goal}
+                      goalValidationMessage?.LHS}
                   </Form.Control.Feedback>
                 </Form.Floating>
               </Form.Group>
@@ -1921,7 +1576,7 @@ const InductionRacket = () => {
                     onChange={enhancedHandleChange}
                     isInvalid={
                       !!validationMessages.rHSGoal ||
-                      !!goalValidationMessage.RHS.Goal
+                      !!goalValidationMessage?.RHS
                     }
                     disabled={proofStarted}
                     required
@@ -1929,44 +1584,11 @@ const InductionRacket = () => {
                   <label htmlFor="eRProofRHSGoal">RHS Goal</label>
                   <Form.Control.Feedback type="invalid" tooltip>
                     {validationMessages.rHSGoal ||
-                      goalValidationMessage.RHS.Goal}
+                      goalValidationMessage?.RHS}
                   </Form.Control.Feedback>
                 </Form.Floating>
               </Form.Group>
             </Row>
-
-            {(!proofStarted || !isAnchor) && (
-              <Row className="g-5">
-                <Form.Group as={Col} md="4" className="er-inductive-hypothesis-lhs" style={{ marginLeft: '450px' }}>
-                  <Form.Floating className="mb-3">
-                    <Form.Control
-                      id="eRInductiveHypothesisLHS"
-                      name="inductiveHypothesisLHS"
-                      type="text"
-                      placeholder="Inductive Hypothesis LHS"
-                      value={inductiveHypothesisLHS}
-                      onChange={(e) => setInductiveHypothesisLHS(e.target.value)}
-                      disabled={proofStarted}
-                    />
-                    <label htmlFor="eRInductiveHypothesisLHS">IH LHS</label>
-                  </Form.Floating>
-                </Form.Group>
-                <Form.Group as={Col} md="4" className="er-inductive-hypothesis-rhs">
-                  <Form.Floating className="mb-3">
-                    <Form.Control
-                      id="eRInductiveHypothesisRHS"
-                      name="inductiveHypothesisRHS"
-                      type="text"
-                      placeholder="Inductive Hypothesis RHS"
-                      value={inductiveHypothesisRHS}
-                      onChange={(e) => setInductiveHypothesisRHS(e.target.value)}
-                      disabled={proofStarted}
-                    />
-                    <label htmlFor="eRInductiveHypothesisRHS">IH RHS</label>
-                  </Form.Floating>
-                </Form.Group>
-              </Row>
-            )}
 
             <Row className="er-current-state" style={{ alignItems: 'center', position: 'relative' }}>
               <Form.Group
@@ -2021,21 +1643,12 @@ const InductionRacket = () => {
               </Form.Group>
             </Row>
 
-            {!isAnchor && (
-            <Form.Text
-              as={"div"}
-              id="formSeparator"
-              className="form-separator"
-              style={{ marginTop: '-10px' }}
-            ></Form.Text> )}
-
-            {isAnchor && (
             <Form.Text
               as={"div"}
               id="formSeparator"
               className="form-separator"
               style={{ marginTop: '10px' }}
-            ></Form.Text> )}
+            ></Form.Text>
           </div>
 
           {proofStarted && (
@@ -2055,47 +1668,18 @@ const InductionRacket = () => {
                     : "⋘ Switch to Left Hand Side"}
                 </Button>
               </div>
-              <div style={{ position: 'fixed', right: '10px', top: '215px', zIndex: 1020, color: '#F2A007', fontWeight: 'bold', fontSize: '20px' }}>
-                CURRENT = {isAnchor ? "BASE" : "LEAP"}
-              </div>
-              <div style={{ position: 'fixed', right: '10px', top: '245px', zIndex: 1020 }}>
-                <Button
-                  size="lg"
-                  className="switch-btn"
-                  onClick={handleToggleCase}
-                  style={{ backgroundImage: 'linear-gradient(135deg, #07294d 0, #006298 100%)', color: '#ffffff', borderColor: 'transparent' }}
-                >
-                  {isAnchor ? "Switch to Leap Case" : "Switch to Base Case"}
-                </Button>
-              </div>
             </>
           )}
 
           <div className="form-bottom-part">
 
-            {!proofStarted && 
-              !isGoalChecked[showSide]?.LeapGoal &&
-              !isGoalChecked[showSide]?.AnchorGoal && (
+            {!proofStarted && (
                 <Row className="goal-btn-wrap">
                   <Button
                     className="orange-btn"
-                    onClick={() =>
-                      validateAndStart(
-                        showSide,
-                        formValues.proofName,
-                        formValues.proofTag,
-                        showSide === "LHS"
-                          ? formValues.lHSGoal
-                          : formValues.rHSGoal,
-                        formValues.inductionVariable,
-                        formValues.inductionValue,
-                        formValues.leapVariable,
-                        formValues.inductionType,
-                        isAnchor
-                      )
-                    }
+                    type="submit"
                   >
-                    Start Induction Proof
+                    Start Equational Reasoning Proof
                   </Button>
                 </Row>
               )}
@@ -2141,18 +1725,18 @@ const InductionRacket = () => {
         </Dropdown>
       </div>
       
-      {proofStarted && proofStatus[isAnchor ? 'base' : 'leap'] && (
+      {proofStarted && proofStatus['base'] && (
         <div style={{ position: 'fixed', right: '50px', top: '65px', zIndex: 1020 }}>
           <span
             style={{
               fontWeight: "700",
-              color: proofStatus[isAnchor ? 'base' : 'leap'].state === "complete" ? "green" : "red",
+              color: proofStatus['base'].state === "complete" ? "green" : "red",
               fontSize: "28px"
             }}
           >
-            {proofStatus[isAnchor ? 'base' : 'leap'].state === "complete"
-              ? `${proofStatus[isAnchor ? 'base' : 'leap'].label} COMPLETE`
-              : `${proofStatus[isAnchor ? 'base' : 'leap'].label} INCOMPLETE`}
+            {proofStatus['base'].state === "complete"
+              ? `${proofStatus['base'].label} COMPLETE`
+              : `${proofStatus['base'].label} INCOMPLETE`}
           </span>
         </div>
       )}
@@ -2175,7 +1759,7 @@ const InductionRacket = () => {
             )}
 
             <>
-            {racketRuleFields[showSide].map((field, index) =>
+            {(racketRuleFields?.[showSide] || []).map((field, index) =>
               field.deleted
                 ? null
                 : renderPersistentPadRow({
@@ -2193,7 +1777,7 @@ const InductionRacket = () => {
                   handleRowNumberClick,
                   leftPremise,
                   rightPremise,
-                  caseType: isAnchor ? 'base' : 'leap'
+                  caseType: 'base'
                 })
             )}
           </>
@@ -2277,7 +1861,7 @@ const InductionRacket = () => {
                   }
                   
                   // Disabled if line is blank
-                  const fields = racketRuleFields[showSide];
+                  const fields = (racketRuleFields?.[showSide] || []);
                   
                   if (!fields || !fields[lineNum]) {
                     return true;
@@ -2334,56 +1918,60 @@ const InductionRacket = () => {
           </Button>
           <Button variant="danger" onClick={async () => {
             setShowClearConfirm(false);
-            const caseKey = isAnchor ? 'base' : 'leap';
+            const caseKey = 'base';
             const lineNum = parseInt(userRow.num, 10);
             
             // Reset proof status
             setProofStatus(prev => ({ ...prev, [caseKey]: null }));
             
             try {
-              // Call backend to clear line in database and reset completion flags
-              await inductionService.deleteLine(isAnchor ? 'base' : 'leap', showSide, lineNum);
-              
-              // Update local state to clear the line
-              const targetFields = isAnchor ? baseRacketFields : leapRacketFields;
-              
-              const updatedFields = { ...targetFields };
-              updatedFields[showSide] = [...updatedFields[showSide]];
-              
-              // Clear the line at lineNum index
-              updatedFields[showSide][lineNum] = {
-                racket: '',
-                jsonTree: {},
-                rule: '',
-                startPosition: 0,
-                selectedNode: 0,
-                resultNode: 0,
-                deleted: false
-              };
-              
-              // Clear result-highlight on next line if it exists
-              if (updatedFields[showSide][lineNum + 1]) {
-                updatedFields[showSide][lineNum + 1] = {
-                  ...updatedFields[showSide][lineNum + 1],
-                  rule: '',
-                  resultNode: 0
+                // Call backend to clear line in database and reset completion flags
+                await equationalService.deleteLine('base', showSide, lineNum);
+                
+                // Update local state to clear the line
+                const targetFields = racketRuleFields;
+                
+                const updatedFields = { ...targetFields };
+                updatedFields[showSide] = [...updatedFields[showSide]];
+                
+                // Clear the line at lineNum index
+                updatedFields[showSide][lineNum] = {
+                    racket: '',
+                    jsonTree: {},
+                    rule: '',
+                    startPosition: 0,
+                    selectedNode: 0,
+                    resultNode: 0,
+                    deleted: false
                 };
-              }
+                
+                // Clear result-highlight on next line if it exists
+                if (updatedFields[showSide][lineNum + 1]) {
+                    updatedFields[showSide][lineNum + 1] = {
+                    ...updatedFields[showSide][lineNum + 1],
+                    rule: '',
+                    resultNode: 0
+                    };
+                }
+                
+                // Clear selectedNode on previous line if it exists and isn't premise
+                if (lineNum > 0 && updatedFields[showSide][lineNum - 1]) {
+                    updatedFields[showSide][lineNum - 1] = {
+                    ...updatedFields[showSide][lineNum - 1],
+                    selectedNode: 0
+                    };
+                }
               
-              // Clear selectedNode on previous line if it exists and isn't premise
-              if (lineNum > 0 && updatedFields[showSide][lineNum - 1]) {
-                updatedFields[showSide][lineNum - 1] = {
-                  ...updatedFields[showSide][lineNum - 1],
-                  selectedNode: 0
-                };
-              }
+                // Update the appropriate state
+                setLeftPremise(prev => ({
+                    ...prev,
+                    racket: formValues.lHSGoal
+                }));
+                setRightPremise(prev => ({
+                    ...prev,
+                    racket: formValues.rHSGoal
+                }));
               
-              // Update the appropriate state
-              if (isAnchor) {
-                setBaseRacketFields(updatedFields);
-              } else {
-                setLeapRacketFields(updatedFields);
-              }
             } catch (e) {
               toast.error('Failed to clear line');
             }
@@ -2396,4 +1984,4 @@ const InductionRacket = () => {
   );
 };
 
-export default InductionRacket;
+export default EquationalReasoningNew;

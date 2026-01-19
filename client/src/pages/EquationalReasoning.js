@@ -13,6 +13,13 @@ import ClickableRowNumber from "../components/ClickableRowNumber";
 import "../scss/_forms.scss";
 import "../scss/_er-racket.scss";
 
+import Alert from "react-bootstrap/Alert";
+import { useInputState } from "../hooks/useInputState";
+import { useGoalCheck } from "../hooks/useGoalCheck";
+import { useRacketRuleFields } from "../hooks/useRacketRuleFields";
+import { useFormValidation } from "../hooks/useFormValidation";
+import validateField from "../utils/eRFormValidationUtils";
+
 import OffcanvasRuleSet from "../components/OffcanvasRuleSet";
 import { useOffcanvas } from "../hooks/useOffcanvas";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
@@ -22,17 +29,24 @@ import {
   Definitions
 } from "../components";
 
+import {
+  ARROW_KEYS,
+  INITIAL_FORM_VALUES,
+  INITIAL_PREMISE_STATE,
+  EMPTY_INITIAL_FIELD,
+  getPadRefs,
+  getPadIndex,
+  isFormComplete,
+  convertFormToJSON,
+  clearSessionData,
+  updatePremises
+} from "../utils/erRacketUtils";
+
 /**
  * EquationalReasoning - Full-featured component with 3-pane layout
  * Header | Middle (proof lines) | Footer (binding pane)
  */
 const EquationalReasoning = () => {
-  // Form state (persistent in header)
-  const [proofName, setProofName] = useState("");
-  const [proofTag, setProofTag] = useState("");
-  const [lhsGoal, setLhsGoal] = useState("");
-  const [rhsGoal, setRhsGoal] = useState("");
-  
   // Current values (computed from last line)
   const [currentLHS, setCurrentLHS] = useState("");
   const [currentRHS, setCurrentRHS] = useState("");
@@ -65,27 +79,27 @@ const EquationalReasoning = () => {
     e.preventDefault();
     setErrors([]);
     
-    if (!lhsGoal.trim() || !rhsGoal.trim()) {
+    if (!formValues.lHSGoal.trim() || !formValues.rHSGoal.trim()) {
       setErrors(["Both LHS and RHS goals are required"]);
       return;
     }
     
-    if (lhsGoal.trim() === rhsGoal.trim()) {
+    if (formValues.lHSGoal.trim() === formValues.rHSGoal.trim()) {
       setErrors(["LHS and RHS goals cannot be identical"]);
       return;
     }
     
     try {
       const response = await equationalService.setCurrentProof({
-        lhsPremise: lhsGoal.trim(),
-        rhsPremise: rhsGoal.trim(),
+        lhsPremise: formValues.lHSGoal.trim(),
+        rhsPremise: formValues.rHSGoal.trim(),
         definitions: []
       });
       
       if (response.isValid) {
         setRacketFields({
           LHS: [{
-            racket: lhsGoal.trim(),
+            racket: formValues.lHSGoal.trim(),
             rule: "Premise",
             lineNumber: 0,
             selectedNode: 0,
@@ -93,7 +107,7 @@ const EquationalReasoning = () => {
             jsonTree: response.lhsJsonTree || {}
           }],
           RHS: [{
-            racket: rhsGoal.trim(),
+            racket: formValues.rHSGoal.trim(),
             rule: "Premise",
             lineNumber: 0,
             selectedNode: 0,
@@ -102,8 +116,8 @@ const EquationalReasoning = () => {
           }]
         });
         
-        setCurrentLHS(lhsGoal.trim());
-        setCurrentRHS(rhsGoal.trim());
+        setCurrentLHS(formValues.lHSGoal.trim());
+        setCurrentRHS(formValues.rHSGoal.trim());
         setProofStarted(true);
         toast.success("Proof started!");
       } else {
@@ -399,9 +413,170 @@ const EquationalReasoning = () => {
   const [showDefinitionsWindow, toggleDefinitionsWindow] =
       useDefinitionsWindow();
 
+  const [basePremises, setBasePremises] = useState({ LHS: {}, RHS: {} });
+
+  const [baseRacketFields, setBaseRacketFields] = useState({
+    LHS: [EMPTY_INITIAL_FIELD],
+    RHS: [EMPTY_INITIAL_FIELD]
+  });
+
+  const racketRuleFields = baseRacketFields;
+
+  const [leftPremise, setLeftPremise] = useState(INITIAL_PREMISE_STATE);
+  const [rightPremise, setRightPremise] = useState(INITIAL_PREMISE_STATE);
+
+  /**
+   * Handle premise highlighting change.
+   * Updates the premise's selectedNode so highlighting persists across toggles.
+   */
+  const handlePremiseHighlight = (side, selectedNode) => {
+    const setPremises = setBasePremises;
+    
+    setPremises(prev => ({
+      ...prev,
+      [side]: {
+        ...prev[side],
+        selectedNode: selectedNode || 0
+      }
+    }));
+  };
+
   // Hook for getting available height for scrollable proof area
-    const availableHeight = useDynamicHeight();
-  
+  const availableHeight = useDynamicHeight();
+
+  const [formValues, handleChange] = useInputState(INITIAL_FORM_VALUES);
+  const [
+    isGoalChecked,
+    checkGoal,
+    goalValidationMessage,
+    enhancedHandleChange,
+    proofValidationMessage,
+    clearProofValidationMessage,
+    loadRacketGoal,
+    jsonTreeRep
+  ] = useGoalCheck(handleChange);
+  const [currentRacket, setCurrentRacket] = useState("");
+  const [
+    ,
+    addFieldWithApiCheck,
+    ,
+    validationErrors,
+    serverError,
+    racketErrors,
+    ,
+    updateShowSubstitution,
+    ,
+    closeSubstitution,
+    substituteFieldWithApiCheck,
+    substitutionErrors,
+    loadProofInServer
+  ] = useRacketRuleFields(
+    0, // Default startPosition since we now get it from pad refs
+    currentRacket,
+    formValues.proofName,
+    formValues.proofTag,
+    showSide
+  );
+
+const [validationMessages, handleBlur, setAllTouched, isFormValid] =
+    useFormValidation(formValues, validateField);
+
+function renderPersistentPadRow({
+  side,
+  index = 0,
+  field = {},
+  isPremise = false,
+  padRefs,
+  formValues,
+  jsonTreeRep,
+  handleFieldHighlight,
+  validationErrors,
+  isBound,
+  userRow,
+  handleRowNumberClick,
+  leftPremise,
+  rightPremise
+}) {
+  // Compute values based on side and isPremise
+  const isLHS = side === "LHS";
+  const padIndex = isPremise ? 0 : index + 1;
+  const equation = isPremise
+    ? formValues[isLHS ? "lHSGoal" : "rHSGoal"]
+    : field.racket;
+  const jsonTree = isPremise
+    ? jsonTreeRep[side]
+    : field.jsonTree || jsonTreeRep[side];
+  const lineNum = isPremise ? 0 : index + 1;
+  const ruleValue = isPremise ? "Premise" : field.rule;
+  const rulePlaceholder = isPremise ? `${side} Premise` : `${side} Rule`;
+  const isRuleInvalid = !isPremise && !!validationErrors[side][index];
+  const ruleValidationError = validationErrors[side][index];
+
+  // Get the correct startPosition
+  // const startPosition = isPremise
+  //   ? (isLHS ? leftPremise.startPosition || 0 : rightPremise.startPosition || 0)
+  //   : (field.startPosition || 0);
+  // Prefer selectedNode (persisted) over startPosition; hard fallback to 0
+    // Show target highlight if:
+    // 1. User is currently bound to the next line, OR
+    // 2. The next line has already been generated (has content)
+    const boundPadIndex = isBound ? parseInt(userRow.num, 10) : -1;
+  const isUserBoundToNextLine = boundPadIndex === padIndex + 1;
+  let startPosition;
+    if (isPremise) {
+      // For premise, check if line 1 exists with content OR user is bound to line 1
+      const nextLineHasContent = racketRuleFields[side] && racketRuleFields[side][1]?.racket;
+      const showHighlight = nextLineHasContent || isUserBoundToNextLine;
+      startPosition = showHighlight
+        ? (isLHS
+          ? (leftPremise && (leftPremise.selectedNode ?? leftPremise.startPosition)) ?? 0
+          : (rightPremise && (rightPremise.selectedNode ?? rightPremise.startPosition)) ?? 0)
+        : undefined;
+    } else {
+      // For regular lines, check if next line has content OR user is bound to it
+      const nextLineHasContent = racketRuleFields[side] && racketRuleFields[side][index + 1]?.racket;
+      const showHighlight = nextLineHasContent || isUserBoundToNextLine;
+      startPosition = showHighlight
+        ? ((field && (field.selectedNode ?? field.startPosition)) ?? 0)
+        : undefined;
+    }
+
+  const resultNodeValue = isPremise ? undefined : (field && field.resultNode);
+
+  return (
+    <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? `premise-${side}` : `${side}-field-${padIndex}`}>
+      <Col xs="auto" style={{ minWidth: '50px', paddingRight: '5px', position: 'relative', top: '35px' }}>
+        <ClickableRowNumber
+          padIndex={padIndex}
+          isClickable={!isBound}
+          isSelected={isBound && padIndex === parseInt(userRow.num, 10)}
+          onClick={() => handleRowNumberClick(padIndex)}
+          title={!isBound ? 'Click to bind to footer' : ''}
+        />
+      </Col>
+      <Col>
+        <PersistentPad
+          ref={el => { padRefs.current[padIndex] = el; }}
+          side={side}
+          equation={equation}
+          jsonTree={jsonTree}
+          lineNum={lineNum}
+          startPosition={startPosition}
+          resultNode={resultNodeValue}
+          onHighlightChange={selected => handleFieldHighlight(isLHS, lineNum, selected)}
+          ruleValue={ruleValue}
+          onRuleChange={() => {}}
+          isRuleReadOnly={true}
+          rulePlaceholder={rulePlaceholder}
+          isRuleInvalid={isRuleInvalid}
+          ruleValidationError={ruleValidationError}
+          isEditRow={false}
+        />
+      </Col>
+    </Row>
+  );
+}
+
   return (
     <MainLayout>
       <Container 
@@ -428,26 +603,46 @@ const EquationalReasoning = () => {
               <Form.Group as={Col} md="3" className="er-proof-name">
                 <Form.Floating className="mb-3">
                   <Form.Control
+                    id="eRProofName"
+                    name="proofName"
                     type="text"
                     placeholder="Name"
-                    value={proofName}
-                    onChange={(e) => setProofName(e.target.value)}
+                    value={formValues.proofName}
+                    onBlur={() => {
+                      handleBlur("proofName");
+                      clearProofValidationMessage();
+                    }}
+                    onChange={handleChange}
                     disabled={proofStarted}
                   />
-                  <label># Name</label>
+                  <label htmlFor="eRProofName"># Name</label>
+                  <Form.Control.Feedback type="invalid" tooltip>
+                    {validationMessages.proofName ||
+                      proofValidationMessage.name}
+                  </Form.Control.Feedback>
                 </Form.Floating>
               </Form.Group>
               
               <Form.Group as={Col} md="3" className="er-proof-tag">
                 <Form.Floating className="mb-3">
                   <Form.Control
+                    id="eRProofTag"
+                    name="proofTag"
                     type="text"
                     placeholder="Tag"
-                    value={proofTag}
-                    onChange={(e) => setProofTag(e.target.value)}
+                    value={formValues.proofTag}
+                    onBlur={() => {
+                      handleBlur("proofTag");
+                      clearProofValidationMessage();
+                    }}
+                    onChange={handleChange}
+                    isInvalid={!!proofValidationMessage.tag}
                     disabled={proofStarted}
                   />
-                  <label># Tag</label>
+                  <label htmlFor="eRProofTag"># Tag</label>
+                  <Form.Control.Feedback type="invalid" tooltip>
+                    {proofValidationMessage.tag}
+                  </Form.Control.Feedback>
                 </Form.Floating>
               </Form.Group>
             </Row>
@@ -456,28 +651,49 @@ const EquationalReasoning = () => {
               <Form.Group as={Col} md="4" className="er-proof-goal-lhs" style={{ marginLeft: '450px' }}>
                 <Form.Floating className="mb-3">
                   <Form.Control
+                    id="eRProofLHSGoal"
+                    name="lHSGoal"
                     type="text"
                     placeholder="LHS Goal"
-                    value={lhsGoal}
-                    onChange={(e) => setLhsGoal(e.target.value)}
+                    value={formValues.lHSGoal}
+                    onBlur={() => handleBlur("lHSGoal")}
+                    onChange={enhancedHandleChange}
                     disabled={proofStarted}
+                    isInvalid={
+                      !!validationMessages.lHSGoal ||
+                      !!goalValidationMessage.LHS
+                    }
                     required
                   />
-                  <label>LHS Goal</label>
+                  <label htmlFor="eRProofLHSGoal">LHS Goal</label>
+                  <Form.Control.Feedback type="invalid" tooltip>
+                    {validationMessages.lHSGoal ||
+                      goalValidationMessage.LHS.Goal}
+                  </Form.Control.Feedback>
                 </Form.Floating>
               </Form.Group>
               
               <Form.Group as={Col} md="4" className="er-proof-goal-rhs">
                 <Form.Floating className="mb-3">
                   <Form.Control
+                    id="eRProofRHSGoal"
+                    name="rHSGoal"
                     type="text"
                     placeholder="RHS Goal"
-                    value={rhsGoal}
-                    onChange={(e) => setRhsGoal(e.target.value)}
+                    value={formValues.rHSGoal}
+                    onBlur={() => handleBlur("rHSGoal")}
+                    onChange={enhancedHandleChange}
                     disabled={proofStarted}
+                    isInvalid={
+                      !!validationMessages.rHSGoal ||
+                      !!goalValidationMessage.RHS
+                    }
                     required
                   />
-                  <label>RHS Goal</label>
+                  <label htmlFor="eRProofRHSGoal">RHS Goal</label>
+                  <Form.Control.Feedback type="invalid" tooltip>
+                    {validationMessages.rHSGoal || goalValidationMessage.RHS}
+                  </Form.Control.Feedback>
                 </Form.Floating>
               </Form.Group>
             </Row>
@@ -553,10 +769,10 @@ const EquationalReasoning = () => {
         {/* Current Side Status */}
         {proofStarted && (
           <>
-            <div style={{ position: 'fixed', left: '10px', top: '215px', zIndex: 9999, color: '#F2A007', fontWeight: 'bold', fontSize: '20px' }}>
+            <div style={{ position: 'fixed', left: '10px', top: '215px', zIndex: 1020, color: '#F2A007', fontWeight: 'bold', fontSize: '20px' }}>
               CURRENT = {showSide}
             </div>
-            <div style={{ position: 'fixed', left: '10px', top: '245px', zIndex: 9999 }}>
+            <div style={{ position: 'fixed', left: '10px', top: '245px', zIndex: 1020 }}>
               <Button 
                 size="lg"
                 className="switch-btn"
@@ -570,7 +786,7 @@ const EquationalReasoning = () => {
             </div>
           </>
         )}
-        <div style={{ position: 'fixed', right: '375px', top: '65px', zIndex: 9999 }}>
+        <div style={{ position: 'fixed', right: '375px', top: '65px', zIndex: 1020 }}>
           <Dropdown className="proof-dropdown-btn proof-utilities">
             <Dropdown.Toggle id="dropdown-proof-utils" style={{ minWidth: '200px' }}>
               Proof Utilities
@@ -615,7 +831,53 @@ const EquationalReasoning = () => {
             overflowY: 'auto',
             overflowX: 'hidden'
           }}>
-            {racketFields[showSide].map((line, idx) => {
+            <div className="racket-rule-wrap" id="racket-rule" style={{ paddingTop: '20px', paddingBottom: '150px' }}>
+            {proofComplete && (
+              <Alert variant={"success"}>Proof Complete!</Alert>
+            )}
+              {renderPersistentPadRow({
+                side: showSide,
+                isPremise: true,
+                padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
+                formValues,
+                jsonTreeRep,
+                startPosition: (showSide === 'LHS' ? leftPremise : rightPremise).startPosition,
+                setCurrentRacket,
+                handleFieldHighlight,
+                validationErrors,
+                isBound,
+                userRow,
+                handleRowNumberClick,
+                leftPremise,
+                rightPremise,
+                setLeftPremise,
+                setRightPremise
+              })}
+              {racketRuleFields[showSide].map((field, index) =>
+                field.deleted
+                  ? null
+                  : renderPersistentPadRow({
+                    side: showSide,
+                    index,
+                    field,
+                    padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
+                    formValues,
+                    jsonTreeRep,
+                    startPosition: field.startPosition,
+                    setCurrentRacket,
+                    handleFieldHighlight,
+                    validationErrors,
+                    isBound,
+                    userRow,
+                    handleRowNumberClick,
+                    leftPremise,
+                    rightPremise,
+                    setLeftPremise,
+                    setRightPremise
+                  })
+              )}
+            </div>
+            {/* {racketFields[showSide].map((line, idx) => {
               const boundLineIndex = isBound ? parseInt(userRow.num, 10) : -1;
               const isUserBoundToNextLine = boundLineIndex === idx + 1;
               const nextLineExists = racketFields[showSide][idx + 1]?.racket;
@@ -648,18 +910,18 @@ const EquationalReasoning = () => {
                       ruleValue={line.rule || ""}
                       onRuleChange={() => {}}
                       isRuleReadOnly={true}
-                      rulePlaceholder={idx === 0 ? `${showSide} Premise` : "Rule"}
+                      rulePlaceholder={idx === 0 ? `${showSide} Premise` : `${showSide} Rule`}
                       isRuleInvalid={false}
                       ruleValidationError=""
                       isEditRow={false}
                     />
                   </Col>
                 </Row>
-              );
-            })}
+              ); */}
+            {/* })} */}
             
             {/* Blank line for next entry */}
-            <Row className="racket-rule-row" id={`racket-row-${racketFields[showSide].length}`}>
+            {/* <Row className="racket-rule-row" id={`racket-row-${racketFields[showSide].length}`}>
               <Col xs="auto" style={{ minWidth: '50px', paddingRight: '5px', position: 'relative', top: '35px' }}>
                 <ClickableRowNumber
                   padIndex={racketFields[showSide].length}
@@ -674,7 +936,7 @@ const EquationalReasoning = () => {
                   <div style={{ color: '#6c757d', fontStyle: 'italic' }}>Next proof line will appear here</div>
                 </div>
               </Col>
-            </Row>
+            </Row> */}
           </div>
         )}
         

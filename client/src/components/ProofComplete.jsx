@@ -18,7 +18,7 @@ export default function ProofComplete({ onDismiss }) {
   }, []);
 
   return (
-    <div className="confetti-overlay" onClick={onDismiss} style={{ cursor: 'pointer' }}>
+    <div className="confetti-overlay" onClick={onDismiss} style={{ cursor: 'pointer', zIndex:'9999' }}>
       <h1>Proof Complete!!!!!!!!</h1>
       <p style={{ fontSize: '1.2rem', marginTop: '1rem' }}>Click anywhere to dismiss</p>
       <Confetti width={width} height={height} />

@@ -7,8 +7,14 @@ import logger from '../utils/logger';
  */
 const useGoalCheck = (handleChange) => {
   const [isGoalChecked, setIsGoalChecked] = useState({ LHS: false, RHS: false });
-  const [goalValidationMessage, setGoalValidationMessage] = useState({ LHS: '', RHS: '' });
-  const [proofValidationMessage, setProofValidationMessage] = useState({ name: '', tag: '' });
+  const [goalValidationMessage, setGoalValidationMessage] = useState({
+    LHS: "", 
+    RHS: ""
+  });
+  const [proofValidationMessage, setProofValidationMessage] = useState({
+    name: "", 
+    tag: "" 
+  });
   const [jsonTreeRep, setJsonTreeRep] = useState({ LHS: {}, RHS: {} });
 
   const clearGoalValidationMessage = useCallback((side) => {

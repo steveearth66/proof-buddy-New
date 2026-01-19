@@ -52,6 +52,9 @@ const Home = () => {
                             setProofType(e.target.value);
                           }}
                         >
+                          <option value="/equational-reasoning-new">
+                            Equational Reasoning New
+                          </option>
                           <option value="/equational-reasoning">
                             Equational Reasoning
                           </option>
