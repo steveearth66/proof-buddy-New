@@ -171,9 +171,6 @@ const InductionRacket = () => {
       const baseResult = await inductionService.checkCompletion('base');
       const leapResult = await inductionService.checkCompletion('leap');
       
-      console.log('[CHECK PROOF] Base result:', baseResult);
-      console.log('[CHECK PROOF] Leap result:', leapResult);
-      
       const baseStatus = baseResult.isComplete 
         ? { state: "complete", label: baseResult.label }
         : { state: "incomplete", label: baseResult.label };
@@ -189,7 +186,6 @@ const InductionRacket = () => {
       
       // Show confetti if BOTH cases are complete
       if (baseResult.isComplete && leapResult.isComplete) {
-        console.log('[CHECK PROOF] Both cases complete - showing confetti!');
         setShowProofComplete(true);
         setProofComplete(true);
       } else {
@@ -556,7 +552,6 @@ const InductionRacket = () => {
             // Get the actual selected node from the premise state, not getStartPosition
             const premiseData = showSide === "LHS" ? leftPremise : rightPremise;
             previousStartPosition = premiseData.selectedNode ?? premiseData.startPosition ?? 0;
-            console.log(`[GENERATE] From premise: selectedNode=${previousStartPosition}`);
           } else {
             // Since array index now equals line number, use previousRowIndex directly
             const previousField = racketRuleFields[showSide][previousRowIndex];
@@ -565,7 +560,6 @@ const InductionRacket = () => {
             const fromField = previousField?.selectedNode;
             const fromPad = padRefs.current[previousRowIndex]?.getStartPosition();
             previousStartPosition = fromField ?? fromPad ?? 0;
-            console.log(`[GENERATE] From line ${previousRowIndex}: fromField=${fromField}, fromPad=${fromPad}, using=${previousStartPosition}`);
           }
           currentIndex = userIndex; // index in array now equals line number
         }
@@ -622,29 +616,22 @@ const InductionRacket = () => {
           deleted: false
         };
 
-        console.log('[GENERATE] Creating new field:', { currentIndex, newField, showSide, isAnchor });
-
         setRacketRuleFields((prevFields) => {
           const sideArray = [...(prevFields[showSide] || [])];
-          
-          console.log('[GENERATE] Before update - sideArray length:', sideArray.length, 'currentIndex:', currentIndex);
           
           // Check for duplicate
           const hasMatchingField = sideArray.some((field) => (
             field && !field.deleted && field.racket === newField.racket && field.rule === newField.rule
           ));
           if (hasMatchingField) {
-            console.log('[GENERATE] Duplicate found, skipping update');
             return prevFields;
           }
 
           const isEditingMiddle = typeof currentIndex === 'number' && currentIndex >= 0 && currentIndex < sideArray.length - 1;
-          console.log('[GENERATE] isEditingMiddle:', isEditingMiddle);
 
           if (isEditingMiddle) {
             // Replace the targeted middle line
             sideArray[currentIndex] = newField;
-            console.log('[GENERATE] Replaced middle line at index', currentIndex);
             // Ensure there's a trailing blank line
             const endLast = sideArray[sideArray.length - 1];
             const endIsEmpty = endLast && endLast.racket === "" && endLast.rule === "";
@@ -659,16 +646,11 @@ const InductionRacket = () => {
             if (lastIsEmpty) {
               sideArray[sideArray.length - 1] = newField;
               sideArray.push(EMPTY_INITIAL_FIELD);
-              console.log('[GENERATE] Replaced last empty and added new trailing empty');
             } else {
               sideArray.push(newField);
               sideArray.push(EMPTY_INITIAL_FIELD);
-              console.log('[GENERATE] Appended new field and trailing empty');
             }
           }
-
-          console.log('[GENERATE] After update - sideArray length:', sideArray.length);
-          console.log('[GENERATE] Updated field at index', currentIndex, ':', sideArray[currentIndex]);
 
           return {
             ...prevFields,
@@ -1418,13 +1400,6 @@ const InductionRacket = () => {
       try {
         const response = await inductionService.substitution(payload);
 
-        console.log('[SUBSTITUTION] Response:', {
-          isValid: response.isValid,
-          resultNodeId: response.resultNodeId,
-          selectedNode: selectedNode,
-          racket: response.racket
-        });
-
         if (response.isValid) {
           setInductionSubErrors([]);
           closeSubstitution();
@@ -1442,8 +1417,6 @@ const InductionRacket = () => {
             deleted: false
           };
 
-          console.log('[SUBSTITUTION] New field:', newField);
-
           setRacketRuleFields((prev) => {
             const currentFields = prev[showSide];
             const sideArray = [...currentFields];
@@ -1452,12 +1425,9 @@ const InductionRacket = () => {
             // Otherwise append to the end
             const isEditingMiddle = padIndex >= 0 && padIndex < sideArray.length - 1;
             
-            console.log('[SUBSTITUTION] padIndex:', padIndex, 'sideArray.length:', sideArray.length, 'isEditingMiddle:', isEditingMiddle);
-            
             if (isEditingMiddle) {
               // Replace the bound line at padIndex
               sideArray[padIndex] = newField;
-              console.log('[SUBSTITUTION] Replaced line at index', padIndex);
               // Ensure there's a trailing blank line
               const endLast = sideArray[sideArray.length - 1];
               const endIsEmpty = endLast && endLast.racket === "" && endLast.rule === "";
@@ -1472,11 +1442,9 @@ const InductionRacket = () => {
               if (lastIsEmpty) {
                 sideArray[sideArray.length - 1] = newField;  // Replace last empty field
                 sideArray.push(EMPTY_INITIAL_FIELD);  // Add new trailing empty
-                console.log('[SUBSTITUTION] Replaced last empty and added new trailing empty');
               } else {
                 sideArray.push(newField);  // Append new field
                 sideArray.push(EMPTY_INITIAL_FIELD);  // Add trailing empty
-                console.log('[SUBSTITUTION] Appended new field and trailing empty');
               }
             }
             

@@ -453,7 +453,6 @@ def delete_generic(proof: TwoSidedProof, id):
     generic.delete()
 
 def use_uploaded_generic(user, proof: TwoSidedProof, generic_data):
-    print(f"[DEBUG] use_uploaded_generic called with: {generic_data}", flush=True)
     model_data = {
         **generic_data, 
         "restrictions": str(generic_data.get("restrictions"))
@@ -464,10 +463,5 @@ def use_uploaded_generic(user, proof: TwoSidedProof, generic_data):
                   else GenericSerializer(instance=generic_object, data=model_data))
     if serializer.is_valid():
         serializer.save(created_by=user)
-    else:
-        print(f"[DEBUG] GenericSerializer validation failed: {serializer.errors}", flush=True)
     
-    print(f"[DEBUG] Calling proof.addGeneric with label={generic_data['label']}, type={generic_data['type']}, restrictions={generic_data['restrictions']}", flush=True)
     proof.addGeneric(generic_data["label"], generic_data["type"], generic_data["restrictions"])
-    print(f"[DEBUG] After addGeneric, proof.LHS.generics: {proof.LHS.generics}", flush=True)
-    print(f"[DEBUG] After addGeneric, proof.RHS.generics: {proof.RHS.generics}", flush=True)

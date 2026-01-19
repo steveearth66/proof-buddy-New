@@ -694,7 +694,6 @@ const ERRacket = () => {
             handleSubstitution={async (formValues) => {
               // Prevent duplicate submissions
               if (isSubProcessingRef.current) {
-                console.warn("[Substitution] Ignored duplicate submission.");
                 return false;
               }
               isSubProcessingRef.current = true;
@@ -721,12 +720,6 @@ const ERRacket = () => {
                 }
               }
 
-              console.log("[Substitution] Payload:", {
-                rule: formValues.rule,
-                substitution: formValues.substitution,
-                boundRow: userRow.num
-              });
-
               const result = await substituteFieldWithApiCheck(formValues, {
                 startPosition: previousStartPosition,
                 currentRacket: previousRacketValue
@@ -734,7 +727,6 @@ const ERRacket = () => {
 
               // If substitution succeeded, add a new proof line to UI
               if (result && result.isValid) {
-                console.log("[Substitution] Server response:", result);
                 setRacketRuleFields((prevFields) => {
                   const fields = { ...prevFields };
                   const newField = {
@@ -756,7 +748,6 @@ const ERRacket = () => {
                     !field.deleted
                   );
                   if (hasMatchingField) {
-                    console.warn("[Substitution] Duplicate line detected; not appending.", newField);
                     return prevFields;
                   }
 

@@ -357,9 +357,11 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
         success: 'Generic deleted successfully.',
         error: 'An error occurred. Please try again.'
       });
-      const generics = JSON.parse(sessionStorage.getItem('generics'));
-      const updatedGenerics = generics.filter(gen => gen.id != generic.id);
-      setGenerics(updatedGenerics);
+      setGenerics(prev => {
+        const updatedGenerics = prev.filter(gen => gen.id !== generic.id);
+        sessionStorage.setItem('generics', JSON.stringify(updatedGenerics));
+        return updatedGenerics;
+      });
     } catch (error) {
       console.error(error)
     }
