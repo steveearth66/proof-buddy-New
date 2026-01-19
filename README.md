@@ -1,12 +1,15 @@
 # Proof Buddy
+
 A web application for verifying mathematical proofs using True-False Logic (TFL) and First Order Logic (FOL), currently utilized by professors and students in courses at Drexel University.
 
 ## Table of Contents
+
 - [Prerequisites](#prerequisites)
 - [Local Installation](#Local-Installation)
 - [Env File Setup](#Env-File-Setup)
 - [Running the Application](#running-the-application)
 - [API Reference](#api-reference)
+
 ## Prerequisites
 
 Before starting with the installation process, ensure you have the following installed:
@@ -15,10 +18,9 @@ Before starting with the installation process, ensure you have the following ins
 - [Python installation](https://www.python.org/downloads/release/python-3122/)
 - [MySQL](https://dev.mysql.com/downloads/installer/)
 
-
 ## Local Installation
 
-For first time project set up instruction on your local machine, please view: documentation/user_documentation/local_installation/1_first_time_project_set_up.md. 
+For first time project set up instruction on your local machine, please view: documentation/user_documentation/local_installation/1_first_time_project_set_up.md.
 
 [First Time Project Setup](documentation/user_documentation/local_installation/documentation/readme_resources/1_first_time_project_set_up.md)
 
@@ -38,5 +40,16 @@ For instructions for running the application, please view: documentation/user_do
 
 For API Reference please view: documentation/user_documentation/local_installation/documentation/readme_resources/4_API_reference.md
 
-
 [API Reference](documentation/user_documentation/local_installation/documentation/readme_resources/4_API_reference.md)
+
+## Mockup ToolTip
+
+For referring to the sample proof mockup tooltip document please view: proof-buddy-New/sample_proof_mockup_tooltips.md
+
+[Sample Mockup Tooltip](proof-buddy-New/sample_proof_mockup_tooltips.md)
+
+## Setup Troubleshooting Addendum
+
+For referring to the setup troubleshooting addendum please view: proof-buddy-New/setup_troubleshooting_addendum.md
+
+[Setup Troubleshooting Addendum](proof-buddy-New/setup_troubleshooting_addendum.md)
