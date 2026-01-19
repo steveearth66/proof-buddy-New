@@ -1,9 +1,3 @@
-Ahsan Nadeem
-
-SE 691: Software Studio
-
-11 January 2026
-
 **Proof Buddy Sample Proof Mockup Tooltips**
 
 **_What Feels "Off" About the UI for Equational Reasoning - Induction:_**
