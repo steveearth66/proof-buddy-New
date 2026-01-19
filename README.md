@@ -44,12 +44,12 @@ For API Reference please view: documentation/user_documentation/local_installati
 
 ## Mockup ToolTip
 
-For referring to the sample proof mockup tooltip document please view: proof-buddy-New/sample_proof_mockup_tooltips.md
+For referring to the sample proof mockup tooltip document please view: sample_proof_mockup_tooltips.md
 
-[Sample Mockup Tooltip](proof-buddy-New/sample_proof_mockup_tooltips.md)
+[Sample Mockup Tooltip](sample_proof_mockup_tooltips.md)
 
 ## Setup Troubleshooting Addendum
 
-For referring to the setup troubleshooting addendum please view: proof-buddy-New/setup_troubleshooting_addendum.md
+For referring to the setup troubleshooting addendum please view: setup_troubleshooting_addendum.md
 
-[Setup Troubleshooting Addendum](proof-buddy-New/setup_troubleshooting_addendum.md)
+[Setup Troubleshooting Addendum](setup_troubleshooting_addendum.md)
