@@ -1,23 +1,12 @@
 **Proof Buddy Sample Proof Mockup Tooltips**
 
-**_What Feels "Off" About the UI for Equational Reasoning - Induction:_**
-
-- The Proof Utilities button is right in the middle of the #tag and induction variable fields
-- The Start Induction Proof button is hidden below the current left-hand side field
-- The "Switch to LHS/RHS" and "Switch to Anchor/Leap Case" buttons are not visible
-- The "User definitions" side pane is also not visible in my instance of the Proof Buddy app
-
 ![alt text](https://media.discordapp.net/attachments/1207773104709967873/1462742355819102268/image.png?ex=696f4c7a&is=696dfafa&hm=2188c837d7233469be7d3efd8dbf1c2a6498e25922ef7670ca445487718dff12&=&format=webp&quality=lossless&width=2576&height=550)
-
-The above figure illustrates what I mean in my four points mentioned above 
-
-NOTE: This experience, as shown before, is the same for both students and teachers. 
 
 Sample Tool Tips 
 
-Because of the constraints outlined above, students nor professors will be able to reap the full benefits of Proof Buddy’s ERI feature in the classroom. If this feature was truly usable with a properly aligned UI, here is what the websites’ components would allow:  
+Here is what the websites’ components truly allow:  
 
-The user would be able bind a line first to enable the arrow keys, and that it's the line ABOVE the bound line that arrow key is active in.  
+The user is able bind a line first to enable the arrow keys, and that it's the line ABOVE the bound line that arrow key is active in.  
 
  
 
