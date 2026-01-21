@@ -32,8 +32,8 @@ const EquationalReasoningRacket = () => {
 
   const[rightHandSideProofLineList, setRightHandSideProofLineList] = useState([{ proofLineRacket: '', proofLineRule: '' }]);
 
-  // making new variable called jsonTree to save jsonTree representation
-  const [jsonTree, setJsonTree] = useState({});
+  // // making new variable called jsonTree to save jsonTree representation
+  // const [jsonTree, setJsonTree] = useState({}); // removed to clean warnings
 
   const gradient = {
     orange_gradient: 'linear-gradient(135deg, #ffc600 0, #ff8f1c 100%)',
@@ -227,8 +227,8 @@ const EquationalReasoningRacket = () => {
   const handlePromiseWithPythonServer = async (targetList) => { //sends client 'Rule' to the python-server for 'Racket' code generation
     try {
       let response = await racketGeneration({ rule: targetList[targetList.length - 1].proofLineRule }); //we await a response from the python-server
-      // setting jsonTree variable to tree passed from response
-      setJsonTree(response.data.jsonTree)
+      // // setting jsonTree variable to tree passed from response
+      // setJsonTree(response.data.jsonTree) // removed to clean warnings
       targetList[targetList.length - 1].proofLineRacket = response.racket;
       addLine(); //After a succesful response, we add a new line for the client to add more 'Rules' for 'Racket' code generation
     } catch (error) {

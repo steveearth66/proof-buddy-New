@@ -1,8 +1,165 @@
-.highlight {
+/* Target highlights - 4 colors */
+.highlight-yellow {
   background-color: yellow;
   padding: 0.4rem;
   border-radius: 0.5rem;
   margin-bottom: 1rem;
+}
+
+.highlight-blue {
+  background-color: lightblue;
+  padding: 0.4rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.highlight-red {
+  background-color: #ffcccb;
+  padding: 0.4rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.highlight-green {
+  background-color: lightgreen;
+  padding: 0.4rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+/* Result highlights - 4 colors with borders */
+.result-highlight-yellow {
+  background-color: yellow;
+  padding: 0.6rem 0.5rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+  border: 3px solid #DAA520;
+  box-sizing: border-box;
+}
+
+.result-highlight-blue {
+  background-color: lightblue;
+  padding: 0.6rem 0.5rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+  border: 3px solid #0066cc;
+  box-sizing: border-box;
+}
+
+.result-highlight-red {
+  background-color: #ffcccb;
+  padding: 0.6rem 0.5rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+  border: 3px solid #cc0000;
+  box-sizing: border-box;
+}
+
+.result-highlight-green {
+  background-color: lightgreen;
+  padding: 0.6rem 0.5rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+  border: 3px solid #228B22;
+  box-sizing: border-box;
+}
+
+/* Overlap combinations - same color */
+.highlight-yellow.result-highlight-yellow {
+  background-color: yellow;
+  border: 3px solid #DAA520;
+  padding: 0.6rem 0.5rem;
+}
+
+.highlight-blue.result-highlight-blue {
+  background-color: lightblue;
+  border: 3px solid #0066cc;
+  padding: 0.6rem 0.5rem;
+}
+
+.highlight-red.result-highlight-red {
+  background-color: #ffcccb;
+  border: 3px solid #cc0000;
+  padding: 0.6rem 0.5rem;
+}
+
+.highlight-green.result-highlight-green {
+  background-color: lightgreen;
+  border: 3px solid #228B22;
+  padding: 0.6rem 0.5rem;
+}
+
+/* Overlap combinations - different colors (background from target, border from result) */
+.highlight-yellow.result-highlight-blue {
+  background-color: yellow;
+  border: 3px solid #0066cc;
+  padding: 0.6rem 0.5rem;
+}
+
+.highlight-yellow.result-highlight-red {
+  background-color: yellow;
+  border: 3px solid #cc0000;
+  padding: 0.6rem 0.5rem;
+}
+
+.highlight-yellow.result-highlight-green {
+  background-color: yellow;
+  border: 3px solid #228B22;
+  padding: 0.6rem 0.5rem;
+}
+
+.highlight-blue.result-highlight-yellow {
+  background-color: lightblue;
+  border: 3px solid #DAA520;
+  padding: 0.6rem 0.5rem;
+}
+
+.highlight-blue.result-highlight-red {
+  background-color: lightblue;
+  border: 3px solid #cc0000;
+  padding: 0.6rem 0.5rem;
+}
+
+.highlight-blue.result-highlight-green {
+  background-color: lightblue;
+  border: 3px solid #228B22;
+  padding: 0.6rem 0.5rem;
+}
+
+.highlight-red.result-highlight-yellow {
+  background-color: #ffcccb;
+  border: 3px solid #DAA520;
+  padding: 0.6rem 0.5rem;
+}
+
+.highlight-red.result-highlight-blue {
+  background-color: #ffcccb;
+  border: 3px solid #0066cc;
+  padding: 0.6rem 0.5rem;
+}
+
+.highlight-red.result-highlight-green {
+  background-color: #ffcccb;
+  border: 3px solid #228B22;
+  padding: 0.6rem 0.5rem;
+}
+
+.highlight-green.result-highlight-yellow {
+  background-color: lightgreen;
+  border: 3px solid #DAA520;
+  padding: 0.6rem 0.5rem;
+}
+
+.highlight-green.result-highlight-blue {
+  background-color: lightgreen;
+  border: 3px solid #0066cc;
+  padding: 0.6rem 0.5rem;
+}
+
+.highlight-green.result-highlight-red {
+  background-color: lightgreen;
+  border: 3px solid #cc0000;
+  padding: 0.6rem 0.5rem;
 }
 
 .pad {

@@ -1,13 +1,52 @@
 {
-        // See https://go.microsoft.com/fwlink/?LinkId=733558
-        // for the documentation about the tasks.json format
-        "version": "2.0.0",
-        "tasks": [
-                {
-                "label": "djangoSetup", // Keep the capital 'S'
-                "type": "shell",
-                "command": "cd django_server; python manage.py migrate; python manage.py createcachetable",
-                "problemMatcher": []
-                }
-        ]
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "djangoSetup",
+      "type": "shell",
+      "command": "cd django_server; python manage.py migrate; python manage.py createcachetable",
+      "problemMatcher": []
+    },
+    {
+      "label": "Django Server",
+      "type": "shell",
+      "command": "py",
+      "args": ["manage.py", "runserver"],
+      "options": {
+        "cwd": "${workspaceFolder}/django_server"
+      },
+      "isBackground": false,
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      }
+    },
+    {
+      "label": "React Dev Server",
+      "type": "shell",
+      "command": "npm",
+      "args": ["start"],
+      "options": {
+        "cwd": "${workspaceFolder}/client"
+      },
+      "isBackground": false,
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Start All Servers",
+      "dependsOn": ["Django Server", "React Dev Server"],
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
     }
+  ]
+}

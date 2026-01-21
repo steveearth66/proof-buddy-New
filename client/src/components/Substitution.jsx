@@ -27,6 +27,8 @@ export default function Substitution({
   const [validated, setValidated] = useState(false);
 
   const handleSubstitutionSubmit = async () => {
+    // Clear previous errors before attempting submission
+    // (errors prop will be updated by parent with new errors if validation fails)
     const valid = await handleSubstitution(formValues);
 
     if (!valid) {
@@ -64,7 +66,7 @@ export default function Substitution({
         </Modal.Header>
         <Modal.Body>
           <Row>
-            {errors.length > 0 && (
+            {Array.isArray(errors) && errors.length > 0 && (
               <Alert variant="danger" className="scroll-error">
                 {errors.map((error, index) => (
                   <span key={`racket-error-${index}`}>{error}</span>

@@ -93,7 +93,14 @@ def remTemps(inputTree: Node, errLog=None, debug=False, racketLabels=None) -> li
         errLog.append(f"The first argument of an if function must be Boolean but {str(inputTree.children[1].type.getType())} was provided")
         return errLog
     n1, n2 = inputTree.children[2], inputTree.children[3] #note, even if these are ifs, they'll have been designated types in the recursive call
-    if not ((t1 := n1.type.getType()) == (t2 := n2.type.getType())):
+    t1 = n1.type.getType()
+    t2 = n2.type.getType()
+    # Unwrap RacType to Type enum if needed for comparison
+    if isinstance(t1, RacType):
+        t1 = t1.getType()
+    if isinstance(t2, RacType):
+        t2 = t2.getType()
+    if not (t1 == t2):
         if not (t1 in FLEX_TYPES or t2 in FLEX_TYPES):  # TODO temporary fix for if functions with different types
             errLog.append(f"Final arguments of an if function must have matching types, but {str(t1)} and {str(t2)} were provided")
         return errLog

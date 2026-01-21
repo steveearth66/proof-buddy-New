@@ -1,0 +1,932 @@
+EQRN SYSTEM CREATION PLAN
+=========================
+Date: January 3, 2026
+Strategy: Copy Induction files → Rename to EqRn → Switch to TwoSidedProof → Simplify state
+
+OVERVIEW
+--------
+Create a new "EqRn" proof system by copying all Induction files (backend + frontend), performing global find-and-replace operations, modifying backend to use TwoSidedProof engine instead of IndProof, then incrementally removing induction-specific UI elements and dual base/leap state management. Execute one step at a time with verification pauses. Keep existing EquationalReasoning system untouched for comparison.
+
+EXECUTION RULES
+---------------
+1. Pause after EVERY step for verification
+2. On test failures: Report full error messages and stack traces, do NOT auto-fix
+3. After each step: Confirm details of files created/modified
+4. Only proceed to next step after user approval
+5. Use eqrn_ prefix for all sessionStorage keys (don't touch existing systems)
+
+================================================================================
+STEP 1: Copy Backend Directory and Configure Django
+================================================================================
+
+ACTIONS:
+1.1. Shell copy entire directory:
+     Source: django_server/induction_api/
+     Destination: django_server/eqrn_api/
+     Include all subdirectories and files:
+     - models.py
+     - views.py
+     - serializers.py
+     - urls.py
+     - admin.py
+     - apps.py
+     - __init__.py
+     - tests.py (or tests/ directory)
+     - migrations/ directory
+
+1.2. Delete all migration files in django_server/eqrn_api/migrations/
+     EXCEPT: Keep __init__.py
+     Reason: Will generate fresh migrations from scratch
+
+1.3. Edit django_server/django_server/settings.py:
+     Find: INSTALLED_APPS = [...]
+     Add: 'eqrn_api', (after 'induction_api' entry)
+
+1.4. Edit django_server/django_server/urls.py:
+     Find: urlpatterns = [...]
+     Add: path('api/v1/eqrn/', include('eqrn_api.urls')),
+
+VERIFICATION CHECKLIST:
+□ django_server/eqrn_api/ directory exists
+□ All .py files copied successfully
+□ migrations/ folder has only __init__.py
+□ settings.py contains 'eqrn_api' in INSTALLED_APPS
+□ urls.py contains path for api/v1/eqrn
+
+FILES MODIFIED:
+- django_server/django_server/settings.py (1 line added)
+- django_server/django_server/urls.py (1 line added)
+
+FILES CREATED:
+- django_server/eqrn_api/ (entire directory)
+- django_server/eqrn_api/__init__.py
+- django_server/eqrn_api/models.py
+- django_server/eqrn_api/views.py
+- django_server/eqrn_api/serializers.py
+- django_server/eqrn_api/urls.py
+- django_server/eqrn_api/admin.py
+- django_server/eqrn_api/apps.py
+- django_server/eqrn_api/tests.py
+- django_server/eqrn_api/migrations/__init__.py
+
+PAUSE → AWAIT USER VERIFICATION
+
+================================================================================
+STEP 2: Backend Find-and-Replace in eqrn_api/
+================================================================================
+
+ACTIONS:
+Perform find-and-replace operations in ALL files within django_server/eqrn_api/:
+
+2.1. Model class names:
+     InductionProof → EqRnProof
+     InductionProofLine → EqRnProofLine
+
+2.2. App name references:
+     'induction_api' → 'eqrn_api'
+     "induction_api" → "eqrn_api"
+
+2.3. Related names (in models.py):
+     related_name='induction_proofs' → related_name='eqrn_proofs'
+     related_name='induction_proof_lines' → related_name='eqrn_proof_lines'
+
+2.4. View function names (in views.py):
+     start_induction_proof → start_eqrn_proof
+     apply_induction_rule → apply_eqrn_rule (if exists)
+     check_induction → check_eqrn (if exists)
+     clear_induction → clear_eqrn (if exists)
+
+2.5. URL pattern names (in urls.py):
+     'start-induction-proof' → 'start-eqrn-proof'
+     'apply-induction-rule' → 'apply-eqrn-rule' (if exists)
+     'check-induction' → 'check-eqrn' (if exists)
+     'clear-induction' → 'clear-eqrn' (if exists)
+     Path patterns: /induction/ → /eqrn/
+
+2.6. Error messages (in views.py, serializers.py):
+     "induction" → "eqrn"
+     "Induction" → "EqRn"
+     Example: "Induction proof not found" → "EqRn proof not found"
+
+2.7. App configuration (in apps.py):
+     name = 'induction_api' → name = 'eqrn_api'
+     verbose_name = 'Induction API' → verbose_name = 'EqRn API' (if exists)
+
+2.8. Database table names (in models.py Meta classes):
+     db_table = 'induction_proof' → db_table = 'eqrn_proof'
+     db_table = 'induction_proofline' → db_table = 'eqrn_proofline'
+
+2.9. Test class names (in tests.py):
+     InductionProofTestCase → EqRnProofTestCase
+     InductionAPITestCase → EqRnAPITestCase
+
+2.10. Import statements (in all files):
+      from induction_api.models → from eqrn_api.models
+      from induction_api.serializers → from eqrn_api.serializers
+
+VERIFICATION CHECKLIST:
+□ No references to "InductionProof" remain in eqrn_api/
+□ No references to "induction_api" remain in eqrn_api/
+□ All view function names updated
+□ All URL patterns updated
+□ Error messages updated
+□ apps.py name field is 'eqrn_api'
+
+FILES MODIFIED:
+- django_server/eqrn_api/models.py
+- django_server/eqrn_api/views.py
+- django_server/eqrn_api/serializers.py
+- django_server/eqrn_api/urls.py
+- django_server/eqrn_api/admin.py
+- django_server/eqrn_api/apps.py
+- django_server/eqrn_api/tests.py
+
+PAUSE → AWAIT USER VERIFICATION
+
+================================================================================
+STEP 3: Switch to TwoSidedProof Engine and Allow Null Case
+================================================================================
+
+ACTIONS:
+
+3.1. In django_server/eqrn_api/views.py:
+     
+     Find all instances of:
+     proof_engine = IndProof()
+     
+     Replace with:
+     proof_engine = TwoSidedProof()
+     
+     Update import at top of file:
+     from expression_tree.ERProofEngine import IndProof
+     →
+     from expression_tree.ERProofEngine import TwoSidedProof
+
+3.2. Remove case parameter extraction from ALL view functions:
+     
+     In start_eqrn_proof, apply_rule, substitution, delete_line, etc.:
+     
+     REMOVE lines like:
+     case = request.data.get('case')
+     case = request.data.get('case', 'base')
+     
+     REMOVE validation like:
+     if case not in ['base', 'leap']:
+         return Response({'error': 'Invalid case'}, status=400)
+
+3.3. Set case=None when creating/updating EqRnProofLine:
+     
+     Find:
+     EqRnProofLine.objects.create(
+         proof=proof,
+         case=case,  # ← Remove this or set to None
+         ...
+     )
+     
+     Change to:
+     EqRnProofLine.objects.create(
+         proof=proof,
+         case=None,
+         ...
+     )
+
+3.4. In django_server/eqrn_api/models.py:
+     
+     Find the case field in EqRnProofLine model:
+     case = models.CharField(max_length=10)
+     
+     Change to:
+     case = models.CharField(max_length=10, blank=True, null=True)
+
+3.5. Add code comment explaining TwoSidedProof usage:
+     
+     At top of views.py, add:
+     """
+     EqRn API Views
+     
+     Uses TwoSidedProof engine (not IndProof) since this is for standard
+     equational reasoning without base/leap case separation. The case field
+     in EqRnProofLine is kept null/unused for backend compatibility but is
+     not used by TwoSidedProof.
+     """
+
+VERIFICATION CHECKLIST:
+□ All IndProof() replaced with TwoSidedProof()
+□ Import statement updated
+□ No case parameter extraction in any view function
+□ All EqRnProofLine.objects.create() calls set case=None
+□ Model field has blank=True, null=True
+□ Code comment added explaining TwoSidedProof
+
+FILES MODIFIED:
+- django_server/eqrn_api/views.py (multiple changes)
+- django_server/eqrn_api/models.py (case field modification)
+
+PAUSE → AWAIT USER VERIFICATION
+
+================================================================================
+STEP 4: Generate Migrations and Setup Fresh Database
+================================================================================
+
+ACTIONS:
+
+4.1. Generate initial migration for eqrn_api:
+     Command: python manage.py makemigrations eqrn_api
+     Expected output: Creates 0001_initial.py migration file
+
+4.2. Delete existing database to start fresh:
+     Command: rm db.sqlite3 (or del db.sqlite3 on Windows)
+     OR: Drop all tables if using PostgreSQL
+
+4.3. Run all migrations:
+     Command: python manage.py migrate
+     Expected: Creates all Django core tables + eqrn_api tables
+
+4.4. Create cache table:
+     Command: python manage.py createcachetable
+     Expected: Creates cache table for session management
+
+4.5. Verify tables created:
+     Command: python manage.py dbshell
+     Then: .tables (SQLite) or \dt (PostgreSQL)
+     Expected tables:
+     - eqrn_proof
+     - eqrn_proofline
+     - auth_user
+     - django_cache
+     - etc.
+
+VERIFICATION CHECKLIST:
+□ Migration file created: django_server/eqrn_api/migrations/0001_initial.py
+□ Database file deleted/tables dropped
+□ python manage.py migrate completed successfully
+□ Cache table created
+□ eqrn_proof table exists
+□ eqrn_proofline table exists
+
+FILES CREATED:
+- django_server/eqrn_api/migrations/0001_initial.py
+
+FILES DELETED:
+- db.sqlite3 (or equivalent)
+
+COMMANDS EXECUTED:
+- python manage.py makemigrations eqrn_api
+- rm db.sqlite3
+- python manage.py migrate
+- python manage.py createcachetable
+
+PAUSE → AWAIT USER VERIFICATION (Report any migration errors)
+
+================================================================================
+STEP 5: Create Backend Tests and Verify All Pass
+================================================================================
+
+ACTIONS:
+
+5.1. Copy test file:
+     Source: django_server/induction_api/tests.py
+     Destination: django_server/eqrn_api/tests.py
+     (Already done in Step 1, now modifying)
+
+5.2. Update test file imports and model references:
+     
+     from induction_api.models import InductionProof, InductionProofLine
+     →
+     from eqrn_api.models import EqRnProof, EqRnProofLine
+
+     InductionProof.objects.create → EqRnProof.objects.create
+     InductionProofLine.objects.create → EqRnProofLine.objects.create
+
+5.3. Remove case parameters from ALL test API calls:
+     
+     Find test API calls like:
+     response = self.client.post('/api/v1/eqrn/apply-rule/', {
+         'case': 'base',  # ← REMOVE THIS LINE
+         'side': 'LHS',
+         ...
+     })
+
+5.4. Update URL paths in tests:
+     /api/v1/induction/ → /api/v1/eqrn/
+
+5.5. Add test for "apply IH" rejection:
+     
+     def test_apply_ih_rejected(self):
+         """Test that applying IH rule is rejected in EqRn proofs"""
+         # Setup proof
+         proof = EqRnProof.objects.create(...)
+         
+         # Attempt to apply IH rule
+         response = self.client.post('/api/v1/eqrn/apply-rule/', {
+             'rule': 'apply IH',
+             'side': 'LHS',
+             ...
+         })
+         
+         # Should get error
+         self.assertEqual(response.status_code, 400)
+         self.assertIn('induction proof', response.data['error'].lower())
+
+5.6. Run test suite:
+     Command: python manage.py test eqrn_api
+     Expected: ~11 tests (matching induction_api test count)
+
+VERIFICATION CHECKLIST:
+□ All imports updated to eqrn_api
+□ All model references updated to EqRn*
+□ No 'case' parameter in any test API call
+□ URL paths use /api/v1/eqrn/
+□ Test for IH rejection added
+□ All tests pass (0 failures, 0 errors)
+
+FILES MODIFIED:
+- django_server/eqrn_api/tests.py
+
+COMMANDS EXECUTED:
+- python manage.py test eqrn_api
+
+PAUSE → AWAIT USER VERIFICATION
+Report: Test results (X passed, Y failed, Z errors)
+If failures: Include full error messages and stack traces
+
+================================================================================
+STEP 6: Copy Frontend Files and Add Routing
+================================================================================
+
+ACTIONS:
+
+6.1. Copy main component:
+     Source: client/src/pages/InductionRacket.js
+     Destination: client/src/pages/EqRn.js
+
+6.2. Copy service file:
+     Source: client/src/services/inductionService.js
+     Destination: client/src/services/eqRnService.js
+
+6.3. Update routing configuration:
+     File: client/src/routes/ProofRoutes.js
+     
+     Add import:
+     import EqRn from '../pages/EqRn';
+     
+     Add route:
+     <Route path="/eqrn" element={<EqRn />} />
+     
+     (Insert after InductionRacket route)
+
+VERIFICATION CHECKLIST:
+□ client/src/pages/EqRn.js exists (2,400 lines)
+□ client/src/services/eqRnService.js exists (162 lines)
+□ ProofRoutes.js has import for EqRn
+□ ProofRoutes.js has route for /eqrn
+□ No syntax errors in ProofRoutes.js
+
+FILES CREATED:
+- client/src/pages/EqRn.js
+- client/src/services/eqRnService.js
+
+FILES MODIFIED:
+- client/src/routes/ProofRoutes.js (2 lines added)
+
+PAUSE → AWAIT USER VERIFICATION
+
+================================================================================
+STEP 7: Frontend Find-and-Replace
+================================================================================
+
+ACTIONS:
+Perform find-and-replace in client/src/pages/EqRn.js and client/src/services/eqRnService.js
+
+7.1. Component/service name:
+     InductionRacket → EqRn
+     inductionService → eqRnService
+
+7.2. Service import (in EqRn.js):
+     import inductionService from '../services/inductionService'
+     →
+     import eqRnService from '../services/eqRnService'
+
+7.3. API base URL (in eqRnService.js):
+     /api/v1/induction → /api/v1/eqrn
+
+7.4. Service method names (in eqRnService.js):
+     startInductionProof → startEqRnProof
+     checkInduction → checkEqRn
+     clearInduction → clearEqRn
+     applyInductionRule → applyEqRnRule (if exists)
+     
+     Keep: setCurrentProof, applyRule, deleteLine, substitution, 
+           checkCompletion, getProofLines (no "induction" in name)
+
+7.5. SessionStorage keys (in EqRn.js):
+     Find ALL sessionStorage.getItem() and sessionStorage.setItem() calls
+     
+     Replace key prefixes:
+     'inductionProofActive' → 'eqrn_proofActive'
+     'inductionProof' → 'eqrn_proof'
+     'inductionDefinitions' → 'eqrn_definitions'
+     'inductionGenerics' → 'eqrn_generics'
+     'highlights' → 'eqrn_highlights' (if exists)
+     Any other 'induction*' → 'eqrn_*'
+
+7.6. Page title (in EqRn.js):
+     Find header or title element containing "Induction: Racket"
+     Replace with: "EqRn: Equational Reasoning"
+
+7.7. Component export (in EqRn.js):
+     export default InductionRacket → export default EqRn
+
+VERIFICATION CHECKLIST:
+□ No references to "InductionRacket" in EqRn.js
+□ No references to "inductionService" in EqRn.js
+□ All API calls use /api/v1/eqrn
+□ All sessionStorage keys use eqrn_ prefix
+□ Page title updated
+□ Component export is "EqRn"
+□ Service methods renamed appropriately
+
+FILES MODIFIED:
+- client/src/pages/EqRn.js
+- client/src/services/eqRnService.js
+
+PAUSE → AWAIT USER VERIFICATION
+
+================================================================================
+STEP 8: Create Frontend Test Suite Baseline
+================================================================================
+
+ACTIONS:
+
+8.1. Copy test file:
+     Source: client/src/test/InductionRacket.test.js
+     Destination: client/src/test/EqRn.test.js
+
+8.2. Update imports:
+     import InductionRacket from '../pages/InductionRacket'
+     →
+     import EqRn from '../pages/EqRn'
+     
+     import inductionService from '../services/inductionService'
+     →
+     import eqRnService from '../services/eqRnService'
+
+8.3. Update component references in tests:
+     <InductionRacket /> → <EqRn />
+
+8.4. Update test descriptions:
+     describe('InductionRacket', ...) → describe('EqRn', ...)
+     it('renders induction form', ...) → it('renders eqrn form', ...)
+
+8.5. Update service mocks:
+     jest.mock('../services/inductionService')
+     →
+     jest.mock('../services/eqRnService')
+
+8.6. Add tests for state simplification steps:
+     
+     test('renders without isAnchor state', ...)
+     test('uses single premises object', ...)
+     test('uses direct racketRuleFields state', ...)
+     test('uses single proofStatus value', ...)
+     test('API calls omit case parameter', ...)
+
+8.7. Run test suite:
+     Command: npm test -- EqRn.test.js
+     Expected: Tests pass (matching induction behavior initially)
+
+VERIFICATION CHECKLIST:
+□ Test file created
+□ All imports updated
+□ Component references updated
+□ Test descriptions updated
+□ Service mocks updated
+□ New tests added for state simplification
+□ Tests run successfully
+
+FILES CREATED:
+- client/src/test/EqRn.test.js (~400 lines)
+
+COMMANDS EXECUTED:
+- npm test -- EqRn.test.js
+
+PAUSE → AWAIT USER VERIFICATION
+Report: Test results (X passed, Y failed)
+If failures: Include full error messages
+
+================================================================================
+STEP 9: Incrementally Simplify State with Automated Testing
+================================================================================
+
+9A. REMOVE isAnchor STATE
+-------------------------
+
+ACTIONS:
+
+9A.1. In client/src/pages/EqRn.js, find:
+      const [isAnchor, setIsAnchor] = useState(true);
+      
+      REMOVE this line completely
+
+9A.2. Find all references to isAnchor:
+      
+      Replace conditional logic:
+      isAnchor ? 'base' : 'leap' → 'base' (or just remove case entirely)
+      isAnchor ? baseX : leapX → baseX (always use base version)
+
+9A.3. Remove handleToggleCase function (will be deleted in Step 10, but stop using it now):
+      Replace any calls to handleToggleCase with no-op
+
+9A.4. Run tests:
+      Command: npm test -- EqRn.test.js
+
+VERIFICATION CHECKLIST:
+□ isAnchor state declaration removed
+□ No references to isAnchor remain
+□ All conditional logic updated
+□ Tests pass
+
+FILES MODIFIED:
+- client/src/pages/EqRn.js
+
+COMMANDS EXECUTED:
+- npm test -- EqRn.test.js
+
+PAUSE → AWAIT USER VERIFICATION
+Report: Test results (pass/fail)
+
+
+9B. MERGE PREMISES TO SINGLE OBJECT
+-----------------------------------
+
+ACTIONS:
+
+9B.1. Find premise state declarations:
+      const [basePremises, setBasePremises] = useState({...});
+      const [leapPremises, setLeapPremises] = useState({...});
+      
+      REPLACE with:
+      const [premises, setPremises] = useState({
+        LHS: { racket: '', jsonTree: null, startPosition: 0 },
+        RHS: { racket: '', jsonTree: null, startPosition: 0 }
+      });
+
+9B.2. Update all references:
+      basePremises.LHS → premises.LHS
+      basePremises.RHS → premises.RHS
+      setBasePremises → setPremises
+      
+      REMOVE all leapPremises references
+
+9B.3. Update premise rendering:
+      Where premises are displayed, use premises object directly
+      Remove any case-based premise selection
+
+9B.4. Run tests:
+      Command: npm test -- EqRn.test.js
+
+VERIFICATION CHECKLIST:
+□ basePremises state removed
+□ leapPremises state removed
+□ Single premises state created
+□ All references updated
+□ Tests pass
+
+FILES MODIFIED:
+- client/src/pages/EqRn.js
+
+COMMANDS EXECUTED:
+- npm test -- EqRn.test.js
+
+PAUSE → AWAIT USER VERIFICATION
+Report: Test results (pass/fail)
+
+
+9C. CONVERT racketRuleFields TO DIRECT STATE
+--------------------------------------------
+
+ACTIONS:
+
+9C.1. Find computed racketRuleFields:
+      const racketRuleFields = useMemo(() => {
+        return isAnchor ? baseRacketFields : leapRacketFields;
+      }, [isAnchor, baseRacketFields, leapRacketFields]);
+      
+      REMOVE this entire useMemo
+
+9C.2. Find base/leap field states:
+      const [baseRacketFields, setBaseRacketFields] = useState({...});
+      const [leapRacketFields, setLeapRacketFields] = useState({...});
+      
+      REPLACE with:
+      const [racketRuleFields, setRacketRuleFields] = useState({
+        LHS: [],
+        RHS: []
+      });
+
+9C.3. Update all references:
+      baseRacketFields → racketRuleFields
+      setBaseRacketFields → setRacketRuleFields
+      REMOVE all leapRacketFields references
+
+9C.4. Update loadProofLines function:
+      Remove base/leap separation
+      Build single racketFields object with LHS/RHS arrays
+
+9C.5. Run tests:
+      Command: npm test -- EqRn.test.js
+
+VERIFICATION CHECKLIST:
+□ Computed racketRuleFields removed
+□ baseRacketFields state removed
+□ leapRacketFields state removed
+□ Direct racketRuleFields state created
+□ All references updated
+□ Tests pass
+
+FILES MODIFIED:
+- client/src/pages/EqRn.js
+
+COMMANDS EXECUTED:
+- npm test -- EqRn.test.js
+
+PAUSE → AWAIT USER VERIFICATION
+Report: Test results (pass/fail)
+
+
+9D. SIMPLIFY proofStatus TO SINGLE VALUE
+----------------------------------------
+
+ACTIONS:
+
+9D.1. Find proofStatus state:
+      const [proofStatus, setProofStatus] = useState({ base: null, leap: null });
+      
+      REPLACE with:
+      const [proofStatus, setProofStatus] = useState(null);
+
+9D.2. Update all references:
+      proofStatus.base → proofStatus
+      proofStatus.leap → (remove)
+      setProofStatus(prev => ({ ...prev, base: X })) → setProofStatus(X)
+
+9D.3. Update checkCurrentProofStatus function:
+      Remove base/leap checking logic
+      Check single proof completion status
+
+9D.4. Run tests:
+      Command: npm test -- EqRn.test.js
+
+VERIFICATION CHECKLIST:
+□ proofStatus is single value (not object)
+□ All .base/.leap references removed
+□ Status checking simplified
+□ Tests pass
+
+FILES MODIFIED:
+- client/src/pages/EqRn.js
+
+COMMANDS EXECUTED:
+- npm test -- EqRn.test.js
+
+PAUSE → AWAIT USER VERIFICATION
+Report: Test results (pass/fail)
+
+
+9E. REMOVE case PARAMETER FROM API CALLS
+----------------------------------------
+
+ACTIONS:
+
+9E.1. In handleGenerateAndCheck function:
+      Find API call to eqRnService.applyRule()
+      
+      Remove:
+      case: isAnchor ? 'base' : 'leap',
+      OR
+      case: 'base',
+
+9E.2. In handleInductionSubstitution function:
+      Find API call to eqRnService.substitution()
+      
+      Remove:
+      case: isAnchor ? 'base' : 'leap',
+
+9E.3. In deleteLine function:
+      Find API call to eqRnService.deleteLine()
+      
+      Remove case parameter:
+      eqRnService.deleteLine(case, side, lineNum)
+      →
+      eqRnService.deleteLine(side, lineNum)
+
+9E.4. In loadProofLines function:
+      Find API call to eqRnService.getProofLines()
+      
+      Remove case parameter if present
+
+9E.5. Update eqRnService.js method signatures:
+      Remove case parameter from deleteLine method:
+      deleteLine: async (case, side, lineNumber) => { ... }
+      →
+      deleteLine: async (side, lineNumber) => { ... }
+
+9E.6. Run tests:
+      Command: npm test -- EqRn.test.js
+
+VERIFICATION CHECKLIST:
+□ No API calls include 'case' parameter
+□ Service method signatures updated
+□ Tests pass
+
+FILES MODIFIED:
+- client/src/pages/EqRn.js
+- client/src/services/eqRnService.js
+
+COMMANDS EXECUTED:
+- npm test -- EqRn.test.js
+
+PAUSE → AWAIT USER VERIFICATION
+Report: Test results (pass/fail)
+
+================================================================================
+STEP 10: Remove Induction UI and Add to Homepage
+================================================================================
+
+ACTIONS:
+
+10.1. Remove induction form fields (in EqRn.js):
+      
+      DELETE entire form groups for:
+      - Induction Variable (input field + label)
+      - Induction Value (input field + label)
+      - Leap Variable (input field + label)
+      - Inductive Hypothesis LHS (input + label)
+      - Inductive Hypothesis RHS (input + label)
+      
+      Approximately lines 1804-1984 in original InductionRacket.js
+      (line numbers may vary after previous edits)
+
+10.2. Remove case toggle button:
+      
+      DELETE:
+      <div style={{ position: 'fixed', right: '10px', top: '215px', ... }}>
+        CURRENT = {isAnchor ? "BASE" : "LEAP"}
+      </div>
+      
+      <div style={{ position: 'fixed', right: '10px', top: '245px', ... }}>
+        <Button onClick={handleToggleCase}>
+          {isAnchor ? "Switch to Leap Case" : "Switch to Base Case"}
+        </Button>
+      </div>
+      
+      Approximately lines 2058-2072
+
+10.3. Delete handleToggleCase function:
+      
+      DELETE entire function definition:
+      const handleToggleCase = () => { ... }
+      
+      Approximately lines 420-456
+
+10.4. Simplify validateAndStart function:
+      
+      REMOVE parameters:
+      - inductionVariable
+      - inductionValue
+      - leapVariable
+      - inductionType
+      - isAnchor
+      
+      REMOVE validation logic for:
+      - Induction variable checks
+      - Leap variable checks
+      - Inductive hypothesis checks
+      - Generic variable creation
+      - Base/leap premise setup
+      
+      KEEP only:
+      - Check lhsGoal and rhsGoal are not empty
+      - Check they're not identical (optional)
+      - API call to setCurrentProof
+      
+      Reduce from ~270 lines to ~50 lines
+
+10.5. Update validateAndStart call site:
+      
+      CHANGE FROM:
+      validateAndStart(
+        showSide,
+        formValues.proofName,
+        formValues.proofTag,
+        formValues.lHSGoal,
+        formValues.rHSGoal,
+        formValues.inductionVariable,
+        formValues.inductionValue,
+        formValues.leapVariable,
+        formValues.inductionType,
+        isAnchor
+      )
+      
+      TO:
+      validateAndStart(
+        showSide,
+        formValues.proofName,
+        formValues.proofTag,
+        formValues.lHSGoal,
+        formValues.rHSGoal
+      )
+
+10.6. Add EqRn to homepage dropdown:
+      
+      File: client/src/pages/Home.js
+      
+      Find the proof type dropdown (likely a <select> or Button dropdown)
+      
+      Add option:
+      <option value="eqrn">EqRn</option>
+      OR
+      <Dropdown.Item onClick={() => navigate('/#/eqrn')}>
+        EqRn
+      </Dropdown.Item>
+      
+      (After the Induction option)
+
+10.7. Run full test suite:
+      Command: npm test -- EqRn.test.js
+
+VERIFICATION CHECKLIST:
+□ No induction variable form fields visible
+□ No inductive hypothesis fields visible
+□ No case toggle button
+□ No "CURRENT = BASE/LEAP" indicator
+□ handleToggleCase function deleted
+□ validateAndStart simplified
+□ validateAndStart call updated
+□ Home.js has EqRn dropdown option
+□ All tests pass
+
+FILES MODIFIED:
+- client/src/pages/EqRn.js (major deletions)
+- client/src/pages/Home.js (1 option added)
+
+COMMANDS EXECUTED:
+- npm test -- EqRn.test.js
+
+PAUSE → AWAIT USER VERIFICATION
+Report: Final test results confirming all passing
+
+================================================================================
+COMPLETION CRITERIA
+================================================================================
+
+Backend complete when:
+□ eqrn_api directory exists with all files
+□ TwoSidedProof engine integrated
+□ All backend tests pass (python manage.py test eqrn_api)
+□ No case parameter handling in views
+□ Migrations applied successfully
+
+Frontend complete when:
+□ EqRn.js component exists and renders
+□ eqRnService.js handles all API calls to /api/v1/eqrn
+□ No dual base/leap state (single premises, racketRuleFields, proofStatus)
+□ No induction-specific UI elements
+□ All frontend tests pass (npm test -- EqRn.test.js)
+□ Home.js dropdown includes EqRn option
+□ Page accessible at /#/eqrn
+
+Integration complete when:
+□ Can navigate to /#/eqrn from homepage
+□ Can start a proof with just LHS/RHS goals
+□ Can apply rules without case parameter
+□ Can use substitution
+□ Can delete lines
+□ Proof completion detection works
+□ No errors in browser console
+□ No errors in Django server logs
+
+================================================================================
+ROLLBACK PLAN (If Needed)
+================================================================================
+
+If critical issues arise:
+
+1. Backend rollback:
+   - Remove 'eqrn_api' from INSTALLED_APPS
+   - Remove eqrn URL from django_server/urls.py
+   - Delete django_server/eqrn_api/ directory
+   - Run: python manage.py migrate (will remove eqrn tables)
+
+2. Frontend rollback:
+   - Remove EqRn import and route from ProofRoutes.js
+   - Delete client/src/pages/EqRn.js
+   - Delete client/src/services/eqRnService.js
+   - Delete client/src/test/EqRn.test.js
+   - Remove EqRn option from Home.js
+
+3. Keep existing EquationalReasoning system untouched throughout
+
+================================================================================
+END OF PLAN
+================================================================================

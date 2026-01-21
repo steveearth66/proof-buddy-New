@@ -1,0 +1,452 @@
+notes for the AI; you should always keep this in mind when implementing anything in this proofbuddy project.
+
+HOW TO USE THESE NOTES:
+1. READ FIRST: General principles (Workflow fundamentals, Architecture boundaries, State management)
+2. READ SECOND: Most recent session summary (understand what was just fixed and why)
+3. REFERENCE AS NEEDED: Quick diagnostic patterns at end of recent sessions
+4. SKIP OR SKIM: Older session details unless investigating related bugs
+
+Focus on understanding PRINCIPLES and PATTERNS, not memorizing specific code changes.
+
+---
+
+You should take on the role of a paired programmer.  you may presume I am have expert level knowledge in math (especially proofs) and pedagogy and in python; however, i only have very rudimentary understanding of frontend (html, css, javascript, react, django, sql, database) so those aspects will have to be explained more fully.
+
+The ERracket mode works for the most part. So, it is critical that you not make any changes there, at least not without alerting me first to exactly what you are doing so we can make sure you don't break something which functions.
+
+The goal is to get the Induction mode to be working, so you should be looking at the ERracket equivalent versions (Frontend, hooks, api, endpoints, etc) and mirroring them accordingly for the induction structure versions.  You should really only be making changes to the Induction version of the code, and not to the ERracket versions unless absolutely necessary (and always informing me first).
+
+also, you should always stay within the expected structures that have been defined.  So, for example, the backend works primarily with trees, so do NOT try to work with them as strings.
+When debugging, you may print to the browser dev console log as well as to the backend powershell terminal; however, you should put in a comment in the source code next to each print to make it easier to find and remove them when have found the error and no longer need them. make sure when you remove them to do so carefully and not accidentally delete any adjacent code/parentheses. also do not create any consecutive blank lines 
+You (the AI) should never add into this AInotes.txt file of your own accord mid-session; instead, we will wait until the session is complete and at the end I (the human user) will have you create a summary and approve it to be appended into this prompt file.
+when trying to fix bugs, don't get fixated on the symptoms, look for the root cause
+
+Session from 2025-12-26: selectedNode Implementation
+
+PROBLEM: When switching between LHS/RHS (or base/leap), the node highlighting was being lost because the selected node ID wasn't being stored in the database. Each time a user selected a node to apply a rule to, that selection was only kept in sessionStorage and would reset when switching sides.
+
+SOLUTION: Added a new `selectedNode` field to the InductionProofLine model to persistently store which node was selected when the user applied a rule to that line.
+
+CHANGES MADE:
+1. Backend Model: Added `selected_node = models.IntegerField(default=0)` field to InductionProofLine
+2. Migration: Created and applied migration 0004_inductionproofline_selected_node.py
+3. Backend Views: Updated all three API endpoints to capture and save selectedNode:
+   - apply_rule(): Added selectedNode extraction from request data
+   - substitution(): Added selectedNode extraction from request data  
+   - check_goal(): Added selectedNode=0 for premise lines
+4. Frontend InductionRacket.js: 
+   - Updated both handleGenerateAndCheck and handleInductionSubstitution to capture currentStartPosition and include it as selectedNode in the payload
+   - Updated renderPersistentPadRow to use selectedNode when available (with fallback to startPosition)
+   - Added selectedNode field to premise objects when they're initialized or updated
+   - Updated newField creation in both rule application and substitution handlers to include selectedNode
+
+HOW IT WORKS:
+- When a user selects a node and applies a rule/substitution, the selectedNode (which is the node ID they clicked on) is sent to the backend
+- Backend stores this in the selectedNode field of the InductionProofLine record
+- When the proof is loaded or displayed, the selectedNode value is used as the startPosition prop for PersistentPad
+- PersistentPad uses startPosition to initialize its selection, so the correct node is highlighted
+- Now when switching sides/cases, the highlighting persists because it's based on the stored selectedNode value
+
+Here are some notes that the AI wrote to itself about things it learned last session:
+
+Workflow fundamentals
+- **Proof line immutability (universal rule for all proof modes):**
+  - Only the bound line's expression tree changes when applying rules/substitutions
+  - All earlier lines must never mutate
+  - Only permitted changes:
+    - Bound line: expression tree updates with the result
+    - Source line (previous to bound): highlighting may update
+    - End of proof: a blank line is added if the newly generated line was the last line (proofs always maintain a trailing blank for user additions)
+- For Induction substitutions: the source expression is the line BEFORE the bound line.
+- Compute `startPosition` from the source pad’s selected node; do not read it from the blank destination line.
+- Render premises from their own stored `jsonTree` (left/right premises), not from shared `jsonTreeRep`.
+- Backend `ERProof.addProofLine()` appends; if the premise appears changed, treat it as a UI render issue and verify tree sources.
+
+Architecture boundaries
+Induction vs ER are distinct pipelines (endpoints, engines, state). Never mix their services, routes, or rule application flows.
+Induction requires case/side context (base/leap + LHS/RHS) and startPosition; ER doesn’t.
+State management
+
+SessionStorage is the authoritative client cache for user definitions and generics; avoid clearing it unless explicitly requested.
+Preserve applied flags when merging backend definitions; backend often returns applied:false defaults.
+Maintain a trailing blank line in racket fields; guard against duplicate insertions when editing in the middle.
+Hook/API contracts
+
+useRacketRuleFields return shape must be destructured with the leading placeholder; misalignment causes runaway renders and substitution modal auto-open.
+showSubstitution is a boolean; ensure handlers are aligned to prevent infinite loops.
+“Generate & Check” must send the correct case/side and startPosition; deletion routes through the matching induction endpoint.
+Parsing/validation
+
+Rule parsing should normalize Unicode arrows to assignment for substitutions (e.g., n→0).
+Frontend induction variable validation currently only handles top-level calls; nested-call validation is a deliberate gap.
+Error avoidance
+
+Don’t route induction actions through ER endpoints.
+Don’t clear definitions on mount.
+Avoid resetting premises after proof start; engine responses set them.
+Quick checks
+
+Minimal happy path: enable a UDF, start induction with required fields, apply rule with substitutions; confirm engine returns racket/jsonTree.
+Logging: prefer targeted logs around payload/response at induction start and apply-rule; avoid verbose, persistent console noise once stabilized.
+Environment
+
+Ensure Django migrations/cache tables are run; React dev server + Django server tasks are the standard start flow.
+
+Induction Substitution — Premise Stability Fix
+- Symptom: After substitution, basecase RHS line 000 appeared to change, even though only line 001 should update.
+- Root Cause: Premise UI rendered from shared side tree (`jsonTreeRep[side]`). After each rule, we updated that shared tree with the newest line’s tree, so the premise visually changed although backend appended correctly.
+- Correct Behavior: Substitution uses the source expression from the line BEFORE the bound line (e.g., bound 001 → source 000). Only the bound line’s content should change; earlier lines never mutate.
+- Fixes Applied:
+	- Store per‑side premise trees and render premises from those (not `jsonTreeRep`).
+	- In substitution handler, derive `currentRacket` and `startPosition` from the source pad (previous line), not the destination line.
+	- Kept backend as-is; `ERProof.addProofLine()` appends a new line. Added logging that prints all proof lines to confirm no mutation of earlier lines.
+- Why Earlier Attempts Failed:
+	- Focused on backend duplication/overwrite, but engine already appended; issue was frontend rendering.
+	- Pulled `currentRacket`/`startPosition` from the blank bound line or wrong side, so rewrites were misapplied.
+	- Shared tree misuse made premise look changed; changes were display-only.
+- Quick Checklist (future sessions):
+	- Source = previous line to the bound line; destination = bound line.
+	- Premise renders from its own stored `jsonTree`, never from shared `jsonTreeRep`.
+	- Payload includes source’s `currentRacket` and pad-derived `startPosition` (selected node).
+	- If premise appears changed, inspect UI tree sources first; backend appends only.
+
+Debug Tips — Fast Verification
+- Selection: In browser console, log `startPosition` from the source pad; it must match the highlighted node and be > 0 for subnode rewrites.
+- Payload: Confirm `currentRacket` equals the source line string (previous to bound) and `side/case` are correct.
+- Backend: Check `_apply_line` logs in views; the "ALL PROOF LINES" list should show line 0 unchanged (Premise) and a new last line appended.
+- Rendering: Premise rows and premise footer must use `leftPremise.jsonTree`/`rightPremise.jsonTree` — not `jsonTreeRep[side]`.
+- If stale UI errors persist: clear Django cache and browser storage.
+	- Django: run `python manage.py shell -c "from django.core.cache import cache; cache.clear(); print('cache cleared')"`.
+	- Browser: in DevTools console `localStorage.clear(); sessionStorage.clear();`.
+
+Session 2025-12-26 — Highlighting Regression Postmortem
+- Symptom: Newly generated lines highlighted the entire expression instead of the changed subnode.
+- Root cause: SessionStorage restoration overwrote the explicit `startPosition` set for new lines. The load effect unconditionally set `selected` from saved highlights.
+- Fix: Only restore `selected` from sessionStorage when `startPosition === 0` (navigation/toggle scenario). Never override explicit `startPosition` for freshly generated lines. Add `startPosition` to the effect deps.
+- Lesson: When a regression appears, diff the last known-good commit against the first bad one. Small diffs often reveal the culprit faster than adding logs or touching backend state.
+- Principle: Keep concerns separate—initial highlighting comes from the source pad’s `startPosition`; toggle persistence should not rewrite that on creation. Session restore is for navigation, not for new-line initialization.
+
+Session 2025-12-27 — Debugging and Refactoring Principles (for Future Sessions)
+When beginning a new session or debugging issues, follow these core principles:
+
+1. **Incremental Changes with Verification**
+   - Make one change at a time and test immediately. Never batch multiple edits without intermediate verification.
+   - If you make a change and it breaks something, you know exactly which change caused it.
+   - This is exponentially faster than making five changes at once and trying to untangle which one (or which combination) caused the failure.
+
+2. **Verify JSX Structure and Nesting First**
+   - When React components break or render incorrectly, the most common culprit is invalid JSX nesting or improper Bootstrap Grid usage.
+   - Before diving into state management or logic, visually inspect the component hierarchy: are Row/Col properly nested? Are fragments used correctly? Are conditional renders properly wrapped?
+   - Bootstrap Grid rules: Row must contain Col; Col cannot contain Row directly (needs intermediate structure); offset syntax must use object notation in v5.
+
+3. **Console Logging as Surgical Investigation**
+   - Add targeted console.log statements at critical decision points: conditional branches, prop values on render, state values before/after updates.
+   - Don't add excessive logging that clutters output. Focus on the specific variable/path you're investigating.
+   - Once issue is identified, remove or comment out debug logs to keep console clean for future debugging.
+
+4. **Recognize When Reverts Are Better Than Fixes**
+   - If fixing one issue creates two more issues, or if cascading failures appear, it's a signal that the approach is fundamentally flawed.
+   - Don't be afraid to revert to a known-good state and try a different, more focused approach.
+   - Complex refactorings (especially layout changes) often have hidden dependencies. Smaller, targeted changes are safer and easier to debug.
+
+5. **Understand Error Context (User Error vs. System Bug)**
+   - Not all errors indicate bugs. Backend validation rejecting mathematically invalid operations (like asserting 0=2) is correct behavior.
+   - When a user encounters an error, first determine: Is this the system preventing invalid state? Or is it a genuine failure?
+   - Explain to users when errors are actually the system working correctly, not malfunctioning.
+
+6. **Visual Feedback and User Experience**
+   - When implementing UI changes, consider visual clarity: color-coding, spacing, borders can dramatically improve usability.
+   - Stacked layouts with offset positioning can reduce horizontal crowding while maintaining readability.
+   - Alternating colors and gradient transitions help users track relationships between elements.
+
+7. **State and Props Flow**
+   - Always trace where state originates and how it flows through components. Don't assume props have the values you expect.
+   - Conditional rendering should have clear fallback chains: `proofStarted ? premise : ''` is safer than complex nested ternaries.
+   - Separate concerns: display state (what user sees) from data state (what backend knows).
+
+8. **Bootstrap Button Variants and CSS Specificity**
+   - NEVER use `variant="secondary"` (or any Bootstrap variant) when you want custom button colors - it applies Bootstrap's default styling which overrides custom CSS classes.
+   - Bootstrap variant attributes have higher specificity than custom CSS classes, so even if you add `className="switch-btn"` with a blue gradient, the variant will make it grey.
+   - Solution: Either (a) remove the variant attribute entirely and rely only on custom CSS classes, OR (b) use inline styles which have even higher specificity.
+   - The `.switch-btn` class applies the blue gradient (`$blue-gradient`), but only works if no variant is specified.
+   - When troubleshooting button colors: check for variant attributes first before modifying CSS.
+
+9. **Positioning: Bootstrap Grid vs Explicit Pixels**
+   - Bootstrap grid offsets (`offset-md-1`) use percentage-based positioning relative to the container - may not provide enough movement.
+   - For precise positioning (especially to avoid overlap with fixed-position elements), use explicit pixel margins (`marginLeft: '190px'`).
+   - Always verify code state before applying changes - if replacement tool says "Input and output are identical," the code already has those changes.
+   - When visual changes don't appear, check: (1) if code already changed, (2) if approach needs switching (percentage → pixels).
+
+10. **CSS Selector Scoping and DOM Location Dependencies**
+   - **Critical principle**: CSS selectors are path-dependent. When styles are nested (e.g., `.container .form .dropdown`), they only apply when the element exists at that exact location in the DOM tree.
+   - **Moving elements breaks nested CSS**: If you move a component from inside a form to outside a container, its styles may completely disappear if they were defined with parent selectors.
+   - **Solution for portable components**: Define styles at the global level (not nested) so they apply regardless of where the element is placed in the DOM.
+   - **Example failure pattern**: `.er-racket-container .er-racket-form .form-top-section .proof-dropdown-btn` only works when dropdown is inside all those parents. Moving dropdown outside the form = no styles.
+   - **Example fix**: Extract `.proof-dropdown-btn` to global scope so it works anywhere in the application.
+   - **When debugging style loss**: Check if element moved in DOM, then verify CSS selector paths still match the new location.
+
+11. **Flexbox Layout Properties — Root Causes vs Symptoms**
+   - **Watch for active forcing properties**: Properties like `justify-content: space-between` actively force elements to spread apart, overriding column sizes and other layout attempts.
+   - **Changing column sizes won't fix spreading**: If parent container has `justify-content: space-between`, changing child elements from `md="1"` to `md="auto"` has no effect — the flexbox rule dominates.
+   - **Fix the forcing property, not the victims**: Instead of fighting symptoms (adjusting individual element sizes), remove or replace the flexbox property causing the behavior.
+   - **Better alternative**: Use `gap: 20px` to create consistent spacing without forcing elements to opposite edges.
+   - **Debugging pattern**: When layout changes don't work, check parent container for `justify-content`, `align-items`, `flex-grow` properties that override child settings.
+   - **General rule**: Fix root causes (container flexbox rules) before adjusting symptoms (individual element properties).
+
+Session 2025-12-28 — Highlighting Persistence Issues (INCOMPLETE - NEEDS REWORK)
+
+**PROBLEM**: After layout improvements from previous session, highlighting stopped working correctly. Symptoms:
+- Highlighting persists when adding lines to LHS
+- Highlighting disappears for ALL premises (except current side/case) when adding a line to RHS  
+- When switching between base/leap cases on same side, highlighting from one case appears in the other case
+- Newly generated proof lines have no highlighting at all
+- UI overlay issues: Proof Utilities dropdown overlaying substitution modal, proof content overlapping form
+
+**ROOT CAUSE DISCOVERED**:
+1. **Component Reuse**: PersistentPad component instances were being reused between base/leap cases because React key was just `"premise"` for all premises
+   - When toggling from base to leap, the SAME PersistentPad component persisted with its internal `selected` state
+   - This caused leap premise to show base premise's highlighting (and vice versa)
+
+2. **Cache Issue**: The bug appeared on ALL commits (even old working ones) after crash, suggesting corrupted sessionStorage/Django cache was the real culprit
+   - Cleared both Django cache and browser storage, but issue persisted
+   - This indicates the actual problem was in code, not cache
+
+3. **Selection Capture**: `handleToggleSide` and `handleToggleCase` were calling `getStartPosition()` which consistently returned 0 even when highlighting was visible
+   - This means PersistentPad's internal `selected` state wasn't matching what was visually displayed
+   - Captured value (0) was being saved to premise state, then used on next render, losing the highlighting
+
+**ATTEMPTED FIXES** (need verification/completion):
+1. Removed `sessionStorage.removeItem('highlights')` from handleToggleSide - this was clearing ALL highlights on every toggle
+2. Updated `handleToggleSide` to capture BOTH LHS and RHS premise/line selections before toggling (not just current side)
+3. Updated `handleToggleCase` similarly to capture both sides before toggling cases
+4. Added unique React keys to force new PersistentPad instances per case: `key="premise-base-LHS"` vs `key="premise-leap-LHS"`
+5. Added `caseType` parameter to `renderPersistentPadRow` to enable unique keys
+
+**ISSUES INTRODUCED**:
+- After adding unique keys, newly generated lines have NO highlighting at all
+- Clicking on expressions doesn't work (may be due to layout overlap)
+- Z-index issues: Proof Utilities button overlaying substitution modal
+- Layout overlap: proof content overlapping fixed form header
+
+**INCOMPLETE WORK**:
+- The highlighting architecture may be fundamentally flawed for induction mode
+- PersistentPad mixing component state (`selected`) with sessionStorage persistence creates race conditions
+- Premises that change content between cases (base: `(f 0)` vs leap: `(f (+ k 1))`) break sessionStorage key lookups
+- Need to reconsider: should highlighting be purely prop-driven from parent state, not internal PersistentPad state?
+
+**NEXT SESSION PRIORITIES**:
+1. Revert to a known-good commit and analyze the highlighting architecture more carefully
+2. Consider whether premises need different highlighting strategy than proof lines
+3. May need to redesign how PersistentPad manages selection for cases where equation content changes
+4. Fix z-index and layout issues properly
+5. Test incremental changes one at a time - avoid batching multiple fixes
+
+**LESSONS**:
+- When multiple old commits exhibit the same bug, suspect environment/cache issues first, but verify with cache clearing
+- Component reuse in React (via keys) is subtle - same key = same instance with preserved state
+- Debugging highlighting requires understanding the full data flow: user click → component state → sessionStorage → parent state → props → render
+- Layout issues (overlaps, z-index) can block functionality testing - fix layout first, then test logic
+
+Session 2025-12-29 — Highlighting & Rendering Architecture Fix
+
+**CORE PROBLEM:**
+Highlighting disappeared on toggle. Worse: after toggling LHS/RHS, all LHS lines displayed as premise instead of actual expressions. RHS worked fine.
+
+**WHY IT TOOK SO LONG TO DIAGNOSE:**
+
+The symptoms were misleading:
+- RHS worked correctly → masked that the underlying architecture was broken
+- Database had `selectedNode` field from previous session → seemed like persistence was handled
+- Logging showed racket strings loading correctly → distracted from the real issue
+- Seemed like a state management or data retrieval bug → led down wrong debugging paths
+
+**THE TRUE ROOT CAUSE (Architecture Mismatch):**
+
+Frontend renders using `jsonTree` objects (not racket strings). Database stored racket strings but NOT jsonTree. 
+
+When loading from database:
+- Code had fallback: `field.jsonTree || jsonTreeRep[side]`
+- `field.jsonTree` was always undefined (not in database)
+- Fell back to `jsonTreeRep[side]` which was a shared tree that got overwritten
+- `jsonTreeRep['LHS']` had premise tree → all LHS lines showed premise
+- `jsonTreeRep['RHS']` had recent tree from rule applications → accidentally worked
+
+Highlighting issue:
+- Database reload happened on EVERY toggle (side or case)
+- User clicks updated PersistentPad internal state only
+- Click handlers (`handleFieldHighlight`, `handlePremiseHighlight`) were no-ops
+- Toggle → database reload → lost all click data → highlighting reset
+
+**THE SOLUTION PATTERN:**
+
+1. Backend API must parse racket strings → jsonTree before sending to frontend
+2. Frontend field objects must include jsonTree from API response
+3. Database reload is ONLY for: proof start, page refresh
+4. Database reload is NEVER for: side toggle, case toggle (state already has both sides/cases)
+5. Click handlers must update parent React state (premises and proof lines separately)
+6. Premises and proof lines = different state trees (base vs leap = different trees)
+
+**KEY ARCHITECTURAL PRINCIPLES:**
+
+**Database vs React State:**
+- Database = persistence across page refreshes
+- React state = authoritative during active session
+- Never reload database when React state already contains needed data
+- Reloading database on every toggle loses UI state (clicks, selections)
+
+**Data Flow:**
+- Database stores persistence data (racket, selectedNode)
+- Backend API enriches with computed data (jsonTree from parsing racket)
+- Frontend receives complete objects, stores in React state
+- User interactions update React state only
+- Toggles use existing React state without database round-trips
+
+**Separation of Concerns:**
+- Premises ≠ proof lines (different state)
+- Base case ≠ leap case (different state)
+- LHS ≠ RHS (different sides of same state)
+- Component internal state ≠ parent state (clicks must update parent)
+
+**QUICK DIAGNOSTIC PATTERNS FOR FUTURE SESSIONS:**
+
+When highlighting breaks:
+1. Check if database reload happening on toggles (wrong scope)
+2. Verify click handlers update parent state (not just component)
+3. Confirm premises and proof lines tracked separately
+
+When rendering shows wrong/stale content:
+1. Check if display data (jsonTree) is in API response
+2. Look for fallback patterns that mask missing data
+3. Verify backend computes display data from persistence data
+
+When toggle behavior is wrong:
+1. Remember: React state already has both sides/cases loaded
+2. Only reload database on proof start or page refresh
+3. Avoid useEffect with state dependencies that trigger on every click
+
+**DEBUG LOG CLEANUP LESSON:**
+Bulk removal sometimes causes mysterious errors. Remove logs incrementally, testing after each removal. Include full context (3+ lines) to avoid deleting adjacent code.
+
+---
+
+Session from 2026-01-01: Clear Line Implementation & Array Indexing Alignment
+
+**ROOT CAUSE OF ALL FAILURES:**
+The premise was rendered separately (hardcoded) but NOT included in the racketRuleFields array. This created a fundamental indexing mismatch:
+- UI Array: index 0 = line 001, index 1 = line 002, etc.
+- Database: line 0 = premise, line 1 = line 001, line 2 = line 002, etc.
+- Result: racketRuleFields[0] pointed to database line 1, racketRuleFields[1] to line 2, etc.
+
+**WHY STATE UPDATES KEPT FAILING:**
+When clearing line 002 (database line_number=2), the code updated racketRuleFields[2], but that was actually database line 3 because of the off-by-one error. State updates targeted wrong indices because array position ≠ database line_number.
+
+**WHY WINDOW.LOCATION.RELOAD() "WORKED":**
+Page refresh reloaded everything from database (which had correct data), masking the underlying architectural problem. This was treating the symptom, not the root cause.
+
+**THE ACTUAL FIX:**
+Include premise in racketRuleFields array at index 0. Now array index === database line_number:
+- racketRuleFields[0] = premise (line 0)
+- racketRuleFields[1] = line 001 (line 1)  
+- racketRuleFields[2] = line 002 (line 2)
+
+Once indexing aligned, state updates worked correctly without any page refresh.
+
+**CRITICAL LESSON - ARRAY INDEXING ALIGNMENT:**
+When you have parallel data structures (UI array, database records), their indexing MUST align. If database uses line_number 0-N, UI array indices must also be 0-N pointing to the same items. Never create separate renderings that cause index mismatches.
+
+**WARNING SIGNS OF INDEX MISALIGNMENT:**
+- Calculations like `arrayIndex = databaseLineNumber - 1` or `+ 1`
+- Separate rendering for "special" items (premise) that should be in the array
+- State updates that only work after page refresh
+- Off-by-one errors when accessing array elements by line number
+
+**FIX PATTERN:**
+Don't work around index mismatches with arithmetic adjustments. Fix the architecture so indices align naturally, then all code becomes simpler and correct.
+
+---
+
+Session 2026-01-18: Default UDFs, Error Display, and Generic Variables
+
+**PROBLEM (a): Default UDF Implementation**
+
+*Dead-end attempts:*
+- Initially added DEFAULT_UDFS support only to racket_api, not realizing EquationalReasoningNew.js uses a separate equational_reasoning_api module
+- Modified get_definition() and set_current_proof in racket_api while the actual endpoint being called was /api/v1/equational/
+
+*Why the mistake:*
+- Saw "Equational Reasoning" UI and assumed it used the same racket_api as the legacy version
+- Didn't verify the actual API endpoint by checking Network tab or URL routing
+- The file structure has BOTH racket_api (legacy) and equational_reasoning_api (new) for the same proof mode
+
+*What actually fixed it:*
+- Created django_server/expression_tree/default_udfs.py with DEFAULT_UDFS array
+- Added DEFAULT_UDFS import and handling to BOTH racket_api AND equational_reasoning_api
+- Modified get_definition() in proofs/views.py to check default UDFs before database lookup
+- Updated frontend to disable Edit button when is_default === true or deletable === false
+- Added logic in set_current_proof to skip database operations for default UDFs (check is_default flag)
+
+*Why it worked:*
+- Default UDFs are code-based (not in database), injected at API response level
+- Each proof mode API module needs its own DEFAULT_UDFS handling - they don't share code paths
+- Frontend and backend both need to recognize defaults to prevent editing/deletion
+- Checking is_default flag prevents trying to save defaults to database
+
+*Key lesson:* Always verify which API module the frontend is calling - file/route names can be misleading.
+
+**PROBLEM (b): Error Display for Quote Validation**
+
+*Dead-end attempts:*
+- Improved error message in Parser.py from "only lists can be quoted" to more helpful text
+- Added exception handlers and logging to backend set_current_proof
+- Modified backend Response to include errors array
+- All of this successfully RETURNED errors but user still saw nothing
+
+*Why the mistake:*
+- Focused entirely on backend error generation, assuming frontend would automatically display any errors in response
+- Didn't verify that the errors state variable was actually rendered in the UI
+- Saw errors being SET in state but didn't check if errors were DISPLAYED
+
+*What actually fixed it:*
+- Added JSX rendering for errors in EquationalReasoningNew.js (it was completely missing):
+  ```jsx
+  {!proofStarted && errors.length > 0 && (
+    <Alert variant="danger">
+      {errors.map((error, index) => <div key={index}>{error}</div>)}
+    </Alert>
+  )}
+  ```
+- Fixed frontend catch block to preserve backend error messages instead of replacing with generic "Error starting proof"
+
+*Why it worked:*
+- The errors state variable existed and was being set correctly, but had ZERO JSX rendering
+- Backend was returning errors perfectly; frontend just never displayed them
+- Must have BOTH: (1) error state management AND (2) error rendering in JSX
+
+*Key lesson:* When errors aren't displaying, check if the state variable is rendered in JSX, not just if it's being set. State without rendering is invisible.
+
+**PROBLEM (c): "No definition found for label 'a'" Issue**
+
+*Dead-end attempts:*
+- Added generics parameter to backend set_current_proof and called use_uploaded_generic()
+- Added debug logging showing generics were empty when received by backend
+- Modified frontend to send generics array in correct format with restrictions object
+- Backend code was perfect; still received empty generics array
+
+*Why the mistake:*
+- Assumed the issue was backend processing or data format
+- Focused on backend when problem was actually frontend data collection
+- Didn't verify what was actually in sessionStorage vs what was being read from it
+
+*What actually fixed it:*
+1. Changed filter from `g.applied` to `g.enabled` (generics use different property than definitions)
+2. Updated enableGeneric() function in Definitions.jsx to save updated generics to sessionStorage after toggling (it only updated React state, not sessionStorage)
+
+*Why it worked:*
+- Inconsistent naming: definitions use "applied" property, generics use "enabled" property
+- enableGeneric() modified state with setGenerics() but NEVER persisted to sessionStorage
+- Frontend startProof reads from sessionStorage (not React state), so enabled generics were lost between enable-click and start-proof
+- Must update BOTH state and sessionStorage when toggling - state is for immediate UI, sessionStorage is for cross-component data
+
+*Key lesson:* When data seems to disappear between actions, check if state updates are persisted to sessionStorage. State and sessionStorage are separate - updating one doesn't update the other. For data shared across components or surviving navigation, BOTH must be updated.
+
+*General pattern discovered:* Definitions and Generics use different property names (applied vs enabled) - always verify property names when filtering sessionStorage data.

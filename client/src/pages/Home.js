@@ -6,7 +6,7 @@ import Col from 'react-bootstrap/Col';
 import Image from 'react-bootstrap/Image';
 import MainLayout from '../layouts/MainLayout';
 import { Link } from 'react-router-dom';
-import dragon from '../images/drexel-dragon.svg'
+import dragon from '../images/drexel-dragon.svg';
 import Form from 'react-bootstrap/Form';
 import Button from 'react-bootstrap/esm/Button';
 import FloatingLabel from 'react-bootstrap/FloatingLabel';
@@ -18,7 +18,7 @@ import '../scss/_home.scss';
 const Home = () => {
   // Accessing the current user's information from the AuthContext.
   const { user } = useAuth();
-  const [proofType, setProofType] = useState('/er-racket');
+  const [proofType, setProofType] = useState('/equational-reasoning-new');
 
   return (
     <MainLayout>
@@ -47,12 +47,19 @@ const Home = () => {
                         <Form.Select
                           aria-label="Floating label proof type select"
                           id="proofType"
+                          value={proofType}
                           onChange={(e) => {
                             setProofType(e.target.value);
                           }}
                         >
+                          <option value="/equational-reasoning-new">
+                            Equational Reasoning New
+                          </option>
+                          <option value="/equational-reasoning">
+                            Equational Reasoning
+                          </option>
                           <option value="/er-racket">
-                            Equational Reasoning: Racket
+                            Equational Reasoning: Racket (Legacy)
                           </option>
                           <option value="/induction-racket">
                             Equational Reasoning: Induction

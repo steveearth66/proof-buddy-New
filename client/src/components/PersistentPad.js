@@ -13,8 +13,9 @@ const PersistentPad = forwardRef(function PersistentPad(
     side,
     jsonTree,
     lineNum,
-    editableLineNum,
+    // editableLineNum, // removed to clean warnings
     startPosition,
+    resultNode,
     ruleValue,
     onRuleChange,
     isRuleReadOnly,
@@ -33,46 +34,61 @@ const PersistentPad = forwardRef(function PersistentPad(
   
   const padDivRef = useRef(null);
   const lineNumRef = useRef(lineNum);
+  
+  // Build stable key from lineNum + side + equation hash
+  const equationHash = equation ? equation.substring(0, 50) : '';
+  const highlightKey = `${lineNum}-${side}-${equationHash}`;
 
   useEffect(() => { 
     setRule(ruleValue); 
   }, [ruleValue]);
 
   useEffect(() => {
-    setSelected(startPosition);
-  }, [startPosition])
+    // Initialize selection; if startPosition is 0 and this isn't the premise, default to node 1
+    if (startPosition === 0 && lineNum > 0 && jsonTree && jsonTree[0]) {
+      // Non-premise lines should default to root node if no startPosition provided
+      setSelected(0);
+    } else {
+      setSelected(startPosition);
+    }
+  }, [startPosition, lineNum, jsonTree])
 
-  // Session storage management for highlights
+  // Session storage management for highlights and selection
   useEffect(() => {
-    if (!highlightedText) return;
-
     const savedHighlights = JSON.parse(sessionStorage.getItem("highlights") || "[]");
     const filteredHighlights = savedHighlights.filter(
-      highlight => !(highlight.equation === equation && highlight.side === side)
+      h => h.key !== highlightKey
     );
 
     filteredHighlights.push({
+      key: highlightKey,
       equation,
       highlightedText,
       side,
-      selectionRange
+      selectionRange,
+      selected
     });
 
     sessionStorage.setItem("highlights", JSON.stringify(filteredHighlights));
-  }, [highlightedText, side, selectionRange, equation]);
+  }, [highlightedText, side, selectionRange, selected, equation, highlightKey]);
 
-  // Load highlights from session storage
+  // Load highlights from session storage (including selection)
   useEffect(() => {
     const savedHighlights = JSON.parse(sessionStorage.getItem("highlights") || "[]");
     const matchingHighlight = savedHighlights.find(
-      highlight => highlight.equation === equation && highlight.side === side
+      highlight => highlight.key === highlightKey
     );
 
     if (matchingHighlight) {
       setHighlightedText(matchingHighlight.highlightedText);
       setSelectionRange(matchingHighlight.selectionRange);
+      // Only restore selected from sessionStorage if startPosition is 0 (default/unset)
+      // This prevents overwriting newly generated lines that have explicit startPosition
+      if (typeof matchingHighlight.selected === 'number' && startPosition === 0) {
+        setSelected(matchingHighlight.selected);
+      }
     }
-  }, [equation, side]);
+  }, [highlightKey, startPosition]);
 
   const moveSelection = useCallback((direction) => {
     const directionMap = {
@@ -127,33 +143,36 @@ const PersistentPad = forwardRef(function PersistentPad(
     onRuleChange?.(transformedEvent);
   };
 
+  // Determine border colors based on line numbers - cycles through yellow, blue, red, green
+  const colors = ['#DAA520', '#0066cc', '#cc0000', '#228B22']; // yellow, blue, red, green
+  const currentLineColor = colors[lineNum % 4];
+  const previousLineColor = colors[(lineNum - 1) % 4];
+
   return (
-    <Row className="persistent-pad-row" style={{ alignItems: "center" }}>
-      <Col>
-        <div
-          id={`persistent-pad-${lineNumRef.current}`}
-          ref={padDivRef}
-          tabIndex={0}
-          {...props}
-        >
-          <DivMakerComponent
-            expr={jsonTree}
-            selected={selected}
-            origTree={jsonTree}
-            lineNumber={lineNumRef.current}
-          />
-        </div>
-      </Col>
-      <Col md="5">
-        <Form.Floating className="mb-3">
+    <Row className="persistent-pad-row" style={{ alignItems: "flex-start" }}>
+      <Col md={{ span: 11, offset: 1 }}>
+        <div style={{ 
+          borderLeft: `4px solid transparent`,
+          borderImage: `linear-gradient(to bottom, ${previousLineColor} 50%, ${currentLineColor} 50%) 1`,
+          paddingLeft: '8px'
+        }}>
+        <Form.Floating className="mb-2">
           <Form.Control
-            type="text"
+            as="textarea"
             value={rule}
             placeholder={rulePlaceholder}
             onChange={handleRuleChange}
             readOnly={isRuleReadOnly}
             isInvalid={isRuleInvalid}
             disabled={!isEditRow}
+            style={{ 
+              minHeight: '40px',
+              resize: 'none',
+              overflow: 'hidden',
+              whiteSpace: 'pre-wrap',
+              wordWrap: 'break-word'
+            }}
+            rows={1}
           />
           <label>{rulePlaceholder}</label>
           {isRuleInvalid && (
@@ -162,6 +181,41 @@ const PersistentPad = forwardRef(function PersistentPad(
             </Form.Control.Feedback>
           )}
         </Form.Floating>
+        </div>
+      </Col>
+      <Col md="12">
+        <div style={{ 
+          borderLeft: `4px solid ${currentLineColor}`,
+          paddingLeft: '8px'
+        }}>
+        <div
+          id={`persistent-pad-${lineNumRef.current}`}
+          ref={padDivRef}
+          tabIndex={0}
+          style={{ 
+            wordWrap: 'break-word', 
+            overflowWrap: 'break-word', 
+            whiteSpace: 'normal',
+            minHeight: '40px',
+            border: '1px solid #ced4da',
+            borderRadius: '4px',
+            padding: '8px'
+          }}
+          {...props}
+        >
+          {jsonTree && jsonTree[0] ? (
+            <DivMakerComponent
+              expr={jsonTree}
+              selected={selected}
+              resultNode={resultNode}
+              origTree={jsonTree}
+              lineNumber={lineNumRef.current}
+            />
+          ) : (
+            <div>{equation || '\u00A0'}</div>
+          )}
+        </div>
+        </div>
       </Col>
     </Row>
   );

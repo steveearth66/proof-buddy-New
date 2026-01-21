@@ -135,8 +135,10 @@ dist
 python-server/__pycache__
 
 env
+django_server/venv
 __pycache__
 db.sqlite3
+venv
 
 .data
 

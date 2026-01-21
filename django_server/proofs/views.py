@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import Proof, ProofLine, Definition, Generic
 from expression_tree.ERProofEngine import TwoSidedProof, ERProof
+from expression_tree.default_udfs import DEFAULT_UDFS
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from rest_framework.decorators import api_view
 
@@ -312,6 +313,10 @@ def load_proof(proof_data):
 def get_user_definitions(user):
     definitions = Definition.objects.filter(created_by=user)
     definitions_data = []
+    
+    # Add default UDFs first (appear at top of list)
+    for default_udf in DEFAULT_UDFS:
+        definitions_data.append(default_udf.copy())
 
     for definition in definitions:
         definitions_data.append(
@@ -359,17 +364,29 @@ def create_or_override_definition(user, data):
 
 
 # def get_definition(id):
-def get_definition(label):
+def get_definition(user, label):
+    """Return a user's definition by label, or None if not found."""
+    # Check if it's a default UDF first
+    for default_udf in DEFAULT_UDFS:
+        if default_udf["label"] == label:
+            return {
+                "id": default_udf["id"],
+                "label": default_udf["label"],
+                "type": default_udf["type"],
+                "expression": default_udf["expression"],
+            }
+    
+    # Otherwise check user's database definitions
     # definition = Definition.objects.filter(id=id).first()
-    definition = Definition.objects.filter(label=label).first()
-    definition_data = {
+    definition = Definition.objects.filter(label=label, created_by=user).first()
+    if not definition:
+        return None
+    return {
         "id": definition.id,
         "label": definition.label,
         "type": definition.def_type,
         "expression": definition.expression,
     }
-
-    return definition_data
 
 
 # def edit_definition(user, id, data):
@@ -446,4 +463,5 @@ def use_uploaded_generic(user, proof: TwoSidedProof, generic_data):
                   else GenericSerializer(instance=generic_object, data=model_data))
     if serializer.is_valid():
         serializer.save(created_by=user)
+    
     proof.addGeneric(generic_data["label"], generic_data["type"], generic_data["restrictions"])

@@ -302,7 +302,35 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
   const [definitionToEdit, setDefinitionToEdit] = useState({});
   const [edit, setEdit] = useState(false);
 
-  //const deleteDefinition = async (id) => {
+  useEffect(() => {
+    const handleGenericsUpdated = (event) => {
+      
+      const { newGeneric, allGenerics } = event.detail;
+      
+      if (allGenerics) {
+        setGenerics(allGenerics);
+      } else if (newGeneric) {
+        setGenerics(prev => {
+          const existingIndex = prev.findIndex(g => g.label === newGeneric.label);
+          
+          if (existingIndex >= 0) {
+            const updated = [...prev];
+            updated[existingIndex] = newGeneric;
+            return updated;
+          } else {
+            return [...prev, newGeneric];
+          }
+        });
+      }
+    };
+
+    window.addEventListener('genericsUpdated', handleGenericsUpdated);
+    
+    return () => {
+      window.removeEventListener('genericsUpdated', handleGenericsUpdated);
+    };
+  }, []);
+
   const deleteDefinition = async (label) => {
     const confirm = window.confirm(
       'Are you sure you want to delete this definition?'
@@ -329,9 +357,11 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
         success: 'Generic deleted successfully.',
         error: 'An error occurred. Please try again.'
       });
-      const generics = JSON.parse(sessionStorage.getItem('generics'));
-      const updatedGenerics = generics.filter(gen => gen.id != generic.id);
-      setGenerics(updatedGenerics);
+      setGenerics(prev => {
+        const updatedGenerics = prev.filter(gen => gen.id !== generic.id);
+        sessionStorage.setItem('generics', JSON.stringify(updatedGenerics));
+        return updatedGenerics;
+      });
     } catch (error) {
       console.error(error)
     }
@@ -409,12 +439,16 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
           success: 'Generic successfully disabled.',
           error: 'An error occurred. Please try again.'
         });
-        setGenerics(prev => prev.map(gen => {
-          if (gen.id === generic.id) {
-            gen.enabled = false;
-          }
-          return gen;
-        }));
+        setGenerics(prev => {
+          const updated = prev.map(gen => {
+            if (gen.id === generic.id) {
+              gen.enabled = false;
+            }
+            return gen;
+          });
+          sessionStorage.setItem('generics', JSON.stringify(updated));
+          return updated;
+        });
       } catch (error) {
         console.error(error)
       }
@@ -425,12 +459,16 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
           success: 'Generic successfully enabled.',
           error: 'An error occurred. Please try again.'
         });
-        setGenerics(prev => prev.map(gen => {
-          if (gen.id === generic.id) {
-            gen.enabled = true;
-          }
-          return gen;
-        }));
+        setGenerics(prev => {
+          const updated = prev.map(gen => {
+            if (gen.id === generic.id) {
+              gen.enabled = true;
+            }
+            return gen;
+          });
+          sessionStorage.setItem('generics', JSON.stringify(updated));
+          return updated;
+        });
       } catch (error) {
         if (error.response?.data?.message)
           console.error(error.response.data.message);
@@ -454,18 +492,38 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
       });
       setDefinitions(newDefinitions);
       sessionStorage.setItem('definitions', JSON.stringify(newDefinitions));
+    }).catch((error) => {
+      console.error('Failed to load user definitions:', error);
+      toast.error('Failed to load definitions. Please try refreshing the page.');
     });
     // eslint-disable-next-line
   }, []);
 
   useEffect(() => {
     erService.getUserGenerics().then(userGenerics => {
-      setGenerics(userGenerics);
-    }).catch(error => console.error(error))
+            // Merge with any generics already in sessionStorage (from induction)
+            const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
+      
+      // Merge: prefer backend data but keep any that only exist in storage
+      const merged = [...userGenerics];
+      
+      storedGenerics.forEach(stored => {
+        const existsInBackend = userGenerics.find(ug => ug.label === stored.label);
+        if (!existsInBackend) {
+          merged.push(stored);
+        }
+      });
+      setGenerics(merged);
+      sessionStorage.setItem('generics', JSON.stringify(merged));
+    }).catch(error => {
+      console.error('Error fetching user generics:', error);
+      // On error, just use what's in sessionStorage
+      const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
+      setGenerics(storedGenerics);
+    });
   }, []);
 
   useEffect(() => {
-    sessionStorage.setItem('generics', JSON.stringify(generics));
   }, [generics]);
 
   if (edit) {
@@ -486,7 +544,6 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
       <div className="definitions-container">
         <p className="title">User definitions</p>
         <div className="definitions">
-          {definitions.length === 0 && <p>No definitions found.</p>}
           {definitions.map((def, index) => (
             <Definition
               key={index}
@@ -500,7 +557,6 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
         </div>
         <p className="title">Generics</p>
         <div className="generics">
-          {generics.length === 0 && <p>No generics found.</p>}
           {generics.map((gen, index) => (
             <Generic
               key={index}
@@ -529,6 +585,8 @@ function Definition({
   updateEdit,
   applyDefinition
 }) {
+  const isDefaultUDF = definition.is_default === true || definition.deletable === false;
+  
   return (
     <Accordion>
       <Accordion.Item eventKey={eventKey}>
@@ -550,6 +608,7 @@ function Definition({
             <Button
               variant="outline-primary"
               onClick={() => updateEdit(definition)}
+              disabled={isDefaultUDF}
             >
               Edit
             </Button>

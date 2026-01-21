@@ -22,7 +22,8 @@ const useInputState = (initialValues) => {
 
   return [
     values,
-    handleChange
+    handleChange,
+    setValues  // Also expose the setter for programmatic updates
   ];
 };
 
