@@ -107,7 +107,7 @@ function CreateDefinition({
         });
       } catch (error) {
         if (error.response && error.response.data && error.response.data.message) {
-          setErrors(error.response.data.message);
+          setErrors(Array.isArray(error.response.data.message) ? error.response.data.message : [error.response.data.message]);
         } else {
           setErrors(['An error occurred. Please try again.']); // generic error message
         }
@@ -164,7 +164,7 @@ function CreateDefinition({
           }
         } catch (error) {
           if (error.response && error.response.data && error.response.data.message) {
-            setErrors(error.response.data.message);
+            setErrors(Array.isArray(error.response.data.message) ? error.response.data.message : [error.response.data.message]);
           } else {
             setErrors(['An error occurred. Please try again.']); // generic error message
           }
