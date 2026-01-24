@@ -80,6 +80,8 @@ class BuiltIn(Rule):
     def isApplicable(self, ruleNode: Node, rawParams: list[str] = None) -> tuple[bool, str]:
         if rawParams:
             return False, f"Unexpected assignments {rawParams[1:-1]}"
+        if not ruleNode.children:
+            return False, f"Cannot apply '{self.label}' on a '{ruleNode.name}'"
         # Check if the operator matches the rule label
         if ruleNode.children[0].data != self.label:
             return False, f"Cannot evaluate {self.label} on a '{ruleNode.children[0].data}' expression"
@@ -616,6 +618,9 @@ class Axiom(Rule, ABC):
     def isApplicable(self, ruleNode: Node, rawParams: list[str] = None) -> tuple[bool, str]:
         if not rawParams:
             rawParams = []
+
+        if not ruleNode.children:
+            return False, f"Cannot apply '{self.label}' rule on a node with no children"
 
         # clear _paramMappings
         self._paramMappings = {key: None for key in self._paramMappings.keys()}

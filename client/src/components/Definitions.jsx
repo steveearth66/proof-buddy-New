@@ -9,10 +9,12 @@ import validateField from '../utils/definitionsFormValidation';
 import { useInputState } from '../hooks/useInputState';
 import { useFormValidation } from '../hooks/useFormValidation';
 import { useFormSubmit } from '../hooks/useFormSubmit';
+import { useParenHighlight } from '../hooks/useParenHighlight';
 import { useEffect, useState } from 'react';
 import erService from '../services/erService';
 import { toast } from 'react-toastify';
 import { createPortal } from 'react-dom';
+import RacketInput from './RacketInput';
 
 export default function Definitions({ toggleDefinitionsWindow }) {
   const [showCreateDefinition, setShowCreateDefinition] = useState(false);
@@ -57,6 +59,28 @@ function CreateDefinition({
   const [validated, setValidated] = useState(false);
   const [errors, setErrors] = useState([]);
   const [successMessage, setSuccessMessage] = useState('');
+  
+  // Parenthesis highlighting for each field
+  const { 
+    highlightPositions: labelHighlights, 
+    inputRef: labelRef, 
+    handleKeyUp: labelKeyUp, 
+    handleSelect: labelSelect 
+  } = useParenHighlight(formValues.label);
+  
+  const { 
+    highlightPositions: typeHighlights, 
+    inputRef: typeRef, 
+    handleKeyUp: typeKeyUp, 
+    handleSelect: typeSelect 
+  } = useParenHighlight(formValues.type);
+  
+  const { 
+    highlightPositions: exprHighlights, 
+    inputRef: exprRef, 
+    handleKeyUp: exprKeyUp, 
+    handleSelect: exprSelect 
+  } = useParenHighlight(formValues.expression);
 
   const handleReset = () => {
     formValues.label = '';
@@ -107,7 +131,7 @@ function CreateDefinition({
         });
       } catch (error) {
         if (error.response && error.response.data && error.response.data.message) {
-          setErrors(error.response.data.message);
+          setErrors(Array.isArray(error.response.data.message) ? error.response.data.message : [error.response.data.message]);
         } else {
           setErrors(['An error occurred. Please try again.']); // generic error message
         }
@@ -164,7 +188,7 @@ function CreateDefinition({
           }
         } catch (error) {
           if (error.response && error.response.data && error.response.data.message) {
-            setErrors(error.response.data.message);
+            setErrors(Array.isArray(error.response.data.message) ? error.response.data.message : [error.response.data.message]);
           } else {
             setErrors(['An error occurred. Please try again.']); // generic error message
           }
@@ -207,8 +231,9 @@ function CreateDefinition({
       >
         <Row>
           <Col>
-            <Form.Floating>
-              <Form.Control
+            <div className="label-field-container">
+              <label htmlFor="definitionLabel" className="form-label">Label</label>
+              <RacketInput
                 type="text"
                 id="definitionLabel"
                 name="label"
@@ -216,18 +241,22 @@ function CreateDefinition({
                 value={formValues.label}
                 onBlur={() => handleBlur('label')}
                 onChange={handleChange}
+                onKeyUp={labelKeyUp}
+                onClick={labelSelect}
+                ref={labelRef}
+                highlightPositions={labelHighlights}
                 isInvalid={!!validationMessages.label}
                 required
               />
-              <label htmlFor="definitionLabel">Label</label>
               <Form.Control.Feedback type="invalid">
                 {validationMessages.label}
               </Form.Control.Feedback>
-            </Form.Floating>
+            </div>
           </Col>
           <Col>
-            <Form.Floating>
-              <Form.Control
+            <div className="type-field-container">
+              <label htmlFor="definitionType" className="form-label">Type</label>
+              <RacketInput
                 type="text"
                 id="definitionType"
                 name="type"
@@ -235,20 +264,24 @@ function CreateDefinition({
                 value={formValues.type}
                 onBlur={() => handleBlur('type')}
                 onChange={handleChange}
+                onKeyUp={typeKeyUp}
+                onClick={typeSelect}
+                ref={typeRef}
+                highlightPositions={typeHighlights}
                 isInvalid={!!validationMessages.type}
                 required
               />
-              <label htmlFor="definitionType">Type</label>
               <Form.Control.Feedback type="invalid">
                 {validationMessages.type}
               </Form.Control.Feedback>
-            </Form.Floating>
+            </div>
           </Col>
         </Row>
         <Row>
           <Col>
-            <Form.Floating>
-              <Form.Control
+            <div className="expression-field-container">
+              <label htmlFor="definitionExpression" className="form-label">Expression (leave blank to declare a generic)</label>
+              <RacketInput
                 type="text"
                 id="definitionExpression"
                 name="expression"
@@ -256,12 +289,16 @@ function CreateDefinition({
                 value={formValues.expression}
                 onBlur={() => handleBlur('expression')}
                 onChange={handleChange}
+                onKeyUp={exprKeyUp}
+                onClick={exprSelect}
+                ref={exprRef}
+                highlightPositions={exprHighlights}
+                style={{ height: '120px' }}
               />
-              <label htmlFor="definitionExpression">Expression (leave blank to declare a generic)</label>
               <Form.Control.Feedback type="invalid">
                 {validationMessages.expression}
               </Form.Control.Feedback>
-            </Form.Floating>
+            </div>
           </Col>
         </Row>
         <Row>

@@ -450,3 +450,49 @@ Session 2026-01-18: Default UDFs, Error Display, and Generic Variables
 *Key lesson:* When data seems to disappear between actions, check if state updates are persisted to sessionStorage. State and sessionStorage are separate - updating one doesn't update the other. For data shared across components or surviving navigation, BOTH must be updated.
 
 *General pattern discovered:* Definitions and Generics use different property names (applied vs enabled) - always verify property names when filtering sessionStorage data.
+
+---
+
+Session 2026-01-24: Parenthesis Highlighting Implementation - Key Learnings
+
+**PROBLEM**: Implemented parenthesis matching highlights for Racket input fields in Definitions form.
+
+**CRITICAL ARCHITECTURAL MISTAKES & FIXES**:
+
+1. **Bootstrap Form.Floating + Wrapper Components = BROKEN**
+   - **Mistake**: Wrapped `Form.Control` in a `<div>` (for highlight overlay) inside `Form.Floating`
+   - **Why it broke**: Bootstrap's Form.Floating expects `<Form.Control>` as DIRECT child, followed by `<label>` as sibling. Wrapper div breaks this CSS sibling selector relationship.
+   - **Symptom**: Floating label text overlapped with field placeholder text
+   - **Fix**: Remove `Form.Floating` entirely, use standard `<label className="form-label">` above the input instead
+   - **Lesson**: Never wrap Form.Control when using Form.Floating. Use standard labels for wrapped inputs.
+
+2. **Width Constraint from Wrapper**
+   - **Mistake**: Wrapper div had no explicit width, causing field to shrink
+   - **Fix**: Added `width: 100%` and `display: block` inline styles to wrapper div in JSX
+   - **Lesson**: Wrapper components need explicit width inheritance
+
+3. **Highlight Layer Vertical Misalignment**
+   - **Mistake**: Tall inputs (120px) center their text vertically, but highlight layer started from top
+   - **Why it broke**: `Form.Control type="text"` uses flexbox centering for tall heights, but absolute-positioned highlight layer didn't match
+   - **Fix**: Added `display: flex; align-items: center` to highlight layer, wrapped content in inner div
+   - **Lesson**: Overlay layers must match the vertical alignment behavior of the input they're overlaying
+
+**WORKING PATTERN FOR HIGHLIGHTED INPUTS**:
+```jsx
+<div className="field-container">
+  <label className="form-label">Field Name</label>
+  <RacketInput
+    {/* ...props */}
+    ref={inputRef}
+    highlightPositions={highlights}
+  />
+</div>
+```
+
+**KEY PRINCIPLE**: When adding visual overlays to Bootstrap form inputs, don't fight Bootstrap's CSS architecture - replace it with simpler standard labels.
+
+**UPDATE - Hook Usage Mistake**:
+- **Mistake**: When applying highlighting to InductionRacket.js, manually created refs and passed them to useParenHighlight hook
+- **Why it broke**: useParenHighlight expects the TEXT VALUE as parameter, not a ref. The hook internally creates and returns its own ref.
+- **Correct pattern**: `const { highlightPositions, inputRef, handleKeyUp, handleSelect } = useParenHighlight(formValues.fieldName);`
+- **Lesson**: Read existing working code carefully before replicating the pattern. The hook signature is: `useParenHighlight(value)` → returns `{ highlightPositions, inputRef, ... }`
