@@ -25,8 +25,10 @@ import {
   Definitions,
   ProofComplete,
   PersistentPad,
-  Substitution
+  Substitution,
+  RacketInput
 } from "../components";
+import { useParenHighlight } from "../hooks/useParenHighlight";
 import ClickableRowNumber from "../components/ClickableRowNumber";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import { useDynamicHeight } from "../hooks/useDynamicHeight";
@@ -124,6 +126,56 @@ const InductionRacket = () => {
   
   const [proofStarted, setProofStarted] = useState(false);
   const [proofStatus, setProofStatus] = useState({ base: null, leap: null }); // tracks base/leap completeness separately
+
+  // Parenthesis highlighting hooks
+  const { 
+    highlightPositions: inductionVarHighlights, 
+    inputRef: inductionVarRef, 
+    handleKeyUp: inductionVarKeyUp, 
+    handleSelect: inductionVarSelect 
+  } = useParenHighlight(formValues.inductionVariable);
+  
+  const { 
+    highlightPositions: inductionValHighlights, 
+    inputRef: inductionValRef, 
+    handleKeyUp: inductionValKeyUp, 
+    handleSelect: inductionValSelect 
+  } = useParenHighlight(formValues.inductionValue);
+  
+  const { 
+    highlightPositions: leapVarHighlights, 
+    inputRef: leapVarRef, 
+    handleKeyUp: leapVarKeyUp, 
+    handleSelect: leapVarSelect 
+  } = useParenHighlight(formValues.leapVariable);
+  
+  const { 
+    highlightPositions: lhsGoalHighlights, 
+    inputRef: lhsGoalRef, 
+    handleKeyUp: lhsGoalKeyUp, 
+    handleSelect: lhsGoalSelect 
+  } = useParenHighlight(formValues.lHSGoal);
+  
+  const { 
+    highlightPositions: rhsGoalHighlights, 
+    inputRef: rhsGoalRef, 
+    handleKeyUp: rhsGoalKeyUp, 
+    handleSelect: rhsGoalSelect 
+  } = useParenHighlight(formValues.rHSGoal);
+  
+  const { 
+    highlightPositions: ihLhsHighlights, 
+    inputRef: ihLhsRef, 
+    handleKeyUp: ihLhsKeyUp, 
+    handleSelect: ihLhsSelect 
+  } = useParenHighlight(inductiveHypothesisLHS);
+  
+  const { 
+    highlightPositions: ihRhsHighlights, 
+    inputRef: ihRhsRef, 
+    handleKeyUp: ihRhsKeyUp, 
+    handleSelect: ihRhsSelect 
+  } = useParenHighlight(inductiveHypothesisRHS);
 
   // Footer binding and PersistentPad refs - for interactive proof line highlighting
   const lhsPadRefs = useRef({});
@@ -1770,8 +1822,9 @@ const InductionRacket = () => {
                 </Form.Floating>
               </Form.Group>
               <Form.Group as={Col} md="auto" className="er-induction-variable">
-                <Form.Floating className="mb-3">
-                  <Form.Control
+                <div className="mb-3">
+                  <label htmlFor="eRInductionVariable" className="form-label">IVar</label>
+                  <RacketInput
                     id="eRInductionVariable"
                     name="inductionVariable"
                     type="text"
@@ -1782,6 +1835,10 @@ const InductionRacket = () => {
                       clearProofValidationMessage();
                     }}
                     onChange={handleChange}
+                    onKeyUp={inductionVarKeyUp}
+                    onClick={inductionVarSelect}
+                    ref={inductionVarRef}
+                    highlightPositions={inductionVarHighlights}
                     isInvalid={
                       !!validationMessages.inductionVariable ||
                       !!proofValidationMessage.inductionVariable
@@ -1789,26 +1846,30 @@ const InductionRacket = () => {
                     disabled={proofStarted}
                     required
                   />
-                  <label htmlFor="eRInductionVariable">IVar</label>
                   <Form.Control.Feedback type="invalid" tooltip>
                     {validationMessages.inductionVariable ||
                       proofValidationMessage.inductionVariable}
                   </Form.Control.Feedback>
-                </Form.Floating>
+                </div>
               </Form.Group>
               <Form.Group as={Col} md="auto" className="er-induction-value">
-                <Form.Floating className="mb-3">
-                  <Form.Control
+                <div className="mb-3">
+                  <label htmlFor="eRInductionValue" className="form-label">AVal</label>
+                  <RacketInput
                     id="eRInductionValue"
                     name="inductionValue"
                     type="text"
-                    placeholder="Induction Value"
+                    placeholder="Anchor Value"
                     value={formValues.inductionValue}
                     onBlur={() => {
                       handleBlur("inductionValue");
                       clearProofValidationMessage();
                     }}
                     onChange={handleChange}
+                    onKeyUp={inductionValKeyUp}
+                    onClick={inductionValSelect}
+                    ref={inductionValRef}
+                    highlightPositions={inductionValHighlights}
                     isInvalid={
                       !!validationMessages.inductionValue ||
                       !!proofValidationMessage.inductionValue
@@ -1816,16 +1877,16 @@ const InductionRacket = () => {
                     disabled={proofStarted}
                     required
                   />
-                  <label htmlFor="eRInductionValue">AVal</label>
                   <Form.Control.Feedback type="invalid" tooltip>
                     {validationMessages.inductionValue ||
                       proofValidationMessage.inductionValue}
                   </Form.Control.Feedback>
-                </Form.Floating>
+                </div>
               </Form.Group>
               <Form.Group as={Col} md="auto" className="er-leap-variable">
-                <Form.Floating className="mb-3">
-                  <Form.Control
+                <div className="mb-3">
+                  <label htmlFor="eRLeapVariable" className="form-label">LVar</label>
+                  <RacketInput
                     id="eRLeapVariable"
                     name="leapVariable"
                     type="text"
@@ -1836,6 +1897,10 @@ const InductionRacket = () => {
                       clearProofValidationMessage();
                     }}
                     onChange={handleChange}
+                    onKeyUp={leapVarKeyUp}
+                    onClick={leapVarSelect}
+                    ref={leapVarRef}
+                    highlightPositions={leapVarHighlights}
                     isInvalid={
                       !!validationMessages.leapVariable ||
                       !!proofValidationMessage.leapVariable
@@ -1843,19 +1908,19 @@ const InductionRacket = () => {
                     disabled={proofStarted}
                     required
                   />
-                  <label htmlFor="eRLeapVariable">LVar</label>
                   <Form.Control.Feedback type="invalid" tooltip>
                     {validationMessages.leapVariable ||
                       proofValidationMessage.leapVariable}
                   </Form.Control.Feedback>
-                </Form.Floating>
+                </div>
               </Form.Group>
             </Row>
 
             <Row className="g-5">
               <Form.Group as={Col} md="4" className="er-proof-goal-lhs" style={{ marginLeft: '450px' }}>
-                <Form.Floating className="mb-3">
-                  <Form.Control
+                <div className="mb-3">
+                  <label htmlFor="eRProofLHSGoal" className="form-label">LHS Goal</label>
+                  <RacketInput
                     id="eRProofLHSGoal"
                     name="lHSGoal"
                     type="text"
@@ -1863,6 +1928,10 @@ const InductionRacket = () => {
                     value={formValues.lHSGoal}
                     onBlur={() => handleBlur("lHSGoal")}
                     onChange={enhancedHandleChange}
+                    onKeyUp={lhsGoalKeyUp}
+                    onClick={lhsGoalSelect}
+                    ref={lhsGoalRef}
+                    highlightPositions={lhsGoalHighlights}
                     isInvalid={
                       !!validationMessages.lHSGoal ||
                       !!goalValidationMessage.LHS.Goal
@@ -1870,16 +1939,16 @@ const InductionRacket = () => {
                     disabled={proofStarted}
                     required
                   />
-                  <label htmlFor="eRProofLHSGoal">LHS Goal</label>
                   <Form.Control.Feedback type="invalid" tooltip>
                     {validationMessages.lHSGoal ||
                       goalValidationMessage.LHS.Goal}
                   </Form.Control.Feedback>
-                </Form.Floating>
+                </div>
               </Form.Group>
               <Form.Group as={Col} md="4" className="er-proof-goal-rhs">
-                <Form.Floating className="mb-3">
-                  <Form.Control
+                <div className="mb-3">
+                  <label htmlFor="eRProofRHSGoal" className="form-label">RHS Goal</label>
+                  <RacketInput
                     id="eRProofRHSGoal"
                     name="rHSGoal"
                     type="text"
@@ -1887,6 +1956,10 @@ const InductionRacket = () => {
                     value={formValues.rHSGoal}
                     onBlur={() => handleBlur("rHSGoal")}
                     onChange={enhancedHandleChange}
+                    onKeyUp={rhsGoalKeyUp}
+                    onClick={rhsGoalSelect}
+                    ref={rhsGoalRef}
+                    highlightPositions={rhsGoalHighlights}
                     isInvalid={
                       !!validationMessages.rHSGoal ||
                       !!goalValidationMessage.RHS.Goal
@@ -1894,44 +1967,51 @@ const InductionRacket = () => {
                     disabled={proofStarted}
                     required
                   />
-                  <label htmlFor="eRProofRHSGoal">RHS Goal</label>
                   <Form.Control.Feedback type="invalid" tooltip>
                     {validationMessages.rHSGoal ||
                       goalValidationMessage.RHS.Goal}
                   </Form.Control.Feedback>
-                </Form.Floating>
+                </div>
               </Form.Group>
             </Row>
 
             {(!proofStarted || !isAnchor) && (
               <Row className="g-5">
                 <Form.Group as={Col} md="4" className="er-inductive-hypothesis-lhs" style={{ marginLeft: '450px' }}>
-                  <Form.Floating className="mb-3">
-                    <Form.Control
+                  <div className="mb-3">
+                    <label htmlFor="eRInductiveHypothesisLHS" className="form-label">IH LHS</label>
+                    <RacketInput
                       id="eRInductiveHypothesisLHS"
                       name="inductiveHypothesisLHS"
                       type="text"
                       placeholder="Inductive Hypothesis LHS"
                       value={inductiveHypothesisLHS}
                       onChange={(e) => setInductiveHypothesisLHS(e.target.value)}
+                      onKeyUp={ihLhsKeyUp}
+                      onClick={ihLhsSelect}
+                      ref={ihLhsRef}
+                      highlightPositions={ihLhsHighlights}
                       disabled={proofStarted}
                     />
-                    <label htmlFor="eRInductiveHypothesisLHS">IH LHS</label>
-                  </Form.Floating>
+                  </div>
                 </Form.Group>
                 <Form.Group as={Col} md="4" className="er-inductive-hypothesis-rhs">
-                  <Form.Floating className="mb-3">
-                    <Form.Control
+                  <div className="mb-3">
+                    <label htmlFor="eRInductiveHypothesisRHS" className="form-label">IH RHS</label>
+                    <RacketInput
                       id="eRInductiveHypothesisRHS"
                       name="inductiveHypothesisRHS"
                       type="text"
                       placeholder="Inductive Hypothesis RHS"
                       value={inductiveHypothesisRHS}
                       onChange={(e) => setInductiveHypothesisRHS(e.target.value)}
+                      onKeyUp={ihRhsKeyUp}
+                      onClick={ihRhsSelect}
+                      ref={ihRhsRef}
+                      highlightPositions={ihRhsHighlights}
                       disabled={proofStarted}
                     />
-                    <label htmlFor="eRInductiveHypothesisRHS">IH RHS</label>
-                  </Form.Floating>
+                  </div>
                 </Form.Group>
               </Row>
             )}

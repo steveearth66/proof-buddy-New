@@ -8,7 +8,8 @@ import Row from "react-bootstrap/Row";
 import { toast } from "react-toastify";
 import MainLayout from "../layouts/MainLayout";
 import equationalService from "../services/equationalService";
-import { ProofComplete, Substitution, PersistentPad } from "../components";
+import { ProofComplete, Substitution, PersistentPad, RacketInput } from "../components";
+import { useParenHighlight } from "../hooks/useParenHighlight";
 import ClickableRowNumber from "../components/ClickableRowNumber";
 import "../scss/_forms.scss";
 import "../scss/_er-racket.scss";
@@ -445,6 +446,21 @@ const EquationalReasoning = () => {
   const availableHeight = useDynamicHeight();
 
   const [formValues, handleChange] = useInputState(INITIAL_FORM_VALUES);
+  
+  // Parenthesis highlighting hooks
+  const { 
+    highlightPositions: lhsGoalHighlights, 
+    inputRef: lhsGoalRef, 
+    handleKeyUp: lhsGoalKeyUp, 
+    handleSelect: lhsGoalSelect 
+  } = useParenHighlight(formValues.lHSGoal);
+  
+  const { 
+    highlightPositions: rhsGoalHighlights, 
+    inputRef: rhsGoalRef, 
+    handleKeyUp: rhsGoalKeyUp, 
+    handleSelect: rhsGoalSelect 
+  } = useParenHighlight(formValues.rHSGoal);
   const [
     isGoalChecked,
     checkGoal,
@@ -649,8 +665,9 @@ function renderPersistentPadRow({
           
             <Row className="g-5">
               <Form.Group as={Col} md="4" className="er-proof-goal-lhs" style={{ marginLeft: '450px' }}>
-                <Form.Floating className="mb-3">
-                  <Form.Control
+                <div className="mb-3">
+                  <label htmlFor="eRProofLHSGoal" className="form-label">LHS Goal</label>
+                  <RacketInput
                     id="eRProofLHSGoal"
                     name="lHSGoal"
                     type="text"
@@ -658,6 +675,10 @@ function renderPersistentPadRow({
                     value={formValues.lHSGoal}
                     onBlur={() => handleBlur("lHSGoal")}
                     onChange={enhancedHandleChange}
+                    onKeyUp={lhsGoalKeyUp}
+                    onClick={lhsGoalSelect}
+                    ref={lhsGoalRef}
+                    highlightPositions={lhsGoalHighlights}
                     disabled={proofStarted}
                     isInvalid={
                       !!validationMessages.lHSGoal ||
@@ -665,17 +686,17 @@ function renderPersistentPadRow({
                     }
                     required
                   />
-                  <label htmlFor="eRProofLHSGoal">LHS Goal</label>
                   <Form.Control.Feedback type="invalid" tooltip>
                     {validationMessages.lHSGoal ||
                       goalValidationMessage.LHS.Goal}
                   </Form.Control.Feedback>
-                </Form.Floating>
+                </div>
               </Form.Group>
               
               <Form.Group as={Col} md="4" className="er-proof-goal-rhs">
-                <Form.Floating className="mb-3">
-                  <Form.Control
+                <div className="mb-3">
+                  <label htmlFor="eRProofRHSGoal" className="form-label">RHS Goal</label>
+                  <RacketInput
                     id="eRProofRHSGoal"
                     name="rHSGoal"
                     type="text"
@@ -683,6 +704,10 @@ function renderPersistentPadRow({
                     value={formValues.rHSGoal}
                     onBlur={() => handleBlur("rHSGoal")}
                     onChange={enhancedHandleChange}
+                    onKeyUp={rhsGoalKeyUp}
+                    onClick={rhsGoalSelect}
+                    ref={rhsGoalRef}
+                    highlightPositions={rhsGoalHighlights}
                     disabled={proofStarted}
                     isInvalid={
                       !!validationMessages.rHSGoal ||
@@ -690,11 +715,10 @@ function renderPersistentPadRow({
                     }
                     required
                   />
-                  <label htmlFor="eRProofRHSGoal">RHS Goal</label>
                   <Form.Control.Feedback type="invalid" tooltip>
                     {validationMessages.rHSGoal || goalValidationMessage.RHS}
                   </Form.Control.Feedback>
-                </Form.Floating>
+                </div>
               </Form.Group>
             </Row>
           

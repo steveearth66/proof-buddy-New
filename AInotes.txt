@@ -490,3 +490,9 @@ Session 2026-01-24: Parenthesis Highlighting Implementation - Key Learnings
 ```
 
 **KEY PRINCIPLE**: When adding visual overlays to Bootstrap form inputs, don't fight Bootstrap's CSS architecture - replace it with simpler standard labels.
+
+**UPDATE - Hook Usage Mistake**:
+- **Mistake**: When applying highlighting to InductionRacket.js, manually created refs and passed them to useParenHighlight hook
+- **Why it broke**: useParenHighlight expects the TEXT VALUE as parameter, not a ref. The hook internally creates and returns its own ref.
+- **Correct pattern**: `const { highlightPositions, inputRef, handleKeyUp, handleSelect } = useParenHighlight(formValues.fieldName);`
+- **Lesson**: Read existing working code carefully before replicating the pattern. The hook signature is: `useParenHighlight(value)` → returns `{ highlightPositions, inputRef, ... }`

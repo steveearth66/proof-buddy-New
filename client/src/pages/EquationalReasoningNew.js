@@ -21,7 +21,8 @@ import { useFormSubmit } from "../hooks/useFormSubmit";
 import "../scss/_forms.scss";
 import "../scss/_er-racket.scss";
 import { useRacketRuleFields } from "../hooks/useRacketRuleFields";
-import { ProofComplete, Substitution, PersistentPad } from "../components";
+import { ProofComplete, Substitution, PersistentPad, RacketInput } from "../components";
+import { useParenHighlight } from "../hooks/useParenHighlight";
 import {
   Definitions
 } from "../components";
@@ -49,6 +50,22 @@ import {
 const EquationalReasoningNew = () => {
     const [showSide, toggleSide] = useToggleSide();
     const [formValues, handleChange, setFormValues] = useInputState(INITIAL_FORM_VALUES);
+    
+    // Parenthesis highlighting hooks
+    const { 
+      highlightPositions: lhsGoalHighlights, 
+      inputRef: lhsGoalRef, 
+      handleKeyUp: lhsGoalKeyUp, 
+      handleSelect: lhsGoalSelect 
+    } = useParenHighlight(formValues.lHSGoal);
+    
+    const { 
+      highlightPositions: rhsGoalHighlights, 
+      inputRef: rhsGoalRef, 
+      handleKeyUp: rhsGoalKeyUp, 
+      handleSelect: rhsGoalSelect 
+    } = useParenHighlight(formValues.rHSGoal);
+    
     const [validationMessages, handleBlur, setAllTouched, isFormValid] =
         useFormValidation(formValues, validateField);
     const [validated, setValidated] = useState(false);
@@ -1529,8 +1546,9 @@ const EquationalReasoningNew = () => {
 
             <Row className="g-5">
               <Form.Group as={Col} md="4" className="er-proof-goal-lhs" style={{ marginLeft: '450px' }}>
-                <Form.Floating className="mb-3">
-                  <Form.Control
+                <div className="mb-3">
+                  <label htmlFor="eRProofLHSGoal" className="form-label">LHS Goal</label>
+                  <RacketInput
                     id="eRProofLHSGoal"
                     name="lHSGoal"
                     type="text"
@@ -1538,6 +1556,10 @@ const EquationalReasoningNew = () => {
                     value={formValues.lHSGoal}
                     onBlur={() => handleBlur("lHSGoal")}
                     onChange={enhancedHandleChange}
+                    onKeyUp={lhsGoalKeyUp}
+                    onClick={lhsGoalSelect}
+                    ref={lhsGoalRef}
+                    highlightPositions={lhsGoalHighlights}
                     isInvalid={
                       !!validationMessages.lHSGoal ||
                       !!goalValidationMessage?.LHS
@@ -1545,16 +1567,16 @@ const EquationalReasoningNew = () => {
                     disabled={proofStarted}
                     required
                   />
-                  <label htmlFor="eRProofLHSGoal">LHS Goal</label>
                   <Form.Control.Feedback type="invalid" tooltip>
                     {validationMessages.lHSGoal ||
                       goalValidationMessage?.LHS}
                   </Form.Control.Feedback>
-                </Form.Floating>
+                </div>
               </Form.Group>
               <Form.Group as={Col} md="4" className="er-proof-goal-rhs">
-                <Form.Floating className="mb-3">
-                  <Form.Control
+                <div className="mb-3">
+                  <label htmlFor="eRProofRHSGoal" className="form-label">RHS Goal</label>
+                  <RacketInput
                     id="eRProofRHSGoal"
                     name="rHSGoal"
                     type="text"
@@ -1562,6 +1584,10 @@ const EquationalReasoningNew = () => {
                     value={formValues.rHSGoal}
                     onBlur={() => handleBlur("rHSGoal")}
                     onChange={enhancedHandleChange}
+                    onKeyUp={rhsGoalKeyUp}
+                    onClick={rhsGoalSelect}
+                    ref={rhsGoalRef}
+                    highlightPositions={rhsGoalHighlights}
                     isInvalid={
                       !!validationMessages.rHSGoal ||
                       !!goalValidationMessage?.RHS
@@ -1569,12 +1595,11 @@ const EquationalReasoningNew = () => {
                     disabled={proofStarted}
                     required
                   />
-                  <label htmlFor="eRProofRHSGoal">RHS Goal</label>
                   <Form.Control.Feedback type="invalid" tooltip>
                     {validationMessages.rHSGoal ||
                       goalValidationMessage?.RHS}
                   </Form.Control.Feedback>
-                </Form.Floating>
+                </div>
               </Form.Group>
             </Row>
 
