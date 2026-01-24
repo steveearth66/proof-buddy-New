@@ -60,9 +60,27 @@ function CreateDefinition({
   const [errors, setErrors] = useState([]);
   const [successMessage, setSuccessMessage] = useState('');
   
-  // Parenthesis highlighting for expression field
-  const { highlightPositions, inputRef, handleKeyUp, handleSelect } = 
-    useParenHighlight(formValues.expression);
+  // Parenthesis highlighting for each field
+  const { 
+    highlightPositions: labelHighlights, 
+    inputRef: labelRef, 
+    handleKeyUp: labelKeyUp, 
+    handleSelect: labelSelect 
+  } = useParenHighlight(formValues.label);
+  
+  const { 
+    highlightPositions: typeHighlights, 
+    inputRef: typeRef, 
+    handleKeyUp: typeKeyUp, 
+    handleSelect: typeSelect 
+  } = useParenHighlight(formValues.type);
+  
+  const { 
+    highlightPositions: exprHighlights, 
+    inputRef: exprRef, 
+    handleKeyUp: exprKeyUp, 
+    handleSelect: exprSelect 
+  } = useParenHighlight(formValues.expression);
 
   const handleReset = () => {
     formValues.label = '';
@@ -213,8 +231,9 @@ function CreateDefinition({
       >
         <Row>
           <Col>
-            <Form.Floating>
-              <Form.Control
+            <div className="label-field-container">
+              <label htmlFor="definitionLabel" className="form-label">Label</label>
+              <RacketInput
                 type="text"
                 id="definitionLabel"
                 name="label"
@@ -222,18 +241,22 @@ function CreateDefinition({
                 value={formValues.label}
                 onBlur={() => handleBlur('label')}
                 onChange={handleChange}
+                onKeyUp={labelKeyUp}
+                onClick={labelSelect}
+                ref={labelRef}
+                highlightPositions={labelHighlights}
                 isInvalid={!!validationMessages.label}
                 required
               />
-              <label htmlFor="definitionLabel">Label</label>
               <Form.Control.Feedback type="invalid">
                 {validationMessages.label}
               </Form.Control.Feedback>
-            </Form.Floating>
+            </div>
           </Col>
           <Col>
-            <Form.Floating>
-              <Form.Control
+            <div className="type-field-container">
+              <label htmlFor="definitionType" className="form-label">Type</label>
+              <RacketInput
                 type="text"
                 id="definitionType"
                 name="type"
@@ -241,14 +264,17 @@ function CreateDefinition({
                 value={formValues.type}
                 onBlur={() => handleBlur('type')}
                 onChange={handleChange}
+                onKeyUp={typeKeyUp}
+                onClick={typeSelect}
+                ref={typeRef}
+                highlightPositions={typeHighlights}
                 isInvalid={!!validationMessages.type}
                 required
               />
-              <label htmlFor="definitionType">Type</label>
               <Form.Control.Feedback type="invalid">
                 {validationMessages.type}
               </Form.Control.Feedback>
-            </Form.Floating>
+            </div>
           </Col>
         </Row>
         <Row>
@@ -263,10 +289,10 @@ function CreateDefinition({
                 value={formValues.expression}
                 onBlur={() => handleBlur('expression')}
                 onChange={handleChange}
-                onKeyUp={handleKeyUp}
-                onClick={handleSelect}
-                ref={inputRef}
-                highlightPositions={highlightPositions}
+                onKeyUp={exprKeyUp}
+                onClick={exprSelect}
+                ref={exprRef}
+                highlightPositions={exprHighlights}
                 style={{ height: '120px' }}
               />
               <Form.Control.Feedback type="invalid">
