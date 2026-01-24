@@ -32,7 +32,7 @@ export default function Substitution({
     highlightPositions: substitutionHighlight,
     inputRef: substitutionRef,
     handleKeyUp: handleSubstitutionKeyUp,
-    handleSelect: handleSubstitutionSelect,
+    handleSelect: handleSubstitutionSelect
   } = useParenHighlight(formValues.substitution);
 
   const handleSubstitutionSubmit = async () => {

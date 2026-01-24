@@ -53,22 +53,10 @@ const Home = () => {
                           }}
                         >
                           <option value="/equational-reasoning-new">
-                            Equational Reasoning New
-                          </option>
-                          <option value="/equational-reasoning">
                             Equational Reasoning
                           </option>
-                          <option value="/er-racket">
-                            Equational Reasoning: Racket (Legacy)
-                          </option>
                           <option value="/induction-racket">
-                            Equational Reasoning: Induction
-                          </option>
-                          <option value="/NaturalDeductionPropositionalLogic">
-                            Natural Deduction: Propositional Logic
-                          </option>
-                          <option value="/NaturalDeductionFirstOrderLogic">
-                            Natural Deduction: First Order Logic
+                            Induction
                           </option>
                         </Form.Select>
                       </FloatingLabel>
