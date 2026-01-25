@@ -186,8 +186,10 @@ const PersistentPad = forwardRef(function PersistentPad(
       <Col md="12">
         <div style={{ 
           borderLeft: `4px solid ${currentLineColor}`,
-          paddingLeft: '8px'
-        }}>
+            paddingLeft: '8px',
+            marginBottom: '0.5rem'
+          }}
+        >
         <div
           id={`persistent-pad-${lineNumRef.current}`}
           ref={padDivRef}
