@@ -27,7 +27,9 @@ export const EMPTY_INITIAL_FIELD = {
   startPosition: 0,
   // Ensure new/blank lines have selectedNode present to avoid undefined
   selectedNode: 0,
-  deleted: false 
+  deleted: false,
+  hide_expression: false,
+  hide_justification: false 
 }
 
 // Helper functions

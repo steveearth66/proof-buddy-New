@@ -1,3 +1,5 @@
+# models.py - Add visibility fields to EquationalProofLine
+
 from django.db import models
 from django.contrib.auth import get_user_model
 
@@ -75,6 +77,10 @@ class EquationalProofLine(models.Model):
     result_node = models.IntegerField(default=0)  # Node ID of the changed portion in the result expression
     line_number = models.IntegerField(default=0)  # Order of line in the proof
     created_at = models.DateTimeField(auto_now_add=True)
+    
+    # NEW: Visibility flags for hiding content from students
+    hide_expression = models.BooleanField(default=False)  # If True, hide the racket expression
+    hide_justification = models.BooleanField(default=False)  # If True, hide the rule/justification
     
     class Meta:
         ordering = ['side', 'line_number']

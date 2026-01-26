@@ -142,17 +142,28 @@ class TwoSidedProof(ProofComponent):
         - Last non-empty lines of LHS and RHS must be the same
         - No blank lines except possibly the last line (for user input)
         - Special case: If both sides have only premises (no derivations), compare first lines
-        A line is considered blank if either its expression OR rule is empty
+        - NO lines can have hidden expressions or justifications
         """
         lhs_lines = self.LHS.proofLines
         rhs_lines = self.RHS.proofLines
         
+        # Helper to check if a line is blank
+        def is_blank(line):
+            expr_blank = not line.exprTree or not str(line.exprTree).strip()
+            rule_blank = not line.appliedRule or not line.appliedRule.strip()
+            return expr_blank or rule_blank
+
+        # Helper to check if line has hidden fields
+        def is_hidden(line):
+            return getattr(line, 'hide_expression', False) or getattr(line, 'hide_justification', False)
+
         # Special case: If both sides have exactly 1 line (just premise), compare them
         if len(lhs_lines) == 1 and len(rhs_lines) == 1:
             lhs_expr = str(lhs_lines[0].exprTree).strip() if lhs_lines[0].exprTree else ""
             rhs_expr = str(rhs_lines[0].exprTree).strip() if rhs_lines[0].exprTree else ""
             
-            if lhs_expr and rhs_expr and lhs_expr == rhs_expr:
+            # Check visibility for the single lines
+            if lhs_expr and rhs_expr and lhs_expr == rhs_expr and not is_hidden(lhs_lines[0]) and not is_hidden(rhs_lines[0]):
                 self.isComplete = True
                 return True
             else:
@@ -162,13 +173,6 @@ class TwoSidedProof(ProofComponent):
         if not lhs_lines or not rhs_lines:
             self.isComplete = False
             return False
-        
-        # Helper to check if a line is blank (either expr or rule is empty)
-        def is_blank(line):
-            expr_blank = not line.exprTree or not str(line.exprTree).strip()
-            rule_blank = not line.appliedRule or not line.appliedRule.strip()
-            is_blank_result = expr_blank or rule_blank
-            return is_blank_result
         
         # Get last non-blank line from each side
         lhs_last = None
@@ -182,23 +186,35 @@ class TwoSidedProof(ProofComponent):
             if not is_blank(line):
                 rhs_last = str(line.exprTree).strip()
                 break
-        
+
         # Check if last non-blank lines match
         if not lhs_last or not rhs_last or lhs_last != rhs_last:
             self.isComplete = False
             return False
         
-        # Check for internal blank lines (all but possibly the last should be non-blank)
-        for i, line in enumerate(lhs_lines[:-1]):  # All except last
+        # Check for internal blank lines
+        for i, line in enumerate(lhs_lines[:-1]): 
             if is_blank(line):
                 self.isComplete = False
                 return False
         
-        for i, line in enumerate(rhs_lines[:-1]):  # All except last
+        for i, line in enumerate(rhs_lines[:-1]): 
             if is_blank(line):
                 self.isComplete = False
                 return False
-        
+
+        # --- NEW CHECK: Fail if ANY non-blank line is hidden ---
+        for line in lhs_lines:
+            if not is_blank(line) and is_hidden(line):
+                self.isComplete = False
+                return False
+
+        for line in rhs_lines:
+            if not is_blank(line) and is_hidden(line):
+                self.isComplete = False
+                return False
+        # -------------------------------------------------------
+
         self.isComplete = True
         return True
     
@@ -290,6 +306,8 @@ class ERProofLine(ProofComponent):
         self.appliedRule = None # stores the rule that was applied to generate this line
         self.appliedRuleNodeId = None # stores the node ID where the rule was applied on the previous line
         self.resultNodeId = None # stores the node ID of the changed portion in this line's result
+        self.hide_expression = False
+        self.hide_justification = False
 
         # Special case: allow blank lines (used for cleared lines)
         if goal == "" or goal is None or (isinstance(goal, str) and goal.strip() == ""):

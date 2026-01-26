@@ -1,3 +1,6 @@
+import json
+import re
+import traceback
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -5,9 +8,12 @@ from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
 from dill import dumps, loads
 from django.core.cache import cache
+from django.db import models
+
 from .models import EquationalProof, EquationalProofLine
-from .serializers import EquationalProofSerializer
+from .serializers import EquationalProofSerializer, GenericSerializer
 from proofs.views import use_uploaded_generic
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
 # ER Engine imports
 from expression_tree.ERProofEngine import TwoSidedProof, ERProof, ERProofLine
@@ -73,7 +79,8 @@ def reload_proof_lines_from_db(proof_obj, proof_id):
 
 
 def save_proof_line_to_db(proof_id, side, racket, rule='', start_position=0, line_number=0, 
-                         substitution='', selected_node=0, result_node=0):
+                         substitution='', selected_node=0, result_node=0,
+                         hide_expression=False, hide_justification=False):
     """Save or update a proof line in the database"""
     from .models import EquationalProofLine
     
@@ -99,7 +106,9 @@ def save_proof_line_to_db(proof_id, side, racket, rule='', start_position=0, lin
             'substitution': substitution,
             'start_position': start_position,
             'selected_node': selected_node,
-            'result_node': result_node
+            'result_node': result_node,
+            'hide_expression': hide_expression,
+            'hide_justification': hide_justification
         }
     )
 
@@ -302,7 +311,7 @@ def apply_rule(request):
                     start_position=start_position,
                     line_number=calculated_line_number,
                     substitution=substitution or '',
-                    selected_node=None,
+                    selected_node=start_position,
                     result_node=result_node_id
                 )
         
@@ -316,6 +325,7 @@ def apply_rule(request):
         }, status=status.HTTP_200_OK)
         
     except Exception as e:
+        traceback.print_exc()
         return Response({
             "isValid": False,
             "errors": [str(e)]
@@ -468,7 +478,12 @@ def delete_line(request, side, line_number):
 def check_completion(request):
     """
     Check if the proof is complete.
-    Returns: { isComplete: bool }
+    
+    A proof is complete if:
+    1. The proof engine says it's complete (LHS = RHS)
+    2. There are no hidden fields remaining
+    
+    Returns: { isComplete: bool, message: str }
     """
     user = request.user
     proof_obj, proof_id = get_or_set_equational_obj(user)
@@ -477,8 +492,20 @@ def check_completion(request):
         # Reload proof lines from database
         reload_proof_lines_from_db(proof_obj, proof_id)
         
-        # Check if proof is complete
-        is_complete = proof_obj.checkComplete()
+        # Check if proof is mathematically complete (LHS = RHS)
+        is_mathematically_complete = proof_obj.checkComplete()
+        
+        # Check if there are any hidden fields remaining
+        has_hidden_fields = False
+        if proof_id:
+            has_hidden_fields = EquationalProofLine.objects.filter(
+                proof_id=proof_id
+            ).filter(
+                models.Q(hide_expression=True) | models.Q(hide_justification=True)
+            ).exists()
+        
+        # Proof is only complete if mathematically correct AND no hidden fields
+        is_complete = is_mathematically_complete and not has_hidden_fields
         
         # Update database
         if proof_id:
@@ -497,47 +524,533 @@ def check_completion(request):
             "error": str(e)
         }, status=status.HTTP_400_BAD_REQUEST)
 
-
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_proof_lines(request):
-    """
-    Get all proof lines for both LHS and RHS.
-    Returns: { LHS: [...], RHS: [...] }
-    """
+    """Get all proof lines AND metadata"""
     user = request.user
     _, proof_id = get_or_set_equational_obj(user)
     
     if not proof_id:
-        return Response({
-            "LHS": [],
-            "RHS": []
-        }, status=status.HTTP_200_OK)
+        return Response({"hasProof": False}, status=status.HTTP_200_OK)
     
     try:
+        proof = EquationalProof.objects.get(id=proof_id, user=user)
+        
+        # Fetch lines
         lhs_lines = EquationalProofLine.objects.filter(
-            proof_id=proof_id,
-            side='LHS'
-        ).order_by('line_number').values(
-            'line_number', 'racket', 'rule', 'json_tree',
-            'selected_node', 'result_node', 'substitution'
-        )
+            proof_id=proof_id, side='LHS'
+        ).order_by('line_number')
         
         rhs_lines = EquationalProofLine.objects.filter(
-            proof_id=proof_id,
-            side='RHS'
-        ).order_by('line_number').values(
-            'line_number', 'racket', 'rule', 'json_tree',
-            'selected_node', 'result_node', 'substitution'
-        )
+            proof_id=proof_id, side='RHS'
+        ).order_by('line_number')
+        
+        # Convert to camelCase for frontend
+        def format_line(line):
+            return {
+                'lineNumber': line.line_number,  # camelCase!
+                'racket': line.racket,
+                'rule': line.rule,
+                'jsonTree': line.json_tree,
+                'selectedNode': line.selected_node,  # camelCase!
+                'resultNode': line.result_node,      # camelCase!
+                'substitution': line.substitution,
+                'startPosition': line.start_position,  # camelCase!
+                'hide_expression': line.hide_expression,
+                'hide_justification': line.hide_justification
+            }
         
         return Response({
-            "LHS": list(lhs_lines),
-            "RHS": list(rhs_lines)
+            "hasProof": True,
+            "lhsAnchorGoal": proof.lhs_goal,
+            "rhsAnchorGoal": proof.rhs_goal,
+            "proofName": proof.name,
+            "tag": proof.tag,
+            "LHS": [format_line(line) for line in lhs_lines],
+            "RHS": [format_line(line) for line in rhs_lines]
+        }, status=status.HTTP_200_OK)
+        
+    except EquationalProof.DoesNotExist:
+        return Response({"hasProof": False}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+def update_line_metadata(user, side, line_number, updates):
+    """
+    Update metadata (visibility) for a specific line in the cache.
+    Creates the structure if it doesn't exist.
+    """
+    key = f"equational_obj_{user.username}"
+    cached_data = cache.get(key)
+    
+    if not cached_data or not isinstance(cached_data, dict):
+        return # Cannot update missing cache
+        
+    # Initialize structure
+    if 'lines_meta' not in cached_data:
+        cached_data['lines_meta'] = {'LHS': {}, 'RHS': {}}
+        
+    side_key = side.upper()
+    if side_key not in cached_data['lines_meta']:
+        cached_data['lines_meta'][side_key] = {}
+        
+    # Get existing meta for this line or create new
+    current_meta = cached_data['lines_meta'][side_key].get(line_number, {})
+    current_meta.update(updates)
+    
+    # Save back
+    cached_data['lines_meta'][side_key][line_number] = current_meta
+    cache.set(key, cached_data, timeout=None)
+
+def get_line_metadata(cached_data, side, line_number):
+    """Safely retrieve metadata for a line."""
+    try:
+        return cached_data.get('lines_meta', {}).get(side.upper(), {}).get(line_number, {})
+    except AttributeError:
+        return {}
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def toggle_visibility(request):
+    user = request.user
+    
+    # 1. Get the session object
+    proof_obj, proof_id = get_or_set_equational_obj(user)
+    
+    if not proof_id:
+        return Response({"error": "Session expired or invalid proof ID"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        reload_proof_lines_from_db(proof_obj, proof_id)
+
+        side = request.data.get('side')
+        line_number = request.data.get('lineNumber')
+        field = request.data.get('field') 
+        
+        if not side or line_number is None or field not in ['expression', 'justification']:
+            return Response({"error": "Invalid parameters"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        side = side.upper()
+        target_proof = proof_obj.LHS if side == 'LHS' else proof_obj.RHS
+        
+        # Now this check will pass because proofLines is fully populated
+        if line_number < 0 or line_number >= len(target_proof.proofLines):
+            return Response({
+                "error": f"Line number {line_number} out of bounds. Total lines: {len(target_proof.proofLines)}"
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        line_obj = target_proof.proofLines[line_number]
+        
+        # Toggle attribute in Memory
+        attr_name = 'hide_expression' if field == 'expression' else 'hide_justification'
+        current_val = getattr(line_obj, attr_name, False)
+        new_val = not current_val
+        setattr(line_obj, attr_name, new_val)
+        
+        # Save updated object to Cache
+        save_equational_obj_to_cache(user, proof_obj, proof_id)
+        
+        # Update Database
+        try:
+            db_line = EquationalProofLine.objects.get(
+                proof_id=proof_id, side=side, line_number=line_number
+            )
+            if field == 'expression':
+                db_line.hide_expression = new_val
+            else:
+                db_line.hide_justification = new_val
+            db_line.save()
+        except EquationalProofLine.DoesNotExist:
+            pass 
+
+        return Response({
+            "success": True,
+            "line_number": line_number,
+            "side": side,
+            "field": field,
+            "new_value": new_val
         }, status=status.HTTP_200_OK)
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+# views.py - Fixed validation endpoint
+def normalize_whitespace(text):
+    """Remove all whitespace for comparison"""
+    return re.sub(r'\s+', '', text.strip())
+
+def compare_racket_exact(student_input, actual_value):
+    """
+    Compare two racket expressions for exact match (whitespace-agnostic).
+    Order matters: (+ 2 1) != (+ 1 2)
+    """
+    return normalize_whitespace(student_input) == normalize_whitespace(actual_value)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def validate_hidden_field(request):
+    """
+    Validate student input against hidden field value.
+    Validates Rule + Selection OR Expression.
+    """
+    from .models import EquationalProofLine
+    
+    # 1. Validate User Context
+    user = request.user
+    cached = cache.get(f"equational_obj_{user.username}")
+    
+    if cached is None:
+        return Response({"error": "No active proof session found. Please reload."}, status=status.HTTP_400_BAD_REQUEST)
+    
+    proof_id = cached.get('proof_id')
+    if not proof_id:
+        return Response({"error": "Proof ID missing from session."}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        # 2. Extract Data
+        side = request.data.get('side')
+        line_number = request.data.get('lineNumber')
+        student_expression = request.data.get('studentExpression')
+        student_rule = request.data.get('studentRule')
+        student_selected = request.data.get('studentSelectedNode') 
+        
+        if not side or line_number is None:
+            return Response({"error": f"Missing parameters."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 3. Get Database Line
+        try:
+            line = EquationalProofLine.objects.get(
+                proof_id=proof_id, side=side.upper(), line_number=line_number
+            )
+        except EquationalProofLine.DoesNotExist:
+            return Response({"error": "Line not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        errors = []
+        changed = False
+        is_correct = False
+        
+        # 4. Logic: Master Key Validation (Rule + Selection)
+        # If the student provides the correct Rule AND Selection, they have "derived" the line.
+        # This grants permission to see BOTH the Expression and the Justification.
+        if student_rule is not None:
+            rule_text_match = compare_racket_exact(student_rule, line.rule)
+            
+            selection_match = True
+            # Only check selection if backend line HAS a start_position (premise doesn't)
+            if line.start_position is not None and student_selected is not None:
+                 if int(student_selected) != int(line.start_position):
+                     selection_match = False
+                     errors.append(f"Incorrect selection.")
+
+            if rule_text_match and selection_match:
+                # Correct derivation! Reveal everything hidden on this line.
+                if line.hide_justification:
+                    line.hide_justification = False
+                    changed = True
+                if line.hide_expression:
+                    line.hide_expression = False
+                    changed = True
+                is_correct = True
+            elif not rule_text_match:
+                errors.append("Rule does not match.")
+        
+        # 5. Logic: Expression Direct Match (Optional fallback)
+        # Only runs if 'studentExpression' was explicitly sent (frontend usually doesn't for footer)
+        if student_expression is not None:
+            if compare_racket_exact(student_expression, line.racket):
+                line.hide_expression = False
+                changed = True
+                is_correct = True
+            elif not is_correct: # Don't add error if Rule check already succeeded
+                errors.append("Expression does not match.")
+
+        if changed:
+            line.save()
+        
+        # Determine success message
+        message = "Correct!" if is_correct and not errors else None
+        
         return Response({
-            "error": str(e)
-        }, status=status.HTTP_400_BAD_REQUEST)
+            "isValid": is_correct,
+            "errors": errors,
+            # Return current state of flags (so frontend updates correctly)
+            "hide_expression": line.hide_expression,
+            "hide_justification": line.hide_justification,
+            "message": message
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        traceback.print_exc()
+        return Response({"error": f"Server Error: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(["GET"])
+def get_user_proofs(request):
+    user = request.user
+    page = request.GET.get("page", 1)
+    query = request.GET.get("query", "")
+    proof_data = user_proofs(user, page, query)
+
+    return Response(proof_data, status=status.HTTP_200_OK)
+
+
+def user_proofs(user, page=1, query="", proofs_per_page=12):
+    proofs = EquationalProof.objects.filter(user=user, name__contains=query).order_by(
+        "-created_at"
+    )
+    paginator = Paginator(proofs, proofs_per_page)
+
+    try:
+        paginated_proofs = paginator.page(int(page))
+    except PageNotAnInteger:
+        paginated_proofs = paginator.page(1)
+    except EmptyPage:
+        paginated_proofs = paginator.page(paginator.num_pages)
+
+    proof_data = []
+
+    for proof in paginated_proofs:
+        proof_lines = EquationalProofLine.objects.filter(proof=proof)
+        definitions = proof.definition
+        proof_lines_data = []
+        definitions_data = []
+
+        for proof_line in proof_lines:
+            proof_lines_data.append(
+                {
+                    "side": proof_line.side,
+                    "racket": proof_line.racket,
+                    "jsonTree": proof_line.json_tree,
+                    "rule": proof_line.rule,
+                    "substitution": proof_line.substitution,
+                    "startPosition": proof_line.start_position,
+                    "selectedNode": proof_line.selected_node,
+                    "resultNode": proof_line.result_node,
+                    "lineNumber": proof_line.line_number,
+                    "hide_expression": proof_line.hide_expression,
+                    "hide_justification": proof_line.hide_justification
+                }
+            )
+
+        for definition in definitions:
+            definitions_data.append(
+                {
+                    "id": definition.id,
+                    "label": definition.label,
+                    "type": definition.def_type,
+                    "expression": definition.expression,
+                    "notes": definition.notes,
+                    "applied": True,
+                }
+            )
+
+        proof_data.append(
+            {
+                "id": proof.id,
+                "name": proof.name,
+                "tag": proof.tag,
+                "lhs": proof.lhs_goal,
+                "rhs": proof.rhs_goal,
+                "isComplete": proof.is_complete,
+                "proofLines": proof_lines_data,
+                "definitions": definitions_data,
+            }
+        )
+
+    return {
+        "proofs": proof_data,
+        "totalPages": paginator.num_pages,
+        "currentPage": paginated_proofs.number,
+        "hasNext": paginated_proofs.has_next(),
+        "hasPrevious": paginated_proofs.has_previous(),
+    }
+
+
+def user_proof(user, proof_id):
+    """
+    Fetch a single proof from the DB and format it into a dictionary 
+    compatible with the load_proof logic and frontend response.
+    """
+    # 1. Fetch the Proof using the correct field names
+    try:
+        proof = EquationalProof.objects.get(user=user, id=proof_id)
+    except EquationalProof.DoesNotExist:
+        return None
+
+    # 2. Fetch Lines ordered by line number
+    lines = EquationalProofLine.objects.filter(proof=proof).order_by('line_number')
+
+    proof_lines_data = []
+    
+    for line in lines:
+
+        proof_lines_data.append({
+            "side": line.side, 
+            "racket": line.racket,            
+            "jsonTree": line.json_tree,
+            "rule": line.rule,
+            "substitution": line.substitution,
+            "startPosition": line.start_position,
+            "selectedNode": line.selected_node,
+            "resultNode": line.result_node,
+            "lineNumber": line.line_number,
+            "hide_expression": line.hide_expression,
+            "hide_justification": line.hide_justification,
+            "deleted": False 
+        })
+
+    # 3. Fetch Definitions
+    # 'definition' is a JSONField in your model, so access it directly.
+    definitions_data = proof.definition if proof.definition else []
+    
+    # Ensure they have the 'applied' flag for the frontend
+    for d in definitions_data:
+        d['applied'] = True
+
+    # 4. Fetch Generics (Placeholder as per your model)
+    generics_data = [] 
+
+    # 5. Construct the Data Object
+    proof_data = {
+        "id": proof.id,
+        "name": proof.name,
+        "tag": proof.tag,
+        "lhs": proof.lhs_goal,
+        "rhs": proof.rhs_goal,
+        "isComplete": proof.is_complete,
+        "proofLines": proof_lines_data,
+        "definitions": definitions_data,
+        "generics": generics_data
+    }
+
+    return proof_data
+
+
+def load_proof(proof_data):
+    """
+    Reconstructs the TwoSidedProof Python object from the data dictionary.
+    This "hydrates" the engine so checks and next-steps can run.
+    """
+    proof = TwoSidedProof()
+
+    # 1. Load Definitions into Engine
+    definitions = proof_data.get("definitions", [])
+    for definition in definitions:
+        label = definition.get("label")
+        def_type = definition.get("type")
+        expression = definition.get("expression")
+        
+        if label and def_type and expression:
+            proof.LHS.addUDF(label, def_type, expression)
+            proof.RHS.addUDF(label, def_type, expression)
+
+    # 2. Load Generics into Engine
+    generics = proof_data.get("generics", [])
+    for generic in generics:
+        try:
+            proof.LHS.addGeneric(generic["label"], generic["type"], generic["restrictions"])
+            proof.RHS.addGeneric(generic["label"], generic["type"], generic["restrictions"])
+        except Exception:
+            pass
+
+    # 3. Replay Lines into Engine
+    proof_lines = proof_data["proofLines"]
+    
+    # Sort lines by line number to ensure correct order
+    sorted_lines = sorted(proof_lines, key=lambda x: x['lineNumber'])
+
+    for line_data in sorted_lines:
+        is_lhs = line_data['side'] == "LHS"
+        target = proof.LHS if is_lhs else proof.RHS
+        # Determine if this is the premise (Line 0) or a derivation step
+        if len(target.proofLines) == 0:
+            target.addProofLine(line_data["racket"])
+            if target.proofLines:
+                target.proofLines[-1].appliedRule = "Premise"
+        else:
+            subValue = line_data["substitution"] if line_data["substitution"] != "" else None
+
+            # It's a derivation step
+            target.addProofLine(
+                line_data["racket"],
+                line_data["rule"],
+                int(line_data["startPosition"] or 0),
+                subValue
+            )
+            
+        # Restore Metadata (Visibility & Highlight IDs) onto the engine object
+        if target.proofLines:
+            current_line_obj = target.proofLines[-1]
+            current_line_obj.hide_expression = line_data.get("hide_expression", False)
+            current_line_obj.hide_justification = line_data.get("hide_justification", False)
+            current_line_obj.resultNodeId = line_data.get("resultNode", 0)
+            current_line_obj.appliedRuleNodeId = line_data.get("selectedNode", 0)
+
+    return proof
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def get_user_proof(request):
+    user = request.user
+    proof_id = request.data.get('proof_id')
+    
+    if not proof_id:
+        return Response({"error": "Proof ID required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        # 1. Get raw data from DB
+        proof_data = user_proof(user, proof_id)
+        if not proof_data:
+            return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # 2. Rebuild the Engine Object (This generates the valid trees in memory)
+        proof_obj = load_proof(proof_data)
+
+        # -----------------------------------------------------------
+        # 3. AUTO-REPAIR: Save the valid trees back to the Database
+        # -----------------------------------------------------------
+        for side_name in ['LHS', 'RHS']:
+            target_proof = proof_obj.LHS if side_name == 'LHS' else proof_obj.RHS
+            
+            for i, line in enumerate(target_proof.proofLines):
+                try:
+                    # Generate the correct JSON for the frontend
+                    valid_json = makeJson(line.exprTree)
+                    
+                    # Update the database row immediately
+                    EquationalProofLine.objects.filter(
+                        proof_id=proof_id,
+                        side=side_name,
+                        line_number=i
+                    ).update(json_tree=valid_json)
+                    
+                except Exception as e:
+                    print(f"Error repairing tree for {side_name} line {i}: {e}")
+        # -----------------------------------------------------------
+
+        # 4. Save to Cache
+        save_equational_obj_to_cache(user, proof_obj, proof_id)
+
+        return Response({"success": True, "message": "Proof loaded and DB repaired"}, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "load_failed", "message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+def clear_user_proofs(user):
+    cache.delete(f"equational_obj_{user.username}")
+
+@api_view(["POST"])
+def clear_proof(request):
+    user = request.user
+
+    clear_user_proofs(user)
+
+    return Response(status=status.HTTP_200_OK)
 

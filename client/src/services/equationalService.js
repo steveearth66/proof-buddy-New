@@ -78,13 +78,79 @@ const getProofLines = async () => {
   }
 };
 
+const toggleVisibility = async (data) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/toggle-visibility`,
+      data
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error toggling visibility:");
+    throw error;
+  }
+};
+
+const validateHiddenField = async (data) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/validate-hidden-field`,
+      data
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, 'Error validating hidden field:');
+    throw error;
+  }
+};
+
+const getRacketProofs = async ({ page = 1, query = "" }) => {
+  try {
+    const response = await axiosInstance.get(`${API_GATEWAY}/proofs?page=${page}&query=${query}`);
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during getting racket proofs:");
+    throw error;
+  }
+};
+
+const getRacketProof = async (proofId) => {
+  try {
+    // Send POST request to match the view
+    const response = await axiosInstance.post(`${API_GATEWAY}/get-user-proof`, { 
+      proof_id: proofId 
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error loading proof:", error);
+    throw error;
+  }
+};
+
+const clearProof = async () => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/clear-proof`
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during proof clearing:");
+    throw error;
+  }
+};
+
 const equationalService = {
   setCurrentProof,
   applyRule,
   deleteLine,
   substitution,
   checkCompletion,
-  getProofLines
+  getProofLines,
+  toggleVisibility,
+  validateHiddenField,
+  getRacketProofs,
+  getRacketProof,
+  clearProof
 };
 
 export default equationalService;

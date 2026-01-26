@@ -11,6 +11,7 @@ import Form from 'react-bootstrap/Form';
 import { Link } from 'react-router-dom';
 import '../scss/_proof-card.scss';
 import NumberedPagination from '../components/Pagination';
+import equationalService from '../services/equationalService';
 
 export default function Proofs() {
   const [proofObject, setProofObject] = useState({});
@@ -18,7 +19,7 @@ export default function Proofs() {
 
   const queryProofs = async ({ page = 1 }) => {
     try {
-      const proofsData = await erService.getRacketProofs({ query, page });
+      const proofsData = await equationalService.getRacketProofs({ query, page });
       setProofObject(proofsData);
     } catch (error) {
       console.error('Error fetching proofs:', error);
@@ -28,7 +29,7 @@ export default function Proofs() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const proofsData = await erService.getRacketProofs({});
+        const proofsData = await equationalService.getRacketProofs({});
         setProofObject(proofsData);
       } catch (error) {
         console.error('Error fetching proofs:', error);
@@ -92,7 +93,7 @@ function ProofCard(proof) {
       <p>
         <b>Completed:</b> {proof.isComplete ? 'True' : 'False'}
       </p>
-      <Link to={`/er-racket`} state={{ id: proof.id }}>
+      <Link to={`/equational-reasoning-new`} state={{ id: proof.id }}>
         <Button variant="outline-secondary" style={{ width: '100%' }}>
           View Proof
         </Button>
