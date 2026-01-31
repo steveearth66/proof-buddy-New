@@ -53,3 +53,9 @@ For referring to the sample proof mockup tooltip document please view: sample_pr
 For referring to the setup troubleshooting addendum please view: setup_troubleshooting_addendum.md
 
 [Setup Troubleshooting Addendum](setup_troubleshooting_addendum.md)
+
+## Lab 09 Guidance
+
+Refer to the following guidance markdown for this week's Lab 9 experiment: proofbuddy_guidance_for_Lab9.md
+
+[Proof Buddy Guidance for Lab 9](proofbuddy_guidance_for_Lab9.md)
