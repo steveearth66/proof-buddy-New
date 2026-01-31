@@ -75,6 +75,9 @@ const InductionRacket = () => {
   // Case state must be declared first since it's used in computed values below
   const [isAnchor, setIsAnchor] = useState(true);
   
+  // List induction direction: 'up' or 'down' (only relevant when inductionType === 'lists')
+  const [listDirection, setListDirection] = useState('up');
+  
   // Separate proof lines for base and leap cases
   const [baseRacketFields, setBaseRacketFields] = useState({
     LHS: [EMPTY_INITIAL_FIELD],
@@ -1147,14 +1150,34 @@ const InductionRacket = () => {
     const rightGoal = formValues.rHSGoal;
     const selectedGoal = goalForSide || "";
 
-    if (!/^\d+$/.test(inductionValue || "")) {
-      toast.error("Anchor value must be a nonnegative integer.");
-      return;
-    }
-    const parsedVal = parseInt(inductionValue, 10);
-    if (isNaN(parsedVal) || parsedVal < 0) {
-      toast.error("Anchor value must be a nonnegative integer.");
-      return;
+    // Validate anchor value based on induction type
+    if (inductionType === 'lists') {
+      // For lists: accept 'null' or quoted list notation like '(1) or '(1 2 3)
+      const trimmedVal = (inductionValue || "").trim();
+      if (!trimmedVal) {
+        toast.error("Anchor value is required for list induction.");
+        return;
+      }
+      // Accept 'null' or expressions starting with quote for lists
+      const isValidList = trimmedVal === 'null' || 
+                         trimmedVal.startsWith("'(") || 
+                         trimmedVal === "'()" ||
+                         /^\(\s*list\s+/.test(trimmedVal);
+      if (!isValidList) {
+        toast.error("Anchor value for lists must be 'null' or a quoted list like '() or '(1 2 3)");
+        return;
+      }
+    } else {
+      // For integers: must be a nonnegative integer
+      if (!/^\d+$/.test(inductionValue || "")) {
+        toast.error("Anchor value must be a nonnegative integer.");
+        return;
+      }
+      const parsedVal = parseInt(inductionValue, 10);
+      if (isNaN(parsedVal) || parsedVal < 0) {
+        toast.error("Anchor value must be a nonnegative integer.");
+        return;
+      }
     }
 
     if (leapVariable && inductionVariable && leapVariable === inductionVariable) {
@@ -1332,9 +1355,11 @@ const InductionRacket = () => {
 
       if (response && response.data) {
         if (response.status === 201 || response.status === 200) {
-          const genericDef = response.data.generic_definition_created;
+          // Handle generics created by backend (could be multiple for list induction)
+          const genericsCreated = response.data.generics_created || 
+                                  (response.data.generic_definition_created ? [response.data.generic_definition_created] : []);
           
-          if (genericDef) {
+          if (genericsCreated.length > 0) {
             let generics = [];
             try {
               const storedGenerics = sessionStorage.getItem('generics');
@@ -1344,37 +1369,41 @@ const InductionRacket = () => {
               generics = [];
             }
             
-            const newGeneric = {
-              id: genericDef.id || `generic_${Date.now()}`,
-              label: genericDef.name,
-              type: genericDef.type,
-              notes: genericDef.description || `Generic variable for leap case in induction on ${inductionVariable}`,
-              restrictions: {
-                assumption: 'Non-negative',
-                neverNull: false
-              },
-              enabled: true
-            };
-            
-            const existingIndex = generics.findIndex(g => g.label === newGeneric.label);
-            
-            if (existingIndex >= 0) {
-              generics[existingIndex] = newGeneric;
-            } else {
-              generics.push(newGeneric);
-            }
+            // Add all created generics
+            genericsCreated.forEach(genericDef => {
+              const newGeneric = {
+                id: genericDef.id || `generic_${Date.now()}_${genericDef.name}`,
+                label: genericDef.name,
+                type: genericDef.type,
+                notes: genericDef.description || `Generic variable ${genericDef.name}`,
+                restrictions: {
+                  assumption: genericDef.type === 'list' ? 'Non-null' : 'Non-negative',
+                  neverNull: false
+                },
+                enabled: true
+              };
+              
+              const existingIndex = generics.findIndex(g => g.label === newGeneric.label);
+              
+              if (existingIndex >= 0) {
+                generics[existingIndex] = newGeneric;
+              } else {
+                generics.push(newGeneric);
+              }
+            });
             
             sessionStorage.setItem('generics', JSON.stringify(generics));
             
             const event = new CustomEvent('genericsUpdated', {
               detail: { 
-                newGeneric: newGeneric,
+                newGenerics: genericsCreated,
                 allGenerics: generics 
               }
             });
             window.dispatchEvent(event);
             
-            toast.success(`Generic variable "${genericDef.name}" created for leap case`);
+            const genericNames = genericsCreated.map(g => `"${g.name}"`).join(', ');
+            toast.success(`Generic variable${genericsCreated.length > 1 ? 's' : ''} ${genericNames} created`);
           }
 
           const proofId = response.data.proof_id || response.data.id;
@@ -1386,6 +1415,18 @@ const InductionRacket = () => {
             // Initialize the IndProof engine with UDFs, IH and premises
             try {
               const normalizeType = (t) => (t || '').replace(/\s*->\s*/g, ' > ').trim();
+              
+              // Get all enabled generics from sessionStorage (including 'a' and lvar)
+              let genericsForEngine = [];
+              try {
+                const storedGenerics = sessionStorage.getItem('generics');
+                const allGenerics = storedGenerics ? JSON.parse(storedGenerics) : [];
+                genericsForEngine = allGenerics.filter(g => g.enabled);
+              } catch (e) {
+                console.error('Error reading generics for engine:', e);
+                genericsForEngine = [];
+              }
+              
               const engineSetup = await inductionService.setCurrentProof({
                 struct: (inductionType || 'integers').toLowerCase() === 'lists' ? 'list' : 'int',
                 ivar: inductionVariable,
@@ -1397,6 +1438,14 @@ const InductionRacket = () => {
                   label: d.label || d.name || '',
                   type: normalizeType(d.type),
                   expression: d.expression
+                })),
+                generics: genericsForEngine.map(g => ({
+                  label: g.label || g.name || '',
+                  type: normalizeType(g.type),
+                  restrictions: {
+                    assumption: g.assumption || g.restrictions?.assumption || 'None',
+                    neverNull: g.neverNull || g.restrictions?.neverNull || false
+                  }
                 }))
               });
 
@@ -1871,7 +1920,6 @@ const InductionRacket = () => {
                   name="inductionType"
                   value="lists"
                   onChange={handleChange}
-                  disabled
                 />
               </Col>
               <Form.Group as={Col} md="auto" className="er-proof-name">

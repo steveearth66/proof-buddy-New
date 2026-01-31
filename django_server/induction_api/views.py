@@ -14,6 +14,7 @@ from expression_tree.IndProofs import IndProof
 from expression_tree.ERProofEngine import TwoSidedProof, ERProof, ERProofLine
 from expression_tree.ERCommon import makeJson
 from expression_tree.ERRuleset import recursiveReplaceNodes, IH
+from proofs.views import use_uploaded_generic
 
 
 User = get_user_model()
@@ -165,14 +166,22 @@ def start_induction_proof(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # 1. Validate that iVar, aVal, and Lvar are all integers
-        try:
-            anchor_value_int = int(anchor_value)
-        except (ValueError, TypeError):
-            return Response(
-                {"error": "Anchor value (aVal) must be a valid integer"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Determine structure type
+        struct = 'list' if induction_type.lower() == 'lists' else 'int'
+        
+        # 1. Validate anchor value based on structure type
+        if struct == 'int':
+            # For integers: must be a valid integer (but keep as string for model)
+            try:
+                int(anchor_value)  # Validate it's an integer
+            except (ValueError, TypeError):
+                return Response(
+                    {"error": "Anchor value (aVal) must be a valid integer for integer induction"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            # For lists: anchor_value stays as string (e.g., 'null', "'()", etc.)
+            pass
         
         # Check iVar is a valid identifier (single letter or valid variable name)
         if not re.match(r'^[a-zA-Z][a-zA-Z0-9_]*$', induction_variable):
@@ -236,50 +245,99 @@ def start_induction_proof(request):
         from expression_tree.ERRuleset import recursiveReplaceNodes
         import copy
         
+        print(f"=== IH VALIDATION DEBUG ===")
+        print(f"struct: {struct}")
+        print(f"lhs_leap_goal: {lhs_leap_goal}")
+        print(f"rhs_leap_goal: {rhs_leap_goal}")
+        print(f"induction_variable: {induction_variable}")
+        print(f"leap_variable: {leap_variable}")
+        print(f"inductive_hypothesis_lhs: {inductive_hypothesis_lhs}")
+        print(f"inductive_hypothesis_rhs: {inductive_hypothesis_rhs}")
+        
         try:
             # Parse the goals and IH expressions (frontend already validated these)
+            print("Parsing lhs_leap_goal...")
             lhs_goal_line = ERProofLine(lhs_leap_goal, False, None, generics=None)
+            print(f"lhs_goal_line.errLog: {lhs_goal_line.errLog}")
+            
+            print("Parsing rhs_leap_goal...")
             rhs_goal_line = ERProofLine(rhs_leap_goal, False, None, generics=None)
+            print(f"rhs_goal_line.errLog: {rhs_goal_line.errLog}")
             
             # Create expected IH by replacing ivar with lvar in the parsed goals
+            print(f"Parsing leap_variable: {leap_variable}...")
             lvar_node = ERProofLine(leap_variable, False, None, generics=None).exprTree
+            print(f"lvar_node: {lvar_node}")
             
             expected_lhs_ih_tree = copy.deepcopy(lhs_goal_line.exprTree)
             expected_rhs_ih_tree = copy.deepcopy(rhs_goal_line.exprTree)
             
+            print("Replacing nodes in expected IH trees...")
             recursiveReplaceNodes(expected_lhs_ih_tree, [induction_variable], [lvar_node])
             recursiveReplaceNodes(expected_rhs_ih_tree, [induction_variable], [lvar_node])
             
+            print(f"expected_lhs_ih_tree: {expected_lhs_ih_tree}")
+            print(f"expected_rhs_ih_tree: {expected_rhs_ih_tree}")
+            
             # Get the already-parsed IH lines from the validation above
+            print("Parsing inductive_hypothesis_lhs...")
             lhs_ih_line = ERProofLine(inductive_hypothesis_lhs, False, None, generics=None)
+            print(f"lhs_ih_line.errLog: {lhs_ih_line.errLog}")
+            
+            print("Parsing inductive_hypothesis_rhs...")
             rhs_ih_line = ERProofLine(inductive_hypothesis_rhs, False, None, generics=None)
+            print(f"rhs_ih_line.errLog: {rhs_ih_line.errLog}")
             
             # Compare the trees
             if str(lhs_ih_line.exprTree) != str(expected_lhs_ih_tree):
+                print(f"LHS IH mismatch!")
                 return Response(
                     {"error": f"LHS Inductive Hypothesis must be the LHS goal with {induction_variable} replaced by {leap_variable}.\nExpected: {expected_lhs_ih_tree}\nGot: {inductive_hypothesis_lhs}"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
             if str(rhs_ih_line.exprTree) != str(expected_rhs_ih_tree):
+                print(f"RHS IH mismatch!")
                 return Response(
                     {"error": f"RHS Inductive Hypothesis must be the RHS goal with {induction_variable} replaced by {leap_variable}.\nExpected: {expected_rhs_ih_tree}\nGot: {inductive_hypothesis_rhs}"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-                
+            
+            print("IH validation passed!")
+                    
         except Exception as e:
+            print(f"=== EXCEPTION IN IH VALIDATION ===")
+            print(f"Exception type: {type(e).__name__}")
+            print(f"Exception message: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            print(f"=== END EXCEPTION ===")
             return Response(
-                {"error": f"Error validating Inductive Hypothesis: {str(e)}"},
+                {"error": f"Error validating Inductive Hypothesis: {type(e).__name__}: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # 5. Automatically create a generic variable definition for Lvar
-        generic_definition = {
+        # 5. Automatically create generic variable definitions
+        # For leap variable (type based on structure)
+        generic_lvar = {
             'name': leap_variable,
-            'type': 'int',
+            'type': 'list' if struct == 'list' else 'int',
             'body': '<generic>',
             'description': f'Generic variable for leap case in induction on {induction_variable}'
         }
+        
+        generics_to_create = [generic_lvar]
+        
+        # For list induction with UP direction, also create generic 'a' of type 'Any'
+        if struct == 'list':
+            # Note: For now we default to UP direction. Later we'll add UI to select UP/DOWN
+            generic_a = {
+                'name': 'a',
+                'type': 'Any',
+                'body': '<generic>',
+                'description': 'Generic element for cons in list induction'
+            }
+            generics_to_create.append(generic_a)
         
         # Create complete proof data
         proof_data = {
@@ -289,7 +347,7 @@ def start_induction_proof(request):
             'proof_type': 'induction_int',
             'induction_type': induction_type,
             'induction_variable': induction_variable,
-            'anchor_value': anchor_value_int,
+            'anchor_value': str(anchor_value),  # Store as string in database
             'leap_variable': leap_variable,
             'lhs_leap_goal': lhs_leap_goal,
             'rhs_leap_goal': rhs_leap_goal,
@@ -301,7 +359,7 @@ def start_induction_proof(request):
             'inductive_hypothesis_rhs' : inductive_hypothesis_rhs,
             'current_goal': 'base_case',
             'is_valid': True,
-            'definition': [generic_definition],
+            'definition': generics_to_create,
         }
         
         serializer = InductionProofSerializer(data=proof_data)
@@ -340,7 +398,8 @@ def start_induction_proof(request):
                     "proof_id": proof.id,
                     "proof_name": proof.name,
                     "proof_tag": proof.tag,
-                    "generic_definition_created": generic_definition,
+                    "generic_definition_created": generic_lvar,  # For backwards compatibility
+                    "generics_created": generics_to_create,  # All generics created
                     "data": serializer.data
                 },
                 status=status.HTTP_201_CREATED
@@ -534,6 +593,15 @@ def set_current_proof(request):
         lhsPremise = data.get("lhsPremise")
         rhsPremise = data.get("rhsPremise")
         definitions = data.get("definitions", [])
+        generics = data.get("generics", [])
+
+        print(f"=== SET_CURRENT_PROOF DEBUG ===")
+        print(f"struct: {struct}")
+        print(f"ivar: {ivar}")
+        print(f"aval: {aval}")
+        print(f"lvar: {lvar}")
+        print(f"generics received: {generics}")
+        print(f"definitions count: {len(definitions)}")
 
         # Basic validation
         missing = [k for k in ("ivar","aval","lvar","lhsPremise","rhsPremise") if not data.get(k)]
@@ -549,6 +617,28 @@ def set_current_proof(request):
         ind.lvar = lvar
         ind.lhsPremise = lhsPremise
         ind.rhsPremise = rhsPremise
+
+        # Add generics to both baseCase and leapStep
+        print(f"Adding generics to engine...")
+        errors = []
+        for g in generics:
+            print(f"Processing generic: {g}")
+            try:
+                use_uploaded_generic(user, ind.baseCase, g)
+                use_uploaded_generic(user, ind.leapStep, g)
+                print(f"Successfully added generic: {g.get('label')}")
+            except Exception as e:
+                error_msg = f"Error adding generic {g.get('label')}: {str(e)}"
+                print(error_msg)
+                import traceback
+                traceback.print_exc()
+                errors.append(error_msg)
+        
+        if errors:
+            return Response({
+                "isValid": False,
+                "errors": errors
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         # Add user definitions (UDF) to both baseCase and leapStep rule sets
         for d in definitions:
@@ -610,14 +700,23 @@ def set_current_proof(request):
         ind.baseCase.ruleSet['apply']['IH'] = ih_rule
         ind.leapStep.ruleSet['apply']['IH'] = ih_rule
 
-        # Prepare leap step: add generic for lvar, build premises ivar -> (+ lvar 1) for int structure
+        # Prepare leap step: add generic for lvar, build premises with proper successor
         try:
             ind.leapStep.addGeneric(lvar, struct)
         except Exception:
             # ignore if invalid; frontend can still proceed applying IH/rules
             pass
 
-        leap_succ_expr = f"(+ {lvar} 1)" if struct == "int" else None
+        # Build leap successor expression based on structure
+        if struct == "int":
+            leap_succ_expr = f"(+ {lvar} 1)"
+        elif struct == "list":
+            # For list UP induction: (cons a K) where a is generic Any, K is lvar
+            # Note: We created generic 'a' in start_induction_proof
+            leap_succ_expr = f"(cons a {lvar})"
+        else:
+            leap_succ_expr = None
+            
         if leap_succ_expr:
             leap_succ_line_L = ERProofLine(leap_succ_expr, ind.leapStep.LHS.debug, ind.leapStep.LHS.ruleSet, generics=ind.leapStep.LHS.generics)
             leap_succ_line_R = ERProofLine(leap_succ_expr, ind.leapStep.RHS.debug, ind.leapStep.RHS.ruleSet, generics=ind.leapStep.RHS.generics)
