@@ -120,158 +120,164 @@ const EquationalReasoningNew = () => {
     const [errors, setErrors] = useState([]);
     // Start proof
     const handleStartProof = async (e) => {
-    e.preventDefault();
-    setErrors([]);
+      e.preventDefault();
+      setErrors([]);
 
-    if (!formValues.proofName.trim()) {
-      setErrors(["Name is required"]);
-      return;
-    }
-
-    if (!formValues.lHSGoal.trim() || !formValues.rHSGoal.trim()) {
-      setErrors(["Both LHS and RHS goals are required"]);
-      return;
-    }
-
-    if (formValues.lHSGoal.trim() === formValues.rHSGoal.trim()) {
-      setErrors(["LHS and RHS goals cannot be identical"]);
-      return;
-    }
-
-    try {
-      // -----------------------------------------------------------
-      // 1. FORCE CLEAN SLATE (The Fix)
-      // -----------------------------------------------------------
-      // We explicitly clear the previous proof session. 
-      // This forces the backend to drop the old cached ID.
-      try {
-          await equationalService.clearProof();
-      } catch (ignore) {
-          // Ignore errors if there was no active proof to clear
+      // --- Basic Form Validation ---
+      if (!formValues.proofName.trim()) {
+        setErrors(["Name is required"]);
+        return;
       }
-      
-      // Clear frontend memory of the old ID
-      sessionStorage.removeItem('current_proof_id');
-      sessionStorage.removeItem('erProofActive');
-      
-      // Clear the browser history state so we don't "remember" the old ID from navigation
-      window.history.replaceState({}, document.title);
-      // -----------------------------------------------------------
-
-      // 2. Run checkGoal validation
-      await checkGoal(
-        showSide,
-        formValues[`${showSide[0].toLowerCase()}HSGoal`],
-        formValues.proofName,
-        formValues.proofTag,
-        formValues.lHSGoal,
-        formValues.rHSGoal
-      );
-      
-      const normalizeType = (t) => (t || '').replace(/\s*->\s*/g, ' > ').trim();
-      let definitions = [];
-      let generics = [];
-      try {
-        const storedDefs = JSON.parse(sessionStorage.getItem('definitions')) || [];
-        definitions = storedDefs.filter(d => d.applied && d.expression);
-        
-        const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
-        generics = storedGenerics.filter(g => g.enabled);
-      } catch (e) {
-        console.error('Error reading session definitions/generics:', e);
-        definitions = [];
-        generics = [];
+      if (!formValues.lHSGoal.trim() || !formValues.rHSGoal.trim()) {
+        setErrors(["Both LHS and RHS goals are required"]);
+        return;
       }
-      
-      // 3. Initialize backend (Now guaranteed to be a fresh session)
-      const response = await equationalService.setCurrentProof({
-        lhsPremise: formValues.lHSGoal.trim(),
-        rhsPremise: formValues.rHSGoal.trim(),
-        name: formValues.proofName,
-        tag: formValues.proofTag,
-        definitions: definitions.map(d => ({
-                  label: d.label || d.name || '',
-                  type: normalizeType(d.type),
-                  expression: d.expression
-                })),
-        generics: generics.map(g => ({
-                  label: g.label || g.name || '',
-                  type: normalizeType(g.type),
-                  restrictions: {
-                    assumption: g.assumption || g.restrictions?.assumption || 'None',
-                    neverNull: g.neverNull || g.restrictions?.neverNull || false
-                  }
-                }))
-      });
+      if (formValues.lHSGoal.trim() === formValues.rHSGoal.trim()) {
+        setErrors(["LHS and RHS goals cannot be identical"]);
+        return;
+      }
 
-      if (response.isValid) {
-        // 4. Construct the Premise lines
-        const lhsPremiseLine = {
-            racket: formValues.lHSGoal.trim(),
-            rule: "Premise",
-            lineNumber: 0,
-            selectedNode: 0,
-            startPosition: 0,
-            jsonTree: response.lhsJsonTree || {},
-            deleted: false
-        };
-
-        const rhsPremiseLine = {
-            racket: formValues.rHSGoal.trim(),
-            rule: "Premise",
-            lineNumber: 0,
-            selectedNode: 0,
-            startPosition: 0,
-            jsonTree: response.rhsJsonTree || {},
-            deleted: false
-        };
-
-        setRacketRuleFields({
-          LHS: [lhsPremiseLine, EMPTY_INITIAL_FIELD],
-          RHS: [rhsPremiseLine, EMPTY_INITIAL_FIELD]
-        });
-        
-        setLeftPremise(prev => ({ ...prev, ...lhsPremiseLine }));
-        setRightPremise(prev => ({ ...prev, ...rhsPremiseLine }));
-
-        setCurrentLHS(formValues.lHSGoal.trim());
-        setCurrentRHS(formValues.rHSGoal.trim());
-        
-        if (response.proofId || response.id) {
-          sessionStorage.setItem('current_proof_id', response.proofId || response.id);
-          sessionStorage.setItem('erProofActive', 'true');
+      try {
+        // -----------------------------------------------------------
+        // 1. FORCE CLEAN SLATE (The Fix)
+        // -----------------------------------------------------------
+        // We explicitly clear the previous proof session. 
+        // This forces the backend to drop the old cached ID.
+        try {
+            await equationalService.clearProof();
+        } catch (ignore) {
+            // Ignore errors if there was no active proof to clear
         }
         
-        // Clear any previous validation error messages
-        clearGoalValidationMessage('LHS');
-        clearGoalValidationMessage('RHS');
+        // Clear frontend memory of the old ID
+        sessionStorage.removeItem('current_proof_id');
+        sessionStorage.removeItem('erProofActive');
+      
+        // Clear the browser history state so we don't "remember" the old ID from navigation
+        window.history.replaceState({}, document.title);
+
+        // 2. Run checkGoal validation
+        await checkGoal(
+          showSide,
+          formValues[`${showSide[0].toLowerCase()}HSGoal`],
+          formValues.proofName,
+          formValues.proofTag,
+          formValues.lHSGoal,
+          formValues.rHSGoal
+        );
         
-        setProofStarted(true);
-        toast.success("Proof started!");
+        // 3. PREPARE DEFINITIONS & GENERICS
+        const normalizeType = (t) => (t || '').replace(/\s*->\s*/g, ' > ').trim();
+        let definitions = [];
+        let generics = [];
+        try {
+          const storedDefs = JSON.parse(sessionStorage.getItem('definitions')) || [];
+          definitions = storedDefs.filter(d => d.applied && d.expression);
+          
+          const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
+          generics = storedGenerics.filter(g => g.enabled);
+        } catch (e) {
+          console.error('Error reading session definitions:', e);
+          definitions = [];
+          generics = [];
+        }
         
-      } else {
-        setErrors(response.errors || ["Failed to start proof"]);
+        // 4. INITIALIZE ENGINE (setCurrentProof)
+        // This validates the premises mathematically and returns the JSON Trees we need for the DB.
+        const response = await equationalService.setCurrentProof({
+          lhsPremise: formValues.lHSGoal.trim(),
+          rhsPremise: formValues.rHSGoal.trim(),
+          name: formValues.proofName,
+          tag: formValues.proofTag,
+          definitions: definitions.map(d => ({
+              label: d.label || d.name || '',
+              type: normalizeType(d.type),
+              expression: d.expression
+          })),
+          generics: generics.map(g => ({
+              label: g.label || g.name || '',
+              type: normalizeType(g.type),
+              restrictions: {
+              assumption: g.assumption || g.restrictions?.assumption || 'None',
+              neverNull: g.neverNull || g.restrictions?.neverNull || false
+              }
+          }))
+        });
+
+        if (response.isValid) {
+          // 5. Construct the Premise lines
+          const lhsPremiseLine = {
+              racket: formValues.lHSGoal.trim(),
+              rule: "Premise",
+              lineNumber: 0,
+              selectedNode: 0,
+              startPosition: 0,
+              jsonTree: response.lhsJsonTree || {},
+              deleted: false
+          };
+
+          const rhsPremiseLine = {
+              racket: formValues.rHSGoal.trim(),
+              rule: "Premise",
+              lineNumber: 0,
+              selectedNode: 0,
+              startPosition: 0,
+              jsonTree: response.rhsJsonTree || {},
+              deleted: false
+          };
+
+          // 6. SAVE TO DATABASE
+          const proofPayload = {
+              name: formValues.proofName,
+              tag: formValues.proofTag,
+              lHSGoal: formValues.lHSGoal.trim(),
+              rHSGoal: formValues.rHSGoal.trim(),
+              leftPremise: { ...lhsPremiseLine },
+              rightPremise: { ...rhsPremiseLine },
+              leftRacketsAndRules: [],
+              rightRacketsAndRules: [],
+              definitions: definitions,
+              generics: generics
+          };
+
+          const saveResponse = await equationalService.saveProof(proofPayload);
+          // 7. STORE PROOF ID
+          if (saveResponse && saveResponse.proofId) {
+              // call getRacketProof to update the cache
+              await equationalService.getRacketProof(saveResponse.proofId);
+              sessionStorage.setItem('current_proof_id', saveResponse.proofId);
+              sessionStorage.setItem('erProofActive', 'true');
+          } else {
+              throw new Error("Database save failed to return a Proof ID");
+          }
+
+          // 8. UPDATE UI STATE
+          setRacketRuleFields({
+            LHS: [lhsPremiseLine, EMPTY_INITIAL_FIELD],
+            RHS: [rhsPremiseLine, EMPTY_INITIAL_FIELD]
+          });
+          
+          setLeftPremise(prev => ({ ...prev, ...lhsPremiseLine }));
+          setRightPremise(prev => ({ ...prev, ...rhsPremiseLine }));
+          setCurrentLHS(formValues.lHSGoal.trim());
+          setCurrentRHS(formValues.rHSGoal.trim());
+          
+          clearGoalValidationMessage('LHS');
+          clearGoalValidationMessage('RHS');
+          setProofStarted(true);
+          toast.success("Proof started!");
+          
+        } else {
+          setErrors(response.errors || ["Failed to start proof"]);
+        }
+      } catch (error) {
+        console.error("Error starting proof:", error);
+        const errorMessages = error.response?.data?.errors || 
+                              (error.response?.data?.error ? [error.response.data.error] : null) ||
+                              ["Error starting proof"];
+        setErrors(errorMessages);
       }
-    } catch (error) {
-      console.error("Error starting proof:", error);
-      const errorMessages = error.response?.data?.errors || 
-                            (error.response?.data?.error ? [error.response.data.error] : null) ||
-                            ["Error starting proof"];
-      setErrors(errorMessages);
-    }
-  };
-
-    // const [proofValidationMessage, setProofValidationMessage] = useState({
-    //     name: "",
-    //     tag: ""
-    // });
-
-//     const clearProofValidationMessage = useCallback(() => {
-//     setProofValidationMessage({
-//       name: "",
-//       tag: ""
-//     });
-//   }, []);
+    };
     
     // Computed current racketRuleFields
     const [racketRuleFields, setRacketRuleFields] = useState({
@@ -279,22 +285,7 @@ const EquationalReasoningNew = () => {
         RHS: [EMPTY_INITIAL_FIELD]
       });
   
-    // Induction-specific state (no dependency on useRacketRuleFields hook)
-    //const [validationErrors, setValidationErrors] = useState({ LHS: [], RHS: [] });
     const [SubErrors, setSubErrors] = useState([]);
-    //const [showSubstitution, setShowSubstitution] = useState(false);
-  
-    // const clearValidationErrors = useCallback(() => {
-    //     setValidationErrors({ LHS: [], RHS: [] });
-    // }, []);
-
-    // const closeSubstitution = useCallback(() => {
-    //     setShowSubstitution(false);
-    // }, []);
-
-    // const updateShowSubstitution = useCallback(() => {
-    //     setShowSubstitution(true);
-    // }, []);
 
   const [lhsValue, setLhsValue] = useState("");
   const [rhsValue, setRhsValue] = useState("");

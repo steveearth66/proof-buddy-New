@@ -11,7 +11,6 @@ from django.core.cache import cache
 from django.db import models
 
 from .models import EquationalProof, EquationalProofLine
-from .serializers import EquationalProofSerializer, GenericSerializer
 from proofs.views import use_uploaded_generic
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
@@ -838,11 +837,11 @@ def user_proofs(user, page=1, query="", proofs_per_page=12):
         for definition in definitions:
             definitions_data.append(
                 {
-                    "id": definition.id,
-                    "label": definition.label,
-                    "type": definition.def_type,
-                    "expression": definition.expression,
-                    "notes": definition.notes,
+                    "id": definition.get("id"),
+                    "label": definition.get("label"),
+                    "type": definition.get("def_type"),
+                    "expression": definition.get("expression"),
+                    "notes": definition.get("notes", ""),
                     "applied": True,
                 }
             )
@@ -1054,3 +1053,184 @@ def clear_proof(request):
 
     return Response(status=status.HTTP_200_OK)
 
+# ========================
+# Save/Create Proof Logic
+# ========================
+
+def get_or_create_proof(data, user, definitions, generics):
+    """
+    Finds an existing proof by name/tag to update, or creates a new one.
+    Then populates it with lines and definitions.
+    """
+    # 1. Try to find existing proof to update
+    proof_instance = EquationalProof.objects.filter(
+        name=data.get("name"), 
+        tag=data.get("tag"), 
+        user=user
+    ).first()
+
+    if proof_instance:
+        # Update goals if they changed
+        proof_instance.lhs_goal = data.get("lHSGoal", proof_instance.lhs_goal)
+        proof_instance.rhs_goal = data.get("rHSGoal", proof_instance.rhs_goal)
+        proof_instance.save()
+        
+        # Repopulate lines
+        add_data_to_proof(data, proof_instance, definitions, generics)
+        return proof_instance
+
+    # 2. Create new proof if not found
+    proof_serializer_data = {
+        "name": data.get("name"),
+        "tag": data.get("tag"),
+        "lhs_goal": data.get("lHSGoal"),
+        "rhs_goal": data.get("rHSGoal"),
+        "user": user.id
+    }
+
+    # We manually create the object to avoid complex Serializer context issues with 'user'
+    # validation, though Serializer usage is also valid.
+    try:
+        proof_instance = EquationalProof.objects.create(
+            user=user,
+            name=proof_serializer_data["name"],
+            tag=proof_serializer_data["tag"],
+            lhs_goal=proof_serializer_data["lhs_goal"],
+            rhs_goal=proof_serializer_data["rhs_goal"]
+        )
+        add_data_to_proof(data, proof_instance, definitions, generics)
+        return proof_instance
+    except Exception as e:
+        print(f"Error creating proof: {e}")
+        return None
+
+
+def create_proof_line(proof, side, line_number, data, is_premise=False):
+    """
+    Helper to safely create a single EquationalProofLine from frontend data.
+    """
+    try:
+        # Extract fields, handling frontend vs backend naming differences
+        racket = data.get("racket", "")
+        rule = data.get("rule", "Premise" if is_premise else "")
+        start_position = int(data.get("startPosition", 0) or 0)
+        substitution = data.get("substitution", "")
+        
+        # Optional fields that might not exist in all requests
+        selected_node = int(data.get("selectedNode", 0) or 0)
+        result_node = int(data.get("resultNode", 0) or 0)
+        
+        # We don't generate the JSON tree here to keep saving fast.
+        # The 'get_user_proof' endpoint handles auto-repairing trees on load.
+        
+        EquationalProofLine.objects.create(
+            proof=proof,
+            side=side,
+            line_number=line_number,
+            racket=racket,
+            rule=rule,
+            start_position=start_position,
+            substitution=substitution,
+            selected_node=selected_node,
+            result_node=result_node,
+            # Defaults
+            hide_expression=False,
+            hide_justification=False,
+            json_tree={} 
+        )
+    except Exception as e:
+        print(f"Error saving line {line_number} on {side}: {e}")
+        raise e
+
+
+def add_data_to_proof(json_data, proof, definitions, generics):
+    """
+    Wipes existing lines for the proof and saves the current state 
+    from the request data.
+    """
+    try:
+        # 1. Clear existing proof lines to avoid duplication/ordering issues
+        proof.proof_lines.all().delete()
+        
+        # 2. Save Premises (Line 0)
+        left_premise = json_data.get("leftPremise")
+        if left_premise:
+            create_proof_line(proof, 'LHS', 0, left_premise, is_premise=True)
+            
+        right_premise = json_data.get("rightPremise")
+        if right_premise:
+            create_proof_line(proof, 'RHS', 0, right_premise, is_premise=True)
+
+        # 3. Save Body Lines
+        # Note: Frontend arrays usually start from the first derived line.
+        # We start counting line_number at 1.
+        
+        left_lines = json_data.get("leftRacketsAndRules", [])
+        for i, line_data in enumerate(left_lines):
+            create_proof_line(proof, 'LHS', i + 1, line_data)
+            
+        right_lines = json_data.get("rightRacketsAndRules", [])
+        for i, line_data in enumerate(right_lines):
+            create_proof_line(proof, 'RHS', i + 1, line_data)
+            
+        # 4. Save Definitions
+        # Since 'definition' is a JSONField on the model, we can simply save the list.
+        if definitions:
+            proof.definition = definitions
+            
+        # 5. Update Completion Status
+        # We can check the 'checked' status from frontend or default to False
+        proof.is_complete = False # Re-validated on load
+        proof.save()
+
+    except Exception as e:
+        # If saving fails midway, we might want to cleanup or just let the transaction roll back
+        print(f"Error adding data to proof: {str(e)}")
+        raise e
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def save_proof(request):
+    """
+    Endpoint to save the current proof state to the database.
+    """
+    try:
+        data = request.data
+        user = request.user
+        user_proof_obj, _ = get_or_set_equational_obj(user)
+        
+        # Helper to extract definitions from TwoSidedProof object if needed:
+        definitions = []
+        if hasattr(user_proof_obj, 'LHS') and hasattr(user_proof_obj.LHS, 'UDFs'):
+             for name, udf in user_proof_obj.LHS.UDFs.items():
+                 definitions.append({
+                     "label": name,
+                     "type": udf.inputType,
+                     "expression": udf.body
+                 })
+        
+        # Fallback: check if definitions are in the request data
+        if not definitions:
+            definitions = data.get("definitions", "")
+
+        generics = [] # Generics handling logic here if needed
+
+        proof = get_or_create_proof(data, user, definitions, generics)
+
+        if not proof:
+            return Response(
+                {"message": "Error saving proof"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response(
+            {"message": "Proof saved successfully", "proofId": proof.id}, 
+            status=status.HTTP_201_CREATED
+        )
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"message": f"Error saving proof: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST
+        )

@@ -139,6 +139,20 @@ const clearProof = async () => {
   }
 };
 
+const saveProof = async (proof) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/save-proof`, 
+      proof 
+    );
+    return response.data;
+  }
+  catch(error) {
+    handleServiceError(error, "Error during proof saving:");
+    throw error;
+  }
+};
+
 const equationalService = {
   setCurrentProof,
   applyRule,
@@ -150,7 +164,8 @@ const equationalService = {
   validateHiddenField,
   getRacketProofs,
   getRacketProof,
-  clearProof
+  clearProof,
+  saveProof
 };
 
 export default equationalService;
