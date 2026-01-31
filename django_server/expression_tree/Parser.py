@@ -23,7 +23,7 @@ AllowedChars = list(string.ascii_letters) + list(string.digits) + \
 
 # None will generate a warning since it's not a list of strings
 # takes in a string and returns a list of tokens, and a list of error messages
-def preProcess(inputString: str, errLog: list[str] = None, debug=False) -> tuple[list[str], list[str]]:
+def preProcess(inputString: str, errLog: list[str] = None, debug=False,udf=False) -> tuple[list[str], list[str]]:
     if errLog == None:  # values assigned at func def, not each call, so need None vs []
         errLog = []
 
@@ -36,7 +36,15 @@ def preProcess(inputString: str, errLog: list[str] = None, debug=False) -> tuple
     # remove consecutive spaces, strip whitespace from front & back of inputString
     inputString = " ".join(inputString.split())
 
-    if inputString == "":  # needed to avoid an issue in checking first character as (
+    # checking to make sure that only lists get quoted
+    nospace = inputString.replace(" ", "")
+    if nospace[-1]=="'":
+        errLog.append("cannot end an expression with a single quote")
+    for i in range(len(nospace)-1):
+        if nospace[i] == "'" and nospace[i+1] != "(":
+            errLog.append("Error: Quotes (') should only appear before lists, not individual atoms. For example, use '(a b) not 'a")
+
+    if inputString == "" and not udf:  # needed to avoid an issue in checking first character as (, udf's can be blank to be arbitrary
         # can't return the append directly since append changes in place and doesn't return a value!!
         errLog.append("no input detected")
         return [], errLog
@@ -51,14 +59,6 @@ def preProcess(inputString: str, errLog: list[str] = None, debug=False) -> tuple
         # check if char is an allowed character
         if char not in AllowedChars:
             errLog.append(f"{char} not an allowed character")
-
-# checking to make sure that only lists get quoted
-        nospace = inputString.replace(" ", "")
-        if nospace[-1]=="'":
-            errLog.append("cannot end an expression with a single quote")
-        for i in range(len(nospace)-1):
-            if nospace[i] == "'" and nospace[i+1] != "(":
-                errLog.append("only lists can be quoted")
 
         # parenPairing should only return to 0 at the very end of the input string
         if char == '(':
@@ -154,3 +154,23 @@ def buildTree(inputList: list[str], debug=False) -> list:
 
     # continue processing the rest of input
     return [node] + buildTree(inputList[matchIndex+1:len(inputList)], debug)
+
+# returns T if the tree contains nested quotes
+def checkQuotes(exprTree: Node) -> bool:
+    if exprTree==None or exprTree.data==None or exprTree.data=="":
+        return False
+    if exprTree.data == "'(" and "'(" in exprTree.ancestors():
+        return True
+    for child in exprTree.children:
+        if checkQuotes(child):
+            return True
+    return False
+
+def makeBasicAst(inputStr: str) -> tuple[Node, list[str]]:
+    tokens, errs = preProcess(inputStr)
+    if errs:
+        return None, errs
+    tree = buildTree(tokens)[0]
+    if checkQuotes(tree):
+        return tree, ["Racket expression cannot have nested quotes"]
+    return tree, []

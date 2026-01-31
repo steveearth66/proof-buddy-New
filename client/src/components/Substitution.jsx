@@ -8,6 +8,8 @@ import Alert from "react-bootstrap/Alert";
 import { useInputState } from "../hooks/useInputState";
 import { useFormValidation } from "../hooks/useFormValidation";
 import { useFormSubmit } from "../hooks/useFormSubmit";
+import { RacketInput } from "./index";
+import { useParenHighlight } from "../hooks/useParenHighlight";
 
 export default function Substitution({
   show,
@@ -26,8 +28,21 @@ export default function Substitution({
     useFormValidation(formValues, validateField);
   const [validated, setValidated] = useState(false);
 
+  const {
+    highlightPositions: substitutionHighlight,
+    inputRef: substitutionRef,
+    handleKeyUp: handleSubstitutionKeyUp,
+    handleSelect: handleSubstitutionSelect
+  } = useParenHighlight(formValues.substitution);
+
   const handleSubstitutionSubmit = async () => {
-    handleSubstitution(formValues);
+    // Clear previous errors before attempting submission
+    // (errors prop will be updated by parent with new errors if validation fails)
+    const valid = await handleSubstitution(formValues);
+
+    if (!valid) {
+      setValidated(false);
+    }
   };
 
   const { handleSubmit } = useFormSubmit(
@@ -60,7 +75,7 @@ export default function Substitution({
         </Modal.Header>
         <Modal.Body>
           <Row>
-            {errors.length > 0 && (
+            {Array.isArray(errors) && errors.length > 0 && (
               <Alert variant="danger" className="scroll-error">
                 {errors.map((error, index) => (
                   <span key={`racket-error-${index}`}>{error}</span>
@@ -70,22 +85,24 @@ export default function Substitution({
           </Row>
           <Row>
             <Form.Group as={Col} md="8">
-              <Form.Floating className="mb-3">
-                <Form.Control
-                  name="substitution"
-                  type="text"
-                  placeholder="Enter the substitution"
-                  value={formValues.substitution}
-                  onBlur={() => handleBlur("substitution")}
-                  onChange={handleChange}
-                  isInvalid={validationMessages.substitution}
-                  required
-                />
-                <label>Substitution</label>
-                <Form.Control.Feedback type="invalid">
-                  {validationMessages.substitution}
-                </Form.Control.Feedback>
-              </Form.Floating>
+              <label>Substitution</label>
+              <RacketInput
+                name="substitution"
+                type="text"
+                placeholder="Enter the substitution"
+                value={formValues.substitution}
+                onBlur={() => handleBlur("substitution")}
+                onChange={handleChange}
+                onKeyUp={handleSubstitutionKeyUp}
+                onClick={handleSubstitutionSelect}
+                isInvalid={validationMessages.substitution}
+                required
+                highlightPositions={substitutionHighlight}
+                ref={substitutionRef}
+              />
+              <Form.Control.Feedback type="invalid">
+                {validationMessages.substitution}
+              </Form.Control.Feedback>
             </Form.Group>
             <Form.Group as={Col} md="4">
               <Form.Floating className="mb-3">

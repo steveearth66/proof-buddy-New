@@ -16,24 +16,16 @@
     .form-top-section {
       z-index: 99;
       background-color: $color-white;
+      padding-left: 15px;
+      padding-right: 15px;
 
       @media (min-width: $breakpoint-md) {
-        width: 1296px;
+        width: 100%;
         height: 310px;
         position: fixed;
         top: 68px;
-      }
-
-      @media (min-width: $breakpoint-md) {
-        width: 936px;
-      }
-
-      @media (min-width: $breakpoint-lg) {
-        width: 1116px;
-      }
-
-      @media (min-width: $breakpoint-ex-lg) {
-        width: 1296px;
+        left: 0;
+        right: 0;
       }
 
       .page-header-row {
@@ -41,6 +33,15 @@
           font-size: 36px;
           margin: 20px 0;
           font-weight: $font-bold;
+        }
+        display: flex;
+        align-items: center;
+        gap: 20px;
+
+        .check-row {
+          display: flex;
+          align-items: center;
+          gap: 30px;
         }
       }
 
@@ -88,6 +89,27 @@
             margin-top: 2rem;
           }
         }
+
+        .er-inductive-hypothesis-lhs {
+          position: relative;
+
+          &::after {
+            content: "\003D";
+            font-size: 38px;
+            font-weight: $font-light;
+            position: absolute;
+            top: 44px;
+            left: 53.5%;
+            transform: translate(-50%, -50%);
+            rotate: -90deg;
+
+            @media (min-width: $breakpoint-sm) {
+              top: 29px;
+              left: 100%;
+              rotate: 0deg;
+            }
+          }
+        }
       }
 
       .form-separator {
@@ -104,6 +126,7 @@
     }
 
     .form-bottom-part {
+      z-index: 99;
       margin-top: 20px;
 
       input::selection {
@@ -112,6 +135,37 @@
 
       @media (min-width: $breakpoint-md) {
         margin-top: 325px;
+      }
+
+      .racket-rule-container-wrap {
+        // Height is now dynamically calculated via inline style in the component
+        // This allows for proper responsive behavior on window resize
+        overflow-y: auto;
+        padding-right: 8px; // Add padding to account for scrollbar
+        
+        // Custom scrollbar styling
+        &::-webkit-scrollbar {
+          width: 8px;
+        }
+
+        &::-webkit-scrollbar-track {
+          background: #f1f1f1;
+          border-radius: 4px;
+        }
+
+        &::-webkit-scrollbar-thumb {
+          background: #c1c1c1;
+          border-radius: 4px;
+          
+          &:hover {
+            background: #a8a8a8;
+          }
+        }
+        
+        .racket-rule-wrap {
+          padding-right: 4px; // Additional padding for content
+          padding-bottom: 20px; // Add bottom padding to ensure last row is visible when scrolling
+        }
       }
 
       .switch-btn-wrap {
@@ -126,7 +180,9 @@
           color: $color-white;
           font-weight: $font-medium;
           width: 360px;
+          height: 50px;
           border-color: transparent;
+          transition: background-image 0.2s ease, color 0.2s ease;
 
           &:hover {
             color: $color-drexel-blue;
@@ -229,6 +285,11 @@
           &.dropdown-toggle {
             + .dropdown-menu {
               top: -2px !important;
+              
+              .dropdown-item {
+                width: 100%;
+                white-space: nowrap;
+              }
             }
           }
         }
@@ -287,4 +348,183 @@
 .search-input {
   margin: 0 0 20px 0;
   width: 450px;
+}
+
+.floating-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  border-top: 3px solid #0066cc;
+  padding: 15px 25px;
+  box-shadow: 
+    0 -4px 15px rgba(0, 0, 0, 0.15),
+    0 -2px 8px rgba(0, 102, 204, 0.1);
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, 
+      transparent 0%, 
+      rgba(0, 102, 204, 0.3) 20%, 
+      rgba(0, 102, 204, 0.6) 50%, 
+      rgba(0, 102, 204, 0.3) 80%, 
+      transparent 100%);
+  }
+
+  .input-row {
+    margin: 0;
+    margin-bottom: 10px;
+    
+    .btn {
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-radius: 6px;
+      transition: all 0.3s ease;
+      
+      &.btn-primary {
+        background: linear-gradient(135deg, #0066cc 0%, #004499 100%);
+        border: none;
+        box-shadow: 0 2px 8px rgba(0, 102, 204, 0.3);
+        
+        &:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(0, 102, 204, 0.4);
+        }
+      }
+      
+      &.btn-secondary {
+        background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+        border: none;
+        box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3);
+        
+        &:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(108, 117, 125, 0.4);
+        }
+      }
+    }
+  }
+
+  .rules-btn-grp {
+    button {
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-radius: 6px;
+      transition: all 0.3s ease;
+      
+      &:not(:disabled) {
+        box-shadow: 0 2px 8px rgba(255, 165, 0, 0.3);
+        
+        &:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(255, 165, 0, 0.4);
+        }
+      }
+      
+      &:disabled {
+        opacity: 0.5;
+        background-color: #6c757d !important;
+        background-image: none !important;
+        border-color: #6c757d !important;
+        color: #ffffff !important;
+        cursor: not-allowed;
+        transform: none !important;
+        box-shadow: none !important;
+        
+        &:hover {
+          background-color: #6c757d !important;
+          background-image: none !important;
+          border-color: #6c757d !important;
+          color: #ffffff !important;
+          transform: none !important;
+          box-shadow: none !important;
+        }
+      }
+    }
+  }
+}
+
+.proof-dropdown-btn {
+  button {
+    &.dropdown-toggle {
+      font-size: 20px;
+      line-height: 22px;
+      padding: 12px 40px 12px 21px;
+      border-radius: 0;
+      font-weight: $font-semi-bold;
+      background-image: $blue-gradient;
+      border-color: transparent;
+      position: relative;
+
+      &::after {
+        content: "";
+        border: 3px solid $color-white;
+        border-width: 0 0 3px 3px;
+        height: 10px;
+        width: 10px;
+        position: absolute;
+        transform: rotate(-45deg);
+        top: 16px;
+        right: 20px;
+      }
+
+      &.show {
+        &::after {
+          transform: rotate(135deg);
+          top: 21px;
+        }
+      }
+
+      + .dropdown-menu {
+        border: 0;
+        border-radius: 0;
+        background-image: $blue-gradient;
+        margin: 0;
+        padding: 0;
+
+        a {
+          font-size: 20px;
+          color: $color-white;
+          padding: 8px 21px;
+          border-top: 1px solid $color-white;
+          width: 181px;
+          font-weight: $font-medium;
+
+          &:hover,
+          &:focus {
+            color: $color-drexel-blue;
+            background-image: $orange-gradient;
+          }
+        }
+      }
+    }
+  }
+
+  &.proof-utilities {
+    text-align: right;
+    width: 181px;
+
+    button {
+      &.dropdown-toggle {
+        + .dropdown-menu {
+          top: -2px !important;
+          
+          .dropdown-item {
+            width: 100%;
+            white-space: nowrap;
+          }
+        }
+      }
+    }
+  }
 }

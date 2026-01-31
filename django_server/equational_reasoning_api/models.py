@@ -1,0 +1,99 @@
+# models.py - Add visibility fields to EquationalProofLine
+
+from django.db import models
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+
+class EquationalProof(models.Model):
+    """
+    Stores equational reasoning proofs - a two-sided proof showing LHS = RHS.
+    Simpler than induction proofs: no base/leap cases, no induction variables.
+    """
+    
+    SIDES = [
+        ('LHS', 'Left Hand Side'),
+        ('RHS', 'Right Hand Side'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='equational_proofs')
+    name = models.CharField(max_length=255, blank=True, null=True)
+    tag = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Goals
+    lhs_goal = models.TextField()
+    rhs_goal = models.TextField()
+    
+    # Current state
+    current_side = models.CharField(max_length=3, choices=SIDES, default='LHS')
+    
+    # Validation
+    is_valid = models.BooleanField(default=True)
+    is_complete = models.BooleanField(default=False)
+    definition = models.JSONField(default=list)
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)  # Soft delete: False = archived
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['user', 'name', 'tag', 'is_active']),
+        ]
+    
+    def __str__(self):
+        if self.name:
+            return f"{self.name} - Equational Reasoning"
+        return f"Equational Proof - {self.user.username}"
+
+
+class EquationalProofLine(models.Model):
+    """
+    Stores individual proof lines for equational reasoning proofs.
+    Each line represents a step on either LHS or RHS.
+    """
+    
+    SIDE_CHOICES = [
+        ('LHS', 'Left Hand Side'),
+        ('RHS', 'Right Hand Side'),
+    ]
+    
+    proof = models.ForeignKey(
+        EquationalProof, 
+        related_name='proof_lines', 
+        on_delete=models.CASCADE
+    )
+    side = models.CharField(max_length=3, choices=SIDE_CHOICES)
+    racket = models.TextField()  # The expression in racket notation
+    json_tree = models.JSONField(default=dict, blank=True)  # Parsed expression tree for frontend rendering
+    rule = models.CharField(max_length=255, blank=True, default='')  # The rule that was applied
+    substitution = models.TextField(blank=True, default='')  # Substitution payload if any
+    start_position = models.IntegerField(default=0)  # Position where rule was applied
+    selected_node = models.IntegerField(default=0)  # Node ID selected by user for rule application
+    result_node = models.IntegerField(default=0)  # Node ID of the changed portion in the result expression
+    line_number = models.IntegerField(default=0)  # Order of line in the proof
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    # NEW: Visibility flags for hiding content from students
+    hide_expression = models.BooleanField(default=False)  # If True, hide the racket expression
+    hide_justification = models.BooleanField(default=False)  # If True, hide the rule/justification
+    
+    class Meta:
+        ordering = ['side', 'line_number']
+        indexes = [
+            models.Index(fields=['proof', 'side', 'line_number']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['proof', 'side', 'line_number'],
+                name='unique_equational_proof_line'
+            ),
+        ]
+    
+    def __str__(self):
+        return f"{self.side} Line {self.line_number}: {self.racket[:50]}"
+

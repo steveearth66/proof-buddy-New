@@ -1,27 +1,33 @@
 # Docker For Deployment
-### Client Deployment
+### Database Deployment
 
-To deploy Proof Buddy client run the following commands. <br>
+To deploy Proof Buddy database run the following commands. <br>
 This should be done from a unix system. <br>
 Before running theres commands ensure you have docker and it's dependencies installed.
+
+Create an `.env` with the database configurations.
+
 ```
-cd client
+# MariaDB configurations.
+MYSQL_DATABASE=proofbuddy_production # whatever name you want
+MYSQL_ROOT_PASSWORD=password # choose a strong password
+MYSQL_USER=root # can be whatever you want
+MYSQL_PASSWORD=password # choose a strong password
+```
+```
+cd database
 sudo docker compose up --build -d
 ```
 
-### Server Deployment
-In order to deploy Proof Buddy Server a few things must be in place first.
-```
-cd django_server
-```
-1. Ensure a .env file is created with the necessary environment variables.
+### Application Deployment
+To deploy Proof Buddy create a `.env` file is created with the necessary environment variables.
 ```
 # Database configurations.
-DB_NAME=proofbuddy_development
-DB_HOST=localhost
-DB_USER=root
-DB_PASSWORD=password
-DB_PORT=3306
+DB_NAME=proofbuddy_production # the name you choose for your database
+DB_HOST=localhost # where is your database running?
+DB_USER=root # can be whatever you want
+DB_PASSWORD=password # choose a strong password
+DB_PORT=3306 
 
 # Email configurations.
 EMAIL_HOST=smtp.gmail.com
@@ -30,21 +36,13 @@ EMAIL_HOST_USER=email@example.com
 EMAIL_HOST_PASSWORD=django_app_password
 
 # Django configurations.
-DJANGO_SUPERUSER_PASSWORD=password
+DJANGO_SUPERUSER_PASSWORD=password # choose a strong password
 DJANGO_SUPERUSER_USERNAME=admin
 DJANGO_SUPERUSER_EMAIL=email@example.com
-DEBUG=False
-SECRET_KEY=SOME_SECRET_KEY
-FRONTEND_URL=http://localhost:3000
-BACKEND_URL=http://localhost:8000
-```
-This is an example change the values to match your configurations.
-2. Ensure a .db.env file is created with the necessary environment variables.
-```
-MYSQL_DATABASE=proofbuddy_production
-MYSQL_USER=root
-MYSQL_PASSWORD=password
-MYSQL_ROOT_PASSWORD=password
+DEBUG=False # True when in dev
+SECRET_KEY=SOME_SECRET_KEY # use this: https://django-secret-key-generator.netlify.app/
+FRONTEND_URL=http://localhost:3000 # the domain name of where the frontend is hosted
+BACKEND_URL=http://localhost:8000 # the domain name of where the backend is hosted
 ```
 This is an example change the values to match your configurations.
 

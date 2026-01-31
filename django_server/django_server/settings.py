@@ -27,27 +27,30 @@ load_dotenv()
 SECRET_KEY = os.environ.get('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG') == 'True'
+DEBUG = os.environ.get("DEBUG") == "True"
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
     "django_extensions",
-    'rest_framework',
-    'rest_framework.authtoken',
-    'corsheaders',
-    'accounts',
-    'racket_api',
-    'proofs',
+    "rest_framework",
+    "rest_framework.authtoken",
+    "corsheaders",
+    "accounts",
+    "racket_api",
+    "proofs",
+    "induction_api",
+    "equational_reasoning_api",
+    "assignments",
 ]
 
 REST_FRAMEWORK = {
@@ -105,6 +108,14 @@ DATABASES = {
     }
 }
 
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "proofs_cache",
+        "TIMEOUT": 1800,  # 30 minutes
+    }
+}
+
 # Email
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.getenv('EMAIL_HOST')
@@ -113,7 +124,13 @@ EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 EMAIL_USE_TLS = True
 
-CORS_ORIGIN_ALLOW_ALL = True
+CORS_ALLOW_ALL_ORIGINS = False
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "https://proofbuddy.net",
+    "https://learn.dcollege.net"
+]
 CSRF_TRUSTED_ORIGINS = [f"{os.getenv('BACKEND_URL')}"]
 
 # Password validation
@@ -150,8 +167,8 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
-STATIC_ROOT = '/static/'
-STATIC_URL = 'static/'
+STATIC_URL = "/static/"
+STATIC_ROOT = "/static/"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field

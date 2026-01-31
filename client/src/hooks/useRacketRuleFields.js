@@ -1,30 +1,30 @@
-import { useState, useCallback } from "react";
-import erService from "../services/erService";
-import { useServerError } from "../hooks/useServerError";
-import logger from "../utils/logger";
+import { useState, useCallback } from 'react';
+import erService from '../services/erService';
+import { useServerError } from '../hooks/useServerError';
+import logger from '../utils/logger';
 
 /**
- * A custom React hook designed to manage racket rule fields within a component.
- * It encapsulates logic for fetching racket values based on rules, adding new fields dynamically,
- * and handling changes to existing fields. Additionally, it integrates error handling
- * through a custom hook for server errors.
+ * A custom React hook for managing API communication, validation, and error handling 
+ * for proof rule operations. Simplified to work with padRefs as source of truth.
+ *
+ * This hook provides functions for API calls, validation, and error management without
+ * maintaining its own state for proof data.
  *
  * @param {string} startPosition - Start position for the highlighted keyword.
+ * @param {string} currentRacket - Current racket expression being worked with.
+ * @param {string} name - Name identifier for the proof context.
+ * @param {string} tag - Tag identifier for the proof context.
+ * @param {string} side - Side identifier ('LHS' or 'RHS').
  *
- * @returns {Object} An object containing the racket rule fields state, functions to manipulate these fields,
- * and any server error encountered during operations.
+ * @returns {Array} An array with functions and state for API communication and error handling.
  *
  * @example
- * const { racketRuleFields, addField, handleFieldChange, serverError } = useRacketRuleFields();
+ * const [,addFieldWithApiCheck,,validationErrors,serverError] = useRacketRuleFields(startPosition, currentRacket, name, tag, side);
  */
 const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
   const [serverError, handleServerError, clearServerError] = useServerError();
   const [racketErrors, setRacketErrors] = useState([]);
   const [showSubstitution, setShowSubstitution] = useState(false);
-  const [racketRuleFields, setRacketRuleFields] = useState({
-    LHS: [],
-    RHS: []
-  });
   const [validationErrors, setValidationErrors] = useState({
     LHS: [],
     RHS: []
@@ -34,25 +34,6 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
   // Function to update the showSubstitution state
   const updateShowSubstitution = () => {
     setSubstitutionErrors([]);
-
-    if (startPosition < 1) {
-      alert("Please select a keyword to substitute!");
-      return;
-    }
-
-    const sideFields = racketRuleFields[side];
-    const undeletedProofLines = sideFields.filter((line) => {
-      return !line.deleted;
-    });
-    const lastUnDeletedFieldIndex = undeletedProofLines.length - 1;
-
-    if (undeletedProofLines.length > 0) {
-      const ruleValue = undeletedProofLines[lastUnDeletedFieldIndex].rule;
-      if (ruleValue.trim().length > 0) {
-        alert("Rule for Substitution entered in different window");
-      }
-    }
-
     setShowSubstitution((prev) => !prev);
   };
 
@@ -60,19 +41,26 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
     setShowSubstitution(false);
   };
 
+  const clearValidationErrors = useCallback(() => {
+    setValidationErrors({ LHS: [], RHS: [] });
+    setRacketErrors([]);
+  }, []);
+
   /**
    * A callback function to fetch a racket value for a given rule.
    * Utilizes the custom service `erService` to make an external request.
    *
    * @param {string} ruleValue - The value of the rule for which to fetch the racket value.
+   * @param {number} previousStartPosition - The start position from the padRef on the line before.
+   * @param {string} previousRacketValue - The racket value from the padRef on the line before.
    * @returns {Promise<string|undefined>} A promise that resolves to the racket value or undefined if an error occurs.
    */
   const fetchRacketValue = useCallback(
-    async (ruleValue) => {
+    async (ruleValue, previousStartPosition, previousRacketValue) => {
       const payLoad = {
         rule: ruleValue,
-        startPosition: startPosition,
-        currentRacket: currentRacket,
+        startPosition: previousStartPosition,
+        currentRacket: previousRacketValue,
         name,
         tag,
         side
@@ -80,13 +68,69 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
 
       try {
         const response = await erService.racketGeneration(payLoad);
-
         if (response) return response;
       } catch (error) {
         handleServerError(error);
       }
     },
-    [handleServerError, startPosition, currentRacket, name, tag, side]
+    [handleServerError, name, tag, side]
+  );
+
+  /**
+   * A callback function to load proof data in the server.
+   * Utilizes the custom service `erService` to make an external request.
+   *
+   * @param {Object} loadedProof - The loaded proof data.
+   * @returns {Promise<string|undefined>} A promise that resolves to the response or undefined if an error occurs.
+   */
+  const loadProofInServer = useCallback(
+    async (loadedProof) => {
+
+      let currentRacket = loadedProof.lHSGoal
+      let startPosition = loadedProof.leftPremise["startPosition"]
+      let LHS = []
+      for (let i = 0; i < loadedProof.leftRacketsAndRules.length; i++) {
+        let rule = loadedProof.leftRacketsAndRules[i]["rule"]
+        if (i + 1 === loadedProof.leftRacketsAndRules.length)
+          break;
+        LHS.push({ currentRacket, startPosition, rule })
+        currentRacket = loadedProof.leftRacketsAndRules[i]["racket"];
+        startPosition = loadedProof.leftRacketsAndRules[i]["startPosition"]
+      }
+
+      currentRacket = loadedProof.rHSGoal
+      startPosition = loadedProof.rightPremise["startPosition"]
+      let RHS = []
+      for (let i = 0; i < loadedProof.rightRacketsAndRules.length; i++) {
+        let rule = loadedProof.rightRacketsAndRules[i]["rule"]
+        if (i + 1 === loadedProof.rightRacketsAndRules.length)
+          break;
+        RHS.push({ currentRacket, startPosition, rule })
+        currentRacket = loadedProof.rightRacketsAndRules[i]["racket"];
+        startPosition = loadedProof.rightRacketsAndRules[i]["startPosition"]
+      }
+
+      const payLoad = {
+        lHSGoal: loadedProof.lHSGoal,
+        rHSGoal: loadedProof.rHSGoal,
+        definitions: loadedProof.definitions,
+        generics: loadedProof.generics,
+        leftGoalChecked: loadedProof.isGoalChecked?.LHS || false,
+        rightGoalChecked: loadedProof.isGoalChecked?.RHS || false,
+        LHS,
+        RHS,
+        name: loadedProof.name,
+        tag: loadedProof.tag
+      };
+
+      try {
+        const response = await erService.loadProof(payLoad);
+        if (response) return response;
+      } catch (error) {
+        handleServerError(error);
+      }
+    },
+    [handleServerError] // was [], removed to clean warnings
   );
 
   /**
@@ -95,155 +139,108 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
    * A new empty field is always added after the fetch operation or directly if no previous fields exist.
    *
    * @param {string} side - Specifies the side (LHS or RHS) to add the new field to.
+   * @param {string} footerRule - The rule value from the footer.
+   * @param {number} previousStartPosition - The start position from the padRef on the line before.
+   * @param {string} previousRacketValue - The racket value from the padRef on the line before.
    */
   const addFieldWithApiCheck = useCallback(
-    async (side) => {
-      const sideFields = racketRuleFields[side];
-      const undeletedProofLines = sideFields.filter((line) => {
-        return !line.deleted;
-      });
-      const lastUnDeletedFieldIndex = undeletedProofLines.length - 1;
+    async (side, footerRule, previousStartPosition, previousRacketValue, currentIndex) => {
+      try {
+        const racket = await fetchRacketValue(footerRule, previousStartPosition, previousRacketValue);
 
-      // Only proceed if there is at least one field and the last rule is not empty.
-      if (undeletedProofLines.length > 0) {
-        if (undeletedProofLines[lastUnDeletedFieldIndex].rule.trim() === "") {
+        if (racket.isValid) {
+          setRacketErrors([]);
+          clearServerError();
+          setValidationErrors((prevErrors) => ({
+            ...prevErrors,
+            [side]: {}
+          }));
+        } else {
+          setRacketErrors(racket.errors);
           setValidationErrors((prevErrors) => ({
             ...prevErrors,
             [side]: {
-              ...prevErrors[side],
-              [lastUnDeletedFieldIndex]: "Rule field cannot be empty!"
+              ...(prevErrors[side] || {}),
+              ...(typeof currentIndex === 'number' ? { [currentIndex]: racket.errors?.[0] || 'Invalid rule' } : {})
             }
           }));
-        } else {
-          try {
-            const ruleValue = undeletedProofLines[lastUnDeletedFieldIndex].rule;
-            const racket = await fetchRacketValue(ruleValue);
-
-            if (racket.isValid) {
-              setRacketErrors([]);
-              clearServerError();
-              setRacketRuleFields((prevFields) => ({
-                ...prevFields,
-                [side]: [
-                  ...prevFields[side].slice(0, -1),
-                  {
-                    ...undeletedProofLines[lastUnDeletedFieldIndex],
-                    racket: racket.racket,
-                    deleted: false
-                  },
-                  { racket: "", rule: "", deleted: false }
-                ]
-              }));
-              setValidationErrors((prevErrors) => ({
-                ...prevErrors,
-                [side]: {}
-              }));
-            } else {
-              setRacketErrors(racket.errors);
-            }
-          } catch (error) {
-            logger.error("Failed to fetch racket value:", error);
-          }
         }
-      } else {
-        setRacketRuleFields((prevFields) => ({
-          ...prevFields,
-          [side]: [
-            ...prevFields[side],
-            { racket: "", rule: "", deleted: false }
-          ]
-        }));
+
+        return racket;
+      } catch (error) {
+        logger.error('Failed to fetch racket value:', error);
+        return null;
       }
     },
-    [fetchRacketValue, racketRuleFields, clearServerError]
-  );
-
-  /**
-   * A callback function to handle changes to any field within the racket rule fields.
-   * It updates the specified field's value based on user input.
-   *
-   * @param {string} side - The side (LHS or RHS) where the field is located.
-   * @param {number} index - The index of the field within its side.
-   * @param {string} fieldName - The name of the field property to update (e.g., 'racket' or 'rule').
-   * @param {any} value - The new value to set for the field property.
-   * @param {string} startPosition - The start position for the highlighted keyword.
-   */
-  const handleFieldChange = useCallback(
-    (side, index, fieldName, value, startPosition) => {
-      setRacketRuleFields((prevFields) => {
-        const fieldsCopy = { ...prevFields };
-        if (fieldsCopy[side] && fieldsCopy[side][index]) {
-          fieldsCopy[side][index] = {
-            ...fieldsCopy[side][index],
-            [fieldName]: value,
-            startPosition
-          };
-        }
-        return fieldsCopy;
-      });
-
-      setValidationErrors((prevErrors) => {
-        const updatedErrors = { ...prevErrors };
-        if (updatedErrors[side][index]) {
-          delete updatedErrors[side][index];
-        }
-        return updatedErrors;
-      });
-    },
-    []
+    [fetchRacketValue, clearServerError]
   );
 
   /**
    * A callback function that removes the last proof line after premise.
-   * It sets the `deleted` flag to true for the last line that is not already deleted.
-   * This so that the deleted lines are saved in the database.
+   * Now relies on padRefs as source of truth instead of racketRuleFields.
    * @param {string} side - Specifies the active side ('LHS' or 'RHS') to perform the cleanup on.
    */
-  const deleteLastLine = useCallback((side) => {
-    setRacketRuleFields((prevFields) => {
-      const sideFields = prevFields[side];
-      let lastFieldIndex = sideFields.length - 1;
-
-      for (let i = sideFields.length - 1; i >= 0; i--) {
-        if (!sideFields[i].deleted) {
-          lastFieldIndex = i;
-          break;
-        }
-      }
-
-      const newFields = [...sideFields];
-      newFields[lastFieldIndex] = {
-        ...newFields[lastFieldIndex],
-        deleted: true
-      };
-
-      return {
-        ...prevFields,
-        [side]: newFields
-      };
-    });
+  const deleteLastLine = useCallback(async (side) => {
+    try {
+      await erService.deleteLine(side);
+    } catch (error) {
+      logger.error('Failed to delete line:', error);
+    }
   }, []);
 
   const substituteFieldWithApiCheck = useCallback(
-    async ({ substitution, rule }) => {
+    async ({ substitution, rule }, contextOverrides = {}) => {
+      const effectiveStartPosition =
+        contextOverrides.startPosition !== undefined
+          ? contextOverrides.startPosition
+          : startPosition;
+      const effectiveCurrentRacket =
+        contextOverrides.currentRacket !== undefined
+          ? contextOverrides.currentRacket
+          : currentRacket;
+
+      console.log("[Substitution] Sending request:", {
+        substitution,
+        rule,
+        startPosition: effectiveStartPosition,
+        currentRacket: effectiveCurrentRacket,
+        side
+      });
+
       const data = {
         substitution,
         rule,
-        startPosition,
-        currentRacket,
+        startPosition: effectiveStartPosition,
+        currentRacket: effectiveCurrentRacket,
         side
       };
 
-      const response = await erService.substitution(data);
-      console.log(response);
+      try {
+        const response = await erService.substitution(data);
+
+        console.log("[Substitution] Response received:", response);
+
+        if (response.isValid) {
+          setSubstitutionErrors([]);
+          closeSubstitution();
+          return response; // Return the response for the component to handle
+        } else {
+          setSubstitutionErrors(response.errors);
+          return false;
+        }
+      } catch (error) {
+        setSubstitutionErrors(['Failed to substitute rule']);
+        logger.error('Failed to fetch racket value:', error);
+        return false;
+      }
     },
     [currentRacket, side, startPosition]
   );
 
   return [
-    racketRuleFields,
+    { LHS: [], RHS: [] }, // racketRuleFields removed, return empty shape to avoid null access
     addFieldWithApiCheck,
-    handleFieldChange,
+    null, // handleFieldChange removed
     validationErrors,
     serverError,
     racketErrors,
@@ -252,7 +249,9 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
     showSubstitution,
     closeSubstitution,
     substituteFieldWithApiCheck,
-    substitutionErrors
+    substitutionErrors,
+    loadProofInServer,
+    clearValidationErrors
   ];
 };
 

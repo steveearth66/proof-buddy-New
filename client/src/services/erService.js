@@ -3,6 +3,20 @@ import { handleServiceError } from "../utils/serviceErrorHandling";
 
 const API_GATEWAY = "/api/v1/proof";
 
+// this function used to convert children list to id list rather than nodes
+/*
+const subChildIDS = (expr) => {
+  if (expr === null || expr === undefined || expr === "") {
+    return;
+  }
+  for (let i = 0; i < expr.children.length; i++) {
+    let child = expr.children[i];
+    expr.children[i] = child.startPosition;
+    subChildIDS(child);
+  }
+};
+*/
+
 /**
  * Check the proof goal.
  *
@@ -15,6 +29,9 @@ const checkGoal = async (goal) => {
       `${API_GATEWAY}/check-goal`,
       goal
     );
+    //console.log("before", response.data); // checking to see if we can change nodes to id's here
+    //subChildIDS(response.data.jsonTree);
+    //console.log("after", response.data); // checking to see if backend successfully changed children to id's
     return response.data;
   } catch (error) {
     handleServiceError(error, "Error during goal validation:");
@@ -29,11 +46,34 @@ const checkGoal = async (goal) => {
  * @returns {Promise<Object>} - The response data from the server.
  */
 const racketGeneration = async (payLoad) => {
+  //console.log("Payload sent to backend (erService.js):", payLoad); // DEBUG REMOVE
   try {
     const response = await axiosInstance.post(
       `${API_GATEWAY}/er-generate`,
       payLoad
     );
+    //console.log("line num?(erService.js):", response.data.lineNum); // test to see if lineNum shows up in the response
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during racket generation:");
+    throw error;
+  }
+};
+
+/**
+ * Generate the racket for the provided rule.
+ *
+ * @param {Object} payLoad - The object contains proof rule & start position of highlight.
+ * @returns {Promise<Object>} - The response data from the server.
+ */
+const loadProof = async (payLoad) => {
+  //console.log("Payload sent to backend (erService.js):", payLoad); // DEBUG REMOVE
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/set-proof`,
+      payLoad
+    );
+    //console.log("line num?(erService.js):", response.data.lineNum); // test to see if lineNum shows up in the response
     return response.data;
   } catch (error) {
     handleServiceError(error, "Error during racket generation:");
@@ -92,13 +132,183 @@ const substitution = async (data) => {
   }
 };
 
+const saveProof = async (proof) => {
+  return new Promise((resolve, reject) => {
+    axiosInstance
+      .post(`${API_GATEWAY}/er-save`, proof)
+      .then((response) => {
+        resolve(response.data);
+      })
+      .catch((error) => {
+        handleServiceError(error, "Error during proof saving:");
+        reject(error);
+      });
+  });
+};
+
+const getRacketProofs = async ({ page = 1, query = "" }) => {
+  try {
+    const response = await axiosInstance.get(`${API_GATEWAY}/proofs?page=${page}&query=${query}`);
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during getting racket proofs:");
+    throw error;
+  }
+};
+
+const getRacketProof = async (id) => {
+  try {
+    const response = await axiosInstance.get(`${API_GATEWAY}/proofs/${id}`);
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during getting racket proof:");
+    throw error;
+  }
+};
+
+const getUserDefinitions = async () => {
+  try {
+    const response = await axiosInstance.get(`${API_GATEWAY}/get-definitions`);
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during getting user definitions:");
+    throw error;
+  }
+};
+
+//const useDefinition = async (id) => {
+const useDefinition = async (label) => {
+  return new Promise((resolve, reject) => {
+    axiosInstance
+        .get(`${API_GATEWAY}/use-definition/${label}`)
+      .then((response) => {
+        resolve(response.data);
+      })
+      .catch((error) => {
+        handleServiceError(error, "Error during definition usage:");
+        reject(error);
+      });
+  });
+};
+
+//const removeDefinition = async (id) => {
+const removeDefinition = async (label) => {
+  return new Promise((resolve, reject) => {
+    axiosInstance
+        .delete(`${API_GATEWAY}/remove-definition/${label}/`)
+      .then(() => {
+        resolve(true);
+      })
+      .catch((error) => {
+        handleServiceError(error, "Error during definition removal:");
+        reject(error);
+      });
+  });
+};
+
+const editDefinition = async (definition) => {
+  try {
+    const response = await axiosInstance.post(`${API_GATEWAY}/edit-definition/`, definition);
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error during definition update:");
+    throw error;
+  }
+};
+
+const deleteDefinition = async (label) => {
+  return new Promise((resolve, reject) => {
+    axiosInstance
+        .delete(`${API_GATEWAY}/delete-definition/${label}/`)
+      .then(() => {
+        resolve(true);
+      })
+      .catch((error) => {
+        handleServiceError(error, "Error during definition deletion:");
+        reject(error);
+      });
+  });
+};
+
+const getUserGenerics = async () => {
+  try {
+    const response = await axiosInstance.get(`${API_GATEWAY}/get-generics`);
+    return response.data
+  } catch (error) {
+    handleServiceError(error, "Error while getting user-declared generics:");
+    throw error;
+  }
+};
+
+const createGeneric = async (generic) => {
+  try {
+    const response = await axiosInstance.post(`${API_GATEWAY}/create-generic`, generic);
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error while creating generic:");
+    throw error;
+  }
+};
+
+const useGeneric = async (id) => {
+  try {
+    await axiosInstance.get(`${API_GATEWAY}/use-generic/${id}`);
+  } catch (error) {
+    handleServiceError(error, "Error while enabling generic:");
+    throw error;
+  }
+};
+
+const removeGeneric = async (id) => {
+  try {
+    await axiosInstance.delete(`${API_GATEWAY}/remove-generic/${id}`);
+  } catch (error) {
+    handleServiceError(error, "Error while disabling generic:");
+    throw error;
+  }
+};
+
+const deleteGeneric = async (id) => {
+  try {
+    await axiosInstance.delete(`${API_GATEWAY}/delete-generic/${id}`);
+  } catch (error) {
+    handleServiceError(error, "Error while deleting generic:");
+    throw error;
+  }
+}
+
+const deleteLine = async (side) => {
+  try {
+    await axiosInstance.delete(`${API_GATEWAY}/delete-line/${side}`);
+    return true;
+  } catch (error) {
+    handleServiceError(error, "Error during line deletion:");
+    throw error;
+  }
+};
+
 const erService = {
   checkGoal,
+  loadProof,
   racketGeneration,
   createDefinition,
   completeProof,
   clearProof,
-  substitution
+  substitution,
+  saveProof,
+  getRacketProofs,
+  getRacketProof,
+  getUserDefinitions,
+  useDefinition,
+  editDefinition,
+  deleteDefinition,
+  removeDefinition,
+  getUserGenerics,
+  createGeneric,
+  useGeneric,
+  removeGeneric,
+  deleteGeneric,
+  deleteLine
 };
 
 export default erService;

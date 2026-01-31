@@ -1,9 +1,11 @@
 from typing import Union, Tuple, List
+import copy
 from enum import Enum
 
 # special math characters. any other math uses ascii, such as expt, quotient, remainder. Note: "/" not permitted
-ARITHMETIC = ["+", "*", "-", "=", ">", "<"]
+ARITHMETIC = {"+", "*", "-", "=", ">", "<", "<=", ">="}
 MathSet = {"+","-","*","expt", "quotient","remainder"}
+LogicSet = {'and', 'or', 'not', 'xor', 'implies'}
 class Type(Enum):
     TEMP = 'TEMP'
     BOOL = 'BOOL'
@@ -18,6 +20,15 @@ class Type(Enum):
     def __str__(self):
         return self.value
 
+
+'''
+    def __eq__(self, other):
+        if not isinstance(other, Type) or self in FAIL_TYPES or other in FAIL_TYPES:
+            return False
+        if self in FLEX_TYPES or other in FLEX_TYPES:
+            return True
+        return str(self) == str(other)  # checking string rather than direct type comparison to avoid potential bugs'''
+
 RacType = Union[Tuple[None, Type], Tuple[Tuple['RacType', ...], Type]]
 
 class TypeList:
@@ -29,7 +40,7 @@ class TypeList:
         else:
             return '[' + ', '.join(str(x) for x in self.value) + ']'
 
-#used in generalized equality checks for RacTypes
+# used in generalized equality checks for RacTypes
 FLEX_TYPES = [Type.TEMP, Type.ANY, Type.PARAM]
 FAIL_TYPES = [Type.NONE, Type.ERROR] 
 class RacType:
@@ -67,11 +78,16 @@ class RacType:
         if self.getType() in FLEX_TYPES or other.getType() in FLEX_TYPES:
             return True
         return str(self) == str(other) #checking string rather than direct type comparison to avoid potential bugs
-    
+
     def getType(self) -> RacType:
-        if self.value[0]==None:
-            return self.value[1]
-        return Type.FUNCTION
+        if isinstance(self.value, tuple) and len(self.value) == 2:
+            if self.value[0] is None:
+                return self.value[1]
+            return Type.FUNCTION
+        elif isinstance(self.value, RacType):
+            return self.value  # fallback if it's already a RacType
+        else:
+            return FAIL_TYPES[0]  # fallback for unknown format
 
     def getDomain(self):
         if self.getType() != Type.FUNCTION:
@@ -79,9 +95,11 @@ class RacType:
         return [RacType(x) for x in self.value[0]]
 
     def getRange(self) -> RacType:
-        return RacType(self.value[1])
+        if isinstance(self.value[1], tuple):
+            return RacType(self.value[1])
+        return RacType((None, self.value[1]))
 
-    def isType(self, typeStr)->bool:
+    def isType(self, typeStr) -> bool:
         return str(self.getType()) == typeStr
 
 # a helper function for setType that returns the position in the list of the root delimiter (either > or ,)
@@ -93,14 +111,15 @@ def findDelim(delim:str, tlist:list)->int:
             return i+1 #this is one more than the position for some reason (maybe i used it earlier) so i need to -1 to it in str2Type
     return -1 # the string had unbalanced parens or did not contain delim
 
-#given a tokenized list of a single type (i.e. NOT a list of types like potentially in a domain), returns the ractype for it. note: could be a function
+# given a tokenized list of a single type (i.e. NOT a list of types like potentially in a domain), returns the ractype for it. note: could be a function
 def list2Type(slist:list[str])->RacType:
     if ">" not in slist:
         strg = "".join(slist)
         if strg=="":
             return RacType(Type.ERROR)
         if strg[0]=="(":
-            strg = str[1:-1] #cutting out any surrounding parens (note that strg is not a function, so an open parens isn't needed)
+            strg = strg[1:-1]  # cutting out any surrounding parens (note that strg is not a function, so an open
+            # parens isn't needed)
         return RacType((None,Type.__members__.get(strg)))
     return RacType() # TODO: this is what needs to be done if it is a function
 
@@ -118,7 +137,7 @@ def list2Tup(slist:list[str])->tuple:
     return tuple([str2Type(firstTokL[0])])+list2Tup(restToksL)
 
 core = ["INT","LIST","BOOL","ANY"]
-#takes a string and turns it into a RacType
+# takes a string and turns it into a RacType
 def str2Type(tstr:str)->RacType:
     if tstr==None or tstr=="":
         return RacType((None, Type.ERROR))
@@ -145,14 +164,12 @@ def str2Type(tstr:str)->RacType:
 
 # Node object used to compose the AST
 class Node:
-    def __init__(self, children=None, parent=None, data:str='', tokenType:RacType=RacType((None,None)), name=None, debug:bool=False, numArgs:int=None, length:int=None, startPosition=None):
-        self.children = children # by specification, children[0] is the "operator" for functions
-        if children == None:
-            self.children = []
+    def __init__(self, children: list['Node'] = None, parent=None, data:str='', tokenType:RacType=RacType((None,None)), name=None, debug:bool=False, numArgs:int=None, length:int=None, startPosition=None):
+        self.children = [] if children is None else children # by specification, children[0] is the "operator" for functions
         self.parent = parent # reference to the Node's parent (will be None for the root Node)
         self.data = data # this is the string name to be displayed (what used to be called "name" in the old PB)
         self.name = name # this is what used to be called "value" in the old PB
-        self.type = tokenType # type of the node, (ex. boolean, int, function, etc.), specification described in typeFile
+        self._type = tokenType # type of the node, (ex. boolean, int, function, etc.), specification described in typeFile
         self.debug = debug # False = standard execution, True = print info useful when debugging the pipeline
         self.numArgs = numArgs # for functions, it's the number of inputs
         self.length = length # for lists, it's the length
@@ -165,7 +182,7 @@ class Node:
     
     # Node.type attribute setter
     @type.setter
-    def type(self, newType):
+    def type(self, newType: RacType):
         self._type = newType
 
     # convert the Node into a representation that is printed to the console
@@ -245,7 +262,7 @@ class Node:
     
      #checks if node is all math functions
     def allMath(self)->bool:
-        return self.funcSet().issubset(MathSet)
+        return self.funcSet().issubset(MathSet | ARITHMETIC)
     
     #gives the non-racket infix string representation of a math expression
     #note: this could include an outermost parens, but that won't effect equality check
@@ -255,9 +272,11 @@ class Node:
         if self.data == "expt":
             return "**"
         if self.data == "quotient":
-            return "/"
+            return "//"
         if self.data == "remainder":
             return "%"
+        if self.data == "=":
+            return "=="
         if self.children==[]: #just a single int, symbol, or +,-,*
             return self.data
         # only case left should be a parenthesized expression, but just in case:
@@ -266,8 +285,38 @@ class Node:
         return "("+self.children[1].mathStr()+self.children[0].mathStr()+\
             self.children[2].mathStr()+")"
 
+    def logicStr(self) -> str:
+        if self.data == None or self.data == '' or not self.funcSet().issubset(LogicSet):
+            return 'ERROR'
+        if self.data == '#t':
+            return 'True'
+        if self.data == '#f':
+            return 'False'
+        if self.children == []:
+            return self.data
+        if self.data != '(':
+            return 'ERROR'
+        if self.children[0].data in ('xor', 'implies'):
+            return f'({self.children[0].logicStr().capitalize()}({self.children[1].logicStr()}, {self.children[2].logicStr()}))'
+        elif self.children[0].data in ('and', 'or'):
+            return f'({self.children[1].logicStr()} {self.children[0].logicStr()} {self.children[2].logicStr()})'
+        else:
+            return f'({self.children[0].logicStr()} {self.children[1].logicStr()})'
 
-    def replaceWith(self, newNode):
+    # Return a deep copy of this node (independent subtree)
+    def clone(self) -> 'Node':
+        try:
+            # Prefer parser-based clone to ensure a clean, normalized tree
+            from .Parser import makeBasicAst  # local import to avoid circular at module load
+            newNode, errs = makeBasicAst(str(self))
+            if not errs and newNode is not None:
+                return newNode
+        except Exception:
+            pass
+        # Fallback to deepcopy if parsing fails
+        return copy.deepcopy(self)
+
+    def replaceWith(self, newNode: 'Node'):
         self.data = newNode.data
         self.name = newNode.name
         self.type = newNode.type
@@ -322,11 +371,121 @@ def findNode(tree:Node, target:int,errLog:list[str],found=None)->Node:
     if found ==  None:
         found = []
 
-    # print(f"tree={tree.data} start={tree.startPosition}")
-    if tree.startPosition == target:
+    if int(tree.startPosition) == int(target):
         found.extend([tree])
 
     for child in tree.children:
         if not found:
             found.extend(findNode(child, target, errLog,found))
     return found
+
+
+def replace_node_with_tree(target_node: Node, replacement_tree: Node) -> Node:
+    """
+    Replace `target_node` in-place with a deep copy of `replacement_tree`.
+
+    This function performs a deep copy of `replacement_tree`, sets parent
+    pointers for all nodes in the copied subtree, and then replaces the
+    attributes of `target_node` (data, children, type, etc.) with those of
+    the copied subtree.
+
+    IMPORTANT: this does NOT recompute startPosition IDs. Call
+    `updatePositions(root)` from `ERProofEngine` after calling this helper
+    so node IDs are consistent.
+
+    Returns the modified `target_node`.
+    """
+    # make a deep copy so caller's replacement_tree remains unchanged
+    rep = copy.deepcopy(replacement_tree)
+
+    # set parent pointers within the copied subtree
+    def _set_parents(node: Node, parent: Node | None):
+        node.parent = parent
+        for child in node.children:
+            _set_parents(child, node)
+
+    _set_parents(rep, target_node.parent)
+
+    # perform the in-place replacement (keeps the same object identity for target_node)
+    target_node.data = rep.data
+    target_node.name = rep.name
+    target_node._type = rep._type
+    target_node.numArgs = rep.numArgs
+    target_node.length = rep.length
+    target_node.children = rep.children
+    target_node.debug = rep.debug
+
+    # ensure children's parent pointers point to the target_node itself
+    for child in target_node.children:
+        child.parent = target_node
+
+    return target_node
+
+
+
+# takes in an expression tree and returns a dictionary representation of it in Json format
+def Node2Dict(ractree:Node)->dict:
+    if ractree == None or ractree.data == None or ractree.data == "":
+        return dict() #just in case of an error
+    resdict = dict()
+    #note: None becomes "null" when converted to json
+    resdict["data"] = ractree.data # stop processing ( and '( as None to differentiate between them on the frontend
+    resdict["children"]=[]
+    resdict["startPosition"]=ractree.startPosition # this might not be necessary since it just replicates the key
+    for child in ractree.children:
+        #resdict["children"].append(makeJson(child))
+        resdict["children"].append(child.startPosition)
+    return resdict
+
+# takes the json tree representation of the expression and adds parent, left/right siblings
+def addParent(jsontree:dict)->None:
+    if jsontree == None or len(jsontree) == 0:
+        return jsontree
+    for nodeID, attribs in jsontree.items():
+        for child in attribs["children"]:
+                jsontree[child]["parent"] = nodeID
+
+def addChildren(ractree:Node)->dict:
+    if ractree == None or ractree.data == None or ractree.data == "":
+        return dict() #just in case of an error
+    resdict = dict()
+    resdict[ractree.startPosition] = Node2Dict(ractree)
+    for child in ractree.children:
+        resdict.update(addChildren(child))
+    return resdict
+
+def addSibs(jsontree:dict)->None:
+    if jsontree == None or len(jsontree) == 0:
+        return jsontree
+    for nodeID, attribs in jsontree.items():
+        if nodeID == 0: # root node has no siblings
+            attribs["leftSib"] = None
+            attribs["rightSib"] = None
+        else:
+            parentID = attribs["parent"]
+            parent = jsontree[parentID]
+            children = parent["children"]
+            index = children.index(nodeID)
+            attribs["leftSib"] = None if index == 0 else children[index-1]
+            attribs["rightSib"] = None if index == len(children)-1 else children[index+1]
+        
+# takes in an expression tree and returns a dictionary representation of it in Json format
+# the key is the start position of the node in the original string, and the values are dictionaries of the node's data, children, and start position
+# e.g. myDict[6]["children"] = [8, 12] where the children are identified by their start positions (essentially acting as node IDs)
+def makeJson(ractree:Node)->dict:
+    if ractree == None or ractree.data == None or ractree.data == "":
+        return dict() #fixed by Jerry
+    jsontree = addChildren(ractree)
+
+    if jsontree == {}:
+        return jsontree
+    
+    jsontree[0]["parent"] = None
+    addParent(jsontree)
+    addSibs(jsontree)
+    return jsontree
+
+
+
+
+

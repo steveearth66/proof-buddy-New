@@ -1,0 +1,74 @@
+.racket-input-wrapper {
+  position: relative;
+  width: 100%;
+  
+  .racket-input-highlight-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    padding: 0.375rem 0.75rem;
+    font-family: inherit;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: transparent;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow: hidden;
+    border: 1px solid transparent;
+    border-radius: 0.375rem;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    
+    .highlight-content {
+      width: 100%;
+    }
+    
+    span {
+      &.highlight-paren {
+        background-color: rgba(255, 0, 0, 0.3);
+        color: transparent;
+        border-radius: 2px;
+      }
+    }
+  }
+  
+  .racket-input-field {
+    position: relative;
+    background: transparent;
+    z-index: 2;
+    width: 100%;
+  }
+}
+
+// Ensure floating labels work correctly
+.form-floating {
+  .racket-input-wrapper {
+    .racket-input-highlight-layer {
+      padding: 1rem 0.75rem;
+    }
+    
+    .racket-input-field {
+      min-height: inherit;
+    }
+  }
+  
+  &.expression-field-floating {
+    min-height: 60px;
+    
+    .racket-input-wrapper {
+      height: 100%;
+      
+      .racket-input-field {
+        height: 100%;
+      }
+      
+      .racket-input-highlight-layer {
+        height: 100%;
+      }
+    }
+  }
+}

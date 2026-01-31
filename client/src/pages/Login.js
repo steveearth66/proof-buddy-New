@@ -46,14 +46,14 @@ const Login = () => {
 
     try {
       const response = await authService.login(credentials);
-      if (response.accessToken) {
+      if (response && response.accessToken) {
         Cookies.set('accessToken', response.accessToken, { expires: 1, secure: false, sameSite: 'Strict' });
         await login();
         navigate('/');
       }
     } catch (error) {
       handleServerError(error);
-      if (error.response.data.emailResendToken) {
+      if (error?.response?.data?.emailResendToken) {
         Cookies.set('emailResendToken', error.response.data.emailResendToken, { expires: 1/24, secure: true, sameSite: 'Strict' });
         navigate('/verify-email');
       }

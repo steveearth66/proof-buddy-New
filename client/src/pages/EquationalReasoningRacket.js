@@ -32,6 +32,9 @@ const EquationalReasoningRacket = () => {
 
   const[rightHandSideProofLineList, setRightHandSideProofLineList] = useState([{ proofLineRacket: '', proofLineRule: '' }]);
 
+  // // making new variable called jsonTree to save jsonTree representation
+  // const [jsonTree, setJsonTree] = useState({}); // removed to clean warnings
+
   const gradient = {
     orange_gradient: 'linear-gradient(135deg, #ffc600 0, #ff8f1c 100%)',
     orange_gradient_reverse: 'linear-gradient(135deg, #ff8f1c 0, #ffc600 100%)'
@@ -200,24 +203,32 @@ const EquationalReasoningRacket = () => {
   }
 
   const handlePythonGeneration = async () => {//function wraps the logic for communicating 'Client's' 'Rule' to python-server for 'Racket' code generation
+    //console.log('Python Generation Button Clicked!');
     if (isLeftHandActive) {
       if (leftHandSideProofLineList.length - 1 > 0) {
-        handlePromiseWithPythonServer(leftHandSideProofLineList);
+        console.log('sup')
+        await handlePromiseWithPythonServer(leftHandSideProofLineList);
       } else {
         addLine(); //we use else here to add a new line so that we do not communicate null for the first line of the proof
       }
     } else {
       if (rightHandSideProofLineList.length - 1 > 0) {
-        handlePromiseWithPythonServer(rightHandSideProofLineList);
+        await handlePromiseWithPythonServer(rightHandSideProofLineList);
       } else {
         addLine(); //we use else here to add a new line so that we do not communicate null for the first line of the proof
       }
     }
+    // not currently working
+    // print tree representation to the console
+    //console.log('sup')
+    //console.log(jsonTree);
   }
 
   const handlePromiseWithPythonServer = async (targetList) => { //sends client 'Rule' to the python-server for 'Racket' code generation
     try {
       let response = await racketGeneration({ rule: targetList[targetList.length - 1].proofLineRule }); //we await a response from the python-server
+      // // setting jsonTree variable to tree passed from response
+      // setJsonTree(response.data.jsonTree) // removed to clean warnings
       targetList[targetList.length - 1].proofLineRacket = response.racket;
       addLine(); //After a succesful response, we add a new line for the client to add more 'Rules' for 'Racket' code generation
     } catch (error) {

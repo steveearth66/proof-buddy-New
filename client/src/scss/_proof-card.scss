@@ -1,0 +1,48 @@
+.proof-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    width: 25em;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    background-color: hsla(0, 0%, 89%, 0.014);
+
+    button: {
+        width: 100%;
+    }
+}
+
+.proof-layout {
+    background-color: #ececec31;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    height: 100%;
+    width: 100%;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    padding-bottom: 5px;
+    
+    .proofs {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+        justify-content: space-around;
+
+        div:last-child {
+            margin-bottom: .7em;
+        }
+        .not-found {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+        }
+    }
+
+    .search {
+        margin-bottom: 1rem;
+        max-width: 38em;
+    }
+    
+}

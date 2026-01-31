@@ -1,18 +1,29 @@
 from django.urls import path
-from .views import (
-    apply_rule,
-    check_goal,
-    add_definitions,
-    complete_proof,
-    clear_proof,
-    substitution,
-)
+from . import views
 
 urlpatterns = [
-    path("er-generate", apply_rule),
-    path("check-goal", check_goal),
-    path("er-definitions", add_definitions),
-    path("er-complete", complete_proof),
-    path("er-clear", clear_proof),
-    path("er-substitution", substitution),
+    path("er-generate", views.apply_rule),
+    path("check-goal", views.check_goal),
+    path("set-proof", views.set_current_proof),
+    path("er-definitions", views.add_definitions),
+    path("er-complete", views.complete_proof),
+    path("er-clear", views.clear_proof),
+    path("er-substitution", views.substitution),
+    path("er-save", views.save_proof),
+    path("proofs", views.get_user_proofs),
+    path("proofs/<int:proof_id>", views.get_proof),
+    path("get-definitions", views.get_definitions),
+    # path("use-definition/<int:id>", views.use_definition),
+    path("use-definition/<str:label>", views.use_definition),
+    path("edit-definition/", views.update_definition),
+    # path("delete-definition/<int:id>/", views.delete_definition_api),
+    path("delete-definition/<str:label>/", views.delete_definition_api),
+    # path("remove-definition/<int:id>/", views.remove_definition),
+    path("remove-definition/<str:label>/", views.remove_definition),
+    path("delete-line/<str:side>", views.delete_line),
+    path("get-generics", views.get_generics),
+    path("create-generic", views.add_generic),
+    path("use-generic/<int:id>", views.enable_generic),
+    path("remove-generic/<int:id>", views.disable_generic),
+    path("delete-generic/<int:id>", views.delete_generic_api)
 ]

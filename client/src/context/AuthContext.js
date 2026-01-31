@@ -15,13 +15,14 @@ const AuthProvider = ({ children }) => {
 
   // Fetch user data if logged in.
   const fetchUserData = async () => {
-    const token = Cookies.get('accessToken');
+    const token = Cookies.get("accessToken");
     if (token) {
       try {
         const userData = await userService.getUserProfile();
         setUser(userData);
       } catch (error) {
-        logger.error('Error fetching user data', error);
+        logger.error("Error fetching user data", error);
+        Cookies.remove("accessToken");
       }
     }
   };
@@ -30,7 +31,9 @@ const AuthProvider = ({ children }) => {
     await fetchUserData();
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await userService.logout();
+    Cookies.remove("accessToken");
     setUser(null);
   };
 

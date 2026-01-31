@@ -1,0 +1,21 @@
+services:
+  mariadb:
+    image: mariadb:latest
+    container_name: proofbuddy_mariadb
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb:/var/lib/mysql
+      - ./setup.sql:/docker-entrypoint-initdb.d/setup.sql
+    env_file:
+      - .env
+    networks:
+      - proof_buddy_network
+    restart: unless-stopped
+
+networks:
+  proof_buddy_network:
+    driver: bridge
+
+volumes:
+  mariadb:

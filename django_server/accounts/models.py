@@ -29,6 +29,7 @@ class AccountManager(BaseUserManager):
             **other_fields,
         )
 
+        user.is_active = True # NOTE: remove after permanent email verification solution is found
         user.set_password(password)
         user.save(using=self._db)
         return user
@@ -91,15 +92,15 @@ class ResetPassword(models.Model):
     def __str__(self):
         return self.user.username
 
-
-@receiver(post_save, sender=Account)
+# NOTE: uncomment after permanent email verification solution is found
+""" @receiver(post_save, sender=Account)
 def create_activation_key(sender, instance, created, **kwargs):
-    if created:
+    if created and not instance.is_superuser:
         activation = ActivateAccount.objects.create(user=instance)
         email = instance.email
         username = instance.username
         key = activation.activation_key
-        send_activation_email(email, username, key)
+        send_activation_email(email, username, key) """
 
 
 def send_activation_email(email, username, key):

@@ -22,21 +22,23 @@ LABEL_LIBRARY = [
     Label(r'^\($', Type.TEMP),
     Label(r'#t|#T', Type.BOOL),  # True boolean values
     Label(r'#f|#F', Type.BOOL),  # False boolean values
-    Label(r'(\d+)', Type.INT),  # integers
+    Label(r'-?\d+', Type.INT),  # integers (including negative)
 ]
 
 # list of built-in Racket functions
 BUILT_IN_FUNCTIONS = ['if', 'cons', 'first', 'rest', 'null?', '+', '-', '*', 'quotient', 'remainder', 'zero?',
-                      "expt", "=", "<=", ">=", "<", ">", "and", "or", "not", "xor", "implies", "list?", "int?"]
+                      "expt", "=", "<=", ">=", "<", ">", "and", "or", "not", "xor", "implies", "list?", "integer?"]
 
 # give every Node object in the AST an initial type (ifs will be done later in remTemps since their range varies)
-def labelTree(inputTree: Node, ruleDict=None) -> Node:
+def labelTree(inputTree: Node, defDict=None, generics=None) -> Node:
     # if inputTree is empty, return the empty list
     if inputTree == []:
         return
-    if ruleDict == None:
-        ruleDict = dict()
-
+    if defDict == None:
+        defDict = dict()
+    if generics is None:
+        generics = dict()
+        
     # get the token in the Node
     root = inputTree
     data = root.data
@@ -56,10 +58,12 @@ def labelTree(inputTree: Node, ruleDict=None) -> Node:
         inputTree.numArgs = erObj.numArgs
 
     # check if the token is a user-defined function
-    elif inputTree.data in ruleDict.keys():
-        inputTree.type = ruleDict[inputTree.data].racType
+    elif inputTree.data in defDict:
+        inputTree.type = defDict[inputTree.data].racType
         if inputTree.type.isType("FUNCTION"):
             inputTree.numArgs = len(inputTree.type.getDomain())
+    elif inputTree.data in generics.keys():
+        inputTree.type = generics[inputTree.data].racType
     else:
 
         # check if the token matches a label regex
@@ -67,9 +71,6 @@ def labelTree(inputTree: Node, ruleDict=None) -> Node:
             matcher = re.compile(label.regex)
             if matcher.match(root.data) != None:
                 root.type = RacType((None, label.dataType))
-                if root.type.isType("INT"):
-                    # storing the integer value in the node to be used with arithmetic operations
-                    root.name = int(root.data)
                 break
 
     # if the Node is still unlabeled, default its type to be Type.PARAM
@@ -78,7 +79,7 @@ def labelTree(inputTree: Node, ruleDict=None) -> Node:
 
     # label the children of the root Node
     for child in root.children:
-        labelTree(child, ruleDict)
+        labelTree(child, defDict, generics)
 
     # return the tree
     return root

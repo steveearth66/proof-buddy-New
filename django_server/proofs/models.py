@@ -8,6 +8,38 @@ TEMPLATE_CHOICES = [
     ('ADD', 'ADD'),
 ]
 
+class Definition(models.Model):
+    label = models.CharField(max_length=100)
+    def_type = models.CharField(max_length=100)
+    expression = models.CharField(max_length=255, blank=True)
+    notes = models.TextField(default="", blank=True)
+    created_by = models.ForeignKey(
+        'accounts.Account', related_name='definitions', on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('label', 'created_by')
+
+    def get_tag(self):
+        return self.label
+
+    def __str__(self):
+        return self.label
+
+class Generic(models.Model):
+    label = models.CharField(max_length=100)
+    type = models.CharField(max_length=100)
+    restrictions = models.CharField(default='None', max_length=127)
+    notes = models.TextField(default="", blank=True)
+    created_by = models.ForeignKey(
+        'accounts.Account', related_name='generics', on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('label', 'created_by')
+    
+    def __str__(self):
+        return self.label
 
 class Proof(models.Model):
     name = models.CharField(max_length=100)
@@ -20,6 +52,12 @@ class Proof(models.Model):
     isComplete = models.BooleanField(default=False)
     template = models.CharField(
         max_length=3, choices=TEMPLATE_CHOICES, default='ER')
+    definitions = models.ManyToManyField(
+        Definition, related_name="proof_definitions", blank=True
+    )
+    generics = models.ManyToManyField(
+        Generic, related_name='proofs', blank=True
+    )
 
     def __str__(self):
         return self.name
@@ -31,7 +69,7 @@ class ProofLine(models.Model):
     left_side = models.BooleanField(default=True)
     racket = models.CharField(max_length=255)
     rule = models.CharField(max_length=100)
-    start_position = models.CharField(max_length=100, blank=True)
+    start_position = models.SmallIntegerField()
     created_at = models.DateTimeField(auto_now_add=True)
     errors = models.TextField(default='')
     deleted = models.BooleanField(default=False)
@@ -40,19 +78,4 @@ class ProofLine(models.Model):
         return self.racket
 
     def get_proof_tag(self):
-        return self.proof.tag
-
-
-class Definition(models.Model):
-    label = models.CharField(max_length=100)
-    def_type = models.CharField(max_length=100)
-    expression = models.CharField(max_length=255)
-    notes = models.TextField(default='', blank=True)
-    proof = models.ForeignKey(
-        Proof, related_name='definitions', on_delete=models.CASCADE, null=True)
-    created_by = models.ForeignKey(
-        'accounts.Account', related_name='definitions', on_delete=models.CASCADE)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def get_tag(self):
         return self.proof.tag

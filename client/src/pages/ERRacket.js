@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Dropdown from "react-bootstrap/Dropdown";
 import Button from "react-bootstrap/Button";
 import Container from "react-bootstrap/Container";
@@ -19,29 +19,40 @@ import { useCurrentRacketValues } from "../hooks/useCurrentRacketValues";
 import { useFormSubmit } from "../hooks/useFormSubmit";
 import "../scss/_forms.scss";
 import "../scss/_er-racket.scss";
-import { useExportToLocalMachine } from "../hooks/useExportToLocalMachine";
+import { exportToLocalMachine, readFromFile } from "../hooks/useExportToLocalMachine";
 import {
   Definitions,
   ProofComplete,
   PersistentPad,
   Substitution
 } from "../components";
+import ClickableRowNumber from "../components/ClickableRowNumber";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
+import { useDynamicHeight } from "../hooks/useDynamicHeight";
 import erService from "../services/erService";
+import { useLocation, useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
+import {
+  ARROW_KEYS,
+  INITIAL_FORM_VALUES,
+  INITIAL_PREMISE_STATE,
+  EMPTY_INITIAL_FIELD,
+  getPadRefs,
+  getPadIndex,
+  isFormComplete,
+  convertFormToJSON,
+  clearSessionData,
+  updatePremises
+} from "../utils/erRacketUtils";
 
 /**
  * ERRacket component facilitates the Equational Reasoning Racket.
  */
 const ERRacket = () => {
-  const initialValues = {
-    proofName: "",
-    proofTag: "",
-    lHSGoal: "",
-    rHSGoal: ""
-  };
-
+  const [footerRule, setFooterRule] = useState("");
+  const [userRow, setUserRow] = useState({ num: "" });
   const [showSide, toggleSide] = useToggleSide();
-  const [formValues, handleChange] = useInputState(initialValues);
+  const [formValues, handleChange] = useInputState(INITIAL_FORM_VALUES);
   const [validationMessages, handleBlur, setAllTouched, isFormValid] =
     useFormValidation(formValues, validateField);
   const [validated, setValidated] = useState(false);
@@ -51,44 +62,323 @@ const ERRacket = () => {
     goalValidationMessage,
     enhancedHandleChange,
     proofValidationMessage,
-    clearProofValidationMessage
+    clearProofValidationMessage,
+    loadRacketGoal,
+    jsonTreeRep
   ] = useGoalCheck(handleChange);
-  const [startPosition, setStartPosition] = useState(0);
   const [currentRacket, setCurrentRacket] = useState("");
+  const [racketRuleFields, setRacketRuleFields] = useState({
+    LHS: [EMPTY_INITIAL_FIELD],
+    RHS: [EMPTY_INITIAL_FIELD]
+  });
+
+  // const handleFieldChange = useCallback((side, index, fieldName, value) => {
+  //   setRacketRuleFields((prevFields) => {
+  //     const fieldsCopy = { ...prevFields };
+  //     if (fieldsCopy[side] && fieldsCopy[side][index]) {
+  //       fieldsCopy[side][index] = {
+  //         ...fieldsCopy[side][index],
+  //         [fieldName]: value
+  //       };
+  //     }
+  //     return fieldsCopy;
+  //   });
+  // }, []); // removed to clean warnings
+
+  const handleFieldHighlight = useCallback((isLHS, lineNum, selected) => {
+    if (isLHS) {
+      if (lineNum === 0)
+        setLeftPremise(prev => ({ ...prev,  startPosition: selected }));
+      else
+        setRacketRuleFields(prev => 
+          ({ ...prev, 
+            LHS: prev.LHS.map((field, index) => 
+              (index === lineNum - 1 ? { ...field, startPosition: selected } : field)
+            )
+          })
+        );
+    } else {
+      if (lineNum === 0)
+        setRightPremise(prev => ({ ...prev, startPosition: selected }));
+      else
+        setRacketRuleFields(prev => 
+          ({ ...prev, 
+            RHS: prev.RHS.map((field, index) => 
+              (index === lineNum - 1 ? { ...field, startPosition: selected } : field)
+            )
+          })
+        );
+    }
+  }, []);
+
+  // const loadRacketProof = useCallback((loadedProof) => {
+  //   if (loadedProof) {
+  //     formValues.proofName = loadedProof.name;
+  //     formValues.proofTag = loadedProof.tag;
+  //     formValues.lHSGoal = loadedProof.lHSGoal;
+  //     formValues.rHSGoal = loadedProof.rHSGoal;
+  //
+  //     setLeftPremise(loadedProof.leftPremise);
+  //     setRightPremise(loadedProof.rightPremise);
+  //
+  //     sessionStorage.setItem('definitions', JSON.stringify(loadedProof.definitions));
+  //
+  //     // Set the racket rule fields from the loaded proof
+  //     setRacketRuleFields({
+  //       LHS: loadedProof.leftRacketsAndRules || [EMPTY_INITIAL_FIELD],
+  //       RHS: loadedProof.rightRacketsAndRules || [EMPTY_INITIAL_FIELD]
+  //     });
+  //
+  //     loadRacketGoal(loadedProof);
+  //     loadProofInServer(loadedProof);
+  //   }
+  // }, [formValues, loadRacketGoal, loadProofInServer, setLeftPremise, setRightPremise]); // removed to clean warnings
+
   const [
-    racketRuleFields,
+    ,
     addFieldWithApiCheck,
-    handleFieldChange,
+    ,
     validationErrors,
     serverError,
     racketErrors,
-    deleteLastLine,
+    ,
     updateShowSubstitution,
     showSubstitution,
     closeSubstitution,
     substituteFieldWithApiCheck,
     substitutionErrors,
-    sendProofComplete
+    loadProofInServer
   ] = useRacketRuleFields(
-    startPosition,
+    0, // Default startPosition since we now get it from pad refs
     currentRacket,
     formValues.proofName,
     formValues.proofTag,
     showSide
   );
-  const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields);
-  const [lhsValue, setLhsValue] = useState("");
-  const [rhsValue, setRhsValue] = useState("");
+
+  // const loadRacketProof = useCallback((loadedProof) => {
+  //   if (loadedProof) {
+  //     formValues.proofName = loadedProof.name;
+  //     formValues.proofTag = loadedProof.tag;
+  //     formValues.lHSGoal = loadedProof.lHSGoal;
+  //     formValues.rHSGoal = loadedProof.rHSGoal;
+  //
+  //     setLeftPremise(loadedProof.leftPremise);
+  //     setRightPremise(loadedProof.rightPremise);
+  //
+  //     sessionStorage.setItem('definitions', JSON.stringify(loadedProof.definitions));
+  //
+  //     // Set the racket rule fields from the loaded proof
+  //     setRacketRuleFields({
+  //       LHS: loadedProof.leftRacketsAndRules || [EMPTY_INITIAL_FIELD],
+  //       RHS: loadedProof.rightRacketsAndRules || [EMPTY_INITIAL_FIELD]
+  //     });
+  //
+  //     loadRacketGoal(loadedProof);
+  //     loadProofInServer(loadedProof);
+  //   }
+  // }, [formValues, loadRacketGoal, loadProofInServer, setLeftPremise, setRightPremise]); // removed to clean warnings
+  
   const [isOffcanvasActive, toggleOffcanvas] = useOffcanvas();
   const [showDefinitionsWindow, toggleDefinitionsWindow] =
     useDefinitionsWindow();
-  const [showProofComplete, setShowProofComplete] = useState(false);
   const [proofComplete, setProofComplete] = useState(false);
-  const [leftPremise, setLeftPremise] = useState({});
-  const [rightPremise, setRightPremise] = useState({});
+  const [leftPremise, setLeftPremise] = useState(INITIAL_PREMISE_STATE);
+  const [rightPremise, setRightPremise] = useState(INITIAL_PREMISE_STATE);
+  const [loadedProof, setLoadedProof] = useState(null);
+  const [isBound, setIsBound] = useState(false);
+  const navigate = useNavigate();
+
+  const loadRacketProof = useCallback((loadedProof) => {
+    if (loadedProof) {
+      formValues.proofName = loadedProof.name;
+      formValues.proofTag = loadedProof.tag;
+      formValues.lHSGoal = loadedProof.lHSGoal;
+      formValues.rHSGoal = loadedProof.rHSGoal;
+
+      setLeftPremise(loadedProof.leftPremise);
+      setRightPremise(loadedProof.rightPremise);
+
+      sessionStorage.setItem('definitions', JSON.stringify(loadedProof.definitions));
+
+      // Set the racket rule fields from the loaded proof
+      setRacketRuleFields({
+        LHS: loadedProof.leftRacketsAndRules || [EMPTY_INITIAL_FIELD],
+        RHS: loadedProof.rightRacketsAndRules || [EMPTY_INITIAL_FIELD]
+      });
+
+      loadRacketGoal(loadedProof);
+      loadProofInServer(loadedProof);
+    }
+  }, [formValues, loadRacketGoal, loadProofInServer, setLeftPremise, setRightPremise]);
+  
+  // Hook to track current LHS and RHS values
+  const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields, formValues, isGoalChecked);
+  
+  // Hook to dynamically calculate available height for scroll container
+  const availableHeight = useDynamicHeight([racketRuleFields, formValues, isBound]);
+  
+  const location = useLocation();
 
   const handleERRacketSubmission = async () => {
     alert("We are stilling working on proof submission!");
+  };
+
+  const lhsPadRefs = useRef({});
+  const rhsPadRefs = useRef({});
+  const footerPadRef = useRef(null);
+  const isProcessingRef = useRef(false);
+  const isSubProcessingRef = useRef(false);
+  const loadErrorShownRef = useRef(false);
+
+  const bindFooterToRow = useCallback((rowNum) => {
+    const paddedRowNum = rowNum.toString().padStart(3, "0");
+    const userIndex = getPadIndex(paddedRowNum);
+    const matchingRow = document.getElementById("racket-row-" + userIndex);
+    
+    if (!matchingRow) {
+      alert("No matching row found!");
+      return false;
+    }
+
+    setUserRow({ num: paddedRowNum });
+    setIsBound(true);
+
+    // Set footer rule initially to what the pad ref row has
+    if (paddedRowNum !== "000") {
+      const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
+      const mainPadRef = padRefs.current[userIndex];
+      setFooterRule(mainPadRef?.getRuleValue() || "");
+    } else {
+      setFooterRule("Premise");
+    }
+
+    setTimeout(() => {
+      const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
+      // Focus on the previous row to match arrow key control
+      // But don't try to focus on negative index if binding to premise
+      if (paddedRowNum === "000") {
+        // When binding to premise (000), focus stays on premise
+        padRefs.current[userIndex]?.focus();
+      } else {
+        // For other rows, focus on the previous row
+        const previousRowIndex = userIndex - 1;
+        if (previousRowIndex >= 0) {
+          padRefs.current[previousRowIndex]?.focus();
+        }
+      }
+    }, 0);
+
+    return true;
+  }, [showSide, lhsPadRefs, rhsPadRefs]);
+
+  const unbindFooter = useCallback(() => {
+    setUserRow({ num: "" });
+    setIsBound(false);
+  }, []);
+
+  const handleRowNumberClick = (rowNum) => {
+    // Only allow binding if footer is currently unbound
+    if (!isBound) {
+      bindFooterToRow(rowNum);
+    }
+  };
+
+  const handleGenerateAndCheck = async () => {
+    // Prevent duplicate execution
+    if (isProcessingRef.current) {
+      return;
+    }
+    
+    isProcessingRef.current = true;
+    
+    try {
+      // Get the data needed for the backend
+      let ruleFromFooter = "";
+      let previousStartPosition = 0;
+      let previousRacketValue = "";
+      
+      if (isBound) {
+        const userIndex = getPadIndex(userRow.num);
+        ruleFromFooter = userRow.num === "000" ? "Premise" : footerRule;
+        
+        // Get the previous row's data
+        if (userRow.num !== "000") {
+          const previousRowIndex = userIndex - 1;
+          const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
+          
+          if (previousRowIndex === 0) {
+            // Previous row is the premise
+            previousRacketValue = showSide === "LHS" ? leftPremise.racket : rightPremise.racket;
+            // Get startPosition from pad ref instead of state
+            previousStartPosition = padRefs.current[previousRowIndex]?.getStartPosition() ?? 0;
+          } else {
+            // Previous row is a regular field
+            const previousField = racketRuleFields[showSide][previousRowIndex - 1];
+            previousRacketValue = previousField?.racket || "";
+            // Get startPosition from pad ref instead of state
+            previousStartPosition = padRefs.current[previousRowIndex]?.getStartPosition() ?? 0;
+          }
+        }
+      }
+      
+      const fullRacket = await addFieldWithApiCheck(showSide, ruleFromFooter, previousStartPosition, previousRacketValue);
+      
+      // Check if we got a valid response
+      if (!fullRacket) {
+        console.error("addFieldWithApiCheck returned undefined/null");
+        return;
+      }
+      
+      if (fullRacket && fullRacket.isValid) {
+        // Add the returned expression to the racketRuleFields state
+        setRacketRuleFields((prevFields) => {
+          // Check if we already added this field (prevent duplicate additions)
+          const hasMatchingField = prevFields[showSide].some(field => 
+            field.racket === fullRacket.racket && field.rule === ruleFromFooter && !field.deleted
+          );
+          
+          if (hasMatchingField) {
+            return prevFields; // Return unchanged state
+          }
+          
+          const fields = { ...prevFields };
+          const newField = {
+            racket: fullRacket.racket || "",
+            jsonTree: fullRacket.jsonTree || {},
+            rule: ruleFromFooter,
+            startPosition: previousStartPosition,
+            deleted: false
+          };
+          
+          const lastField = fields[showSide][fields[showSide].length - 1];
+          const isEmpty = lastField && lastField.racket === "" && lastField.rule === "";
+          
+          if (isEmpty) {
+            // Replace the last empty field with the new field
+            fields[showSide][fields[showSide].length - 1] = newField;
+            // Add a new empty field at the end
+            fields[showSide].push(EMPTY_INITIAL_FIELD);
+          } else {
+            // Add the new field and ensure there's an empty field at the end
+            fields[showSide].push(newField);
+            fields[showSide].push(EMPTY_INITIAL_FIELD);
+          }
+          
+          return fields;
+        });
+
+        // Unbind the footer after successful generate and check
+        if (isBound) {
+          unbindFooter();
+        }
+      }
+    } catch (error) {
+      console.error("Error in Generate & Check:", error);
+    } finally {
+      // Always reset the processing flag
+      isProcessingRef.current = false;
+    }
   };
 
   const { handleSubmit } = useFormSubmit(
@@ -98,118 +388,294 @@ const ERRacket = () => {
     handleERRacketSubmission
   );
 
-  /**
-   * Creates JSON object of the target incoming parameter (which should be a JavaScript Object)
-   */
-  const convertToJSON = (target) => {
-    return JSON.stringify(target);
+  const convertFormToJSONWrapper = () => {
+    return convertFormToJSON(formValues, racketRuleFields, leftPremise, rightPremise, isGoalChecked, jsonTreeRep, showSide);
   };
 
-  /**
-   * Returns a JSON object of the present form
-   */
-  const convertFormToJSON = () => {
-    //This is a Front End Proof Object placeholder
-    //In the future we will be using a Proof Object sent from the python-server
-    let EquationalReasoningObject = {
+  const exportJSON = () => {
+    if (!isFormComplete(formValues)) {
+      alert("Please fill out all required fields before exporting.");
+      return;
+    }
+    exportToLocalMachine(formValues.proofName, convertFormToJSONWrapper());
+  };
+
+  // Simplified handleHighlight - removed since not used anymore
+
+  const handleFileUpload = async (file) => {
+    if (file) {
+      try {
+        const data = await readFromFile(file); // Parse the file
+        setLoadedProof(data);
+      } catch (error) {
+        console.error("Error reading file:", error.message);
+        alert("Failed to load the file. Please upload a valid .json file.");
+      }
+    }
+  };
+
+  const saveProof = async () => {
+    // Validate required fields
+    if (!formValues.proofName || !formValues.proofTag || !formValues.lHSGoal || !formValues.rHSGoal) {
+      toast.error("Please fill in all required fields (Name, Tag, LHS Goal, RHS Goal) before saving.");
+      return;
+    }
+
+    // Get definitions from sessionStorage
+    const definitions = JSON.parse(sessionStorage.getItem("definitions") || "[]");
+    
+    const proof = {
       name: formValues.proofName,
+      tag: formValues.proofTag,
       leftRacketsAndRules: racketRuleFields.LHS,
-      rightRacketsAndRules: racketRuleFields.RHS
+      rightRacketsAndRules: racketRuleFields.RHS,
+      lHSGoal: formValues.lHSGoal,
+      rHSGoal: formValues.rHSGoal,
+      leftPremise: { 
+        ...leftPremise, 
+        checked: isGoalChecked.LHS,
+        jsonTree: isGoalChecked.LHS ? jsonTreeRep.LHS : null,
+        startPosition: leftPremise.startPosition || 0
+      },
+      rightPremise: { 
+        ...rightPremise, 
+        checked: isGoalChecked.RHS,
+        jsonTree: isGoalChecked.RHS ? jsonTreeRep.RHS : null,
+        startPosition: rightPremise.startPosition || 0
+      },
+      definitions
     };
 
-    return convertToJSON(EquationalReasoningObject);
-  };
-
-  const exportJSON = useExportToLocalMachine(
-    formValues.proofName,
-    convertFormToJSON()
-  );
-
-  const handleHighlight = (startPosition) => {
-    setStartPosition(startPosition);
+    try {
+      await toast.promise(erService.saveProof(proof), {
+        pending: "Saving proof...",
+        success: "Proof saved!",
+        error: "Error saving proof!"
+      });
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   useEffect(() => {
-    sessionStorage.removeItem("highlights");
-    sessionStorage.removeItem("definitions");
-
-    const clearProof = async () => {
-      await erService.clearProof();
-    };
-
-    clearProof();
+    clearSessionData();
+    erService.clearProof();
   }, []);
 
   useEffect(() => {
-    if (formValues.rHSGoal !== "") {
-      setRightPremise({
-        racket: formValues.rHSGoal,
-        rule: "Premise",
-        startPosition: 0
-      });
-    }
-
-    if (formValues.lHSGoal !== "") {
-      setLeftPremise({
-        racket: formValues.lHSGoal,
-        rule: "Premise",
-        startPosition: 0
-      });
-    }
-  }, [formValues]);
-
+    updatePremises(formValues, setLeftPremise, setRightPremise);
+  }, [formValues, updatePremises]); // was [formValues.lHSGoal, formValues.rHSGoal], removed to clean warnings
   useEffect(() => {
-    const removeBlankRackets = () => {
+    if (currentLHS && currentRHS && currentLHS === currentRHS) {
       racketRuleFields.LHS.splice(-1);
       racketRuleFields.RHS.splice(-1);
-    };
+      setProofComplete(true);
 
-    const sendProofComplete = async () => {
-      try {
-        await erService.completeProof({
-          name: formValues.proofName,
-          tag: formValues.proofTag,
-          leftRacketsAndRules: racketRuleFields.LHS,
-          rightRacketsAndRules: racketRuleFields.RHS,
-          lHSGoal: formValues.lHSGoal,
-          rHSGoal: formValues.rHSGoal,
-          leftPremise,
-          rightPremise
+      erService.completeProof({
+        name: formValues.proofName,
+        tag: formValues.proofTag,
+        leftRacketsAndRules: racketRuleFields.LHS,
+        rightRacketsAndRules: racketRuleFields.RHS,
+        lHSGoal: formValues.lHSGoal,
+        rHSGoal: formValues.rHSGoal,
+        leftPremise,
+        rightPremise
+      }).catch(console.error);
+    }
+  }, [currentLHS, currentRHS, racketRuleFields, formValues, leftPremise, rightPremise]);
+
+  useEffect(() => {
+    if (location?.state?.id && !loadErrorShownRef.current) {
+      erService.getRacketProof(location.state.id)
+        .then(setLoadedProof)
+        .catch((error) => {
+          if (!loadErrorShownRef.current) {
+            loadErrorShownRef.current = true;
+            console.error("Error loading proof:", error);
+            if (error.response?.data?.error === 'incompatible_version') {
+              alert(`Unable to load proof: ${error.response.data.message}\n\nThis proof may have been created with an older or incompatible version of Proof Buddy.`);
+            } else {
+              alert("An error occurred while loading the proof. It may be corrupted or from an incompatible version.");
+            }
+            navigate('/proofs', { replace: true });
+          }
         });
-      } catch (error) {
-        console.error(error);
-      }
-    };
+    }
+  }, [location, navigate]);
 
-    if (lhsValue !== "" && rhsValue !== "" && currentLHS !== "") {
-      if (currentLHS === currentRHS || currentLHS === rhsValue) {
-        removeBlankRackets();
-        setShowProofComplete(true);
-        setProofComplete(true);
-        sendProofComplete();
-        setTimeout(() => {
-          setShowProofComplete(false);
-        }, 5000);
+  useEffect(() => {
+    if (loadedProof) {
+      // Update form values
+      Object.assign(formValues, {
+        proofName: loadedProof.name,
+        proofTag: loadedProof.tag,
+        lHSGoal: loadedProof.lHSGoal,
+        rHSGoal: loadedProof.rHSGoal
+      });
+
+      setLeftPremise({
+        ...loadedProof.leftPremise,
+        startPosition: loadedProof.leftPremise?.startPosition ?? 0
+      });
+      setRightPremise({
+        ...loadedProof.rightPremise,
+        startPosition: loadedProof.rightPremise?.startPosition ?? 0
+      });
+
+      sessionStorage.setItem('definitions', JSON.stringify(loadedProof.definitions));
+
+      loadRacketGoal(loadedProof);
+      loadRacketProof(loadedProof);
+
+      // Set startPosition on all pad refs after they're created
+      setTimeout(() => {
+        // Set startPosition for both LHS and RHS
+        ['LHS', 'RHS'].forEach((side) => {
+          const padRefs = getPadRefs(side, lhsPadRefs, rhsPadRefs);
+
+          // Set premise startPosition (pad index 0)
+          const premiseData = side === 'LHS' ? loadedProof.leftPremise : loadedProof.rightPremise;
+          const premiseStartPosition = premiseData?.startPosition ?? 0;
+          padRefs.current[0]?.setStartPosition(premiseStartPosition);
+
+          // Set startPosition for each racket rule field
+          const rules = side === 'LHS' ? loadedProof.leftRacketsAndRules : loadedProof.rightRacketsAndRules;
+          if (rules) {
+            rules.forEach((rule, index) => {
+              if (rule.startPosition !== undefined && padRefs.current[index + 1]) {
+                padRefs.current[index + 1].setStartPosition(rule.startPosition);
+              }
+            });
+          }
+        });
+      }, 100); // Slightly longer timeout to ensure components are mounted
+      
+      // Restore showSide if available
+      if (loadedProof.showSide && loadedProof.showSide !== showSide) {
+        toggleSide();
       }
     }
-  }, [
-    currentLHS,
-    currentRHS,
-    racketRuleFields,
-    lhsValue,
-    rhsValue,
-    formValues.proofName,
-    formValues.proofTag,
-    formValues.lHSGoal,
-    formValues.rHSGoal,
-    leftPremise,
-    rightPremise,
-    sendProofComplete
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadedProof]);
+
+  useEffect(() => {
+
+    if (!racketRuleFields || !racketRuleFields[showSide]) {
+    return;
+    }
+
+    const currentSideRackets = racketRuleFields[showSide];
+
+    if (currentSideRackets.length <= 1) {
+      setCurrentRacket(formValues[`${showSide[0].toLowerCase()}HSGoal`]);
+      return;
+    }
+
+    const undeletedRackets = currentSideRackets.filter((line) => !line.deleted && line.racket);
+    const lastUndeletedRacket = undeletedRackets[undeletedRackets.length - 1];
+
+    if (lastUndeletedRacket) {
+      setCurrentRacket(lastUndeletedRacket.racket);
+    }
+  }, [showSide, racketRuleFields, formValues.lHSGoal, formValues.rHSGoal]);
+
+  // Global keydown handler for arrow keys when footer is bound
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      if (!isBound) return;
+
+      // Check if cursor is in a text input (don't interfere with text editing)
+      const activeElement = document.activeElement;
+      const isInTextInput = activeElement && (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.isContentEditable
+      );
+
+      if (isInTextInput) return;
+
+      const key = e.key;
+      if (ARROW_KEYS.includes(key)) {
+        e.preventDefault();
+        const direction = key.replace("Arrow", "").toLowerCase();
+        const userIndex = getPadIndex(userRow.num);
+        const mainPadRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
+
+        // Control the previous row instead of the current bound row
+        // But handle premise row (000) specially since it has no previous row
+        if (userRow.num === "000") {
+          // When bound to premise, arrow keys don't control anything (no previous row exists)
+          return;
+        } else {
+          const previousRowIndex = userIndex - 1;
+          if (previousRowIndex >= 0) {
+            mainPadRefs.current[previousRowIndex]?.moveSelection(direction);
+          }
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleGlobalKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', handleGlobalKeyDown);
+    };
+  }, [isBound, userRow.num, showSide, lhsPadRefs, rhsPadRefs]);
+
+  const renderFooterPad = () => {
+    const padIndex = getPadIndex(userRow.num);
+    
+    if (userRow.num === "000") {
+      const equation = showSide === "LHS" ? leftPremise.racket : rightPremise.racket;
+      
+      return (
+        <PersistentPad
+          ref={footerPadRef}
+          equation={equation}
+          onHighlightChange={() => {
+            // Highlighting handled internally by pad ref
+          }}
+          side={showSide}
+          jsonTree={jsonTreeRep[showSide]}
+          lineNum={padIndex}
+          startPosition={0}
+          tabIndex={0}
+          ruleValue="Premise"
+          onRuleChange={() => {}}
+          isRuleReadOnly={true}
+          rulePlaceholder="Rule"
+          isEditRow={true}
+        />
+      );
+    } else {
+      const field = racketRuleFields[showSide][padIndex - 1];
+      if (!field) return null;
+      
+      return (
+        <PersistentPad
+          ref={footerPadRef}
+          equation={field.racket}
+          onHighlightChange={() => {
+            // Highlighting handled internally by pad ref
+          }}
+          side={showSide}
+          jsonTree={field.jsonTree || jsonTreeRep[showSide]}
+          lineNum={padIndex}
+          startPosition={0}
+          tabIndex={0}
+          ruleValue={footerRule}
+          onRuleChange={e => setFooterRule(e.target.value.trim())}
+          isRuleReadOnly={false}
+          rulePlaceholder="Rule"
+          isEditRow={true}
+        />
+      );
+    }
+  };
 
   return (
     <MainLayout>
-      <Container className="er-racket-container">
+      <Container fluid className="er-racket-container">
         <OffcanvasRuleSet
           isActive={isOffcanvasActive}
           toggleFunction={toggleOffcanvas}
@@ -218,14 +684,91 @@ const ERRacket = () => {
           <Definitions toggleDefinitionsWindow={toggleDefinitionsWindow} />
         )}
 
-        {showProofComplete && <ProofComplete />}
+        {proofComplete && <ProofComplete onDismiss={() => setProofComplete(false)} />}
 
         {showSubstitution && (
           <Substitution
             show={showSubstitution}
             handleClose={() => closeSubstitution()}
             racketRuleFields={racketRuleFields[showSide]}
-            handleSubstitution={substituteFieldWithApiCheck}
+            handleSubstitution={async (formValues) => {
+              // Prevent duplicate submissions
+              if (isSubProcessingRef.current) {
+                return false;
+              }
+              isSubProcessingRef.current = true;
+
+              // Determine previous row context and fetch its startPosition and racket
+              const padIndex = getPadIndex(userRow.num);
+              const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
+              let previousStartPosition = 0;
+              let previousRacketValue = "";
+
+              if (userRow.num === "000") {
+                // Premise
+                previousStartPosition = padRefs.current[0]?.getStartPosition?.() ?? 0;
+                previousRacketValue = showSide === "LHS" ? leftPremise.racket : rightPremise.racket;
+              } else {
+                const previousRowIndex = padIndex - 1;
+                previousStartPosition = padRefs.current[previousRowIndex]?.getStartPosition?.() ?? 0;
+                if (previousRowIndex === 0) {
+                  // Previous is premise
+                  previousRacketValue = showSide === "LHS" ? leftPremise.racket : rightPremise.racket;
+                } else {
+                  const previousField = racketRuleFields[showSide][previousRowIndex - 1];
+                  previousRacketValue = previousField?.racket || "";
+                }
+              }
+
+              const result = await substituteFieldWithApiCheck(formValues, {
+                startPosition: previousStartPosition,
+                currentRacket: previousRacketValue
+              });
+
+              // If substitution succeeded, add a new proof line to UI
+              if (result && result.isValid) {
+                setRacketRuleFields((prevFields) => {
+                  const fields = { ...prevFields };
+                  const newField = {
+                    racket: result.racket || "",
+                    jsonTree: result.jsonTree || {},
+                    rule: `${formValues.rule} as ${formValues.substitution}`,
+                    startPosition: previousStartPosition,
+                    deleted: false
+                  };
+
+                  const lastField = fields[showSide][fields[showSide].length - 1];
+                  const isEmpty = lastField && lastField.racket === "" && lastField.rule === "";
+
+                  // Guard: avoid duplicate insertion of the same line
+                  const hasMatchingField = fields[showSide].some(field =>
+                    field.racket === newField.racket &&
+                    field.rule === newField.rule &&
+                    field.startPosition === newField.startPosition &&
+                    !field.deleted
+                  );
+                  if (hasMatchingField) {
+                    return prevFields;
+                  }
+
+                  if (isEmpty) {
+                    fields[showSide][fields[showSide].length - 1] = newField;
+                    fields[showSide].push(EMPTY_INITIAL_FIELD);
+                  } else {
+                    fields[showSide].push(newField);
+                    fields[showSide].push(EMPTY_INITIAL_FIELD);
+                  }
+
+                  return fields;
+                });
+                
+                // Unbind footer after successful substitution to prevent re-adding the same line
+                unbindFooter();
+              }
+
+              isSubProcessingRef.current = false;
+              return result;
+            }}
             errors={substitutionErrors}
           />
         )}
@@ -309,6 +852,35 @@ const ERRacket = () => {
                   </Dropdown.Item>
                 </Dropdown.Menu>
               </Dropdown>
+
+              <Dropdown
+                as={Col}
+                className="d-inline proof-dropdown-btn proof-operations"
+              >
+                <Dropdown.Toggle id="dropdown-autoclose-true">
+                  File Operations
+                </Dropdown.Toggle>
+
+                <Dropdown.Menu>
+                  <Dropdown.Item onClick={exportJSON}>
+                    Download Proof
+                  </Dropdown.Item>
+                  <Dropdown.Item onClick={() => document.getElementById("uploadProofInput").click()}>
+                    Upload Proof
+                  </Dropdown.Item>
+                  <input
+                    id="uploadProofInput"
+                    type="file"
+                    accept=".json"
+                    style={{ display: "none" }}
+                    onChange={(e) => handleFileUpload(e.target.files[0])}
+                  />
+                  <Dropdown.Item onClick={saveProof}>
+                    Save Proof
+                  </Dropdown.Item>
+                  <Dropdown.Item href="#">Submit Proof</Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown>
             </Row>
 
             <Row className="g-5">
@@ -319,6 +891,7 @@ const ERRacket = () => {
                     name="lHSGoal"
                     type="text"
                     placeholder="LHS Goal"
+                    readOnly={isGoalChecked.LHS}
                     value={formValues.lHSGoal}
                     onBlur={() => handleBlur("lHSGoal")}
                     onChange={enhancedHandleChange}
@@ -342,6 +915,7 @@ const ERRacket = () => {
                     name="rHSGoal"
                     type="text"
                     placeholder="RHS Goal"
+                    readOnly={isGoalChecked.RHS}
                     value={formValues.rHSGoal}
                     onBlur={() => handleBlur("rHSGoal")}
                     onChange={enhancedHandleChange}
@@ -371,7 +945,7 @@ const ERRacket = () => {
                     name="proofCurrentLHS"
                     type="text"
                     placeholder="Current LHS"
-                    value={currentLHS === "" ? lhsValue : currentLHS}
+                    value={currentLHS}
                     readOnly
                   />
                   <label htmlFor="eRProofCurrentLHS">Current LHS</label>
@@ -389,7 +963,7 @@ const ERRacket = () => {
                     name="proofCurrentRHS"
                     type="text"
                     placeholder="Current RHS"
-                    value={currentRHS === "" ? rhsValue : currentRHS}
+                    value={currentRHS}
                     readOnly
                   />
                   <label htmlFor="eRProofCurrentRHS">Current RHS</label>
@@ -405,6 +979,16 @@ const ERRacket = () => {
           </div>
 
           <div className="form-bottom-part">
+            {status === "expired" && (
+                <Alert variant="danger">Your proof has expired; work has been lost. Please reload the page to start
+                  over.</Alert>
+            )}
+            {status === "warning" && (
+                <Alert variant="warning">You have 5 minutes remaining of the 30 minute idle period. Please make a
+                  change, save, or
+                  download your proof to prevent
+                  loss of work.</Alert>
+            )}
             <Row className="switch-btn-wrap">
               <Col>
                 <Button
@@ -424,7 +1008,7 @@ const ERRacket = () => {
               <Row className="goal-btn-wrap">
                 <Button
                   className="orange-btn"
-                  onClick={() =>
+                  onClick={() => {
                     checkGoal(
                       showSide,
                       formValues[`${showSide[0].toLowerCase()}HSGoal`],
@@ -432,8 +1016,20 @@ const ERRacket = () => {
                       formValues.proofTag,
                       formValues.lHSGoal,
                       formValues.rHSGoal
-                    )
-                  }
+                    );
+                    // Set the premise to the current goal value
+                    if (showSide === "LHS") {
+                      setLeftPremise(prev => ({
+                        ...prev,
+                        racket: formValues.lHSGoal
+                      }));
+                    } else {
+                      setRightPremise(prev => ({
+                        ...prev,
+                        racket: formValues.rHSGoal
+                      }));
+                    }
+                  }}
                 >
                   Check {showSide} Goal
                 </Button>
@@ -441,7 +1037,10 @@ const ERRacket = () => {
             )}
 
             {isGoalChecked[showSide] && (
-              <div className="racket-rule-container-wrap">
+              <div 
+                className="racket-rule-container-wrap"
+                style={{ maxHeight: `${availableHeight}px` }}
+              >
                 <div className="racket-rule-wrap" id="racket-rule">
                   {serverError && (
                     <Alert variant={"danger"}>{serverError}</Alert>
@@ -458,286 +1057,198 @@ const ERRacket = () => {
                   {proofComplete && (
                     <Alert variant={"success"}>Proof Complete!</Alert>
                   )}
-
-                  {showSide === "LHS" && (
-                    <div className="racket-rule-lhs" id="racket-rule-lhs">
-                      {/* Static Row Always Present */}
-                      <Row className="racket-rule-row">
-                        <PersistentPad
-                          equation={formValues.lHSGoal}
-                          onHighlightChange={(startPosition) => {
-                            handleHighlight(startPosition);
-                            setCurrentRacket(formValues.lHSGoal);
-                            handleChange({
-                              target: {
-                                name: "proofCurrentLHSGoal",
-                                value: formValues.lHSGoal
-                              }
-                            });
-                            setLeftPremise({
-                              racket: formValues.lHSGoal,
-                              rule: "Premise",
-                              startPosition
-                            });
-                          }}
-                          side={showSide}
-                        />
-
-                        <Form.Group
-                          as={Col}
-                          md="4"
-                          className="er-proof-premise"
-                        >
-                          <Form.Floating className="mb-3">
-                            <Form.Control
-                              id="eRProofLHSPremise"
-                              name="proofeRProofLHSPremise"
-                              type="text"
-                              value="Premise"
-                              placeholder="LHS Premise"
-                              onChange={handleChange}
-                              readOnly
-                            />
-                            <label htmlFor="eRProofLHSPremise">
-                              LHS Premise
-                            </label>
-                          </Form.Floating>
-                        </Form.Group>
-                      </Row>
-
-                      {/* Dynamically Added Racket and Rule Fields */}
-                      {racketRuleFields.LHS.map((field, index) =>
-                        field.deleted ? null : (
-                          <Row
-                            className="racket-rule-row"
-                            key={`LHS-field-${index}`}
-                          >
-                            <PersistentPad
-                              equation={field.racket}
-                              onHighlightChange={(startPosition) => {
-                                handleHighlight(startPosition);
-                                setCurrentRacket(
-                                  racketRuleFields.LHS.slice(-2)[0].racket
-                                );
-                                handleFieldChange(
-                                  showSide,
-                                  index,
-                                  "racket",
-                                  field.racket,
-                                  startPosition
-                                );
-                              }}
-                              side={showSide}
-                            />
-
-                            <Form.Group
-                              as={Col}
-                              md="4"
-                              className="er-proof-rule"
-                            >
-                              <Form.Floating className="mb-3">
-                                <Form.Control
-                                  id={`eRProofLHSRule-${index}`}
-                                  name={`eRProofLHSRule_${index}`}
-                                  type="text"
-                                  placeholder="LHS Rule"
-                                  value={field.rule}
-                                  onChange={(e) =>
-                                    handleFieldChange(
-                                      showSide,
-                                      index,
-                                      "rule",
-                                      e.target.value
-                                    )
-                                  }
-                                  isInvalid={!!validationErrors.LHS[index]}
-                                  required
-                                />
-                                <label htmlFor={`eRProofLHSRule-${index}`}>
-                                  LHS Rule
-                                </label>
-                                <Form.Control.Feedback type="invalid" tooltip>
-                                  {validationErrors.LHS[index]}
-                                </Form.Control.Feedback>
-                              </Form.Floating>
-                            </Form.Group>
-                          </Row>
-                        )
-                      )}
-                    </div>
-                  )}
-
-                  {showSide === "RHS" && (
-                    <div className="racket-rule-rhs" id="racket-rule-rhs">
-                      {/* Static Row Always Present */}
-                      <Row className="racket-rule-row">
-                        <PersistentPad
-                          equation={formValues.rHSGoal}
-                          onHighlightChange={(startPosition) => {
-                            handleHighlight(startPosition);
-                            setCurrentRacket(formValues.rHSGoal);
-                            handleChange({
-                              target: {
-                                name: "proofCurrentRHSGoal",
-                                value: formValues.rHSGoal
-                              }
-                            });
-                            setRightPremise({
-                              racket: formValues.rHSGoal,
-                              rule: "Premise",
-                              startPosition
-                            });
-                          }}
-                          side={showSide}
-                        />
-
-                        <Form.Group
-                          as={Col}
-                          md="4"
-                          className="er-proof-premise"
-                        >
-                          <Form.Floating className="mb-3">
-                            <Form.Control
-                              id="eRProofRHSPremise"
-                              name="proofeRProofRHSPremise"
-                              type="text"
-                              value="Premise"
-                              placeholder="RHS Premise"
-                              onChange={handleChange}
-                              readOnly
-                            />
-                            <label htmlFor="eRProofRHSPremise">
-                              RHS Premise
-                            </label>
-                          </Form.Floating>
-                        </Form.Group>
-                      </Row>
-
-                      {/* Dynamically Added Racket and Rule Fields */}
-                      {racketRuleFields.RHS.map((field, index) =>
-                        field.deleted ? null : (
-                          <Row
-                            className="racket-rule-row"
-                            key={`RHS-field-${index}`}
-                          >
-                            <PersistentPad
-                              equation={field.racket}
-                              onHighlightChange={(startPosition) => {
-                                handleHighlight(startPosition);
-                                setCurrentRacket(
-                                  racketRuleFields.RHS.slice(-2)[0].racket
-                                );
-                                handleFieldChange(
-                                  showSide,
-                                  index,
-                                  "racket",
-                                  field.racket,
-                                  startPosition
-                                );
-                              }}
-                              side={showSide}
-                            />
-
-                            <Form.Group
-                              as={Col}
-                              md="4"
-                              className="er-proof-rule"
-                            >
-                              <Form.Floating className="mb-3">
-                                <Form.Control
-                                  id={`eRProofRHSRule-${index}`}
-                                  name={`eRProofRHSRule_${index}`}
-                                  type="text"
-                                  placeholder="RHS Rule"
-                                  value={field.rule}
-                                  onChange={(e) =>
-                                    handleFieldChange(
-                                      showSide,
-                                      index,
-                                      "rule",
-                                      e.target.value
-                                    )
-                                  }
-                                  isInvalid={!!validationErrors.RHS[index]}
-                                  required
-                                />
-                                <label htmlFor={`eRProofRHSRule-${index}`}>
-                                  RHS Rule
-                                </label>
-                                <Form.Control.Feedback type="invalid" tooltip>
-                                  {validationErrors.RHS[index]}
-                                </Form.Control.Feedback>
-                              </Form.Floating>
-                            </Form.Group>
-                          </Row>
-                        )
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="button-row-wrap">
-                  <Row className="button-row">
-                    <Col md="8">
-                      <Button
-                        className="orange-btn delete-btn"
-                        onClick={() => deleteLastLine(showSide)}
-                      >
-                        Delete Line
-                      </Button>
-                    </Col>
-                    <Col md="4" className="rules-btn-grp">
-                      <Button
-                        className="orange-btn green-btn"
-                        onClick={() => {
-                          addFieldWithApiCheck(showSide);
-                          if (showSide === "LHS") {
-                            setLhsValue(formValues.lHSGoal);
-                          } else {
-                            setRhsValue(formValues.rHSGoal);
-                          }
-                        }}
-                      >
-                        Generate & Check
-                      </Button>
-                      <Button
-                        className="orange-btn green-btn"
-                        onClick={() => updateShowSubstitution()}
-                      >
-                        Substitution
-                      </Button>
-                    </Col>
-                  </Row>
-                </div>
-
-                <div className="proof-opr-wrap">
-                  <Row className="proof-oprs">
-                    <Dropdown
-                      as={Col}
-                      className="d-inline proof-dropdown-btn proof-operations"
-                    >
-                      <Dropdown.Toggle id="dropdown-autoclose-true">
-                        File Operations
-                      </Dropdown.Toggle>
-
-                      <Dropdown.Menu>
-                        <Dropdown.Item onClick={exportJSON}>
-                          Download Proof
-                        </Dropdown.Item>
-                        <Dropdown.Item href="#">Upload Proof</Dropdown.Item>
-                        <Dropdown.Item href="#">Save Proof</Dropdown.Item>
-                        <Dropdown.Item href="#">Submit Proof</Dropdown.Item>
-                      </Dropdown.Menu>
-                    </Dropdown>
-                  </Row>
+                  <>
+                    {renderPersistentPadRow({
+                      side: showSide,
+                      isPremise: true,
+                      padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
+                      formValues,
+                      jsonTreeRep,
+                      startPosition: (showSide === 'LHS' ? leftPremise : rightPremise).startPosition,
+                      setCurrentRacket,
+                      handleFieldHighlight,
+                      validationErrors,
+                      isBound,
+                      userRow,
+                      handleRowNumberClick,
+                      leftPremise,
+                      rightPremise,
+                      setLeftPremise,
+                      setRightPremise
+                    })}
+                    {racketRuleFields[showSide].map((field, index) =>
+                      field.deleted
+                        ? null
+                        : renderPersistentPadRow({
+                          side: showSide,
+                          index,
+                          field,
+                          padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
+                          formValues,
+                          jsonTreeRep,
+                          startPosition: field.startPosition,
+                          setCurrentRacket,
+                          handleFieldHighlight,
+                          validationErrors,
+                          isBound,
+                          userRow,
+                          handleRowNumberClick,
+                          leftPremise,
+                          rightPremise,
+                          setLeftPremise,
+                          setRightPremise
+                        })
+                    )}
+                  </>
                 </div>
               </div>
             )}
           </div>
         </Form>
       </Container>
+      {isGoalChecked[showSide] && <div className="floating-footer">
+        <Row className="input-row">
+          {/* Column 1: Num */}
+          <Col md="1">
+            <Form.Floating className="mb-3">
+              <Form.Control
+                id="userRowNum"
+                name="userRowNum"
+                type="text"
+                placeholder="Num"
+                value={userRow.num}
+                onChange={(e) =>
+                  setUserRow({ ...userRow, num: e.target.value })
+                }
+                disabled={isBound}
+              />
+              <label htmlFor="userRowNum">Num</label>
+            </Form.Floating>
+          </Col>
+
+          {/* Fill Values Button - only show when not bound */}
+          {!isBound && (
+            <Col md="2" className="d-flex align-items-center">
+              <Button
+                variant="primary"
+                onClick={() => bindFooterToRow(userRow.num)}
+              >
+                Fill Values
+              </Button>
+            </Col>
+          )}
+
+          {/* Column 2: Expression */}
+          <Col md={isBound ? "9" : "7"}>
+            {isBound && renderFooterPad()}
+          </Col>
+
+          {/* Cancel Button - only show when bound */}
+          {isBound && (
+            <Col md="2" className="d-flex align-items-center">
+              <Button
+                variant="secondary"
+                onClick={() => unbindFooter()}
+              >
+                Cancel
+              </Button>
+            </Col>
+          )}
+        </Row>
+        <Row className="button-row">
+          <Col md="5"></Col>
+          <Col md="3" className="rules-btn-grp">
+            <Button
+              className="orange-btn green-btn"
+              onClick={handleGenerateAndCheck}
+              disabled={!isBound}
+            >
+              Generate & Check
+            </Button>
+            <Button
+              className="orange-btn green-btn"
+              onClick={() => updateShowSubstitution()}
+              disabled={!isBound}
+            >
+              Substitution
+            </Button>
+          </Col>
+        </Row>
+      </div>}
     </MainLayout>
   );
 };
+
+function renderPersistentPadRow({
+  side,
+  index = 0,
+  field = {},
+  isPremise = false,
+  padRefs,
+  formValues,
+  jsonTreeRep,
+  // setCurrentRacket, // removed to clean warnings
+  handleFieldHighlight,
+  validationErrors,
+  isBound,
+  userRow,
+  handleRowNumberClick,
+  leftPremise,
+  rightPremise // removed trailing comma to clean warnings
+  // setLeftPremise, // removed to clean warnings
+  // setRightPremise // removed to clean warnings
+}) {
+  // Compute values based on side and isPremise
+  const isLHS = side === "LHS";
+  const padIndex = isPremise ? 0 : index + 1;
+  const equation = isPremise
+    ? formValues[isLHS ? "lHSGoal" : "rHSGoal"]
+    : field.racket;
+  const jsonTree = isPremise
+    ? jsonTreeRep[side]
+    : field.jsonTree || jsonTreeRep[side];
+  const lineNum = isPremise ? 0 : index + 1;
+  const ruleValue = isPremise ? "Premise" : field.rule;
+  const rulePlaceholder = isPremise ? `${side} Premise` : `${side} Rule`;
+  const isRuleInvalid = !isPremise && !!validationErrors[side][index];
+  const ruleValidationError = validationErrors[side][index];
+
+  // Get the correct startPosition
+  const startPosition = isPremise
+    ? (isLHS ? leftPremise.startPosition || 0 : rightPremise.startPosition || 0)
+    : (field.startPosition || 0);
+
+  return (
+    <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? "premise" : `${side}-field-${padIndex}`}>
+      <Col md="1">
+        <ClickableRowNumber
+          padIndex={padIndex}
+          isClickable={!isBound}
+          isSelected={isBound && padIndex === parseInt(userRow.num, 10)}
+          onClick={() => handleRowNumberClick(padIndex)}
+          title={!isBound ? 'Click to bind to footer' : ''}
+        />
+      </Col>
+      <Col md="11">
+        <PersistentPad
+          ref={el => { padRefs.current[padIndex] = el; }}
+          side={side}
+          equation={equation}
+          jsonTree={jsonTree}
+          lineNum={lineNum}
+          startPosition={startPosition}
+          onHighlightChange={selected => handleFieldHighlight(isLHS, lineNum, selected)}
+          ruleValue={ruleValue}
+          onRuleChange={() => { }}
+          isRuleReadOnly={true}
+          rulePlaceholder={rulePlaceholder}
+          isRuleInvalid={isRuleInvalid}
+          ruleValidationError={ruleValidationError}
+          isEditRow={false}
+        />
+      </Col>
+    </Row>
+  );
+}
 
 export default ERRacket;
