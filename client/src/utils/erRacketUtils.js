@@ -15,7 +15,9 @@ export const INITIAL_FORM_VALUES = {
 export const INITIAL_PREMISE_STATE = {
   racket: '',
   rule: 'Premise',
-  startPosition: 0
+  startPosition: 0,
+  // Persist highlight for premise lines as well
+  selectedNode: 0
 };
 
 export const EMPTY_INITIAL_FIELD = { 
@@ -23,6 +25,8 @@ export const EMPTY_INITIAL_FIELD = {
   jsonTree: {}, 
   rule: '', 
   startPosition: 0,
+  // Ensure new/blank lines have selectedNode present to avoid undefined
+  selectedNode: 0,
   deleted: false 
 }
 

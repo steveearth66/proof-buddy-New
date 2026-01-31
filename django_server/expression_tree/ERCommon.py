@@ -1,4 +1,5 @@
 from typing import Union, Tuple, List
+import copy
 from enum import Enum
 
 # special math characters. any other math uses ascii, such as expt, quotient, remainder. Note: "/" not permitted
@@ -302,6 +303,19 @@ class Node:
         else:
             return f'({self.children[0].logicStr()} {self.children[1].logicStr()})'
 
+    # Return a deep copy of this node (independent subtree)
+    def clone(self) -> 'Node':
+        try:
+            # Prefer parser-based clone to ensure a clean, normalized tree
+            from .Parser import makeBasicAst  # local import to avoid circular at module load
+            newNode, errs = makeBasicAst(str(self))
+            if not errs and newNode is not None:
+                return newNode
+        except Exception:
+            pass
+        # Fallback to deepcopy if parsing fails
+        return copy.deepcopy(self)
+
     def replaceWith(self, newNode: 'Node'):
         self.data = newNode.data
         self.name = newNode.name
@@ -364,6 +378,48 @@ def findNode(tree:Node, target:int,errLog:list[str],found=None)->Node:
         if not found:
             found.extend(findNode(child, target, errLog,found))
     return found
+
+
+def replace_node_with_tree(target_node: Node, replacement_tree: Node) -> Node:
+    """
+    Replace `target_node` in-place with a deep copy of `replacement_tree`.
+
+    This function performs a deep copy of `replacement_tree`, sets parent
+    pointers for all nodes in the copied subtree, and then replaces the
+    attributes of `target_node` (data, children, type, etc.) with those of
+    the copied subtree.
+
+    IMPORTANT: this does NOT recompute startPosition IDs. Call
+    `updatePositions(root)` from `ERProofEngine` after calling this helper
+    so node IDs are consistent.
+
+    Returns the modified `target_node`.
+    """
+    # make a deep copy so caller's replacement_tree remains unchanged
+    rep = copy.deepcopy(replacement_tree)
+
+    # set parent pointers within the copied subtree
+    def _set_parents(node: Node, parent: Node | None):
+        node.parent = parent
+        for child in node.children:
+            _set_parents(child, node)
+
+    _set_parents(rep, target_node.parent)
+
+    # perform the in-place replacement (keeps the same object identity for target_node)
+    target_node.data = rep.data
+    target_node.name = rep.name
+    target_node._type = rep._type
+    target_node.numArgs = rep.numArgs
+    target_node.length = rep.length
+    target_node.children = rep.children
+    target_node.debug = rep.debug
+
+    # ensure children's parent pointers point to the target_node itself
+    for child in target_node.children:
+        child.parent = target_node
+
+    return target_node
 
 
 

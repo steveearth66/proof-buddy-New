@@ -41,6 +41,11 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
     setShowSubstitution(false);
   };
 
+  const clearValidationErrors = useCallback(() => {
+    setValidationErrors({ LHS: [], RHS: [] });
+    setRacketErrors([]);
+  }, []);
+
   /**
    * A callback function to fetch a racket value for a given rule.
    * Utilizes the custom service `erService` to make an external request.
@@ -125,7 +130,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
         handleServerError(error);
       }
     },
-    []
+    [handleServerError] // was [], removed to clean warnings
   );
 
   /**
@@ -139,7 +144,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
    * @param {string} previousRacketValue - The racket value from the padRef on the line before.
    */
   const addFieldWithApiCheck = useCallback(
-    async (side, footerRule, previousStartPosition, previousRacketValue) => {
+    async (side, footerRule, previousStartPosition, previousRacketValue, currentIndex) => {
       try {
         const racket = await fetchRacketValue(footerRule, previousStartPosition, previousRacketValue);
 
@@ -152,6 +157,13 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
           }));
         } else {
           setRacketErrors(racket.errors);
+          setValidationErrors((prevErrors) => ({
+            ...prevErrors,
+            [side]: {
+              ...(prevErrors[side] || {}),
+              ...(typeof currentIndex === 'number' ? { [currentIndex]: racket.errors?.[0] || 'Invalid rule' } : {})
+            }
+          }));
         }
 
         return racket;
@@ -177,17 +189,36 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
   }, []);
 
   const substituteFieldWithApiCheck = useCallback(
-    async ({ substitution, rule }) => {
+    async ({ substitution, rule }, contextOverrides = {}) => {
+      const effectiveStartPosition =
+        contextOverrides.startPosition !== undefined
+          ? contextOverrides.startPosition
+          : startPosition;
+      const effectiveCurrentRacket =
+        contextOverrides.currentRacket !== undefined
+          ? contextOverrides.currentRacket
+          : currentRacket;
+
+      console.log("[Substitution] Sending request:", {
+        substitution,
+        rule,
+        startPosition: effectiveStartPosition,
+        currentRacket: effectiveCurrentRacket,
+        side
+      });
+
       const data = {
         substitution,
         rule,
-        startPosition,
-        currentRacket,
+        startPosition: effectiveStartPosition,
+        currentRacket: effectiveCurrentRacket,
         side
       };
 
       try {
         const response = await erService.substitution(data);
+
+        console.log("[Substitution] Response received:", response);
 
         if (response.isValid) {
           setSubstitutionErrors([]);
@@ -207,7 +238,7 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
   );
 
   return [
-    null, // racketRuleFields removed
+    { LHS: [], RHS: [] }, // racketRuleFields removed, return empty shape to avoid null access
     addFieldWithApiCheck,
     null, // handleFieldChange removed
     validationErrors,
@@ -219,7 +250,8 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
     closeSubstitution,
     substituteFieldWithApiCheck,
     substitutionErrors,
-    loadProofInServer
+    loadProofInServer,
+    clearValidationErrors
   ];
 };
 

@@ -1,6 +1,6 @@
 from .ERCommon import *
 from .ERGenerics import *
-from .ERRuleset import Rule, RuleType, UDF, getDefaultRuleSet
+from .ERRuleset import Rule, RuleType, UDF, getDefaultRuleSet, isMatch
 import expression_tree.Parser as Parser
 import expression_tree.Labeler as Labeler
 import expression_tree.Decorator as Decorator
@@ -80,6 +80,7 @@ class ProofComponent:
                 param2TypeDict[paramsList[j]] = RacType(racTypeObj.getDomain()[j]) #got rid of getDomain here and switched to value[0]
             filledBodyNode = fillBody(bodyNode.exprTree, udfLabel, racTypeObj, param2TypeDict)
             self.ruleSet['apply'][udfLabel] = UDF(udfLabel, filledBodyNode, racTypeObj, paramsList)
+           # print(f"Added UDF '{udfLabel}' with type '{str(racTypeObj)}' and body '{str(filledBodyNode)}'")
 
     def removeUDF(self, label):
         if len(label) != 1:
@@ -89,7 +90,14 @@ class ProofComponent:
         else:
             self.errLog.append(f"Could not find UDF with label '{label}'")
 
+    def removeGeneric(self, label: str):
+        if label in self.generics:
+            del self.generics[label]
+
     def addGeneric(self, label: str, type: str, restrictions: dict | None = None):
+        # If the generic already exists, remove it to allow redefinition
+        if label in self.generics:
+            del self.generics[label]
         if not self._validateNewLabel(label):
             self.errLog.append(f"Can not use generic with label '{label}': label is already being used")
         type = type.lower()
@@ -115,6 +123,7 @@ class TwoSidedProof(ProofComponent):
         self.RHS = ERProof(self.ruleSet, self.generics, debug)
         self.currentSide: ERProof = self.LHS
         self.isValid = True
+        self.isComplete = False
         # TODO: is there a way to not have a separate definitions list, 
         # since they are also stored in the ruleSet?
         self.definitions = []
@@ -126,6 +135,76 @@ class TwoSidedProof(ProofComponent):
         if side.upper() not in ('LHS', 'RHS'):
             raise ValueError("Invalid side literal: side must be either 'LHS' or 'RHS'")
         self.currentSide = self.LHS if side == 'LHS' else self.RHS
+    
+    def checkComplete(self):
+        """
+        Check if proof is complete:
+        - Last non-empty lines of LHS and RHS must be the same
+        - No blank lines except possibly the last line (for user input)
+        - Special case: If both sides have only premises (no derivations), compare first lines
+        A line is considered blank if either its expression OR rule is empty
+        """
+        lhs_lines = self.LHS.proofLines
+        rhs_lines = self.RHS.proofLines
+        
+        # Special case: If both sides have exactly 1 line (just premise), compare them
+        if len(lhs_lines) == 1 and len(rhs_lines) == 1:
+            lhs_expr = str(lhs_lines[0].exprTree).strip() if lhs_lines[0].exprTree else ""
+            rhs_expr = str(rhs_lines[0].exprTree).strip() if rhs_lines[0].exprTree else ""
+            
+            if lhs_expr and rhs_expr and lhs_expr == rhs_expr:
+                self.isComplete = True
+                return True
+            else:
+                self.isComplete = False
+                return False
+        
+        if not lhs_lines or not rhs_lines:
+            self.isComplete = False
+            return False
+        
+        # Helper to check if a line is blank (either expr or rule is empty)
+        def is_blank(line):
+            expr_blank = not line.exprTree or not str(line.exprTree).strip()
+            rule_blank = not line.appliedRule or not line.appliedRule.strip()
+            is_blank_result = expr_blank or rule_blank
+            return is_blank_result
+        
+        # Get last non-blank line from each side
+        lhs_last = None
+        for line in reversed(lhs_lines):
+            if not is_blank(line):
+                lhs_last = str(line.exprTree).strip()
+                break
+        
+        rhs_last = None
+        for line in reversed(rhs_lines):
+            if not is_blank(line):
+                rhs_last = str(line.exprTree).strip()
+                break
+        
+        # Check if last non-blank lines match
+        if not lhs_last or not rhs_last or lhs_last != rhs_last:
+            self.isComplete = False
+            return False
+        
+        # Check for internal blank lines (all but possibly the last should be non-blank)
+        for i, line in enumerate(lhs_lines[:-1]):  # All except last
+            if is_blank(line):
+                self.isComplete = False
+                return False
+        
+        for i, line in enumerate(rhs_lines[:-1]):  # All except last
+            if is_blank(line):
+                self.isComplete = False
+                return False
+        
+        self.isComplete = True
+        return True
+    
+    def markIncomplete(self):
+        """Mark proof as incomplete (called when user edits)"""
+        self.isComplete = False
     
     def updateErrorsAndValidate(self):
         self.errLog.extend(self.currentSide.errLog)
@@ -141,6 +220,7 @@ class ERProof(ProofComponent):
     def __init__(self, ruleSet=None, generics=None, debug=False):
         super().__init__(ruleSet, generics, debug)
         self.proofLines: list[ERProofLine] = []
+        self.premise: Node = None
 
     def addProofLine(self, lineStr, ruleStr=None, highlightPos=0, substitution=None):
         # prooflines now contain pointers to their proof's ruleset so they can refer to UDFs
@@ -157,6 +237,9 @@ class ERProof(ProofComponent):
                     proofLine.applySubstitution(ruleStr, highlightPos, subLine)
                 else:
                     proofLine.applyRule(ruleStr, highlightPos)
+            elif len(self.proofLines) == 0:
+                # This is the first line of the proof, so it's a premise
+                proofLine.appliedRule = "Premise"
             if proofLine.errLog != []:
                 self.errLog.extend(proofLine.errLog)
         else:
@@ -180,11 +263,40 @@ class ERProof(ProofComponent):
             return ""
         return str(self.proofLines[-1].exprTree)
 
+    def __str__(self):
+        """Display proof lines with line numbers, expressions, rules, and node descriptions"""
+        lines = []
+        for line_num, proofLine in enumerate(self.proofLines):
+            expr_str = str(proofLine.exprTree) if proofLine.exprTree else ""
+            rule_str = proofLine.appliedRule if proofLine.appliedRule else ""
+            
+            # For nodes, get the expression from the previous line
+            node_description = ""
+            if proofLine.appliedRuleNodeId is not None and line_num > 0:
+                prev_line = self.proofLines[line_num - 1]
+                node = findNode(prev_line.exprTree, proofLine.appliedRuleNodeId, [])[0]
+                if node:
+                    node_str = str(node)
+                    node_description = f"on node {proofLine.appliedRuleNodeId}: {node_str}"
+            
+            lines.append(f"{line_num}\t{expr_str}\t{rule_str}\t{node_description}")
+        return "\n".join(lines)
+
 class ERProofLine(ProofComponent):
     def __init__(self, goal, debug=False, ruleDict=None, udfType=None, isUdf=False, generics=None): #added optional pointer to parent proof's ruleset
         super().__init__(ruleSet=ruleDict, generics=generics, debug=debug)
         self.exprTree = None
         self.positions = dict() # a dict of 4-tuples of the next pos when hitting up,down,left,right. keyd by startpos
+        self.appliedRule = None # stores the rule that was applied to generate this line
+        self.appliedRuleNodeId = None # stores the node ID where the rule was applied on the previous line
+        self.resultNodeId = None # stores the node ID of the changed portion in this line's result
+
+        # Special case: allow blank lines (used for cleared lines)
+        if goal == "" or goal is None or (isinstance(goal, str) and goal.strip() == ""):
+            # Create a minimal empty tree node
+            self.exprTree = Node("")
+            self.positions = {}
+            return
 
         tokenList, self.errLog = Parser.preProcess(goal, errLog=self.errLog, debug=self.debug,udf=isUdf)
         if self.errLog == []:
@@ -304,6 +416,7 @@ class ERProofLine(ProofComponent):
         raise ValueError
 
     def applyRule(self, rule: str, startPos: int, subNode: Node = None):
+        fullRuleString = rule  # Store the original full rule string before parsing
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
         if targetNode == None:
             self.errLog.append(
@@ -317,8 +430,11 @@ class ERProofLine(ProofComponent):
         rule = parts[1] if len(parts) > 1 else ""
         if len(parts) > 2 and parts[2] == "with":
             parts.pop(2)  # remove 'with'
-        ruleParams = " ".join(parts[2:]).replace("\u21A6", "=")
+        # Normalize arrows to equals for assignments from UI
+        ruleParams = " ".join(parts[2:]).replace("\u21A6", "=").replace("\u2192", "=")
         ruleParams = ruleParams.replace("'()", "null")  # replace empty list with 'null'
+        # normalize spaces around '=' so assignments like 'x = 1' parse correctly
+        ruleParams = re.sub(r"\s*=\s*", "=", ruleParams)
         ruleParams = [m.group(0).strip() for m in re.finditer(r"\w+=.*?(?=,\s*\w+=|$)", ruleParams)]
 
         if ruleCategory not in ("eval", "apply", "rewrite"):
@@ -374,6 +490,11 @@ class ERProofLine(ProofComponent):
         )
         targetNode.replaceWith(newNode)
         updatePositions(self.exprTree)
+        
+        # Successfully applied the rule, so store the full rule string and the node IDs
+        self.appliedRule = fullRuleString
+        self.appliedRuleNodeId = startPos  # Where rule was applied (on previous line)
+        self.resultNodeId = targetNode.startPosition  # The changed node in result (on this line)
 
     def applySubstitution(self, rule: str, startPos: int, subLine: 'ERProofLine'):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
@@ -390,13 +511,26 @@ class ERProofLine(ProofComponent):
             subLine.applyRule(rule, 0, targetNode)
             if subLine.errLog != []:
                 self.errLog.extend(subLine.errLog)
-            elif subLine.exprTree != targetNode:
+            elif not isMatch(subLine.exprTree, targetNode):
                 self.errLog.append(
                     f"substitution evaluated to {str(subLine.exprTree)} but expected {str(targetNode)}"
                 )
         if self.errLog == []:
             targetNode.replaceWith(replacementExprTree)
             updatePositions(self.exprTree)
+            # Record the applied rule and node ids for display purposes
+            self.appliedRuleNodeId = startPos  # Where substitution was applied (on previous line)
+            self.resultNodeId = targetNode.startPosition  # The changed node in result (on this line)
+            # Record the applied rule
+            try:
+                # Build a full rule string including substitution expression
+                sub_str = str(subLine.exprTree) if subLine and subLine.exprTree is not None else ""
+                self.appliedRule = f"{rule} with {sub_str}" if sub_str else rule
+                self.appliedRuleNodeId = startPos
+            except Exception:
+                # Fallback: at least record basic rule and node id
+                self.appliedRule = rule
+                self.appliedRuleNodeId = startPos
 
 
 def updatePositions(inputTree: Node, count: int = 0) -> tuple[Node, int]:

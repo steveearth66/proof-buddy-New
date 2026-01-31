@@ -7,6 +7,24 @@ import { useState, useEffect, useCallback } from 'react';
 export const useDynamicHeight = (dependencies = []) => {
   const [availableHeight, setAvailableHeight] = useState(0);
 
+  const depsArray = Array.isArray(dependencies) ? dependencies : [dependencies];
+
+  // const calculateHeight = useCallback(() => {
+  //   // Get the actual heights of the elements
+  //   const header = document.querySelector('header');
+  //   const formTopSection = document.querySelector('.form-top-section');
+  //   const floatingFooter = document.querySelector('.floating-footer');
+  //   
+  //   const headerHeight = header ? header.offsetHeight : 68; // fallback to default
+  //   const formTopSectionHeight = formTopSection ? formTopSection.offsetHeight : 310; // fallback to default
+  //   const floatingFooterHeight = floatingFooter ? floatingFooter.offsetHeight : 120; // fallback to default
+  //   
+  //   // Calculate available height for the scrollable container
+  //   // Add some padding (40px) to provide space between content and footer
+  //   const calculated = window.innerHeight - headerHeight - formTopSectionHeight - floatingFooterHeight - 40;
+  //   
+  //   setAvailableHeight(Math.max(200, calculated)); // Minimum height of 200px
+  // }, dependencies); // removed to clean warnings
   const calculateHeight = useCallback(() => {
     // Get the actual heights of the elements
     const header = document.querySelector('header');
@@ -18,11 +36,11 @@ export const useDynamicHeight = (dependencies = []) => {
     const floatingFooterHeight = floatingFooter ? floatingFooter.offsetHeight : 120; // fallback to default
     
     // Calculate available height for the scrollable container
-    // Add some padding (40px) to provide space between content and footer
-    const calculated = window.innerHeight - headerHeight - formTopSectionHeight - floatingFooterHeight - 40;
+    // Add some padding (80px) to provide space between content and footer and prevent scrollbar arrows from being hidden
+    const calculated = window.innerHeight - headerHeight - formTopSectionHeight - floatingFooterHeight - 80;
     
     setAvailableHeight(Math.max(200, calculated)); // Minimum height of 200px
-  }, dependencies);
+  }, [...depsArray]);
 
   useEffect(() => {
     // Calculate initial height

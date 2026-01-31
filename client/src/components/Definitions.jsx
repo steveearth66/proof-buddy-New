@@ -9,10 +9,12 @@ import validateField from '../utils/definitionsFormValidation';
 import { useInputState } from '../hooks/useInputState';
 import { useFormValidation } from '../hooks/useFormValidation';
 import { useFormSubmit } from '../hooks/useFormSubmit';
+import { useParenHighlight } from '../hooks/useParenHighlight';
 import { useEffect, useState } from 'react';
 import erService from '../services/erService';
 import { toast } from 'react-toastify';
 import { createPortal } from 'react-dom';
+import RacketInput from './RacketInput';
 
 export default function Definitions({ toggleDefinitionsWindow }) {
   const [showCreateDefinition, setShowCreateDefinition] = useState(false);
@@ -57,6 +59,28 @@ function CreateDefinition({
   const [validated, setValidated] = useState(false);
   const [errors, setErrors] = useState([]);
   const [successMessage, setSuccessMessage] = useState('');
+  
+  // Parenthesis highlighting for each field
+  const { 
+    highlightPositions: labelHighlights, 
+    inputRef: labelRef, 
+    handleKeyUp: labelKeyUp, 
+    handleSelect: labelSelect 
+  } = useParenHighlight(formValues.label);
+  
+  const { 
+    highlightPositions: typeHighlights, 
+    inputRef: typeRef, 
+    handleKeyUp: typeKeyUp, 
+    handleSelect: typeSelect 
+  } = useParenHighlight(formValues.type);
+  
+  const { 
+    highlightPositions: exprHighlights, 
+    inputRef: exprRef, 
+    handleKeyUp: exprKeyUp, 
+    handleSelect: exprSelect 
+  } = useParenHighlight(formValues.expression);
 
   const handleReset = () => {
     formValues.label = '';
@@ -107,7 +131,7 @@ function CreateDefinition({
         });
       } catch (error) {
         if (error.response && error.response.data && error.response.data.message) {
-          setErrors(error.response.data.message);
+          setErrors(Array.isArray(error.response.data.message) ? error.response.data.message : [error.response.data.message]);
         } else {
           setErrors(['An error occurred. Please try again.']); // generic error message
         }
@@ -164,7 +188,7 @@ function CreateDefinition({
           }
         } catch (error) {
           if (error.response && error.response.data && error.response.data.message) {
-            setErrors(error.response.data.message);
+            setErrors(Array.isArray(error.response.data.message) ? error.response.data.message : [error.response.data.message]);
           } else {
             setErrors(['An error occurred. Please try again.']); // generic error message
           }
@@ -207,8 +231,9 @@ function CreateDefinition({
       >
         <Row>
           <Col>
-            <Form.Floating>
-              <Form.Control
+            <div className="label-field-container">
+              <label htmlFor="definitionLabel" className="form-label">Label</label>
+              <RacketInput
                 type="text"
                 id="definitionLabel"
                 name="label"
@@ -216,18 +241,22 @@ function CreateDefinition({
                 value={formValues.label}
                 onBlur={() => handleBlur('label')}
                 onChange={handleChange}
+                onKeyUp={labelKeyUp}
+                onClick={labelSelect}
+                ref={labelRef}
+                highlightPositions={labelHighlights}
                 isInvalid={!!validationMessages.label}
                 required
               />
-              <label htmlFor="definitionLabel">Label</label>
               <Form.Control.Feedback type="invalid">
                 {validationMessages.label}
               </Form.Control.Feedback>
-            </Form.Floating>
+            </div>
           </Col>
           <Col>
-            <Form.Floating>
-              <Form.Control
+            <div className="type-field-container">
+              <label htmlFor="definitionType" className="form-label">Type</label>
+              <RacketInput
                 type="text"
                 id="definitionType"
                 name="type"
@@ -235,20 +264,24 @@ function CreateDefinition({
                 value={formValues.type}
                 onBlur={() => handleBlur('type')}
                 onChange={handleChange}
+                onKeyUp={typeKeyUp}
+                onClick={typeSelect}
+                ref={typeRef}
+                highlightPositions={typeHighlights}
                 isInvalid={!!validationMessages.type}
                 required
               />
-              <label htmlFor="definitionType">Type</label>
               <Form.Control.Feedback type="invalid">
                 {validationMessages.type}
               </Form.Control.Feedback>
-            </Form.Floating>
+            </div>
           </Col>
         </Row>
         <Row>
           <Col>
-            <Form.Floating>
-              <Form.Control
+            <div className="expression-field-container">
+              <label htmlFor="definitionExpression" className="form-label">Expression (leave blank to declare a generic)</label>
+              <RacketInput
                 type="text"
                 id="definitionExpression"
                 name="expression"
@@ -256,12 +289,16 @@ function CreateDefinition({
                 value={formValues.expression}
                 onBlur={() => handleBlur('expression')}
                 onChange={handleChange}
+                onKeyUp={exprKeyUp}
+                onClick={exprSelect}
+                ref={exprRef}
+                highlightPositions={exprHighlights}
+                style={{ height: '120px' }}
               />
-              <label htmlFor="definitionExpression">Expression (leave blank to declare a generic)</label>
               <Form.Control.Feedback type="invalid">
                 {validationMessages.expression}
               </Form.Control.Feedback>
-            </Form.Floating>
+            </div>
           </Col>
         </Row>
         <Row>
@@ -302,7 +339,35 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
   const [definitionToEdit, setDefinitionToEdit] = useState({});
   const [edit, setEdit] = useState(false);
 
-  //const deleteDefinition = async (id) => {
+  useEffect(() => {
+    const handleGenericsUpdated = (event) => {
+      
+      const { newGeneric, allGenerics } = event.detail;
+      
+      if (allGenerics) {
+        setGenerics(allGenerics);
+      } else if (newGeneric) {
+        setGenerics(prev => {
+          const existingIndex = prev.findIndex(g => g.label === newGeneric.label);
+          
+          if (existingIndex >= 0) {
+            const updated = [...prev];
+            updated[existingIndex] = newGeneric;
+            return updated;
+          } else {
+            return [...prev, newGeneric];
+          }
+        });
+      }
+    };
+
+    window.addEventListener('genericsUpdated', handleGenericsUpdated);
+    
+    return () => {
+      window.removeEventListener('genericsUpdated', handleGenericsUpdated);
+    };
+  }, []);
+
   const deleteDefinition = async (label) => {
     const confirm = window.confirm(
       'Are you sure you want to delete this definition?'
@@ -329,9 +394,11 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
         success: 'Generic deleted successfully.',
         error: 'An error occurred. Please try again.'
       });
-      const generics = JSON.parse(sessionStorage.getItem('generics'));
-      const updatedGenerics = generics.filter(gen => gen.id != generic.id);
-      setGenerics(updatedGenerics);
+      setGenerics(prev => {
+        const updatedGenerics = prev.filter(gen => gen.id !== generic.id);
+        sessionStorage.setItem('generics', JSON.stringify(updatedGenerics));
+        return updatedGenerics;
+      });
     } catch (error) {
       console.error(error)
     }
@@ -409,12 +476,16 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
           success: 'Generic successfully disabled.',
           error: 'An error occurred. Please try again.'
         });
-        setGenerics(prev => prev.map(gen => {
-          if (gen.id === generic.id) {
-            gen.enabled = false;
-          }
-          return gen;
-        }));
+        setGenerics(prev => {
+          const updated = prev.map(gen => {
+            if (gen.id === generic.id) {
+              gen.enabled = false;
+            }
+            return gen;
+          });
+          sessionStorage.setItem('generics', JSON.stringify(updated));
+          return updated;
+        });
       } catch (error) {
         console.error(error)
       }
@@ -425,12 +496,16 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
           success: 'Generic successfully enabled.',
           error: 'An error occurred. Please try again.'
         });
-        setGenerics(prev => prev.map(gen => {
-          if (gen.id === generic.id) {
-            gen.enabled = true;
-          }
-          return gen;
-        }));
+        setGenerics(prev => {
+          const updated = prev.map(gen => {
+            if (gen.id === generic.id) {
+              gen.enabled = true;
+            }
+            return gen;
+          });
+          sessionStorage.setItem('generics', JSON.stringify(updated));
+          return updated;
+        });
       } catch (error) {
         if (error.response?.data?.message)
           console.error(error.response.data.message);
@@ -454,18 +529,38 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
       });
       setDefinitions(newDefinitions);
       sessionStorage.setItem('definitions', JSON.stringify(newDefinitions));
+    }).catch((error) => {
+      console.error('Failed to load user definitions:', error);
+      toast.error('Failed to load definitions. Please try refreshing the page.');
     });
     // eslint-disable-next-line
   }, []);
 
   useEffect(() => {
     erService.getUserGenerics().then(userGenerics => {
-      setGenerics(userGenerics);
-    }).catch(error => console.error(error))
+            // Merge with any generics already in sessionStorage (from induction)
+            const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
+      
+      // Merge: prefer backend data but keep any that only exist in storage
+      const merged = [...userGenerics];
+      
+      storedGenerics.forEach(stored => {
+        const existsInBackend = userGenerics.find(ug => ug.label === stored.label);
+        if (!existsInBackend) {
+          merged.push(stored);
+        }
+      });
+      setGenerics(merged);
+      sessionStorage.setItem('generics', JSON.stringify(merged));
+    }).catch(error => {
+      console.error('Error fetching user generics:', error);
+      // On error, just use what's in sessionStorage
+      const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
+      setGenerics(storedGenerics);
+    });
   }, []);
 
   useEffect(() => {
-    sessionStorage.setItem('generics', JSON.stringify(generics));
   }, [generics]);
 
   if (edit) {
@@ -486,7 +581,6 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
       <div className="definitions-container">
         <p className="title">User definitions</p>
         <div className="definitions">
-          {definitions.length === 0 && <p>No definitions found.</p>}
           {definitions.map((def, index) => (
             <Definition
               key={index}
@@ -500,7 +594,6 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
         </div>
         <p className="title">Generics</p>
         <div className="generics">
-          {generics.length === 0 && <p>No generics found.</p>}
           {generics.map((gen, index) => (
             <Generic
               key={index}
@@ -529,6 +622,8 @@ function Definition({
   updateEdit,
   applyDefinition
 }) {
+  const isDefaultUDF = definition.is_default === true || definition.deletable === false;
+  
   return (
     <Accordion>
       <Accordion.Item eventKey={eventKey}>
@@ -550,6 +645,7 @@ function Definition({
             <Button
               variant="outline-primary"
               onClick={() => updateEdit(definition)}
+              disabled={isDefaultUDF}
             >
               Edit
             </Button>

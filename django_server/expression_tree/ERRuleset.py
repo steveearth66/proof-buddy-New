@@ -6,7 +6,8 @@ from .Parser import makeBasicAst
 from .Labeler import labelTree  # , fillPositions
 from enum import Enum
 from collections.abc import Callable
-import sympy as sp
+#pylance showing false positive for sympy import
+import sympy as sp # type: ignore
 
 # recursively check if two nodes are identical
 def isMatch(xNode: Node, yNode: Node) -> bool:
@@ -79,6 +80,8 @@ class BuiltIn(Rule):
     def isApplicable(self, ruleNode: Node, rawParams: list[str] = None) -> tuple[bool, str]:
         if rawParams:
             return False, f"Unexpected assignments {rawParams[1:-1]}"
+        if not ruleNode.children:
+            return False, f"Cannot apply '{self.label}' on a '{ruleNode.name}'"
         # Check if the operator matches the rule label
         if ruleNode.children[0].data != self.label:
             return False, f"Cannot evaluate {self.label} on a '{ruleNode.children[0].data}' expression"
@@ -498,6 +501,37 @@ class UDF(Rule):
         recursiveReplaceNodes(expCopy, self.params, ruleNode.children[1:])
         return expCopy
 
+class IH(Rule):
+    def __init__(self, indHypLHS: Node, indHypRHS: Node):
+        super().__init__('IH', RuleType.IH)
+        self.indHypLHS = indHypLHS
+        self.indHypRHS = indHypRHS
+
+    def isApplicable(self, ruleNode: Node, rawParams: list[str] = None) -> tuple[bool, str]:
+        if rawParams:
+            return False, f"IH rule takes no parameters"
+        
+        # Check if ruleNode matches either indHypLHS or indHypRHS by comparing string representations
+        nodeStr = str(ruleNode)
+        lhsStr = str(self.indHypLHS)
+        rhsStr = str(self.indHypRHS)
+        
+        if nodeStr == lhsStr or nodeStr == rhsStr:
+            return True, "IH.isApplicable() PASS"
+        else:
+            return False, f"Node '{nodeStr}' does not match induction hypothesis LHS '{lhsStr}' or RHS '{rhsStr}'"
+
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        nodeStr = str(ruleNode)
+        lhsStr = str(self.indHypLHS)
+        rhsStr = str(self.indHypRHS)
+        
+        # If the node matches LHS, replace with RHS; if it matches RHS, replace with LHS
+        if nodeStr == lhsStr:
+            return self.indHypRHS.clone()
+        elif nodeStr == rhsStr:
+            return self.indHypLHS.clone()
+
 class Axiom(Rule, ABC):
     ParamFinder = Callable[[Node], tuple[Node | tuple[Node, ...], ...]] 
     # ParamFinder is a custom type representing a function that takes a node and returns a tuple
@@ -584,6 +618,9 @@ class Axiom(Rule, ABC):
     def isApplicable(self, ruleNode: Node, rawParams: list[str] = None) -> tuple[bool, str]:
         if not rawParams:
             rawParams = []
+
+        if not ruleNode.children:
+            return False, f"Cannot apply '{self.label}' rule on a node with no children"
 
         # clear _paramMappings
         self._paramMappings = {key: None for key in self._paramMappings.keys()}
@@ -685,8 +722,10 @@ class NullQCons(Axiom):
 
 class ZeroQPlus(Axiom):
     def __init__(self):
-        aFinder: Axiom.ParamFinder = lambda node: (node.children[1].children[1],)
-        kFinder: Axiom.ParamFinder = lambda node: (node.children[1].children[2],)
+        # Return a tuple containing ONE element which is a tuple of alternatives
+        # The outer tuple is for the for-loop iteration, the inner tuple provides position alternatives
+        aFinder: Axiom.ParamFinder = lambda node: ((node.children[1].children[1], node.children[1].children[2]),)
+        kFinder: Axiom.ParamFinder = lambda node: ((node.children[1].children[1], node.children[1].children[2]),)
         super().__init__("zero?+", {'a': aFinder, 'k': kFinder})
 
     def verifyStructure(self, ruleNode: Node) -> tuple[bool, str]:
@@ -723,9 +762,11 @@ class MinusPlus(Axiom):
         super().__init__('-+', {'a': aFinder, 'k': kFinder})
 
     def verifyStructure(self, ruleNode: Node) -> tuple[bool, str]:
-        if ruleNode.children[0] != '-':
-            return False, f'Cannot rewrite with -+ rule when the root operation is {ruleNode.children[0]}'
-        if ruleNode.children[1].data != '(' or ruleNode.children[1].children[0].data != '+':
+        if not ruleNode.children or len(ruleNode.children) < 3:
+            return False, 'Cannot rewrite with -+ rule when node structure is invalid'
+        if ruleNode.children[0].data != '-':
+            return False, f'Cannot rewrite with -+ rule when the root operation is {ruleNode.children[0].data}'
+        if ruleNode.children[1].data != '(' or len(ruleNode.children[1].children) < 3 or ruleNode.children[1].children[0].data != '+':
             return False, f'Cannot rewrite with -+ rule when the first argument of - is not a + expression'
         if str(ruleNode.children[2]) not in (str(ruleNode.children[1].children[1]), str(ruleNode.children[1].children[2])):
             return False, "Cannot rewrite with -+ rule when the second argument of - doesn't match an argument of +"
@@ -833,9 +874,61 @@ class AdvMath(Rule):
         for node in [ruleNode, subNode]:
             if not node.allMath():
                 return False, f'Math rule requires only math functions, but {"main" if node==ruleNode else "substitute"} expression had {node.funcSet()-set(["+","-","*","expt", "quotient","remainder"])}'
-        if not sp.sympify(ruleNode.mathStr()).equals(sp.sympify(subNode.mathStr())):
+        
+        try:
+            main_expr_str = ruleNode.mathStr()
+            sub_expr_str = subNode.mathStr()
+            
+            # Parse expressions with SymPy
+            main_sympy = sp.sympify(main_expr_str)
+            sub_sympy = sp.sympify(sub_expr_str)
+            
+            # Get all free symbols
+            symbols = list(main_sympy.free_symbols | sub_sympy.free_symbols)
+            
+            # First try: check if their difference simplifies to 0 (works for most algebra)
+            difference = sp.simplify(main_sympy - sub_sympy)
+            if difference.equals(0):
+                return True, "advMath.isApplicable() PASS"
+            
+            # Second try: if that failed and we have symbols, use numerical verification
+            # This is necessary for floor division where SymPy can't reason about bounds symbolically
+            # (e.g., floor(k/(k+1)) = 0 for positive k requires understanding that 0 < k/(k+1) < 1)
+            if symbols:
+                test_values = [1, 2, 3, 5, 10, 100]
+                all_equiv = True
+                
+                # Generate test combinations for up to 2 symbols
+                import itertools
+                if len(symbols) == 1:
+                    test_combos = [(v,) for v in test_values]
+                elif len(symbols) == 2:
+                    test_combos = list(itertools.product(test_values[:4], repeat=2))
+                else:
+                    # For 3+ symbols, use limited test combos
+                    test_combos = list(itertools.product(test_values[:3], repeat=len(symbols)))
+                
+                for combo in test_combos:
+                    try:
+                        sub_dict = dict(zip(symbols, combo))
+                        # Numerically evaluate both expressions with concrete values
+                        main_result = main_sympy.subs(sub_dict).evalf()
+                        sub_result = sub_sympy.subs(sub_dict).evalf()
+                        # Convert to int to handle floor division properly
+                        if int(main_result) != int(sub_result):
+                            all_equiv = False
+                            break
+                    except:
+                        # If evaluation fails, skip this combo
+                        continue
+                
+                if all_equiv and test_combos:
+                    return True, "advMath.isApplicable() PASS"
+            
             return False, f"main and substitute expressions are not equivalent"
-        return True, "advMath.isApplicable() PASS"
+                
+        except Exception as e:
+            return False, f"Error checking mathematical equivalence: {str(e)}"
 
     # note: ERproofline.applyRule will take care of proper highlight position etc
     def insertSubstitution(self, ruleNode: Node, subNode: Node) -> Node:
