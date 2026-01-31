@@ -229,7 +229,51 @@ def start_induction_proof(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # 4. Automatically create a generic variable definition for Lvar
+        # 4. Validate that IH expressions are correct transformations of goals (ivar -> lvar)
+        # Frontend already validates syntax/arity via checkGoal endpoint
+        # Here we just check the transformation is correct
+        from expression_tree.ERProofEngine import ERProofLine
+        from expression_tree.ERRuleset import recursiveReplaceNodes
+        import copy
+        
+        try:
+            # Parse the goals and IH expressions (frontend already validated these)
+            lhs_goal_line = ERProofLine(lhs_leap_goal, False, None, generics=None)
+            rhs_goal_line = ERProofLine(rhs_leap_goal, False, None, generics=None)
+            
+            # Create expected IH by replacing ivar with lvar in the parsed goals
+            lvar_node = ERProofLine(leap_variable, False, None, generics=None).exprTree
+            
+            expected_lhs_ih_tree = copy.deepcopy(lhs_goal_line.exprTree)
+            expected_rhs_ih_tree = copy.deepcopy(rhs_goal_line.exprTree)
+            
+            recursiveReplaceNodes(expected_lhs_ih_tree, [induction_variable], [lvar_node])
+            recursiveReplaceNodes(expected_rhs_ih_tree, [induction_variable], [lvar_node])
+            
+            # Get the already-parsed IH lines from the validation above
+            lhs_ih_line = ERProofLine(inductive_hypothesis_lhs, False, None, generics=None)
+            rhs_ih_line = ERProofLine(inductive_hypothesis_rhs, False, None, generics=None)
+            
+            # Compare the trees
+            if str(lhs_ih_line.exprTree) != str(expected_lhs_ih_tree):
+                return Response(
+                    {"error": f"LHS Inductive Hypothesis must be the LHS goal with {induction_variable} replaced by {leap_variable}.\nExpected: {expected_lhs_ih_tree}\nGot: {inductive_hypothesis_lhs}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if str(rhs_ih_line.exprTree) != str(expected_rhs_ih_tree):
+                return Response(
+                    {"error": f"RHS Inductive Hypothesis must be the RHS goal with {induction_variable} replaced by {leap_variable}.\nExpected: {expected_rhs_ih_tree}\nGot: {inductive_hypothesis_rhs}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+        except Exception as e:
+            return Response(
+                {"error": f"Error validating Inductive Hypothesis: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 5. Automatically create a generic variable definition for Lvar
         generic_definition = {
             'name': leap_variable,
             'type': 'int',
@@ -902,13 +946,19 @@ def check_goal(request):
         side = data.get("side", "LHS")
         case = data.get("case", "base")
         goal = data.get("goal")
-        target = _get_case_side(proof, case, side)
+        
+        # Get the appropriate TwoSidedProof (baseCase or leapStep)
+        if case == 'base':
+            two_sided_proof = proof.baseCase
+        else:
+            two_sided_proof = proof.leapStep
+        
+        # Set current side for validation
+        two_sided_proof.setCurrentSide(side)
+        target = two_sided_proof.currentSide
         
         # Mark proof incomplete when resetting premise
-        if case == 'base':
-            proof.baseCase.markIncomplete()
-        else:
-            proof.leapStep.markIncomplete()
+        two_sided_proof.markIncomplete()
         
         # Clear and set goal
         if len(target.proofLines) != 0:
@@ -921,12 +971,21 @@ def check_goal(request):
                     case=case,
                     side=side
                 ).delete()
+        
+        # Add proof line and validate
         target.addProofLine(goal)
-        jsonTree = makeJson(target.proofLines[-1].exprTree)
+        two_sided_proof.updateErrorsAndValidate()
+        errors = two_sided_proof.getErrorsAndClear()
+        
+        # Get jsonTree if valid
+        jsonTree = None
+        if two_sided_proof.isValid and len(target.proofLines) > 0:
+            jsonTree = makeJson(target.proofLines[-1].exprTree)
+        
         save_induction_obj_to_cache(user, proof, proof_id)
         
-        # Save premise line to database
-        if proof_id and len(target.proofLines) > 0:
+        # Save premise line to database only if valid
+        if proof_id and two_sided_proof.isValid and len(target.proofLines) > 0:
             last_line = target.proofLines[-1]
             save_proof_line_to_db(
                 proof_id=proof_id,
@@ -938,7 +997,8 @@ def check_goal(request):
                 line_number=0,
                 selected_node=0
             )
-        return Response({"isValid": True, "errors": [], "jsonTree": jsonTree}, status=status.HTTP_200_OK)
+        
+        return Response({"isValid": two_sided_proof.isValid, "errors": errors, "jsonTree": jsonTree}, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"isValid": False, "errors": [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -950,8 +1010,8 @@ def substitution(request):
     data = request.data
     proof, proof_id = get_or_set_induction_obj(user)
     try:
-        side = data.get("side", "LHS")
         case = data.get("case", "base")
+        side = data.get("side", "LHS")
         rule = data.get("rule")
         if rule and rule.lower() == "math":
             rule = "rewrite math"

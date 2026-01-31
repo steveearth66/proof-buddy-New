@@ -66,7 +66,8 @@ const InductionRacket = () => {
     goalValidationMessage,
     enhancedHandleChange,
     proofValidationMessage,
-    clearProofValidationMessage
+    clearProofValidationMessage,
+    clearGoalValidationMessage
   } = useInductionCheck(handleChange);
   const [startPosition] = useState(0); // removed to clean warnings
   const [currentRacket, setCurrentRacket] = useState("");
@@ -1205,6 +1206,101 @@ const InductionRacket = () => {
     }
 
     try {
+      // Validate goal expressions AND inductive hypotheses before starting proof
+      // This catches arity mismatches, undefined labels, type errors, etc.
+      
+      // Validate LHS leap goal
+      try {
+        const lhsLeapValidation = await inductionService.checkGoal({
+          case: 'leap',
+          side: 'LHS',
+          goal: leftGoal
+        });
+        
+        if (!lhsLeapValidation.isValid) {
+          const errorMessage = lhsLeapValidation.errors?.length 
+            ? lhsLeapValidation.errors.join('\n') 
+            : 'Invalid LHS goal';
+          toast.error(`LHS Goal validation failed:\n${errorMessage}`);
+          return;
+        }
+      } catch (validationError) {
+        const errorMessage = validationError.response?.data?.errors?.join('\n') 
+          || validationError.message 
+          || 'Invalid LHS goal';
+        toast.error(`LHS Goal validation failed:\n${errorMessage}`);
+        return;
+      }
+      
+      // Validate RHS leap goal
+      try {
+        const rhsLeapValidation = await inductionService.checkGoal({
+          case: 'leap',
+          side: 'RHS',
+          goal: rightGoal
+        });
+        
+        if (!rhsLeapValidation.isValid) {
+          const errorMessage = rhsLeapValidation.errors?.length 
+            ? rhsLeapValidation.errors.join('\n') 
+            : 'Invalid RHS goal';
+          toast.error(`RHS Goal validation failed:\n${errorMessage}`);
+          return;
+        }
+      } catch (validationError) {
+        const errorMessage = validationError.response?.data?.errors?.join('\n') 
+          || validationError.message 
+          || 'Invalid RHS goal';
+        toast.error(`RHS Goal validation failed:\n${errorMessage}`);
+        return;
+      }
+      
+      // Validate LHS Inductive Hypothesis
+      try {
+        const lhsIHValidation = await inductionService.checkGoal({
+          case: 'leap',
+          side: 'LHS',
+          goal: inductiveHypothesisLHS
+        });
+        
+        if (!lhsIHValidation.isValid) {
+          const errorMessage = lhsIHValidation.errors?.length 
+            ? lhsIHValidation.errors.join('\n') 
+            : 'Invalid LHS Inductive Hypothesis';
+          toast.error(`LHS Inductive Hypothesis validation failed:\n${errorMessage}`);
+          return;
+        }
+      } catch (validationError) {
+        const errorMessage = validationError.response?.data?.errors?.join('\n') 
+          || validationError.message 
+          || 'Invalid LHS Inductive Hypothesis';
+        toast.error(`LHS Inductive Hypothesis validation failed:\n${errorMessage}`);
+        return;
+      }
+      
+      // Validate RHS Inductive Hypothesis
+      try {
+        const rhsIHValidation = await inductionService.checkGoal({
+          case: 'leap',
+          side: 'RHS',
+          goal: inductiveHypothesisRHS
+        });
+        
+        if (!rhsIHValidation.isValid) {
+          const errorMessage = rhsIHValidation.errors?.length 
+            ? rhsIHValidation.errors.join('\n') 
+            : 'Invalid RHS Inductive Hypothesis';
+          toast.error(`RHS Inductive Hypothesis validation failed:\n${errorMessage}`);
+          return;
+        }
+      } catch (validationError) {
+        const errorMessage = validationError.response?.data?.errors?.join('\n') 
+          || validationError.message 
+          || 'Invalid RHS Inductive Hypothesis';
+        toast.error(`RHS Inductive Hypothesis validation failed:\n${errorMessage}`);
+        return;
+      }
+
       // Prefer session definitions; include only enabled/applied ones
       let definitions = [];
       try {
@@ -1355,6 +1451,10 @@ const InductionRacket = () => {
                 }));
               }
 
+              // Clear any previous validation error messages
+              clearGoalValidationMessage('LHS');
+              clearGoalValidationMessage('RHS');
+              
               setProofStarted(true);
               
               // Mark this as an active proof session for restoration on page refresh
@@ -1366,7 +1466,12 @@ const InductionRacket = () => {
               }, 100);
             } catch (err) {
               console.error('Engine setup failed:', err);
-              toast.error('Failed to initialize induction engine');
+              const errorMsg = err.response?.data?.error 
+                || err.response?.data?.message 
+                || (err.response?.data?.errors?.length ? err.response.data.errors.join('\n') : null)
+                || err.message 
+                || 'Unknown error';
+              toast.error(`Failed to initialize induction engine: ${errorMsg}`);
             }
           }
           

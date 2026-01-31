@@ -83,7 +83,8 @@ const EquationalReasoningNew = () => {
         proofValidationMessage,
         clearProofValidationMessage,
         ,
-        jsonTreeRep
+        jsonTreeRep,
+        clearGoalValidationMessage
     ] = useGoalCheck(handleChange);
     const [currentRacket, setCurrentRacket] = useState("");
     const [
@@ -240,6 +241,10 @@ const EquationalReasoningNew = () => {
           sessionStorage.setItem('current_proof_id', response.proofId || response.id);
           sessionStorage.setItem('erProofActive', 'true');
         }
+        
+        // Clear any previous validation error messages
+        clearGoalValidationMessage('LHS');
+        clearGoalValidationMessage('RHS');
         
         setProofStarted(true);
         toast.success("Proof started!");
