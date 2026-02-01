@@ -138,11 +138,7 @@ const EquationalReasoningNew = () => {
       }
 
       try {
-        // -----------------------------------------------------------
-        // 1. FORCE CLEAN SLATE (The Fix)
-        // -----------------------------------------------------------
-        // We explicitly clear the previous proof session. 
-        // This forces the backend to drop the old cached ID.
+        // 1. FORCE CLEAN SLATE
         try {
             await equationalService.clearProof();
         } catch (ignore) {
@@ -173,7 +169,6 @@ const EquationalReasoningNew = () => {
         try {
           const storedDefs = JSON.parse(sessionStorage.getItem('definitions')) || [];
           definitions = storedDefs.filter(d => d.applied && d.expression);
-          
           const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
           generics = storedGenerics.filter(g => g.enabled);
         } catch (e) {
@@ -183,7 +178,6 @@ const EquationalReasoningNew = () => {
         }
         
         // 4. INITIALIZE ENGINE (setCurrentProof)
-        // This validates the premises mathematically and returns the JSON Trees we need for the DB.
         const response = await equationalService.setCurrentProof({
           lhsPremise: formValues.lHSGoal.trim(),
           rhsPremise: formValues.rHSGoal.trim(),
@@ -236,8 +230,19 @@ const EquationalReasoningNew = () => {
               rightPremise: { ...rhsPremiseLine },
               leftRacketsAndRules: [],
               rightRacketsAndRules: [],
-              definitions: definitions,
-              generics: generics
+              definitions: definitions.map(d => ({
+                label: d.label || d.name || '',
+                type: normalizeType(d.type),
+                expression: d.expression
+              })),
+              generics: generics.map(g => ({
+                label: g.label || g.name || '',
+                type: normalizeType(g.type),
+                restrictions: {
+                assumption: g.assumption || g.restrictions?.assumption || 'None',
+                neverNull: g.neverNull || g.restrictions?.neverNull || false
+                }
+              }))
           };
 
           const saveResponse = await equationalService.saveProof(proofPayload);

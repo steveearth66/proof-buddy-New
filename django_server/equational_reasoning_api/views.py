@@ -144,11 +144,6 @@ def set_current_proof(request):
         _, existing_proof_id = get_or_set_equational_obj(user)
         proof_obj = TwoSidedProof()
         
-        existing_labels = {d.get("label") for d in definitions}
-        for default_udf in DEFAULT_UDFS:
-            if default_udf.get("label") not in existing_labels:
-                definitions.append(default_udf.copy())
-        
         # Add user definitions (UDF) to both LHS and RHS rule sets
         for d in definitions:
             # Check if this is a default UDF (skip database operations)
@@ -612,39 +607,6 @@ def get_proof_lines(request):
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-def update_line_metadata(user, side, line_number, updates):
-    """
-    Update metadata (visibility) for a specific line in the cache.
-    Creates the structure if it doesn't exist.
-    """
-    key = f"equational_obj_{user.username}"
-    cached_data = cache.get(key)
-    
-    if not cached_data or not isinstance(cached_data, dict):
-        return # Cannot update missing cache
-        
-    # Initialize structure
-    if 'lines_meta' not in cached_data:
-        cached_data['lines_meta'] = {'LHS': {}, 'RHS': {}}
-        
-    side_key = side.upper()
-    if side_key not in cached_data['lines_meta']:
-        cached_data['lines_meta'][side_key] = {}
-        
-    # Get existing meta for this line or create new
-    current_meta = cached_data['lines_meta'][side_key].get(line_number, {})
-    current_meta.update(updates)
-    
-    # Save back
-    cached_data['lines_meta'][side_key][line_number] = current_meta
-    cache.set(key, cached_data, timeout=None)
-
-def get_line_metadata(cached_data, side, line_number):
-    """Safely retrieve metadata for a line."""
-    try:
-        return cached_data.get('lines_meta', {}).get(side.upper(), {}).get(line_number, {})
-    except AttributeError:
-        return {}
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -832,7 +794,7 @@ def get_user_proofs(request):
 
 
 def user_proofs(user, page=1, query="", proofs_per_page=12):
-    proofs = EquationalProof.objects.filter(user=user, name__contains=query).order_by(
+    proofs = EquationalProof.objects.filter(user=user, name__contains=query, is_active=True).order_by(
         "-created_at"
     )
     paginator = Paginator(proofs, proofs_per_page)
@@ -1085,19 +1047,15 @@ def get_or_create_proof(data, user, definitions, generics):
     proof_instance = EquationalProof.objects.filter(
         name=data.get("name"), 
         tag=data.get("tag"), 
-        user=user
+        user=user,
+        is_active=True
     ).first()
 
     if proof_instance:
         # Update goals if they changed
-        proof_instance.lhs_goal = data.get("lHSGoal", proof_instance.lhs_goal)
-        proof_instance.rhs_goal = data.get("rHSGoal", proof_instance.rhs_goal)
+        proof_instance.is_active = False
         proof_instance.save()
         
-        # Repopulate lines
-        add_data_to_proof(data, proof_instance, definitions, generics)
-        return proof_instance
-
     # 2. Create new proof if not found
     proof_serializer_data = {
         "name": data.get("name"),
@@ -1227,11 +1185,6 @@ def save_proof(request):
         # Fallback: check if definitions are in the request data
         if not definitions:
             definitions = data.get("definitions", "")
-       
-        existing_labels = {d.get("label") for d in definitions}
-        for default_udf in DEFAULT_UDFS:
-            if default_udf.get("label") not in existing_labels:
-                definitions.append(default_udf.copy())
 
         generics = data.get("generics", [])
 
@@ -1252,4 +1205,44 @@ def save_proof(request):
         traceback.print_exc()
         return Response(
             {"message": f"Error saving proof: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST
+        )
+    
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def delete_proof(request):
+    """
+    Endpoint to mark a proof as deleted in the database (`is_active=False`).
+    """
+    proof_id = request.data.get('proof_id')
+    user = request.user
+    try:
+        if proof_id is not None:
+            # 1. Update the DB
+            updated_count = EquationalProof.objects.filter(id=proof_id, user=user).update(is_active=False)
+            
+            if updated_count == 0:
+                return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
+
+            # 2. Clear cache if active proof_id is the same as the current cache
+            cached = cache.get(f"equational_obj_{user.username}") 
+            cache_cleared = False
+            if cached:
+                cached_proof_id = cached.get('proof_id')   
+
+                if cached_proof_id == proof_id:
+                    cache_cleared = True
+                    clear_user_proofs(user) 
+
+            return Response({
+                "success": True,
+                "message": "Proofed marked as inactive",
+                "cacheCleared": cache_cleared
+            }, status=status.HTTP_200_OK)    
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"message": f"Error setting proof to inactive: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST
         )

@@ -153,6 +153,21 @@ const saveProof = async (proof) => {
   }
 };
 
+const deleteRacketProof = async (proof_id) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/delete-proof`, { 
+      proof_id: proof_id 
+    }
+    );
+    return response.data;
+  }
+  catch(error) {
+    handleServiceError(error, "Error during proof deletion:");
+    throw error;
+  }
+};
+
 const equationalService = {
   setCurrentProof,
   applyRule,
@@ -165,7 +180,8 @@ const equationalService = {
   getRacketProofs,
   getRacketProof,
   clearProof,
-  saveProof
+  saveProof,
+  deleteRacketProof
 };
 
 export default equationalService;
