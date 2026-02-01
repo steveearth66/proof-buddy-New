@@ -118,6 +118,7 @@ const EquationalReasoningNew = () => {
         RHS: []
       });
     const [errors, setErrors] = useState([]);
+    const [showOverwriteModal, setShowOverwriteModal] = useState(false);
     // Start proof
     const handleStartProof = async (e) => {
       e.preventDefault();
@@ -138,6 +139,22 @@ const EquationalReasoningNew = () => {
       }
 
       try {
+        const duplicateCheck = await equationalService.getRacketProofs({ 
+          query: formValues.proofName 
+        });
+
+        const hasMatch = duplicateCheck.proofs?.some(p => 
+          p.name === formValues.proofName && p.tag === formValues.proofTag
+        );
+
+        // If a match exists and haven't already confirmed the overwrite
+        if (hasMatch && !showOverwriteModal) {
+          setShowOverwriteModal(true);
+          return; 
+        }
+
+        setShowOverwriteModal(false);
+
         // 1. FORCE CLEAN SLATE
         try {
             await equationalService.clearProof();
@@ -2053,6 +2070,24 @@ const handleGenerateAndCheck = async () => {
             }
           }}>
             Yes
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Overwrite Proof Confirmation Modal */}
+      <Modal show={showOverwriteModal} onHide={() => setShowOverwriteModal(null)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Confirm Overwrite of Proof</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          A proof with the name "<strong>{formValues.proofName}</strong>" and tag "<strong>{formValues.proofTag}</strong>" 
+          already exists. Starting this proof will overwrite the existing one. Do you wish to proceed?        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowOverwriteModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={handleStartProof}>
+            Overwrite & Start
           </Button>
         </Modal.Footer>
       </Modal>
