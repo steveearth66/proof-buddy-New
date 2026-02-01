@@ -3,7 +3,7 @@ from rest_framework import serializers
 
 from proofs.models import Generic
 
-from .models import EquationalProof
+from .models import EquationalProof, EquationalProofLine
 
 
 class EquationalProofSerializer(serializers.ModelSerializer):
@@ -45,18 +45,3 @@ class EquationalProofSerializer(serializers.ModelSerializer):
                 })
         
         return data
-    
-class GenericSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Generic
-        fields = ["id", "label", "type", "notes", "restrictions"]
-
-    def to_representation(self, instance):
-        representation = super().to_representation(instance)
-        representation["restrictions"] = literal_eval(representation["restrictions"])
-        return representation
-
-    def create(self, validated_data):
-        user = validated_data.pop("created_by")
-        generic = Generic.objects.create(created_by=user, **validated_data)
-        return generic

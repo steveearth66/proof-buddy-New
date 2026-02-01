@@ -11,7 +11,6 @@ from django.core.cache import cache
 from django.db import models
 
 from .models import EquationalProof, EquationalProofLine
-from .serializers import EquationalProofSerializer, GenericSerializer
 from proofs.views import use_uploaded_generic
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
@@ -67,7 +66,8 @@ def reload_proof_lines_from_db(proof_obj, proof_id):
             
             # Create ERProofLine and add to target
             proof_line = ERProofLine(line.racket, target.debug, target.ruleSet, generics=target.generics)
-            
+            proof_line.errors = line.errors
+
             if proof_line.errLog == []:
                 # Store metadata
                 proof_line.appliedRule = line.rule
@@ -80,9 +80,8 @@ def reload_proof_lines_from_db(proof_obj, proof_id):
 
 def save_proof_line_to_db(proof_id, side, racket, rule='', start_position=0, line_number=0, 
                          substitution='', selected_node=0, result_node=0,
-                         hide_expression=False, hide_justification=False):
+                         hide_expression=False, hide_justification=False, errors=''):
     """Save or update a proof line in the database"""
-    from .models import EquationalProofLine
     
     json_tree = {}
     try:
@@ -108,7 +107,8 @@ def save_proof_line_to_db(proof_id, side, racket, rule='', start_position=0, lin
             'selected_node': selected_node,
             'result_node': result_node,
             'hide_expression': hide_expression,
-            'hide_justification': hide_justification
+            'hide_justification': hide_justification,
+            'errors': errors
         }
     )
 
@@ -223,7 +223,6 @@ def set_current_proof(request):
         }, status=status.HTTP_200_OK)
         
     except Exception as e:
-        import traceback
         error_msg = f"Exception in set_current_proof: {str(e)}"
         return Response({
             "isValid": False,
@@ -238,12 +237,14 @@ def apply_rule(request):
     Apply a rule to the current side of the proof.
     Expected JSON: { side, currentRacket, rule, startPosition, selectedNode?, substitution?, lineNumber? }
     """
-    from .models import EquationalProofLine
     user = request.user
     data = request.data
     proof_obj, proof_id = get_or_set_equational_obj(user)
     
     try:
+        # Reload proof lines from database
+        reload_proof_lines_from_db(proof_obj, proof_id)
+
         side = data.get("side", "LHS")
         current_racket = data.get("currentRacket", "")
         rule = data.get("rule")
@@ -274,6 +275,12 @@ def apply_rule(request):
         result_node_id = 0
         json_tree = {}
         
+        if not is_valid and len(target.proofLines) > 0:
+            # append current line errors
+            current_line = target.proofLines[line_number - 1]
+            separator = ", " if current_line.errors else ""
+            current_line.errors += f'{separator}{target.errLog}'
+        
         if is_valid and len(target.proofLines) > 0:
             last_line = target.proofLines[-1]
             rule_with_params = last_line.appliedRule or rule or ''
@@ -283,26 +290,26 @@ def apply_rule(request):
         save_equational_obj_to_cache(user, proof_obj, proof_id)
         
         # Save to database
-        if is_valid and len(target.proofLines) > 0:
-            calculated_line_number = line_number if line_number is not None else (len(target.proofLines) - 1)
-            
-            # Update previous line's selected_node
-            if line_number is None and proof_id:
-                prev_line_exists = EquationalProofLine.objects.filter(
-                    proof_id=proof_id,
-                    side=side.upper(),
-                    line_number=calculated_line_number - 1
-                ).exists()
+        if proof_id and len(target.proofLines) > 0:
+            if is_valid:
+                calculated_line_number = line_number if line_number is not None else (len(target.proofLines) - 1)
                 
-                if prev_line_exists:
-                    EquationalProofLine.objects.filter(
+                # Update previous line's selected_node
+                if line_number is None:
+                    prev_line_exists = EquationalProofLine.objects.filter(
                         proof_id=proof_id,
                         side=side.upper(),
                         line_number=calculated_line_number - 1
-                    ).update(selected_node=start_position)
-            
-            # Save the new line
-            if proof_id:  # Only save to DB if we have a proof_id
+                    ).exists()
+                    
+                    if prev_line_exists:
+                        EquationalProofLine.objects.filter(
+                            proof_id=proof_id,
+                            side=side.upper(),
+                            line_number=calculated_line_number - 1
+                        ).update(selected_node=start_position)
+                
+                # Save the new line
                 save_proof_line_to_db(
                     proof_id=proof_id,
                     side=side,
@@ -312,8 +319,17 @@ def apply_rule(request):
                     line_number=calculated_line_number,
                     substitution=substitution or '',
                     selected_node=start_position,
-                    result_node=result_node_id
+                    result_node=result_node_id,
+                    errors=target.proofLines[-1].errors
                 )
+            else:
+                line_index = line_number - 1
+                last_line_obj = target.proofLines[line_index]
+                EquationalProofLine.objects.filter(
+                    proof_id=proof_id,
+                    side=side.upper(),
+                    line_number=line_index
+                ).update(errors=last_line_obj.errors)
         
         return Response({
             "isValid": is_valid,
@@ -339,7 +355,6 @@ def substitution(request):
     Apply a substitution to the current side.
     Expected JSON: { side, currentRacket, rule, startPosition, substitution, lineNumber? }
     """
-    from .models import EquationalProofLine
     user = request.user
     data = request.data
     proof_obj, proof_id = get_or_set_equational_obj(user)
@@ -368,7 +383,13 @@ def substitution(request):
         is_valid = len(target.errLog) == 0
         racket_str = target.getPrevRacket() if is_valid else "Error generating racket"
         json_tree = makeJson(target.proofLines[-1].exprTree) if is_valid and len(target.proofLines) > 0 else {}
-        
+
+        if not is_valid and len(target.proofLines) > 0:
+            # append current line errors
+            current_line = target.proofLines[line_number - 1]
+            separator = ", " if current_line.errors else ""
+            current_line.errors += f'{separator}{target.errLog}'
+
         rule_with_sub = ''
         result_node_id = 0
         if is_valid and len(target.proofLines) > 0:
@@ -381,35 +402,44 @@ def substitution(request):
         save_equational_obj_to_cache(user, proof_obj, proof_id)
         
         # Save to database
-        if is_valid and len(target.proofLines) > 0:
-            calculated_line_number = line_number if line_number is not None else (len(target.proofLines) - 1)
-            
-            if calculated_line_number > 0 and proof_id:
-                prev_line_exists = EquationalProofLine.objects.filter(
-                    proof_id=proof_id,
-                    side=side.upper(),
-                    line_number=calculated_line_number - 1
-                ).exists()
+        if proof_id and len(target.proofLines) > 0:
+            if is_valid:
+                calculated_line_number = line_number if line_number is not None else (len(target.proofLines) - 1)
                 
-                if prev_line_exists:
-                    EquationalProofLine.objects.filter(
+                if calculated_line_number > 0 and proof_id:
+                    prev_line_exists = EquationalProofLine.objects.filter(
                         proof_id=proof_id,
                         side=side.upper(),
                         line_number=calculated_line_number - 1
-                    ).update(selected_node=start_position)
-            
-            if proof_id:  # Only save to DB if we have a proof_id
-                save_proof_line_to_db(
-                    proof_id=proof_id,
-                    side=side,
-                    racket=racket_str,
-                    rule=rule_with_sub,
-                    start_position=start_position,
-                    line_number=calculated_line_number,
-                    substitution=substitution_expr or '',
-                    selected_node=None,
-                    result_node=result_node_id
-                )
+                    ).exists()
+                    
+                    if prev_line_exists:
+                        EquationalProofLine.objects.filter(
+                            proof_id=proof_id,
+                            side=side.upper(),
+                            line_number=calculated_line_number - 1
+                        ).update(selected_node=start_position)
+                
+                if proof_id:  # Only save to DB if we have a proof_id
+                    save_proof_line_to_db(
+                        proof_id=proof_id,
+                        side=side,
+                        racket=racket_str,
+                        rule=rule_with_sub,
+                        start_position=start_position,
+                        line_number=calculated_line_number,
+                        substitution=substitution_expr or '',
+                        selected_node=None,
+                        result_node=result_node_id
+                    )
+        else:
+            line_index = line_number - 1
+            last_line_obj = target.proofLines[line_index]
+            EquationalProofLine.objects.filter(
+                proof_id=proof_id,
+                side=side.upper(),
+                line_number=line_index
+            ).update(errors=last_line_obj.errors)
         
         return Response({
             "isValid": is_valid,
@@ -558,7 +588,8 @@ def get_proof_lines(request):
                 'substitution': line.substitution,
                 'startPosition': line.start_position,  # camelCase!
                 'hide_expression': line.hide_expression,
-                'hide_justification': line.hide_justification
+                'hide_justification': line.hide_justification,
+                'errors': line.errors
             }
         
         return Response({
@@ -576,39 +607,6 @@ def get_proof_lines(request):
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-def update_line_metadata(user, side, line_number, updates):
-    """
-    Update metadata (visibility) for a specific line in the cache.
-    Creates the structure if it doesn't exist.
-    """
-    key = f"equational_obj_{user.username}"
-    cached_data = cache.get(key)
-    
-    if not cached_data or not isinstance(cached_data, dict):
-        return # Cannot update missing cache
-        
-    # Initialize structure
-    if 'lines_meta' not in cached_data:
-        cached_data['lines_meta'] = {'LHS': {}, 'RHS': {}}
-        
-    side_key = side.upper()
-    if side_key not in cached_data['lines_meta']:
-        cached_data['lines_meta'][side_key] = {}
-        
-    # Get existing meta for this line or create new
-    current_meta = cached_data['lines_meta'][side_key].get(line_number, {})
-    current_meta.update(updates)
-    
-    # Save back
-    cached_data['lines_meta'][side_key][line_number] = current_meta
-    cache.set(key, cached_data, timeout=None)
-
-def get_line_metadata(cached_data, side, line_number):
-    """Safely retrieve metadata for a line."""
-    try:
-        return cached_data.get('lines_meta', {}).get(side.upper(), {}).get(line_number, {})
-    except AttributeError:
-        return {}
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -696,9 +694,7 @@ def validate_hidden_field(request):
     """
     Validate student input against hidden field value.
     Validates Rule + Selection OR Expression.
-    """
-    from .models import EquationalProofLine
-    
+    """    
     # 1. Validate User Context
     user = request.user
     cached = cache.get(f"equational_obj_{user.username}")
@@ -798,7 +794,7 @@ def get_user_proofs(request):
 
 
 def user_proofs(user, page=1, query="", proofs_per_page=12):
-    proofs = EquationalProof.objects.filter(user=user, name__contains=query).order_by(
+    proofs = EquationalProof.objects.filter(user=user, name__contains=query, is_active=True).order_by(
         "-created_at"
     )
     paginator = Paginator(proofs, proofs_per_page)
@@ -838,11 +834,11 @@ def user_proofs(user, page=1, query="", proofs_per_page=12):
         for definition in definitions:
             definitions_data.append(
                 {
-                    "id": definition.id,
-                    "label": definition.label,
-                    "type": definition.def_type,
-                    "expression": definition.expression,
-                    "notes": definition.notes,
+                    "id": definition.get("id"),
+                    "label": definition.get("label"),
+                    "type": definition.get("def_type"),
+                    "expression": definition.get("expression"),
+                    "notes": definition.get("notes", ""),
                     "applied": True,
                 }
             )
@@ -899,19 +895,23 @@ def user_proof(user, proof_id):
             "lineNumber": line.line_number,
             "hide_expression": line.hide_expression,
             "hide_justification": line.hide_justification,
+            "errors": line.errors,
             "deleted": False 
         })
 
     # 3. Fetch Definitions
     # 'definition' is a JSONField in your model, so access it directly.
-    definitions_data = proof.definition if proof.definition else []
+    definitions_and_generics = proof.definition if proof.definition else []
     
-    # Ensure they have the 'applied' flag for the frontend
-    for d in definitions_data:
-        d['applied'] = True
-
-    # 4. Fetch Generics (Placeholder as per your model)
-    generics_data = [] 
+    definitions_data = []
+    generics_data = []
+    
+    for item in definitions_and_generics:
+        if item.get('is_generic'):
+            generics_data.append(item)
+        else:
+            item['applied'] = True
+            definitions_data.append(item)
 
     # 5. Construct the Data Object
     proof_data = {
@@ -950,11 +950,12 @@ def load_proof(proof_data):
     # 2. Load Generics into Engine
     generics = proof_data.get("generics", [])
     for generic in generics:
+        restrictions = generic.get("restrictions", {})
         try:
-            proof.LHS.addGeneric(generic["label"], generic["type"], generic["restrictions"])
-            proof.RHS.addGeneric(generic["label"], generic["type"], generic["restrictions"])
-        except Exception:
-            pass
+            proof.LHS.addGeneric(generic["label"], generic["type"], restrictions)
+            proof.RHS.addGeneric(generic["label"], generic["type"], restrictions)
+        except Exception as e:
+            print(f"Error loading generic {generic.get('label')}: {e}")
 
     # 3. Replay Lines into Engine
     proof_lines = proof_data["proofLines"]
@@ -988,6 +989,7 @@ def load_proof(proof_data):
             current_line_obj.hide_justification = line_data.get("hide_justification", False)
             current_line_obj.resultNodeId = line_data.get("resultNode", 0)
             current_line_obj.appliedRuleNodeId = line_data.get("selectedNode", 0)
+            current_line_obj.errors = line_data.get("errors", 0)
 
     return proof
 
@@ -1010,29 +1012,7 @@ def get_user_proof(request):
         # 2. Rebuild the Engine Object (This generates the valid trees in memory)
         proof_obj = load_proof(proof_data)
 
-        # -----------------------------------------------------------
-        # 3. AUTO-REPAIR: Save the valid trees back to the Database
-        # -----------------------------------------------------------
-        for side_name in ['LHS', 'RHS']:
-            target_proof = proof_obj.LHS if side_name == 'LHS' else proof_obj.RHS
-            
-            for i, line in enumerate(target_proof.proofLines):
-                try:
-                    # Generate the correct JSON for the frontend
-                    valid_json = makeJson(line.exprTree)
-                    
-                    # Update the database row immediately
-                    EquationalProofLine.objects.filter(
-                        proof_id=proof_id,
-                        side=side_name,
-                        line_number=i
-                    ).update(json_tree=valid_json)
-                    
-                except Exception as e:
-                    print(f"Error repairing tree for {side_name} line {i}: {e}")
-        # -----------------------------------------------------------
-
-        # 4. Save to Cache
+        # 3. Save to Cache
         save_equational_obj_to_cache(user, proof_obj, proof_id)
 
         return Response({"success": True, "message": "Proof loaded and DB repaired"}, status=status.HTTP_200_OK)
@@ -1054,3 +1034,215 @@ def clear_proof(request):
 
     return Response(status=status.HTTP_200_OK)
 
+# ========================
+# Save/Create Proof Logic
+# ========================
+
+def get_or_create_proof(data, user, definitions, generics):
+    """
+    Finds an existing proof by name/tag to update, or creates a new one.
+    Then populates it with lines and definitions.
+    """
+    # 1. Try to find existing proof to update
+    proof_instance = EquationalProof.objects.filter(
+        name=data.get("name"), 
+        tag=data.get("tag"), 
+        user=user,
+        is_active=True
+    ).first()
+
+    if proof_instance:
+        # Update goals if they changed
+        proof_instance.is_active = False
+        proof_instance.save()
+        
+    # 2. Create new proof if not found
+    proof_serializer_data = {
+        "name": data.get("name"),
+        "tag": data.get("tag"),
+        "lhs_goal": data.get("lHSGoal"),
+        "rhs_goal": data.get("rHSGoal"),
+        "user": user.id
+    }
+
+    # We manually create the object to avoid complex Serializer context issues with 'user'
+    # validation, though Serializer usage is also valid.
+    try:
+        proof_instance = EquationalProof.objects.create(
+            user=user,
+            name=proof_serializer_data["name"],
+            tag=proof_serializer_data["tag"],
+            lhs_goal=proof_serializer_data["lhs_goal"],
+            rhs_goal=proof_serializer_data["rhs_goal"]
+        )
+        add_data_to_proof(data, proof_instance, definitions, generics)
+        return proof_instance
+    except Exception as e:
+        print(f"Error creating proof: {e}")
+        return None
+
+
+def create_proof_line(proof, side, line_number, data, is_premise=False):
+    """
+    Helper to safely create a single EquationalProofLine from frontend data.
+    """
+    try:
+        # Extract fields, handling frontend vs backend naming differences
+        racket = data.get("racket", "")
+        rule = data.get("rule", "Premise" if is_premise else "")
+        start_position = int(data.get("startPosition", 0) or 0)
+        substitution = data.get("substitution", "")
+        
+        # Optional fields that might not exist in all requests
+        selected_node = int(data.get("selectedNode", 0) or 0)
+        result_node = int(data.get("resultNode", 0) or 0)
+        errors = data.get("errors", "")
+
+        json_tree = data.get("jsonTree", {})
+
+        EquationalProofLine.objects.create(
+            proof=proof,
+            side=side,
+            line_number=line_number,
+            racket=racket,
+            rule=rule,
+            start_position=start_position,
+            substitution=substitution,
+            selected_node=selected_node,
+            result_node=result_node,
+            # Defaults
+            hide_expression=False,
+            hide_justification=False,
+            errors=errors,
+            json_tree=json_tree 
+        )
+    except Exception as e:
+        print(f"Error saving line {line_number} on {side}: {e}")
+        raise e
+
+
+def add_data_to_proof(json_data, proof, definitions, generics):
+    """
+    Wipes existing lines for the proof and saves the current state 
+    from the request data.
+    """
+    try:
+        # 1. Clear existing proof lines to avoid duplication/ordering issues
+        proof.proof_lines.all().delete()
+        
+        # 2. Save Premises (Line 0)
+        left_premise = json_data.get("leftPremise")
+        if left_premise:
+            create_proof_line(proof, 'LHS', 0, left_premise, is_premise=True)
+            
+        right_premise = json_data.get("rightPremise")
+        if right_premise:
+            create_proof_line(proof, 'RHS', 0, right_premise, is_premise=True)
+
+        # 3. Save Body Lines        
+        left_lines = json_data.get("leftRacketsAndRules", [])
+        for i, line_data in enumerate(left_lines):
+            create_proof_line(proof, 'LHS', i + 1, line_data)
+            
+        right_lines = json_data.get("rightRacketsAndRules", [])
+        for i, line_data in enumerate(right_lines):
+            create_proof_line(proof, 'RHS', i + 1, line_data)
+        
+        final_definitions = []
+        # 4. Save Definitions
+        if definitions:
+            final_definitions.extend(definitions)
+
+        for generic in generics:
+            g_entry = generic.copy()
+            g_entry['is_generic'] = True
+            final_definitions.append(g_entry)
+
+        proof.definition = final_definitions
+
+        # 5. Update Completion Status
+        proof.is_complete = False # Re-validated on load
+        proof.save()
+
+    except Exception as e:
+        # If saving fails midway, we might want to cleanup or just let the transaction roll back
+        print(f"Error adding data to proof: {str(e)}")
+        raise e
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def save_proof(request):
+    """
+    Endpoint to save the current proof state to the database.
+    """
+    try:
+        data = request.data
+        user = request.user
+
+        definitions = []
+        
+        # Fallback: check if definitions are in the request data
+        if not definitions:
+            definitions = data.get("definitions", "")
+
+        generics = data.get("generics", [])
+
+        proof = get_or_create_proof(data, user, definitions, generics)
+
+        if not proof:
+            return Response(
+                {"message": "Error saving proof"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response(
+            {"message": "Proof saved successfully", "proofId": proof.id}, 
+            status=status.HTTP_201_CREATED
+        )
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"message": f"Error saving proof: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST
+        )
+    
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def delete_proof(request):
+    """
+    Endpoint to mark a proof as deleted in the database (`is_active=False`).
+    """
+    proof_id = request.data.get('proof_id')
+    user = request.user
+    try:
+        if proof_id is not None:
+            # 1. Update the DB
+            updated_count = EquationalProof.objects.filter(id=proof_id, user=user).update(is_active=False)
+            
+            if updated_count == 0:
+                return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
+
+            # 2. Clear cache if active proof_id is the same as the current cache
+            cached = cache.get(f"equational_obj_{user.username}") 
+            cache_cleared = False
+            if cached:
+                cached_proof_id = cached.get('proof_id')   
+
+                if cached_proof_id == proof_id:
+                    cache_cleared = True
+                    clear_user_proofs(user) 
+
+            return Response({
+                "success": True,
+                "message": "Proofed marked as inactive",
+                "cacheCleared": cache_cleared
+            }, status=status.HTTP_200_OK)    
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"message": f"Error setting proof to inactive: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST
+        )

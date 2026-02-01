@@ -308,6 +308,7 @@ class ERProofLine(ProofComponent):
         self.resultNodeId = None # stores the node ID of the changed portion in this line's result
         self.hide_expression = False
         self.hide_justification = False
+        self.errors = ""
 
         # Special case: allow blank lines (used for cleared lines)
         if goal == "" or goal is None or (isinstance(goal, str) and goal.strip() == ""):
