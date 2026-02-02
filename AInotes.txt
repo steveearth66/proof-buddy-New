@@ -496,3 +496,153 @@ Session 2026-01-24: Parenthesis Highlighting Implementation - Key Learnings
 - **Why it broke**: useParenHighlight expects the TEXT VALUE as parameter, not a ref. The hook internally creates and returns its own ref.
 - **Correct pattern**: `const { highlightPositions, inputRef, handleKeyUp, handleSelect } = useParenHighlight(formValues.fieldName);`
 - **Lesson**: Read existing working code carefully before replicating the pattern. The hook signature is: `useParenHighlight(value)` → returns `{ highlightPositions, inputRef, ... }`
+
+---
+
+Session 2026-01-30: List Induction (UP Direction) Implementation
+
+**GOAL**: Enable List induction mode alongside existing Integer induction. User clicks "Lists" radio button, enters null/'() as anchor value, system generates IH with K (a list generic) and leap goals with (cons a K).
+
+**CRITICAL ERRORS ENCOUNTERED AND FIXES**:
+
+**ERROR 1: Database Field Type Mismatch**
+- **Symptom**: IntegrityError: "invalid input syntax for type integer: 'null'"
+- **Root Cause**: InductionProof.anchor_value was IntegerField but lists need string anchors ('null' or "'()")
+- **Dead-end attempt**: Adding validation to skip anchor_value entirely
+- **Why that's wrong**: Skipping validation hides the real problem - the database schema is incorrect for the new feature
+- **Correct fix**: 
+  1. Changed anchor_value from IntegerField to CharField(max_length=100) in models.py
+  2. Created migration: django_server/induction_api/migrations/0010_alter_inductionproof_anchor_value.py
+  3. Applied migration with `python manage.py migrate induction_api`
+  4. Updated serializers to accept string values for anchor_value
+- **CRITICAL LESSON**: Don't skip validation to work around schema issues. Fix the schema to support both int and list values. String field with validation for both cases is better than int field with exceptions.
+- **MIGRATION WARNING FOR COLLABORATORS**: When pulling this code, collaborators MUST run `python manage.py migrate induction_api` before starting servers. Migration 0010 changes anchor_value column type.
+
+**ERROR 2: Serializer Validation Too Restrictive**
+- **Symptom**: Validation error rejecting 'null' and "'()" as anchor values
+- **Root Cause**: validate_anchor_value() in serializers only accepted integers
+- **Fix**: Updated validation logic in induction_api/serializers.py to accept strings. Moved type-specific validation to views.py where induction_type is available.
+- **CRITICAL LESSON**: Serializers see raw request data without context. Type-specific validation (int vs list) belongs in views where induction_type is known, not in serializers.
+
+**ERROR 3: Generic Variable 'a' Not Found**
+- **Symptom**: "No definition found for label 'a'" when engine tried to parse (cons a K)
+- **Root Cause**: Generic 'a' was being created but not passed to the proof engine before parsing leap goals
+- **Dead-end attempts**: 
+  - Added debug logging showing generics were created correctly
+  - Verified leap goal generation logic was producing (cons a K)
+  - Everything looked right in logs but engine still couldn't find 'a'
+- **Why the mistake**: Focused on where generics were created, not where they were APPLIED to the engine
+- **Correct fix**:
+  1. Added generics parameter to setCurrentProof API call in InductionRacket.js
+  2. Imported use_uploaded_generic from proofs.views in induction_api/views.py
+  3. Called use_uploaded_generic() in set_current_proof BEFORE parsing leap goals
+  4. Created both K (type list) and a (type Any) generics for list UP induction
+- **CRITICAL LESSON**: Creating generics in backend state is not enough. Must call use_uploaded_generic() to register them with the ERProofEngine BEFORE any parsing that references those variables. Order matters: (1) create generics, (2) apply to engine, (3) parse expressions using those generics.
+
+**ERROR 4: "Unexpected assignment 'a=a'" When Applying null?-cons Rule**
+- **Symptom**: User applied null?-cons rule with parameters "a=a, L=K" but got "Unexpected assignment" error
+- **Root Cause**: UI displayed rule as "(null? (cons a L))" but actual axiom definition uses parameters 'x' and 'L', not 'a' and 'L'
+- **Why this happened**: client/src/components/RuleSet.js had hardcoded display strings that didn't match actual axiom parameter names in ERRuleset.py
+- **Debugging path**:
+  1. Checked ERRuleset.py line 707: NullQCons uses {'x': xFinder, 'L': LFinder}
+  2. Found RuleSet.js line 126: highlight: "(null? (cons a L))"
+  3. Parameter names didn't match between display and actual axiom
+- **Correct fix**: Changed RuleSet.js line 126 from `(cons a L)` to `(cons x L)` to match the actual axiom parameters
+- **CRITICAL LESSON**: UI rule display strings must exactly match the parameter names in axiom definitions (ERRuleset.py). Users rely on these displays to know what parameter names to use. Mismatches cause confusing "unexpected assignment" errors because users type what they see but the engine expects different names.
+- **PATTERN TO AVOID THIS**: When adding new axioms or rules, verify that:
+  1. The axiom definition in ERRuleset.py uses clear parameter names
+  2. The display string in RuleSet.js uses the SAME parameter names
+  3. Any documentation or examples use the SAME parameter names
+
+**IMPLEMENTATION DETAILS**:
+
+**Files Modified**:
+1. client/src/pages/InductionRacket.js:
+   - Removed `disabled` attribute from Lists radio button (line ~170)
+   - Added `listDirection` state variable (defaults to 'up')
+   - Updated validateAndStart() to accept 'null' or "'()" for list anchor values
+   - Added generics parameter to setCurrentProof API call (passes enabled generics to backend)
+   
+2. django_server/induction_api/models.py:
+   - Changed anchor_value from IntegerField to CharField(max_length=100)
+   - Added comment explaining field holds either integer or list string
+   
+3. django_server/induction_api/serializers.py:
+   - Updated validate_anchor_value in InductionProofSerializer to accept strings
+   - Updated validate_anchor_value in UpdateInductionProofSerializer to accept strings
+   - Removed integer-specific validation (moved to views)
+   
+4. django_server/induction_api/views.py:
+   - start_induction_proof view:
+     - Added struct determination: 'Int' or 'List' based on induction_type
+     - Added separate validation for int vs list anchor values
+     - Created generic K with type based on struct ('int' vs 'list')
+     - For list UP: also created generic 'a' with type 'Any'
+   - set_current_proof view:
+     - Added generics parameter, imported use_uploaded_generic
+     - Called use_uploaded_generic() to register generics with engine
+     - Updated leap goal generation: (+ k 1) for int, (cons a K) for list UP
+     - Added extensive debug logging (can be removed after DOWN implementation)
+   
+5. client/src/components/RuleSet.js:
+   - Line 126: Changed highlight from "(null? (cons a L))" to "(null? (cons x L))"
+   - Fixed parameter name mismatch with actual NullQCons axiom
+
+**WHAT WORKS NOW**:
+- ✓ Lists radio button enabled and functional
+- ✓ List anchor validation accepts 'null' and "'()"
+- ✓ Generic K created with type 'list'
+- ✓ Generic a created with type 'Any' for list UP induction
+- ✓ Induction Hypothesis: Goal with L → K substitution
+- ✓ Leap Goals: Goal with L → (cons a K) substitution
+- ✓ Generics properly registered with engine before parsing
+- ✓ List induction proofs start successfully
+- ✓ null?-cons rule displays correct parameter names
+
+**WHAT REMAINS (FOR DOWN IMPLEMENTATION)**:
+- List DOWN direction not implemented yet
+- DOWN would need:
+  - IH formation: Replace L with (rest K) instead of K
+  - Leap goals: Replace L with K directly (not (cons a K))
+  - No generic 'a' needed for DOWN variant
+  - May need similar validation and struct determination logic
+
+**KEY DEBUGGING PATTERNS DISCOVERED**:
+
+1. **Database Type Mismatches**: 
+   - Symptom: IntegrityError with type conversion message
+   - Check: Model field types vs actual data being saved
+   - Fix: Migration to change field type, not validation workarounds
+
+2. **Generic Variable Not Found**:
+   - Symptom: "No definition found for label 'X'"
+   - Check: Are generics created? Are they applied to engine before parsing?
+   - Fix: Call use_uploaded_generic() BEFORE parsing expressions that use generics
+
+3. **Parameter Name Mismatches**:
+   - Symptom: "Unexpected assignment" errors when applying rules
+   - Check: Compare UI display strings (RuleSet.js) with axiom parameters (ERRuleset.py)
+   - Fix: Make display strings match actual parameter names exactly
+
+**CRITICAL WARNINGS FOR NEXT SESSION (DOWN IMPLEMENTATION)**:
+
+1. **DON'T skip validation** - If validation fails, fix the root cause (schema, data type, etc.), don't bypass it
+2. **DON'T assume generics work just because they're created** - Must call use_uploaded_generic() to register them
+3. **DON'T change axiom parameter names without updating UI displays** - Check RuleSet.js for any rules you modify
+4. **DO add proper logging at key points** - Creating generics, applying to engine, generating goals (remove after feature works)
+5. **DO test incrementally** - Change one thing, test, verify, then move to next change
+6. **DO verify backend changes don't break int induction** - Both modes must work after changes
+7. **DO check migration status** - If pulling from repo, run migrations before testing
+8. **DO preserve backward compatibility** - Anchor value as CharField works for both '5' (int) and 'null' (list)
+
+**TESTING CHECKLIST FOR DOWN IMPLEMENTATION**:
+- [ ] Lists radio button + DOWN direction selected
+- [ ] Anchor value validation accepts list values
+- [ ] Generic K created with type 'list'
+- [ ] NO generic 'a' created for DOWN (different from UP)
+- [ ] IH shows Goal with L → (rest K) substitution
+- [ ] Leap goals show Goal with L → K substitution
+- [ ] INT induction still works (UP and DOWN)
+- [ ] All rule parameter names display correctly
+- [ ] Browser console has no errors
+- [ ] Backend terminal has no errors

@@ -123,7 +123,7 @@ const ruleSet = () => {
       },
       {
         procedure: "null?-cons",
-        highlight: "(null? (cons a L))",
+        highlight: "(null? (cons x L))",
         result: "#f"
       },
       {

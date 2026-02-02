@@ -29,7 +29,7 @@ class InductionProof(models.Model):
     
     # Proof parameters
     induction_variable = models.CharField(max_length=100)
-    anchor_value = models.IntegerField()
+    anchor_value = models.CharField(max_length=100)  # Can be integer ('0', '1') or list ('null', "'()")
     leap_variable = models.CharField(max_length=100)
     
     lhs_leap_goal = models.TextField(blank=True, null=True)
