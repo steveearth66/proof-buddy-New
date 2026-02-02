@@ -609,6 +609,18 @@ const InductionRacket = () => {
     }
   };
 
+  const handleRuleKeyDown = (e) => {
+    // Check if Enter key is pressed without Shift
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault(); // Prevent newline in textarea
+      
+      // Only trigger Generate&Check if button would be enabled (isBound is true)
+      if (isBound) {
+        handleGenerateAndCheck();
+      }
+    }
+  };
+
   const handleGenerateAndCheck = async () => {
     if (isProcessingRef.current) {
       return;
@@ -1887,6 +1899,7 @@ const InductionRacket = () => {
             setFooterRule(e.target.value.trim());
             setFooterRuleError('');
           }}
+          onRuleKeyDown={handleRuleKeyDown}
           isRuleReadOnly={false}
           rulePlaceholder={`${showSide} Rule`}
           isRuleInvalid={!!footerRuleError}

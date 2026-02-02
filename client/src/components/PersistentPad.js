@@ -21,6 +21,7 @@ const PersistentPad = forwardRef(function PersistentPad(
     resultNode,
     ruleValue,
     onRuleChange,
+    onRuleKeyDown,
     isRuleReadOnly,
     rulePlaceholder,
     isRuleInvalid,
@@ -176,6 +177,7 @@ const PersistentPad = forwardRef(function PersistentPad(
             value={rule}
             placeholder={rulePlaceholder}
             onChange={handleRuleChange}
+            onKeyDown={onRuleKeyDown}
             readOnly={isRuleReadOnly}
             isInvalid={isRuleInvalid}
             disabled={!isEditRow}
