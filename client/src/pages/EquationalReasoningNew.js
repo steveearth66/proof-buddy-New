@@ -119,6 +119,7 @@ const EquationalReasoningNew = () => {
       });
     const [errors, setErrors] = useState([]);
     const [showOverwriteModal, setShowOverwriteModal] = useState(false);
+    const [showStartConfirmModal, setShowStartConfirmModal] = useState(false);
     // Start proof
     const handleStartProof = async (e) => {
       e.preventDefault();
@@ -147,14 +148,27 @@ const EquationalReasoningNew = () => {
           p.name === formValues.proofName && p.tag === formValues.proofTag
         );
 
-        // If a match exists and haven't already confirmed the overwrite
-        if (hasMatch && !showOverwriteModal) {
+        // If a match exists, show overwrite modal
+        if (hasMatch) {
           setShowOverwriteModal(true);
           return; 
         }
+        
+        // Show start confirmation modal (definitions will be locked)
+        setShowStartConfirmModal(true);
+      } catch (error) {
+        console.error('Error checking for duplicates:', error);
+        // Continue anyway if check fails
+        setShowStartConfirmModal(true);
+      }
+    };
+    
+    const proceedWithProofStart = async () => {
+      setShowOverwriteModal(false);
+      setShowStartConfirmModal(false);
+      setErrors([]);
 
-        setShowOverwriteModal(false);
-
+      try {
         // 1. FORCE CLEAN SLATE
         try {
             await equationalService.clearProof();
@@ -1531,7 +1545,10 @@ const handleGenerateAndCheck = async () => {
           toggleFunction={toggleOffcanvas}
         ></OffcanvasRuleSet>
         {showDefinitionsWindow && (
-          <Definitions toggleDefinitionsWindow={toggleDefinitionsWindow} />
+          <Definitions 
+            toggleDefinitionsWindow={toggleDefinitionsWindow} 
+            isLocked={proofStarted}
+          />
         )}
 
         {showProofComplete && <ProofComplete onDismiss={() => setShowProofComplete(false)} />}
@@ -2086,8 +2103,38 @@ const handleGenerateAndCheck = async () => {
           <Button variant="secondary" onClick={() => setShowOverwriteModal(false)}>
             Cancel
           </Button>
-          <Button variant="danger" onClick={handleStartProof}>
+          <Button variant="danger" onClick={() => {
+            setShowOverwriteModal(false);
+            setShowStartConfirmModal(true);
+          }}>
             Overwrite & Start
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Start Proof Confirmation Modal - Warn about locking definitions */}
+      <Modal show={showStartConfirmModal} onHide={() => setShowStartConfirmModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Confirm Start Proof</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p>
+            Once you start this proof, the current state of <strong>Definitions</strong> will be locked-in.
+            You will not be able to create, edit, enable, or disable definitions until you clear this proof.
+          </p>
+          <p>
+            You can still view definitions, but they cannot be modified during the proof.
+          </p>
+          <p className="mb-0">
+            Do you wish to proceed?
+          </p>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowStartConfirmModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={proceedWithProofStart}>
+            Start Proof
           </Button>
         </Modal.Footer>
       </Modal>

@@ -130,6 +130,8 @@ const InductionRacket = () => {
   
   const [proofStarted, setProofStarted] = useState(false);
   const [proofStatus, setProofStatus] = useState({ base: null, leap: null }); // tracks base/leap completeness separately
+  const [showOverwriteModal, setShowOverwriteModal] = useState(false);
+  const [showStartConfirmModal, setShowStartConfirmModal] = useState(false);
 
   // Parenthesis highlighting hooks
   const { 
@@ -199,8 +201,54 @@ const InductionRacket = () => {
   // It gets populated by the backend when goals are checked
   const [jsonTreeRep, setJsonTreeRep] = useState({ LHS: {}, RHS: {} });
 
-  const handleERRacketSubmission = async () => {
-    alert("We are stilling working on proof submission!");
+  const handleERRacketSubmission = async (e) => {
+    e.preventDefault();
+    
+    // Check for duplicate proof name/tag first
+    try {
+      const duplicateCheck = await inductionService.getInductionProofs({ 
+        query: formValues.proofName 
+      });
+
+      const hasMatch = duplicateCheck.proofs?.some(p => 
+        p.name === formValues.proofName && p.tag === formValues.proofTag
+      );
+
+      // If a match exists, show overwrite modal
+      if (hasMatch) {
+        setShowOverwriteModal(true);
+        return;
+      }
+      
+      // Show start confirmation modal (definitions will be locked)
+      setShowStartConfirmModal(true);
+    } catch (error) {
+      console.error('Error checking for duplicates:', error);
+      // Continue anyway if check fails
+      setShowStartConfirmModal(true);
+    }
+  };
+  
+  const actuallyStartInductionProof = async () => {
+    // Close modals first (matching EquationalReasoningNew pattern)
+    setShowOverwriteModal(false);
+    setShowStartConfirmModal(false);
+    
+    // This is the real proof start logic
+    // Calling validateAndStart with appropriate parameters
+    await validateAndStart(
+      showSide,
+      formValues.proofName,
+      formValues.proofTag,
+      showSide === "LHS"
+        ? formValues.lHSGoal
+        : formValues.rHSGoal,
+      formValues.inductionVariable,
+      formValues.inductionValue,
+      formValues.leapVariable,
+      formValues.inductionType,
+      isAnchor
+    );
   };
 
   const getLastNonEmpty = (arr = []) => {
@@ -253,13 +301,6 @@ const InductionRacket = () => {
       toast.error('Failed to check proof completion');
     }
   };
-
-  const { handleSubmit } = useFormSubmit(
-    isFormValid,
-    setValidated,
-    setAllTouched,
-    handleERRacketSubmission
-  );
 
   /**
    * Creates JSON object of the target incoming parameter (which should be a JavaScript Object)
@@ -358,15 +399,11 @@ const InductionRacket = () => {
    * This ensures that when switching sides/cases, the highlighting persists.
    */
   const loadProofLinesFromDatabase = useCallback(async () => {
-    console.log('[loadProofLinesFromDatabase] CALLED');
     try {
       const proofLines = await inductionService.getProofLines();
-      console.log('[loadProofLinesFromDatabase] Got proof lines from API:', proofLines);
       
       // Build racketRuleFields from database proof lines
       const buildFieldsFromLines = (lines) => {
-        console.log('[buildFieldsFromLines] Input lines:', JSON.stringify(lines, null, 2));
-        
         if (!lines || lines.length === 0) {
           return [EMPTY_INITIAL_FIELD];
         }
@@ -399,15 +436,6 @@ const InductionRacket = () => {
             jsonTree: line.jsonTree || {},
             deleted: false
           };
-        });
-        
-        console.log('[buildFieldsFromLines] Max line number:', maxLineNum);
-        console.log('[buildFieldsFromLines] Output fields array length:', fields.length);
-        console.log('[buildFieldsFromLines] Fields array structure:');
-        fields.forEach((field, idx) => {
-          if (idx < maxLineNum + 1) {
-            console.log(`  [${idx}]: racket="${field.racket?.substring(0, 20)}...", rule="${field.rule}", deleted=${field.deleted}`);
-          }
         });
         
         // Always add empty field at the end
@@ -1877,7 +1905,10 @@ const InductionRacket = () => {
           toggleFunction={toggleOffcanvas}
         ></OffcanvasRuleSet>
         {showDefinitionsWindow && (
-          <Definitions toggleDefinitionsWindow={toggleDefinitionsWindow} />
+          <Definitions 
+            toggleDefinitionsWindow={toggleDefinitionsWindow} 
+            isLocked={proofStarted}
+          />
         )}
 
         {showProofComplete && <ProofComplete onDismiss={() => setShowProofComplete(false)} />}
@@ -1896,7 +1927,7 @@ const InductionRacket = () => {
           noValidate
           validated={validated}
           className="er-racket-form"
-          onSubmit={handleSubmit}
+          onSubmit={handleERRacketSubmission}
         >
           <div className="form-top-section">
             <Row className="page-header-row" style={{ alignItems: 'center' }}>
@@ -2280,21 +2311,7 @@ const InductionRacket = () => {
                 <Row className="goal-btn-wrap">
                   <Button
                     className="orange-btn"
-                    onClick={() =>
-                      validateAndStart(
-                        showSide,
-                        formValues.proofName,
-                        formValues.proofTag,
-                        showSide === "LHS"
-                          ? formValues.lHSGoal
-                          : formValues.rHSGoal,
-                        formValues.inductionVariable,
-                        formValues.inductionValue,
-                        formValues.leapVariable,
-                        formValues.inductionType,
-                        isAnchor
-                      )
-                    }
+                    type="submit"
                   >
                     Start Induction Proof
                   </Button>
@@ -2590,6 +2607,50 @@ const InductionRacket = () => {
             }
           }}>
             Yes
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Overwrite Proof Confirmation Modal */}
+      <Modal show={showOverwriteModal} onHide={() => setShowOverwriteModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Confirm Overwrite of Proof</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          A proof with the name "<strong>{formValues.proofName}</strong>" and tag "<strong>{formValues.proofTag}</strong>" 
+          already exists. Starting this proof will overwrite the existing one. Do you wish to proceed?
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowOverwriteModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={() => {
+            setShowOverwriteModal(false);
+            setShowStartConfirmModal(true);
+          }}>
+            Overwrite & Start
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Start Proof Confirmation Modal */}
+      <Modal show={showStartConfirmModal} onHide={() => setShowStartConfirmModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Start Proof</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p>
+            Starting this proof will lock the current state of your Definitions. 
+            You will not be able to create, edit, enable, or disable definitions until you clear the proof.
+          </p>
+          <p>Are you sure you want to continue?</p>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowStartConfirmModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={actuallyStartInductionProof}>
+            Start Proof
           </Button>
         </Modal.Footer>
       </Modal>

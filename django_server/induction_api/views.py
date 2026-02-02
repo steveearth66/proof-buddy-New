@@ -137,6 +137,25 @@ def clear_induction(request):
             "error": str(e)
         }, status=status.HTTP_400_BAD_REQUEST)
 
+@api_view(["GET"])
+def get_induction_proofs(request):
+    user = request.user
+    query = request.GET.get('query', '')
+    
+    # Filter proofs by user and optionally by query (name contains)
+    proofs = InductionProof.objects.filter(user=user, is_active=True)
+    if query:
+        proofs = proofs.filter(name__icontains=query)
+    
+    proofs = proofs.order_by('-created_at')
+    
+    serializer = InductionProofSerializer(proofs, many=True)
+    
+    # Return in the same format as equational reasoning for consistency
+    return Response({
+        "proofs": serializer.data
+    }, status=status.HTTP_200_OK)
+
 @api_view(["POST"])
 def start_induction_proof(request):
     user = request.user
@@ -245,48 +264,23 @@ def start_induction_proof(request):
         from expression_tree.ERRuleset import recursiveReplaceNodes
         import copy
         
-        print(f"=== IH VALIDATION DEBUG ===")
-        print(f"struct: {struct}")
-        print(f"lhs_leap_goal: {lhs_leap_goal}")
-        print(f"rhs_leap_goal: {rhs_leap_goal}")
-        print(f"induction_variable: {induction_variable}")
-        print(f"leap_variable: {leap_variable}")
-        print(f"inductive_hypothesis_lhs: {inductive_hypothesis_lhs}")
-        print(f"inductive_hypothesis_rhs: {inductive_hypothesis_rhs}")
-        
         try:
             # Parse the goals and IH expressions (frontend already validated these)
-            print("Parsing lhs_leap_goal...")
             lhs_goal_line = ERProofLine(lhs_leap_goal, False, None, generics=None)
-            print(f"lhs_goal_line.errLog: {lhs_goal_line.errLog}")
-            
-            print("Parsing rhs_leap_goal...")
             rhs_goal_line = ERProofLine(rhs_leap_goal, False, None, generics=None)
-            print(f"rhs_goal_line.errLog: {rhs_goal_line.errLog}")
             
             # Create expected IH by replacing ivar with lvar in the parsed goals
-            print(f"Parsing leap_variable: {leap_variable}...")
             lvar_node = ERProofLine(leap_variable, False, None, generics=None).exprTree
-            print(f"lvar_node: {lvar_node}")
             
             expected_lhs_ih_tree = copy.deepcopy(lhs_goal_line.exprTree)
             expected_rhs_ih_tree = copy.deepcopy(rhs_goal_line.exprTree)
             
-            print("Replacing nodes in expected IH trees...")
             recursiveReplaceNodes(expected_lhs_ih_tree, [induction_variable], [lvar_node])
             recursiveReplaceNodes(expected_rhs_ih_tree, [induction_variable], [lvar_node])
             
-            print(f"expected_lhs_ih_tree: {expected_lhs_ih_tree}")
-            print(f"expected_rhs_ih_tree: {expected_rhs_ih_tree}")
-            
             # Get the already-parsed IH lines from the validation above
-            print("Parsing inductive_hypothesis_lhs...")
             lhs_ih_line = ERProofLine(inductive_hypothesis_lhs, False, None, generics=None)
-            print(f"lhs_ih_line.errLog: {lhs_ih_line.errLog}")
-            
-            print("Parsing inductive_hypothesis_rhs...")
             rhs_ih_line = ERProofLine(inductive_hypothesis_rhs, False, None, generics=None)
-            print(f"rhs_ih_line.errLog: {rhs_ih_line.errLog}")
             
             # Compare the trees
             if str(lhs_ih_line.exprTree) != str(expected_lhs_ih_tree):
@@ -297,21 +291,12 @@ def start_induction_proof(request):
                 )
             
             if str(rhs_ih_line.exprTree) != str(expected_rhs_ih_tree):
-                print(f"RHS IH mismatch!")
                 return Response(
                     {"error": f"RHS Inductive Hypothesis must be the RHS goal with {induction_variable} replaced by {leap_variable}.\nExpected: {expected_rhs_ih_tree}\nGot: {inductive_hypothesis_rhs}"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            
-            print("IH validation passed!")
                     
         except Exception as e:
-            print(f"=== EXCEPTION IN IH VALIDATION ===")
-            print(f"Exception type: {type(e).__name__}")
-            print(f"Exception message: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            print(f"=== END EXCEPTION ===")
             return Response(
                 {"error": f"Error validating Inductive Hypothesis: {type(e).__name__}: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST
@@ -427,13 +412,24 @@ def start_induction_proof(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-@api_view(["POST"])
 @api_view(["GET"])
 def get_induction_proofs(request):
     user = request.user
-    proofs = InductionProof.objects.filter(user=user)
+    query = request.GET.get('query', '')
+    
+    # Filter proofs by user and optionally by query (name contains)
+    proofs = InductionProof.objects.filter(user=user, is_active=True)
+    if query:
+        proofs = proofs.filter(name__icontains=query)
+    
+    proofs = proofs.order_by('-created_at')
+    
     serializer = InductionProofSerializer(proofs, many=True)
-    return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    # Return in the same format as equational reasoning for consistency
+    return Response({
+        "proofs": serializer.data
+    }, status=status.HTTP_200_OK)
 
 @api_view(["GET"])
 def get_induction_proof(request, proof_id):
@@ -507,11 +503,6 @@ def reload_proof_lines_from_db(proof, proof_id):
         # Get all proof lines for this proof, ordered by line number
         lines = InductionProofLine.objects.filter(proof_id=proof_id).order_by('case', 'side', 'line_number')
         
-        print(f"[RELOAD PROOF LINES] Loading {lines.count()} proof lines from database")
-        print("[DB LOAD] Result node values from database:")
-        for line in lines:
-            print(f"  Line {line.line_number} ({line.case} {line.side}): result_node={line.result_node}, selected_node={line.selected_node}")
-        
         for line in lines:
             # Determine which ERProof to add to
             if line.case == 'base':
@@ -524,10 +515,7 @@ def reload_proof_lines_from_db(proof, proof_id):
             proof_line.appliedRule = line.rule
             proof_line.appliedRuleNodeId = line.selected_node  # Restore highlighting position
             target.proofLines.append(proof_line)
-            
-            print(f"[RELOAD] Restored {line.case} {line.side} line {line.line_number}: selectedNode={line.selected_node}")
     except Exception as e:
-        print(f"[RELOAD ERROR] {str(e)}")
         pass
 
 
@@ -595,14 +583,6 @@ def set_current_proof(request):
         definitions = data.get("definitions", [])
         generics = data.get("generics", [])
 
-        print(f"=== SET_CURRENT_PROOF DEBUG ===")
-        print(f"struct: {struct}")
-        print(f"ivar: {ivar}")
-        print(f"aval: {aval}")
-        print(f"lvar: {lvar}")
-        print(f"generics received: {generics}")
-        print(f"definitions count: {len(definitions)}")
-
         # Basic validation
         missing = [k for k in ("ivar","aval","lvar","lhsPremise","rhsPremise") if not data.get(k)]
         if missing:
@@ -619,19 +599,13 @@ def set_current_proof(request):
         ind.rhsPremise = rhsPremise
 
         # Add generics to both baseCase and leapStep
-        print(f"Adding generics to engine...")
         errors = []
         for g in generics:
-            print(f"Processing generic: {g}")
             try:
                 use_uploaded_generic(user, ind.baseCase, g)
                 use_uploaded_generic(user, ind.leapStep, g)
-                print(f"Successfully added generic: {g.get('label')}")
             except Exception as e:
                 error_msg = f"Error adding generic {g.get('label')}: {str(e)}"
-                print(error_msg)
-                import traceback
-                traceback.print_exc()
                 errors.append(error_msg)
         
         if errors:

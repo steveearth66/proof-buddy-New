@@ -16,18 +16,22 @@ import { toast } from 'react-toastify';
 import { createPortal } from 'react-dom';
 import RacketInput from './RacketInput';
 
-export default function Definitions({ toggleDefinitionsWindow }) {
+export default function Definitions({ toggleDefinitionsWindow, isLocked = false }) {
   const [showCreateDefinition, setShowCreateDefinition] = useState(false);
 
   return createPortal(
     <div className="overlay">
       <div className="card">
         {showCreateDefinition ? (
-          <CreateDefinition onUpdate={setShowCreateDefinition} />
+          <CreateDefinition 
+            onUpdate={setShowCreateDefinition} 
+            isLocked={isLocked}
+          />
         ) : (
           <ShowDefinitions
             onUpdate={setShowCreateDefinition}
             toggleDefinitionsWindow={toggleDefinitionsWindow}
+            isLocked={isLocked}
           />
         )}
       </div>
@@ -44,7 +48,8 @@ function CreateDefinition({
   expression,
   notes,
   edit,
-  updateDefinition
+  updateDefinition,
+  isLocked = false
 }) {
   const initialValues = {
     label: label || '',
@@ -320,7 +325,7 @@ function CreateDefinition({
           <Button variant="outline-danger" onClick={() => onUpdate(false)}>
             Go Back
           </Button>
-          <Button variant="outline-primary" type="submit">
+          <Button variant="outline-primary" type="submit" disabled={isLocked}>
             {edit ? 'Update' : 'Create'} Definition
           </Button>
         </div>
@@ -329,7 +334,7 @@ function CreateDefinition({
   );
 }
 
-function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
+function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }) {
   const [definitions, setDefinitions] = useState(
     JSON.parse(sessionStorage.getItem('definitions')) || []
   );
@@ -574,6 +579,7 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
         notes={definitionToEdit.notes}
         edit={edit}
         updateDefinition={updateDefinition}
+        isLocked={isLocked}
       />
     );
   } else {
@@ -589,6 +595,7 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
               deleteDefinition={deleteDefinition}
               updateEdit={updateEdit}
               applyDefinition={applyDefinition}
+              isLocked={isLocked}
             />
           ))}
         </div>
@@ -601,6 +608,7 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
               eventKey={index}
               enableGeneric={enableGeneric}
               deleteGeneric={deleteGeneric}
+              isLocked={isLocked}
             />
           ))}
         </div>
@@ -608,7 +616,7 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow }) {
           <Button variant="danger" onClick={toggleDefinitionsWindow}>
             Close Definitions Window
           </Button>
-          <Button onClick={() => onUpdate(true)}>Create New Definition</Button>
+          <Button onClick={() => onUpdate(true)} disabled={isLocked}>Create New Definition</Button>
         </div>
       </div>
     );
@@ -620,7 +628,8 @@ function Definition({
   eventKey,
   deleteDefinition,
   updateEdit,
-  applyDefinition
+  applyDefinition,
+  isLocked = false
 }) {
   const isDefaultUDF = definition.is_default === true || definition.deletable === false;
   
@@ -639,13 +648,14 @@ function Definition({
               variant={`${definition.applied ? "outline-danger" : "outline-success"}`}
                 //onClick={() => applyDefinition(definition.id, definition.applied)}
               onClick={() => applyDefinition(definition.label, definition.applied)}
+              disabled={isLocked}
             >
               {definition.applied ? "Disable" : "Enable"} Definition
             </Button>
             <Button
               variant="outline-primary"
               onClick={() => updateEdit(definition)}
-              disabled={isDefaultUDF}
+              disabled={isDefaultUDF || isLocked}
             >
               Edit
             </Button>
@@ -653,6 +663,7 @@ function Definition({
               variant="outline-danger"
               //onClick={() => deleteDefinition(definition.id)}
               onClick={() => deleteDefinition(definition.label)}
+              disabled={isLocked}
             >
               Delete
             </Button>
@@ -667,7 +678,8 @@ function Generic({
   generic,
   eventKey,
   enableGeneric,
-  deleteGeneric
+  deleteGeneric,
+  isLocked = false
 }) {
 
   const restrictionsToString = restrictions => {
@@ -699,12 +711,14 @@ function Generic({
             <Button
               variant={`${generic.enabled ? "outline-danger" : "outline-success"}`}
               onClick={() => enableGeneric(generic)}
+              disabled={isLocked}
             >
               {generic.enabled ? "Disable" : "Enable"} Generic
             </Button>
             <Button
               variant="outline-danger"
               onClick={() => deleteGeneric(generic)}
+              disabled={isLocked}
             >
               Delete
             </Button>
