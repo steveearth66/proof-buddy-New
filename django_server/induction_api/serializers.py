@@ -18,11 +18,11 @@ class InductionProofSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'user', 'created_at', 'updated_at']
     
     def validate_anchor_value(self, value):
-        """Validate that anchor value is a non-negative integer"""
-        if value < 0:
-            raise serializers.ValidationError(
-                "Anchor value must be a non-negative integer."
-            )
+        """Validate anchor value based on context (int or list induction)"""
+        # For integer induction, value should be parseable as non-negative int
+        # For list induction, value can be 'null' or list notation like "'()"
+        # Since we don't have access to induction_type here, accept string values
+        # and let the view handle specific validation
         return value
     
     def validate_leap_variable(self, value):
@@ -106,17 +106,14 @@ class InductionProofCreateSerializer(serializers.Serializer):
     """Serializer for creating a new induction proof"""
     
     induction_variable = serializers.CharField(max_length=100)
-    anchor_value = serializers.IntegerField(min_value=0)
+    anchor_value = serializers.CharField(max_length=100)  # Can be int string or list notation
     leap_variable = serializers.CharField(max_length=100)
     lhs_expression = serializers.CharField()
     rhs_expression = serializers.CharField()
     
     def validate_anchor_value(self, value):
-        """Validate that anchor value is a non-negative integer"""
-        if value < 0:
-            raise serializers.ValidationError(
-                "Anchor value must be a non-negative integer."
-            )
+        """Validate anchor value - accepts both integer strings and list notation"""
+        # Validation happens in the view based on induction_type
         return value
     
     def validate_leap_variable(self, value):

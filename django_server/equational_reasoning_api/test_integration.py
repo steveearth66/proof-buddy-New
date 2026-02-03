@@ -70,13 +70,10 @@ class EquationalReasoningAPITests(TestCase):
         print('\n[TEST 3] Getting proof lines...')
         response = self.client.get('/api/v1/equational/get-proof-lines')
         self.assertEqual(response.status_code, 200)
-        self.assertIn('LHS', response.data)
-        self.assertIn('RHS', response.data)
-        lhs_lines = response.data['LHS']
-        rhs_lines = response.data['RHS']
-        # Note: Without a proof_id in the database, get_proof_lines returns empty arrays
-        # This is expected - the proof exists in cache only
-        print(f'✓ Retrieved {len(lhs_lines)} LHS lines, {len(rhs_lines)} RHS lines (cache-only mode)')
+        # Current contract: without a persisted proof_id, endpoint returns hasProof=False
+        self.assertIn('hasProof', response.data)
+        self.assertFalse(response.data['hasProof'])
+        print('✓ get-proof-lines correctly reports no persisted proof (cache-only mode)')
         
         # Test 4: Check completion
         print('\n[TEST 4] Checking proof completion...')

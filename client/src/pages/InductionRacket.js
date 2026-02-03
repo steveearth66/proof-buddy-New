@@ -66,13 +66,17 @@ const InductionRacket = () => {
     goalValidationMessage,
     enhancedHandleChange,
     proofValidationMessage,
-    clearProofValidationMessage
+    clearProofValidationMessage,
+    clearGoalValidationMessage
   } = useInductionCheck(handleChange);
   const [startPosition] = useState(0); // removed to clean warnings
   const [currentRacket, setCurrentRacket] = useState("");
   
   // Case state must be declared first since it's used in computed values below
   const [isAnchor, setIsAnchor] = useState(true);
+  
+  // List induction direction: 'up' or 'down' (only relevant when inductionType === 'lists')
+  const [listDirection, setListDirection] = useState('up');
   
   // Separate proof lines for base and leap cases
   const [baseRacketFields, setBaseRacketFields] = useState({
@@ -126,6 +130,8 @@ const InductionRacket = () => {
   
   const [proofStarted, setProofStarted] = useState(false);
   const [proofStatus, setProofStatus] = useState({ base: null, leap: null }); // tracks base/leap completeness separately
+  const [showOverwriteModal, setShowOverwriteModal] = useState(false);
+  const [showStartConfirmModal, setShowStartConfirmModal] = useState(false);
 
   // Parenthesis highlighting hooks
   const { 
@@ -195,8 +201,54 @@ const InductionRacket = () => {
   // It gets populated by the backend when goals are checked
   const [jsonTreeRep, setJsonTreeRep] = useState({ LHS: {}, RHS: {} });
 
-  const handleERRacketSubmission = async () => {
-    alert("We are stilling working on proof submission!");
+  const handleERRacketSubmission = async (e) => {
+    e.preventDefault();
+    
+    // Check for duplicate proof name/tag first
+    try {
+      const duplicateCheck = await inductionService.getInductionProofs({ 
+        query: formValues.proofName 
+      });
+
+      const hasMatch = duplicateCheck.proofs?.some(p => 
+        p.name === formValues.proofName && p.tag === formValues.proofTag
+      );
+
+      // If a match exists, show overwrite modal
+      if (hasMatch) {
+        setShowOverwriteModal(true);
+        return;
+      }
+      
+      // Show start confirmation modal (definitions will be locked)
+      setShowStartConfirmModal(true);
+    } catch (error) {
+      console.error('Error checking for duplicates:', error);
+      // Continue anyway if check fails
+      setShowStartConfirmModal(true);
+    }
+  };
+  
+  const actuallyStartInductionProof = async () => {
+    // Close modals first (matching EquationalReasoningNew pattern)
+    setShowOverwriteModal(false);
+    setShowStartConfirmModal(false);
+    
+    // This is the real proof start logic
+    // Calling validateAndStart with appropriate parameters
+    await validateAndStart(
+      showSide,
+      formValues.proofName,
+      formValues.proofTag,
+      showSide === "LHS"
+        ? formValues.lHSGoal
+        : formValues.rHSGoal,
+      formValues.inductionVariable,
+      formValues.inductionValue,
+      formValues.leapVariable,
+      formValues.inductionType,
+      isAnchor
+    );
   };
 
   const getLastNonEmpty = (arr = []) => {
@@ -249,13 +301,6 @@ const InductionRacket = () => {
       toast.error('Failed to check proof completion');
     }
   };
-
-  const { handleSubmit } = useFormSubmit(
-    isFormValid,
-    setValidated,
-    setAllTouched,
-    handleERRacketSubmission
-  );
 
   /**
    * Creates JSON object of the target incoming parameter (which should be a JavaScript Object)
@@ -354,15 +399,11 @@ const InductionRacket = () => {
    * This ensures that when switching sides/cases, the highlighting persists.
    */
   const loadProofLinesFromDatabase = useCallback(async () => {
-    console.log('[loadProofLinesFromDatabase] CALLED');
     try {
       const proofLines = await inductionService.getProofLines();
-      console.log('[loadProofLinesFromDatabase] Got proof lines from API:', proofLines);
       
       // Build racketRuleFields from database proof lines
       const buildFieldsFromLines = (lines) => {
-        console.log('[buildFieldsFromLines] Input lines:', JSON.stringify(lines, null, 2));
-        
         if (!lines || lines.length === 0) {
           return [EMPTY_INITIAL_FIELD];
         }
@@ -395,15 +436,6 @@ const InductionRacket = () => {
             jsonTree: line.jsonTree || {},
             deleted: false
           };
-        });
-        
-        console.log('[buildFieldsFromLines] Max line number:', maxLineNum);
-        console.log('[buildFieldsFromLines] Output fields array length:', fields.length);
-        console.log('[buildFieldsFromLines] Fields array structure:');
-        fields.forEach((field, idx) => {
-          if (idx < maxLineNum + 1) {
-            console.log(`  [${idx}]: racket="${field.racket?.substring(0, 20)}...", rule="${field.rule}", deleted=${field.deleted}`);
-          }
         });
         
         // Always add empty field at the end
@@ -574,6 +606,18 @@ const InductionRacket = () => {
     } catch (error) {
       console.error('Error clearing proof:', error);
       toast.error('Failed to clear proof');
+    }
+  };
+
+  const handleRuleKeyDown = (e) => {
+    // Check if Enter key is pressed without Shift
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault(); // Prevent newline in textarea
+      
+      // Only trigger Generate&Check if button would be enabled (isBound is true)
+      if (isBound) {
+        handleGenerateAndCheck();
+      }
     }
   };
 
@@ -1146,14 +1190,34 @@ const InductionRacket = () => {
     const rightGoal = formValues.rHSGoal;
     const selectedGoal = goalForSide || "";
 
-    if (!/^\d+$/.test(inductionValue || "")) {
-      toast.error("Anchor value must be a nonnegative integer.");
-      return;
-    }
-    const parsedVal = parseInt(inductionValue, 10);
-    if (isNaN(parsedVal) || parsedVal < 0) {
-      toast.error("Anchor value must be a nonnegative integer.");
-      return;
+    // Validate anchor value based on induction type
+    if (inductionType === 'lists') {
+      // For lists: accept 'null' or quoted list notation like '(1) or '(1 2 3)
+      const trimmedVal = (inductionValue || "").trim();
+      if (!trimmedVal) {
+        toast.error("Anchor value is required for list induction.");
+        return;
+      }
+      // Accept 'null' or expressions starting with quote for lists
+      const isValidList = trimmedVal === 'null' || 
+                         trimmedVal.startsWith("'(") || 
+                         trimmedVal === "'()" ||
+                         /^\(\s*list\s+/.test(trimmedVal);
+      if (!isValidList) {
+        toast.error("Anchor value for lists must be 'null' or a quoted list like '() or '(1 2 3)");
+        return;
+      }
+    } else {
+      // For integers: must be a nonnegative integer
+      if (!/^\d+$/.test(inductionValue || "")) {
+        toast.error("Anchor value must be a nonnegative integer.");
+        return;
+      }
+      const parsedVal = parseInt(inductionValue, 10);
+      if (isNaN(parsedVal) || parsedVal < 0) {
+        toast.error("Anchor value must be a nonnegative integer.");
+        return;
+      }
     }
 
     if (leapVariable && inductionVariable && leapVariable === inductionVariable) {
@@ -1205,6 +1269,101 @@ const InductionRacket = () => {
     }
 
     try {
+      // Validate goal expressions AND inductive hypotheses before starting proof
+      // This catches arity mismatches, undefined labels, type errors, etc.
+      
+      // Validate LHS leap goal
+      try {
+        const lhsLeapValidation = await inductionService.checkGoal({
+          case: 'leap',
+          side: 'LHS',
+          goal: leftGoal
+        });
+        
+        if (!lhsLeapValidation.isValid) {
+          const errorMessage = lhsLeapValidation.errors?.length 
+            ? lhsLeapValidation.errors.join('\n') 
+            : 'Invalid LHS goal';
+          toast.error(`LHS Goal validation failed:\n${errorMessage}`);
+          return;
+        }
+      } catch (validationError) {
+        const errorMessage = validationError.response?.data?.errors?.join('\n') 
+          || validationError.message 
+          || 'Invalid LHS goal';
+        toast.error(`LHS Goal validation failed:\n${errorMessage}`);
+        return;
+      }
+      
+      // Validate RHS leap goal
+      try {
+        const rhsLeapValidation = await inductionService.checkGoal({
+          case: 'leap',
+          side: 'RHS',
+          goal: rightGoal
+        });
+        
+        if (!rhsLeapValidation.isValid) {
+          const errorMessage = rhsLeapValidation.errors?.length 
+            ? rhsLeapValidation.errors.join('\n') 
+            : 'Invalid RHS goal';
+          toast.error(`RHS Goal validation failed:\n${errorMessage}`);
+          return;
+        }
+      } catch (validationError) {
+        const errorMessage = validationError.response?.data?.errors?.join('\n') 
+          || validationError.message 
+          || 'Invalid RHS goal';
+        toast.error(`RHS Goal validation failed:\n${errorMessage}`);
+        return;
+      }
+      
+      // Validate LHS Inductive Hypothesis
+      try {
+        const lhsIHValidation = await inductionService.checkGoal({
+          case: 'leap',
+          side: 'LHS',
+          goal: inductiveHypothesisLHS
+        });
+        
+        if (!lhsIHValidation.isValid) {
+          const errorMessage = lhsIHValidation.errors?.length 
+            ? lhsIHValidation.errors.join('\n') 
+            : 'Invalid LHS Inductive Hypothesis';
+          toast.error(`LHS Inductive Hypothesis validation failed:\n${errorMessage}`);
+          return;
+        }
+      } catch (validationError) {
+        const errorMessage = validationError.response?.data?.errors?.join('\n') 
+          || validationError.message 
+          || 'Invalid LHS Inductive Hypothesis';
+        toast.error(`LHS Inductive Hypothesis validation failed:\n${errorMessage}`);
+        return;
+      }
+      
+      // Validate RHS Inductive Hypothesis
+      try {
+        const rhsIHValidation = await inductionService.checkGoal({
+          case: 'leap',
+          side: 'RHS',
+          goal: inductiveHypothesisRHS
+        });
+        
+        if (!rhsIHValidation.isValid) {
+          const errorMessage = rhsIHValidation.errors?.length 
+            ? rhsIHValidation.errors.join('\n') 
+            : 'Invalid RHS Inductive Hypothesis';
+          toast.error(`RHS Inductive Hypothesis validation failed:\n${errorMessage}`);
+          return;
+        }
+      } catch (validationError) {
+        const errorMessage = validationError.response?.data?.errors?.join('\n') 
+          || validationError.message 
+          || 'Invalid RHS Inductive Hypothesis';
+        toast.error(`RHS Inductive Hypothesis validation failed:\n${errorMessage}`);
+        return;
+      }
+
       // Prefer session definitions; include only enabled/applied ones
       let definitions = [];
       try {
@@ -1236,9 +1395,11 @@ const InductionRacket = () => {
 
       if (response && response.data) {
         if (response.status === 201 || response.status === 200) {
-          const genericDef = response.data.generic_definition_created;
+          // Handle generics created by backend (could be multiple for list induction)
+          const genericsCreated = response.data.generics_created || 
+                                  (response.data.generic_definition_created ? [response.data.generic_definition_created] : []);
           
-          if (genericDef) {
+          if (genericsCreated.length > 0) {
             let generics = [];
             try {
               const storedGenerics = sessionStorage.getItem('generics');
@@ -1248,37 +1409,41 @@ const InductionRacket = () => {
               generics = [];
             }
             
-            const newGeneric = {
-              id: genericDef.id || `generic_${Date.now()}`,
-              label: genericDef.name,
-              type: genericDef.type,
-              notes: genericDef.description || `Generic variable for leap case in induction on ${inductionVariable}`,
-              restrictions: {
-                assumption: 'Non-negative',
-                neverNull: false
-              },
-              enabled: true
-            };
-            
-            const existingIndex = generics.findIndex(g => g.label === newGeneric.label);
-            
-            if (existingIndex >= 0) {
-              generics[existingIndex] = newGeneric;
-            } else {
-              generics.push(newGeneric);
-            }
+            // Add all created generics
+            genericsCreated.forEach(genericDef => {
+              const newGeneric = {
+                id: genericDef.id || `generic_${Date.now()}_${genericDef.name}`,
+                label: genericDef.name,
+                type: genericDef.type,
+                notes: genericDef.description || `Generic variable ${genericDef.name}`,
+                restrictions: {
+                  assumption: genericDef.type === 'list' ? 'Non-null' : 'Non-negative',
+                  neverNull: false
+                },
+                enabled: true
+              };
+              
+              const existingIndex = generics.findIndex(g => g.label === newGeneric.label);
+              
+              if (existingIndex >= 0) {
+                generics[existingIndex] = newGeneric;
+              } else {
+                generics.push(newGeneric);
+              }
+            });
             
             sessionStorage.setItem('generics', JSON.stringify(generics));
             
             const event = new CustomEvent('genericsUpdated', {
               detail: { 
-                newGeneric: newGeneric,
+                newGenerics: genericsCreated,
                 allGenerics: generics 
               }
             });
             window.dispatchEvent(event);
             
-            toast.success(`Generic variable "${genericDef.name}" created for leap case`);
+            const genericNames = genericsCreated.map(g => `"${g.name}"`).join(', ');
+            toast.success(`Generic variable${genericsCreated.length > 1 ? 's' : ''} ${genericNames} created`);
           }
 
           const proofId = response.data.proof_id || response.data.id;
@@ -1290,6 +1455,18 @@ const InductionRacket = () => {
             // Initialize the IndProof engine with UDFs, IH and premises
             try {
               const normalizeType = (t) => (t || '').replace(/\s*->\s*/g, ' > ').trim();
+              
+              // Get all enabled generics from sessionStorage (including 'a' and lvar)
+              let genericsForEngine = [];
+              try {
+                const storedGenerics = sessionStorage.getItem('generics');
+                const allGenerics = storedGenerics ? JSON.parse(storedGenerics) : [];
+                genericsForEngine = allGenerics.filter(g => g.enabled);
+              } catch (e) {
+                console.error('Error reading generics for engine:', e);
+                genericsForEngine = [];
+              }
+              
               const engineSetup = await inductionService.setCurrentProof({
                 struct: (inductionType || 'integers').toLowerCase() === 'lists' ? 'list' : 'int',
                 ivar: inductionVariable,
@@ -1301,6 +1478,14 @@ const InductionRacket = () => {
                   label: d.label || d.name || '',
                   type: normalizeType(d.type),
                   expression: d.expression
+                })),
+                generics: genericsForEngine.map(g => ({
+                  label: g.label || g.name || '',
+                  type: normalizeType(g.type),
+                  restrictions: {
+                    assumption: g.assumption || g.restrictions?.assumption || 'None',
+                    neverNull: g.neverNull || g.restrictions?.neverNull || false
+                  }
                 }))
               });
 
@@ -1355,6 +1540,10 @@ const InductionRacket = () => {
                 }));
               }
 
+              // Clear any previous validation error messages
+              clearGoalValidationMessage('LHS');
+              clearGoalValidationMessage('RHS');
+              
               setProofStarted(true);
               
               // Mark this as an active proof session for restoration on page refresh
@@ -1366,7 +1555,12 @@ const InductionRacket = () => {
               }, 100);
             } catch (err) {
               console.error('Engine setup failed:', err);
-              toast.error('Failed to initialize induction engine');
+              const errorMsg = err.response?.data?.error 
+                || err.response?.data?.message 
+                || (err.response?.data?.errors?.length ? err.response.data.errors.join('\n') : null)
+                || err.message 
+                || 'Unknown error';
+              toast.error(`Failed to initialize induction engine: ${errorMsg}`);
             }
           }
           
@@ -1705,6 +1899,7 @@ const InductionRacket = () => {
             setFooterRule(e.target.value.trim());
             setFooterRuleError('');
           }}
+          onRuleKeyDown={handleRuleKeyDown}
           isRuleReadOnly={false}
           rulePlaceholder={`${showSide} Rule`}
           isRuleInvalid={!!footerRuleError}
@@ -1723,7 +1918,10 @@ const InductionRacket = () => {
           toggleFunction={toggleOffcanvas}
         ></OffcanvasRuleSet>
         {showDefinitionsWindow && (
-          <Definitions toggleDefinitionsWindow={toggleDefinitionsWindow} />
+          <Definitions 
+            toggleDefinitionsWindow={toggleDefinitionsWindow} 
+            isLocked={proofStarted}
+          />
         )}
 
         {showProofComplete && <ProofComplete onDismiss={() => setShowProofComplete(false)} />}
@@ -1742,7 +1940,7 @@ const InductionRacket = () => {
           noValidate
           validated={validated}
           className="er-racket-form"
-          onSubmit={handleSubmit}
+          onSubmit={handleERRacketSubmission}
         >
           <div className="form-top-section">
             <Row className="page-header-row" style={{ alignItems: 'center' }}>
@@ -1766,7 +1964,6 @@ const InductionRacket = () => {
                   name="inductionType"
                   value="lists"
                   onChange={handleChange}
-                  disabled
                 />
               </Col>
               <Form.Group as={Col} md="auto" className="er-proof-name">
@@ -2127,21 +2324,7 @@ const InductionRacket = () => {
                 <Row className="goal-btn-wrap">
                   <Button
                     className="orange-btn"
-                    onClick={() =>
-                      validateAndStart(
-                        showSide,
-                        formValues.proofName,
-                        formValues.proofTag,
-                        showSide === "LHS"
-                          ? formValues.lHSGoal
-                          : formValues.rHSGoal,
-                        formValues.inductionVariable,
-                        formValues.inductionValue,
-                        formValues.leapVariable,
-                        formValues.inductionType,
-                        isAnchor
-                      )
-                    }
+                    type="submit"
                   >
                     Start Induction Proof
                   </Button>
@@ -2437,6 +2620,50 @@ const InductionRacket = () => {
             }
           }}>
             Yes
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Overwrite Proof Confirmation Modal */}
+      <Modal show={showOverwriteModal} onHide={() => setShowOverwriteModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Confirm Overwrite of Proof</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          A proof with the name "<strong>{formValues.proofName}</strong>" and tag "<strong>{formValues.proofTag}</strong>" 
+          already exists. Starting this proof will overwrite the existing one. Do you wish to proceed?
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowOverwriteModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={() => {
+            setShowOverwriteModal(false);
+            setShowStartConfirmModal(true);
+          }}>
+            Overwrite & Start
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Start Proof Confirmation Modal */}
+      <Modal show={showStartConfirmModal} onHide={() => setShowStartConfirmModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Start Proof</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p>
+            Starting this proof will lock the current state of your Definitions. 
+            You will not be able to create, edit, enable, or disable definitions until you clear the proof.
+          </p>
+          <p>Are you sure you want to continue?</p>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowStartConfirmModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={actuallyStartInductionProof}>
+            Start Proof
           </Button>
         </Modal.Footer>
       </Modal>
