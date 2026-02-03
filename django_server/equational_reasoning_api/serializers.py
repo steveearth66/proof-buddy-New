@@ -1,5 +1,9 @@
+from ast import literal_eval
 from rest_framework import serializers
-from .models import EquationalProof
+
+from proofs.models import Generic
+
+from .models import EquationalProof, EquationalProofLine
 
 
 class EquationalProofSerializer(serializers.ModelSerializer):

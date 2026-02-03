@@ -44,10 +44,14 @@ class ProofLinePersistenceTest(TransactionTestCase):
             'proof_tag': 'test-tag',
             'lhs_leap_goal': '(+ n 1)',
             'rhs_leap_goal': '(+ 1 n)',
+            'lhs_anchor_goal': '(+ 0 1)',
+            'rhs_anchor_goal': '(+ 1 0)',
             'induction_variable': 'n',
             'anchor_value': '0',
             'leap_variable': 'k',
-            'induction_type': 'integers'
+            'induction_type': 'integers',
+            'inductive_hypothesis_lhs': '(+ k 1)',
+            'inductive_hypothesis_rhs': '(+ 1 k)'
         }
         
         response = self.client.post('/api/v1/induction/start-induction-proof', proof_data)
@@ -111,10 +115,14 @@ class ProofLinePersistenceTest(TransactionTestCase):
             'proof_tag': 'delete-test',
             'lhs_leap_goal': '(+ n 1)',
             'rhs_leap_goal': '(+ 1 n)',
+            'lhs_anchor_goal': '(+ 0 1)',
+            'rhs_anchor_goal': '(+ 1 0)',
             'induction_variable': 'n',
             'anchor_value': '0',
             'leap_variable': 'k',
-            'induction_type': 'integers'
+            'induction_type': 'integers',
+            'inductive_hypothesis_lhs': '(+ k 1)',
+            'inductive_hypothesis_rhs': '(+ 1 k)'
         }
         
         response = self.client.post('/api/v1/induction/start-induction-proof', proof_data)
