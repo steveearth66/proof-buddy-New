@@ -14,6 +14,7 @@ from expression_tree.IndProofs import IndProof
 from expression_tree.ERProofEngine import TwoSidedProof, ERProof, ERProofLine
 from expression_tree.ERCommon import makeJson
 from expression_tree.ERRuleset import recursiveReplaceNodes, IH
+from proofs.views import use_uploaded_generic
 
 
 User = get_user_model()
@@ -136,6 +137,25 @@ def clear_induction(request):
             "error": str(e)
         }, status=status.HTTP_400_BAD_REQUEST)
 
+@api_view(["GET"])
+def get_induction_proofs(request):
+    user = request.user
+    query = request.GET.get('query', '')
+    
+    # Filter proofs by user and optionally by query (name contains)
+    proofs = InductionProof.objects.filter(user=user, is_active=True)
+    if query:
+        proofs = proofs.filter(name__icontains=query)
+    
+    proofs = proofs.order_by('-created_at')
+    
+    serializer = InductionProofSerializer(proofs, many=True)
+    
+    # Return in the same format as equational reasoning for consistency
+    return Response({
+        "proofs": serializer.data
+    }, status=status.HTTP_200_OK)
+
 @api_view(["POST"])
 def start_induction_proof(request):
     user = request.user
@@ -165,14 +185,22 @@ def start_induction_proof(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # 1. Validate that iVar, aVal, and Lvar are all integers
-        try:
-            anchor_value_int = int(anchor_value)
-        except (ValueError, TypeError):
-            return Response(
-                {"error": "Anchor value (aVal) must be a valid integer"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Determine structure type
+        struct = 'list' if induction_type.lower() == 'lists' else 'int'
+        
+        # 1. Validate anchor value based on structure type
+        if struct == 'int':
+            # For integers: must be a valid integer (but keep as string for model)
+            try:
+                int(anchor_value)  # Validate it's an integer
+            except (ValueError, TypeError):
+                return Response(
+                    {"error": "Anchor value (aVal) must be a valid integer for integer induction"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            # For lists: anchor_value stays as string (e.g., 'null', "'()", etc.)
+            pass
         
         # Check iVar is a valid identifier (single letter or valid variable name)
         if not re.match(r'^[a-zA-Z][a-zA-Z0-9_]*$', induction_variable):
@@ -229,13 +257,72 @@ def start_induction_proof(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # 4. Automatically create a generic variable definition for Lvar
-        generic_definition = {
+        # 4. Validate that IH expressions are correct transformations of goals (ivar -> lvar)
+        # Frontend already validates syntax/arity via checkGoal endpoint
+        # Here we just check the transformation is correct
+        from expression_tree.ERProofEngine import ERProofLine
+        from expression_tree.ERRuleset import recursiveReplaceNodes
+        import copy
+        
+        try:
+            # Parse the goals and IH expressions (frontend already validated these)
+            lhs_goal_line = ERProofLine(lhs_leap_goal, False, None, generics=None)
+            rhs_goal_line = ERProofLine(rhs_leap_goal, False, None, generics=None)
+            
+            # Create expected IH by replacing ivar with lvar in the parsed goals
+            lvar_node = ERProofLine(leap_variable, False, None, generics=None).exprTree
+            
+            expected_lhs_ih_tree = copy.deepcopy(lhs_goal_line.exprTree)
+            expected_rhs_ih_tree = copy.deepcopy(rhs_goal_line.exprTree)
+            
+            recursiveReplaceNodes(expected_lhs_ih_tree, [induction_variable], [lvar_node])
+            recursiveReplaceNodes(expected_rhs_ih_tree, [induction_variable], [lvar_node])
+            
+            # Get the already-parsed IH lines from the validation above
+            lhs_ih_line = ERProofLine(inductive_hypothesis_lhs, False, None, generics=None)
+            rhs_ih_line = ERProofLine(inductive_hypothesis_rhs, False, None, generics=None)
+            
+            # Compare the trees
+            if str(lhs_ih_line.exprTree) != str(expected_lhs_ih_tree):
+                print(f"LHS IH mismatch!")
+                return Response(
+                    {"error": f"LHS Inductive Hypothesis must be the LHS goal with {induction_variable} replaced by {leap_variable}.\nExpected: {expected_lhs_ih_tree}\nGot: {inductive_hypothesis_lhs}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if str(rhs_ih_line.exprTree) != str(expected_rhs_ih_tree):
+                return Response(
+                    {"error": f"RHS Inductive Hypothesis must be the RHS goal with {induction_variable} replaced by {leap_variable}.\nExpected: {expected_rhs_ih_tree}\nGot: {inductive_hypothesis_rhs}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                    
+        except Exception as e:
+            return Response(
+                {"error": f"Error validating Inductive Hypothesis: {type(e).__name__}: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 5. Automatically create generic variable definitions
+        # For leap variable (type based on structure)
+        generic_lvar = {
             'name': leap_variable,
-            'type': 'int',
+            'type': 'list' if struct == 'list' else 'int',
             'body': '<generic>',
             'description': f'Generic variable for leap case in induction on {induction_variable}'
         }
+        
+        generics_to_create = [generic_lvar]
+        
+        # For list induction with UP direction, also create generic 'a' of type 'Any'
+        if struct == 'list':
+            # Note: For now we default to UP direction. Later we'll add UI to select UP/DOWN
+            generic_a = {
+                'name': 'a',
+                'type': 'Any',
+                'body': '<generic>',
+                'description': 'Generic element for cons in list induction'
+            }
+            generics_to_create.append(generic_a)
         
         # Create complete proof data
         proof_data = {
@@ -245,7 +332,7 @@ def start_induction_proof(request):
             'proof_type': 'induction_int',
             'induction_type': induction_type,
             'induction_variable': induction_variable,
-            'anchor_value': anchor_value_int,
+            'anchor_value': str(anchor_value),  # Store as string in database
             'leap_variable': leap_variable,
             'lhs_leap_goal': lhs_leap_goal,
             'rhs_leap_goal': rhs_leap_goal,
@@ -257,7 +344,7 @@ def start_induction_proof(request):
             'inductive_hypothesis_rhs' : inductive_hypothesis_rhs,
             'current_goal': 'base_case',
             'is_valid': True,
-            'definition': [generic_definition],
+            'definition': generics_to_create,
         }
         
         serializer = InductionProofSerializer(data=proof_data)
@@ -296,7 +383,8 @@ def start_induction_proof(request):
                     "proof_id": proof.id,
                     "proof_name": proof.name,
                     "proof_tag": proof.tag,
-                    "generic_definition_created": generic_definition,
+                    "generic_definition_created": generic_lvar,  # For backwards compatibility
+                    "generics_created": generics_to_create,  # All generics created
                     "data": serializer.data
                 },
                 status=status.HTTP_201_CREATED
@@ -324,13 +412,24 @@ def start_induction_proof(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-@api_view(["POST"])
 @api_view(["GET"])
 def get_induction_proofs(request):
     user = request.user
-    proofs = InductionProof.objects.filter(user=user)
+    query = request.GET.get('query', '')
+    
+    # Filter proofs by user and optionally by query (name contains)
+    proofs = InductionProof.objects.filter(user=user, is_active=True)
+    if query:
+        proofs = proofs.filter(name__icontains=query)
+    
+    proofs = proofs.order_by('-created_at')
+    
     serializer = InductionProofSerializer(proofs, many=True)
-    return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    # Return in the same format as equational reasoning for consistency
+    return Response({
+        "proofs": serializer.data
+    }, status=status.HTTP_200_OK)
 
 @api_view(["GET"])
 def get_induction_proof(request, proof_id):
@@ -404,11 +503,6 @@ def reload_proof_lines_from_db(proof, proof_id):
         # Get all proof lines for this proof, ordered by line number
         lines = InductionProofLine.objects.filter(proof_id=proof_id).order_by('case', 'side', 'line_number')
         
-        print(f"[RELOAD PROOF LINES] Loading {lines.count()} proof lines from database")
-        print("[DB LOAD] Result node values from database:")
-        for line in lines:
-            print(f"  Line {line.line_number} ({line.case} {line.side}): result_node={line.result_node}, selected_node={line.selected_node}")
-        
         for line in lines:
             # Determine which ERProof to add to
             if line.case == 'base':
@@ -421,10 +515,7 @@ def reload_proof_lines_from_db(proof, proof_id):
             proof_line.appliedRule = line.rule
             proof_line.appliedRuleNodeId = line.selected_node  # Restore highlighting position
             target.proofLines.append(proof_line)
-            
-            print(f"[RELOAD] Restored {line.case} {line.side} line {line.line_number}: selectedNode={line.selected_node}")
     except Exception as e:
-        print(f"[RELOAD ERROR] {str(e)}")
         pass
 
 
@@ -490,6 +581,7 @@ def set_current_proof(request):
         lhsPremise = data.get("lhsPremise")
         rhsPremise = data.get("rhsPremise")
         definitions = data.get("definitions", [])
+        generics = data.get("generics", [])
 
         # Basic validation
         missing = [k for k in ("ivar","aval","lvar","lhsPremise","rhsPremise") if not data.get(k)]
@@ -505,6 +597,22 @@ def set_current_proof(request):
         ind.lvar = lvar
         ind.lhsPremise = lhsPremise
         ind.rhsPremise = rhsPremise
+
+        # Add generics to both baseCase and leapStep
+        errors = []
+        for g in generics:
+            try:
+                use_uploaded_generic(user, ind.baseCase, g)
+                use_uploaded_generic(user, ind.leapStep, g)
+            except Exception as e:
+                error_msg = f"Error adding generic {g.get('label')}: {str(e)}"
+                errors.append(error_msg)
+        
+        if errors:
+            return Response({
+                "isValid": False,
+                "errors": errors
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         # Add user definitions (UDF) to both baseCase and leapStep rule sets
         for d in definitions:
@@ -566,14 +674,23 @@ def set_current_proof(request):
         ind.baseCase.ruleSet['apply']['IH'] = ih_rule
         ind.leapStep.ruleSet['apply']['IH'] = ih_rule
 
-        # Prepare leap step: add generic for lvar, build premises ivar -> (+ lvar 1) for int structure
+        # Prepare leap step: add generic for lvar, build premises with proper successor
         try:
             ind.leapStep.addGeneric(lvar, struct)
         except Exception:
             # ignore if invalid; frontend can still proceed applying IH/rules
             pass
 
-        leap_succ_expr = f"(+ {lvar} 1)" if struct == "int" else None
+        # Build leap successor expression based on structure
+        if struct == "int":
+            leap_succ_expr = f"(+ {lvar} 1)"
+        elif struct == "list":
+            # For list UP induction: (cons a K) where a is generic Any, K is lvar
+            # Note: We created generic 'a' in start_induction_proof
+            leap_succ_expr = f"(cons a {lvar})"
+        else:
+            leap_succ_expr = None
+            
         if leap_succ_expr:
             leap_succ_line_L = ERProofLine(leap_succ_expr, ind.leapStep.LHS.debug, ind.leapStep.LHS.ruleSet, generics=ind.leapStep.LHS.generics)
             leap_succ_line_R = ERProofLine(leap_succ_expr, ind.leapStep.RHS.debug, ind.leapStep.RHS.ruleSet, generics=ind.leapStep.RHS.generics)
@@ -902,13 +1019,19 @@ def check_goal(request):
         side = data.get("side", "LHS")
         case = data.get("case", "base")
         goal = data.get("goal")
-        target = _get_case_side(proof, case, side)
+        
+        # Get the appropriate TwoSidedProof (baseCase or leapStep)
+        if case == 'base':
+            two_sided_proof = proof.baseCase
+        else:
+            two_sided_proof = proof.leapStep
+        
+        # Set current side for validation
+        two_sided_proof.setCurrentSide(side)
+        target = two_sided_proof.currentSide
         
         # Mark proof incomplete when resetting premise
-        if case == 'base':
-            proof.baseCase.markIncomplete()
-        else:
-            proof.leapStep.markIncomplete()
+        two_sided_proof.markIncomplete()
         
         # Clear and set goal
         if len(target.proofLines) != 0:
@@ -921,12 +1044,21 @@ def check_goal(request):
                     case=case,
                     side=side
                 ).delete()
+        
+        # Add proof line and validate
         target.addProofLine(goal)
-        jsonTree = makeJson(target.proofLines[-1].exprTree)
+        two_sided_proof.updateErrorsAndValidate()
+        errors = two_sided_proof.getErrorsAndClear()
+        
+        # Get jsonTree if valid
+        jsonTree = None
+        if two_sided_proof.isValid and len(target.proofLines) > 0:
+            jsonTree = makeJson(target.proofLines[-1].exprTree)
+        
         save_induction_obj_to_cache(user, proof, proof_id)
         
-        # Save premise line to database
-        if proof_id and len(target.proofLines) > 0:
+        # Save premise line to database only if valid
+        if proof_id and two_sided_proof.isValid and len(target.proofLines) > 0:
             last_line = target.proofLines[-1]
             save_proof_line_to_db(
                 proof_id=proof_id,
@@ -938,7 +1070,8 @@ def check_goal(request):
                 line_number=0,
                 selected_node=0
             )
-        return Response({"isValid": True, "errors": [], "jsonTree": jsonTree}, status=status.HTTP_200_OK)
+        
+        return Response({"isValid": two_sided_proof.isValid, "errors": errors, "jsonTree": jsonTree}, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"isValid": False, "errors": [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -950,8 +1083,8 @@ def substitution(request):
     data = request.data
     proof, proof_id = get_or_set_induction_obj(user)
     try:
-        side = data.get("side", "LHS")
         case = data.get("case", "base")
+        side = data.get("side", "LHS")
         rule = data.get("rule")
         if rule and rule.lower() == "math":
             rule = "rewrite math"

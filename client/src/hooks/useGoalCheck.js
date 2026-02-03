@@ -106,7 +106,8 @@ const useGoalCheck = (handleChange) => {
     proofValidationMessage,
     clearProofValidationMessage,
     loadRacketGoal,
-    jsonTreeRep
+    jsonTreeRep,
+    clearGoalValidationMessage
   ];
 };
 

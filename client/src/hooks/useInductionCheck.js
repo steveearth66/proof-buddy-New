@@ -156,6 +156,60 @@ const useInductionCheck = (handleChange) => {
     };
 
     try {
+      // First, validate the actual goal expressions using the check-goal endpoint
+      // This will catch arity mismatches, undefined labels, etc.
+      
+      // Validate leap goal
+      const leapValidation = await inductionService.checkGoal({
+        case: 'leap',
+        side: side,
+        goal: leapGoal
+      });
+      
+      if (!leapValidation.isValid) {
+        const errorMessage = leapValidation.errors?.length 
+          ? leapValidation.errors.join('\n') 
+          : 'Invalid leap goal';
+        setGoalValidationMessage((prev) => ({
+          ...prev,
+          [side]: {
+            ...prev[side],
+            LeapGoal: errorMessage
+          }
+        }));
+        setIsGoalChecked((prev) => ({
+          ...prev,
+          [side]: { ...prev[side], LeapGoal: false }
+        }));
+        return;
+      }
+      
+      // Validate anchor goal
+      const anchorValidation = await inductionService.checkGoal({
+        case: 'base',
+        side: side,
+        goal: anchorGoal
+      });
+      
+      if (!anchorValidation.isValid) {
+        const errorMessage = anchorValidation.errors?.length 
+          ? anchorValidation.errors.join('\n') 
+          : 'Invalid anchor goal';
+        setGoalValidationMessage((prev) => ({
+          ...prev,
+          [side]: {
+            ...prev[side],
+            AnchorGoal: errorMessage
+          }
+        }));
+        setIsGoalChecked((prev) => ({
+          ...prev,
+          [side]: { ...prev[side], AnchorGoal: false }
+        }));
+        return;
+      }
+
+      // If both goals are valid, proceed with the full induction check
       console.log("Sending induction check data:", data);
       const response = await inductionService.checkInduction(data);
       console.log("Induction check response:", response);
@@ -237,7 +291,8 @@ const useInductionCheck = (handleChange) => {
     goalValidationMessage,
     enhancedHandleChange,
     proofValidationMessage,
-    clearProofValidationMessage
+    clearProofValidationMessage,
+    clearGoalValidationMessage
   };
 };
 

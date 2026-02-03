@@ -12,8 +12,8 @@ class InductionProofLineInline(admin.TabularInline):
 
 @admin.register(InductionProof)
 class InductionProofAdmin(admin.ModelAdmin):
-    list_display = ('name', 'user', 'proof_type', 'induction_variable', 'created_at', 'is_valid')
-    list_filter = ('proof_type', 'induction_type', 'is_valid', 'created_at')
+    list_display = ('name', 'user', 'proof_type', 'induction_variable', 'created_at', 'is_valid', 'is_active')
+    list_filter = ('proof_type', 'induction_type', 'is_valid', 'is_active', 'created_at')
     search_fields = ('name', 'tag', 'user__username', 'induction_variable')
     readonly_fields = ('created_at', 'updated_at')
     inlines = [InductionProofLineInline]
@@ -32,7 +32,7 @@ class InductionProofAdmin(admin.ModelAdmin):
             'fields': ('inductive_hypothesis_lhs', 'inductive_hypothesis_rhs')
         }),
         ('Current State', {
-            'fields': ('current_side', 'current_goal', 'is_anchor_case', 'is_valid')
+            'fields': ('current_side', 'current_goal', 'is_anchor_case', 'is_valid', 'is_active')
         }),
         ('Definitions', {
             'fields': ('definition',),

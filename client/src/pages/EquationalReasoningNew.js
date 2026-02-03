@@ -30,19 +30,16 @@ import ClickableRowNumber from "../components/ClickableRowNumber";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import { useDynamicHeight } from "../hooks/useDynamicHeight";
 import equationalService from "../services/equationalService";
-import erService from "../services/erService";
 import {
   ARROW_KEYS,
   INITIAL_FORM_VALUES,
   INITIAL_PREMISE_STATE,
   EMPTY_INITIAL_FIELD,
   getPadRefs,
-  getPadIndex,
-  isFormComplete,
-  convertFormToJSON,
-  clearSessionData,
-  updatePremises
+  getPadIndex
 } from "../utils/erRacketUtils";
+import userService from "../services/userService"
+import { useLocation, useNavigate } from "react-router-dom";
 
 /**
  * Equational Reasoning component facilitates the Equational Reasoning Racket.
@@ -50,7 +47,16 @@ import {
 const EquationalReasoningNew = () => {
     const [showSide, toggleSide] = useToggleSide();
     const [formValues, handleChange, setFormValues] = useInputState(INITIAL_FORM_VALUES);
+    const [currentUserType, setCurrentUserType] = useState(null);
     
+    useEffect(() => {
+      async function loadUser() {
+        const profile = await userService.getUserProfile();
+        setCurrentUserType(profile);
+      }
+      loadUser();
+    }, []);
+
     // Parenthesis highlighting hooks
     const { 
       highlightPositions: lhsGoalHighlights, 
@@ -70,30 +76,31 @@ const EquationalReasoningNew = () => {
         useFormValidation(formValues, validateField);
     const [validated, setValidated] = useState(false);
     const [
-        isGoalChecked,
+        ,
         checkGoal,
         goalValidationMessage,
         enhancedHandleChange,
         proofValidationMessage,
         clearProofValidationMessage,
-        loadRacketGoal,
-        jsonTreeRep
+        ,
+        jsonTreeRep,
+        clearGoalValidationMessage
     ] = useGoalCheck(handleChange);
     const [currentRacket, setCurrentRacket] = useState("");
     const [
         ,
-        addFieldWithApiCheck,
+        ,
         ,
         validationErrors,
-        serverError,
-        racketErrors,
+        ,
+        ,
         ,
         updateShowSubstitution,
         showSubstitution,
         closeSubstitution,
-        substituteFieldWithApiCheck,
-        substitutionErrors,
-        loadProofInServer,
+        ,
+        ,
+        ,
         clearValidationErrors
     ] = useRacketRuleFields(
         0, // Default startPosition since we now get it from pad refs
@@ -104,140 +111,209 @@ const EquationalReasoningNew = () => {
     );
 
     // Current values (computed from last line)
-      const [currentLHS, setCurrentLHS] = useState("");
-      const [currentRHS, setCurrentRHS] = useState("");
+    const [currentLHS, setCurrentLHS] = useState("");
+    const [currentRHS, setCurrentRHS] = useState("");
     const [racketFields, setRacketFields] = useState({
         LHS: [],
         RHS: []
       });
     const [errors, setErrors] = useState([]);
+    const [showOverwriteModal, setShowOverwriteModal] = useState(false);
+    const [showStartConfirmModal, setShowStartConfirmModal] = useState(false);
     // Start proof
-  const handleStartProof = async (e) => {
-    e.preventDefault();
-    setErrors([]);
+    const handleStartProof = async (e) => {
+      e.preventDefault();
+      setErrors([]);
 
-    if (!formValues.lHSGoal.trim() || !formValues.rHSGoal.trim()) {
-      setErrors(["Both LHS and RHS goals are required"]);
-      return;
-    }
+      // --- Basic Form Validation ---
+      if (!formValues.proofName.trim()) {
+        setErrors(["Name is required"]);
+        return;
+      }
+      if (!formValues.lHSGoal.trim() || !formValues.rHSGoal.trim()) {
+        setErrors(["Both LHS and RHS goals are required"]);
+        return;
+      }
+      if (formValues.lHSGoal.trim() === formValues.rHSGoal.trim()) {
+        setErrors(["LHS and RHS goals cannot be identical"]);
+        return;
+      }
 
-    if (formValues.lHSGoal.trim() === formValues.rHSGoal.trim()) {
-      setErrors(["LHS and RHS goals cannot be identical"]);
-      return;
-    }
-
-    try {
-      // 1. Run checkGoal validation
-      await checkGoal(
-        showSide,
-        formValues[`${showSide[0].toLowerCase()}HSGoal`],
-        formValues.proofName,
-        formValues.proofTag,
-        formValues.lHSGoal,
-        formValues.rHSGoal
-      );
-      const normalizeType = (t) => (t || '').replace(/\s*->\s*/g, ' > ').trim();
-      let definitions = [];
-      let generics = [];
       try {
-        const storedDefs = JSON.parse(sessionStorage.getItem('definitions')) || [];
-        // Only include UDFs (definitions with expressions), not generics
-        definitions = storedDefs.filter(d => d.applied && d.expression);
-        
-        const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
-        // Include enabled generics (note: generics use 'enabled' not 'applied')
-        generics = storedGenerics.filter(g => g.enabled);
-      } catch (e) {
-        console.error('Error reading session definitions/generics:', e);
-        definitions = [];
-        generics = [];
-      }
-      // 2. Initialize backend
-      const response = await equationalService.setCurrentProof({
-        lhsPremise: formValues.lHSGoal.trim(),
-        rhsPremise: formValues.rHSGoal.trim(),
-        name: formValues.proofName,
-        tag: formValues.proofTag,
-        definitions: definitions.map(d => ({
-                  label: d.label || d.name || '',
-                  type: normalizeType(d.type),
-                  expression: d.expression
-                })),
-        generics: generics.map(g => ({
-                  label: g.label || g.name || '',
-                  type: normalizeType(g.type),
-                  restrictions: {
-                    assumption: g.assumption || g.restrictions?.assumption || 'None',
-                    neverNull: g.neverNull || g.restrictions?.neverNull || false
-                  }
-                }))
-      });
-
-      if (response.isValid) {
-        // 3. Construct the Premise lines (Line 000)
-        const lhsPremiseLine = {
-            racket: formValues.lHSGoal.trim(),
-            rule: "Premise",
-            lineNumber: 0,
-            selectedNode: 0,
-            startPosition: 0,
-            jsonTree: response.lhsJsonTree || {},
-            deleted: false
-        };
-
-        const rhsPremiseLine = {
-            racket: formValues.rHSGoal.trim(),
-            rule: "Premise",
-            lineNumber: 0,
-            selectedNode: 0,
-            startPosition: 0,
-            jsonTree: response.rhsJsonTree || {},
-            deleted: false
-        };
-
-        // 4. Update State: [Premise, EmptyField]
-        // This ensures Line 000 (Premise) and Line 001 (Empty) both appear
-        setRacketRuleFields({
-          LHS: [lhsPremiseLine, EMPTY_INITIAL_FIELD],
-          RHS: [rhsPremiseLine, EMPTY_INITIAL_FIELD]
+        const duplicateCheck = await equationalService.getRacketProofs({ 
+          query: formValues.proofName 
         });
-        
-        // Explicitly set the separate premise state variables as well
-        // (These are still used in some parts of your render logic)
-        setLeftPremise(prev => ({ ...prev, ...lhsPremiseLine }));
-        setRightPremise(prev => ({ ...prev, ...rhsPremiseLine }));
 
-        setCurrentLHS(formValues.lHSGoal.trim());
-        setCurrentRHS(formValues.rHSGoal.trim());
-        if (response.proofId || response.id) {
-          sessionStorage.setItem('current_proof_id', response.proofId || response.id);
+        const hasMatch = duplicateCheck.proofs?.some(p => 
+          p.name === formValues.proofName && p.tag === formValues.proofTag
+        );
+
+        // If a match exists, show overwrite modal
+        if (hasMatch) {
+          setShowOverwriteModal(true);
+          return; 
         }
-        setProofStarted(true);
-        toast.success("Proof started!");
-      } else {
-        setErrors(response.errors || ["Failed to start proof"]);
+        
+        // Show start confirmation modal (definitions will be locked)
+        setShowStartConfirmModal(true);
+      } catch (error) {
+        console.error('Error checking for duplicates:', error);
+        // Continue anyway if check fails
+        setShowStartConfirmModal(true);
       }
-    } catch (error) {
-      console.error("Error starting proof:", error);
-      // Extract error messages from backend response if available
-      const errorMessages = error.response?.data?.errors || 
-                           (error.response?.data?.error ? [error.response.data.error] : null) ||
-                           ["Error starting proof"];
-      setErrors(errorMessages);
-    }
-  };
+    };
+    
+    const proceedWithProofStart = async () => {
+      setShowOverwriteModal(false);
+      setShowStartConfirmModal(false);
+      setErrors([]);
 
-    // const [proofValidationMessage, setProofValidationMessage] = useState({
-    //     name: "",
-    //     tag: ""
-    // });
+      try {
+        // 1. FORCE CLEAN SLATE
+        try {
+            await equationalService.clearProof();
+        } catch (ignore) {
+            // Ignore errors if there was no active proof to clear
+        }
+        
+        // Clear frontend memory of the old ID
+        sessionStorage.removeItem('current_proof_id');
+        sessionStorage.removeItem('erProofActive');
+      
+        // Clear the browser history state so we don't "remember" the old ID from navigation
+        window.history.replaceState({}, document.title);
 
-//     const clearProofValidationMessage = useCallback(() => {
-//     setProofValidationMessage({
-//       name: "",
-//       tag: ""
-//     });
-//   }, []);
+        // 2. Run checkGoal validation
+        await checkGoal(
+          showSide,
+          formValues[`${showSide[0].toLowerCase()}HSGoal`],
+          formValues.proofName,
+          formValues.proofTag,
+          formValues.lHSGoal,
+          formValues.rHSGoal
+        );
+        
+        // 3. PREPARE DEFINITIONS & GENERICS
+        const normalizeType = (t) => (t || '').replace(/\s*->\s*/g, ' > ').trim();
+        let definitions = [];
+        let generics = [];
+        try {
+          const storedDefs = JSON.parse(sessionStorage.getItem('definitions')) || [];
+          definitions = storedDefs.filter(d => d.applied && d.expression);
+          const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
+          generics = storedGenerics.filter(g => g.enabled);
+        } catch (e) {
+          console.error('Error reading session definitions:', e);
+          definitions = [];
+          generics = [];
+        }
+        
+        // 4. INITIALIZE ENGINE (setCurrentProof)
+        const response = await equationalService.setCurrentProof({
+          lhsPremise: formValues.lHSGoal.trim(),
+          rhsPremise: formValues.rHSGoal.trim(),
+          name: formValues.proofName,
+          tag: formValues.proofTag,
+          definitions: definitions.map(d => ({
+              label: d.label || d.name || '',
+              type: normalizeType(d.type),
+              expression: d.expression
+          })),
+          generics: generics.map(g => ({
+              label: g.label || g.name || '',
+              type: normalizeType(g.type),
+              restrictions: {
+              assumption: g.assumption || g.restrictions?.assumption || 'None',
+              neverNull: g.neverNull || g.restrictions?.neverNull || false
+              }
+          }))
+        });
+
+        if (response.isValid) {
+          // 5. Construct the Premise lines
+          const lhsPremiseLine = {
+              racket: formValues.lHSGoal.trim(),
+              rule: "Premise",
+              lineNumber: 0,
+              selectedNode: 0,
+              startPosition: 0,
+              jsonTree: response.lhsJsonTree || {},
+              deleted: false
+          };
+
+          const rhsPremiseLine = {
+              racket: formValues.rHSGoal.trim(),
+              rule: "Premise",
+              lineNumber: 0,
+              selectedNode: 0,
+              startPosition: 0,
+              jsonTree: response.rhsJsonTree || {},
+              deleted: false
+          };
+
+          // 6. SAVE TO DATABASE
+          const proofPayload = {
+              name: formValues.proofName,
+              tag: formValues.proofTag,
+              lHSGoal: formValues.lHSGoal.trim(),
+              rHSGoal: formValues.rHSGoal.trim(),
+              leftPremise: { ...lhsPremiseLine },
+              rightPremise: { ...rhsPremiseLine },
+              leftRacketsAndRules: [],
+              rightRacketsAndRules: [],
+              definitions: definitions.map(d => ({
+                label: d.label || d.name || '',
+                type: normalizeType(d.type),
+                expression: d.expression
+              })),
+              generics: generics.map(g => ({
+                label: g.label || g.name || '',
+                type: normalizeType(g.type),
+                restrictions: {
+                assumption: g.assumption || g.restrictions?.assumption || 'None',
+                neverNull: g.neverNull || g.restrictions?.neverNull || false
+                }
+              }))
+          };
+
+          const saveResponse = await equationalService.saveProof(proofPayload);
+          // 7. STORE PROOF ID
+          if (saveResponse && saveResponse.proofId) {
+              // call getRacketProof to update the cache
+              await equationalService.getRacketProof(saveResponse.proofId);
+              sessionStorage.setItem('current_proof_id', saveResponse.proofId);
+              sessionStorage.setItem('erProofActive', 'true');
+          } else {
+              throw new Error("Database save failed to return a Proof ID");
+          }
+
+          // 8. UPDATE UI STATE
+          setRacketRuleFields({
+            LHS: [lhsPremiseLine, EMPTY_INITIAL_FIELD],
+            RHS: [rhsPremiseLine, EMPTY_INITIAL_FIELD]
+          });
+          
+          setLeftPremise(prev => ({ ...prev, ...lhsPremiseLine }));
+          setRightPremise(prev => ({ ...prev, ...rhsPremiseLine }));
+          setCurrentLHS(formValues.lHSGoal.trim());
+          setCurrentRHS(formValues.rHSGoal.trim());
+          
+          clearGoalValidationMessage('LHS');
+          clearGoalValidationMessage('RHS');
+          setProofStarted(true);
+          toast.success("Proof started!");
+          
+        } else {
+          setErrors(response.errors || ["Failed to start proof"]);
+        }
+      } catch (error) {
+        console.error("Error starting proof:", error);
+        const errorMessages = error.response?.data?.errors || 
+                              (error.response?.data?.error ? [error.response.data.error] : null) ||
+                              ["Error starting proof"];
+        setErrors(errorMessages);
+      }
+    };
     
     // Computed current racketRuleFields
     const [racketRuleFields, setRacketRuleFields] = useState({
@@ -245,22 +321,7 @@ const EquationalReasoningNew = () => {
         RHS: [EMPTY_INITIAL_FIELD]
       });
   
-    // Induction-specific state (no dependency on useRacketRuleFields hook)
-    //const [validationErrors, setValidationErrors] = useState({ LHS: [], RHS: [] });
-    const [inductionSubErrors, setInductionSubErrors] = useState([]);
-    //const [showSubstitution, setShowSubstitution] = useState(false);
-  
-    // const clearValidationErrors = useCallback(() => {
-    //     setValidationErrors({ LHS: [], RHS: [] });
-    // }, []);
-
-    // const closeSubstitution = useCallback(() => {
-    //     setShowSubstitution(false);
-    // }, []);
-
-    // const updateShowSubstitution = useCallback(() => {
-    //     setShowSubstitution(true);
-    // }, []);
+    const [SubErrors, setSubErrors] = useState([]);
 
   const [lhsValue, setLhsValue] = useState("");
   const [rhsValue, setRhsValue] = useState("");
@@ -284,6 +345,9 @@ const EquationalReasoningNew = () => {
   const isProcessingRef = useRef(false);
   const [userRow, setUserRow] = useState({ num: "" });
   const [isBound, setIsBound] = useState(false);
+  const navigate = useNavigate();
+  const loadErrorShownRef = useRef(false);
+  const [loadedProof, setLoadedProof] = useState(null);
   const [footerRule, setFooterRule] = useState("");
   const [footerRuleError, setFooterRuleError] = useState("");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -291,31 +355,152 @@ const EquationalReasoningNew = () => {
   // Hook for getting available height for scrollable proof area
   const availableHeight = useDynamicHeight();
 
+  const location = useLocation();
+  const initializedRef = useRef(false);
+
+  useEffect(() => {
+    if (initializedRef.current) return;
+
+    const initializeProofSession = async () => {
+      initializedRef.current = true;
+      console.log('[Init] Starting session initialization...');
+      
+      try {
+        // -------------------------------------------------------------
+        // STEP 1: HYDRATE BACKEND (If coming from "All Proofs" page)
+        // -------------------------------------------------------------
+        if (location.state && location.state.id) {
+          console.log("[Init] Loading specific Proof ID:", location.state.id);
+          
+          // AWAIT this. We cannot proceed until the backend cache is ready.
+          // Note: Ensure 'loadProof' maps to your 'get_user_proof' API endpoint
+          await equationalService.getRacketProof(location.state.id);
+
+          // Update Session Storage
+          sessionStorage.setItem('current_proof_id', location.state.id);
+          sessionStorage.setItem('erProofActive', 'true');
+          
+          // Clear history so refresh doesn't re-trigger this
+          window.history.replaceState({}, document.title);
+        } 
+        
+        // -------------------------------------------------------------
+        // STEP 2: CHECK SESSION VALIDITY
+        // -------------------------------------------------------------
+        const isActiveSession = sessionStorage.getItem('erProofActive') === 'true';
+        
+        if (!isActiveSession) {
+          console.log("[Init] No active session found. Clearing.");
+          await equationalService.clearProof();
+          sessionStorage.removeItem('current_proof_id');
+          sessionStorage.removeItem('erProofActive');
+          return;
+        }
+
+        // -------------------------------------------------------------
+        // STEP 3: FETCH AND RENDER UI (Restore Logic)
+        // -------------------------------------------------------------
+        console.log("[Init] Fetching proof lines...");
+        const proofData = await equationalService.getProofLines();
+
+        if (proofData.hasProof) {
+          console.log("[Init] Proof found. Restoring UI...");
+          
+          // A. Restore Form Header
+          setFormValues(prev => ({
+            ...prev,
+            lHSGoal: proofData.lhsAnchorGoal || '',
+            rHSGoal: proofData.rhsAnchorGoal || '',
+            proofName: proofData.proofName || '',
+            proofTag: proofData.tag || ''
+          }));
+          
+          // B. Restore Premises State
+          setLeftPremise(prev => ({
+             ...prev,
+             racket: proofData.lhsAnchorGoal || '',
+             rule: 'Premise',
+             startPosition: 0,
+             selectedNode: 0,
+             jsonTree: (proofData.LHS && proofData.LHS[0]) ? proofData.LHS[0].jsonTree : {} 
+          }));
+
+          setRightPremise(prev => ({
+             ...prev,
+             racket: proofData.rhsAnchorGoal || '',
+             rule: 'Premise',
+             startPosition: 0,
+             selectedNode: 0,
+             jsonTree: (proofData.RHS && proofData.RHS[0]) ? proofData.RHS[0].jsonTree : {} 
+          }));
+
+          // C. Helper to Map Database Lines to UI Fields
+          const mapLinesToFields = (dbLines) => {
+            if (!dbLines || dbLines.length === 0) return [EMPTY_INITIAL_FIELD];
+            
+            // Calculate array size based on max line number
+            const maxLine = Math.max(...dbLines.map(l => l.line_number || l.lineNumber || 0));
+            const fields = new Array(maxLine + 1).fill(null).map(() => ({ ...EMPTY_INITIAL_FIELD }));
+
+            dbLines.forEach(line => {
+               const idx = line.line_number !== undefined ? line.line_number : line.lineNumber;
+               
+               // Sanitize empty strings to ensure UI renders cleanly
+               const racketVal = line.racket || '';
+               const ruleVal = line.rule || '';
+               
+               fields[idx] = {
+                 racket: racketVal,
+                 rule: ruleVal,
+                 jsonTree: line.json_tree || line.jsonTree || {},
+                 startPosition: line.start_position || line.startPosition || 0,
+                 selectedNode: line.selected_node || line.selectedNode || 0,
+                 resultNode: line.result_node || line.resultNode || 0,
+                 deleted: false,
+                 hide_expression: line.hide_expression || false,
+                 hide_justification: line.hide_justification || false
+               };
+            });
+            
+            // Ensure there is always a trailing empty line for new input
+            fields.push(EMPTY_INITIAL_FIELD);
+            return fields;
+          };
+
+          // D. Update Grid State
+          setRacketRuleFields({
+            LHS: mapLinesToFields(proofData.LHS),
+            RHS: mapLinesToFields(proofData.RHS)
+          });
+
+          // E. Set Current Racket Context (for the next rule application)
+          // Logic: Find last non-empty line or default to goal
+          const findLast = (arr) => arr.slice().reverse().find(x => x.racket && x.racket.trim() !== "")?.racket;
+          
+          setCurrentLHS(findLast(proofData.LHS) || proofData.lhsAnchorGoal);
+          setCurrentRHS(findLast(proofData.RHS) || proofData.rhsAnchorGoal);
+
+          setProofStarted(true);
+          toast.success("Proof loaded successfully!");
+          
+        } else {
+          console.warn("[Init] getProofLines returned false for hasProof.");
+          await equationalService.clearProof();
+        }
+
+      } catch (error) {
+        console.error("[Init] Error initializing session:", error);
+        toast.error("Failed to load proof session.");
+        initializedRef.current = false;
+      }
+    };
+
+    initializeProofSession();
+  }, []);
+
   // Initialize jsonTreeRep as empty object for passing to renderPersistentPadRow
   // It gets populated by the backend when goals are checked
 //   const [jsonTreeRep, setJsonTreeRep] = useState({ LHS: {}, RHS: {} });
-
-  const handleERRacketSubmission = async () => {
-    alert("We are stilling working on proof submission!");
-  };
-
-  const getLastNonEmpty = (arr = []) => {
-    for (let i = arr.length - 1; i >= 0; i--) {
-      const racket = (arr[i]?.racket || "").trim();
-      if (racket) return { index: i, racket };
-    }
-    return { index: -1, racket: "" };
-  };
-
-  const hasInternalBlanks = (arr = []) => {
-    const { index: lastIdx } = getLastNonEmpty(arr);
-    if (lastIdx <= 0) return false;
-    for (let i = 0; i < lastIdx; i++) {
-      const racket = (arr[i]?.racket || "").trim();
-      if (!racket) return true;
-    }
-    return false;
-  };
 
   const checkCurrentProofStatus = async () => {
     try {
@@ -343,13 +528,6 @@ const EquationalReasoningNew = () => {
       toast.error('Failed to check proof completion');
     }
   };
-
-  const { handleSubmit } = useFormSubmit(
-    isFormValid,
-    setValidated,
-    setAllTouched,
-    handleERRacketSubmission
-  );
 
   /**
    * Creates JSON object of the target incoming parameter (which should be a JavaScript Object)
@@ -384,6 +562,7 @@ const EquationalReasoningNew = () => {
    * Bind footer to a specific proof line row number.
    * This allows arrow keys to control highlighting in the previous row.
    */
+
   const bindFooterToRow = useCallback((rowNum) => {
     const paddedRowNum = rowNum.toString().padStart(3, "0");
     const userIndex = getPadIndex(paddedRowNum);
@@ -394,11 +573,10 @@ const EquationalReasoningNew = () => {
       return false;
     }
 
-  // Clear validation errors and proof status when binding to a new row
-  clearValidationErrors();
-  setFooterRuleError('');
-  const caseKey = 'base';
-  setProofStatus(prev => ({ ...prev, [caseKey]: null }));
+    clearValidationErrors();
+    setFooterRuleError('');
+    const caseKey = 'base';
+    setProofStatus(prev => ({ ...prev, [caseKey]: null }));
 
     setUserRow({ num: paddedRowNum });
     setIsBound(true);
@@ -407,7 +585,13 @@ const EquationalReasoningNew = () => {
     if (paddedRowNum !== "000") {
       // Array index now equals line number, so use userIndex directly
       const field = (racketRuleFields?.[showSide] || [])[userIndex];
-      setFooterRule(field?.rule || "");
+      
+      // Only set the rule if it's NOT hidden
+      if (field?.hide_justification) {
+        setFooterRule("");  // Keep it blank if hidden
+      } else {
+        setFooterRule(field?.rule || "");
+      }
     } else {
       setFooterRule("Premise");
     }
@@ -432,6 +616,7 @@ const EquationalReasoningNew = () => {
   }, [showSide, lhsPadRefs, rhsPadRefs, racketRuleFields, clearValidationErrors]);
 
   // Control body overflow when proof is started
+  
   useEffect(() => {
     if (proofStarted) {
       document.body.style.overflow = 'hidden';
@@ -529,7 +714,7 @@ const EquationalReasoningNew = () => {
         setRightPremise(prev => ({
             ...prev,
             racket: formValues.rHSGoal,
-            selectedNode: baseLHSPremise.selectedNode || 0
+            selectedNode: baseRHSPremise.selectedNode || 0
         }));
       }
 
@@ -612,13 +797,13 @@ const EquationalReasoningNew = () => {
     }
 
     try {
-      await erService.clearProof();
+      await equationalService.clearProof();
       
       // Clear sessionStorage flag so we don't restore from DB on reload
       sessionStorage.removeItem('erProofActive');
+      sessionStorage.removeItem('current_proof_id');
       
       toast.success('Proof archived successfully');
-      
       // Reload the page to start fresh
       window.location.reload();
     } catch (error) {
@@ -627,11 +812,20 @@ const EquationalReasoningNew = () => {
     }
   };
 
-  const handleGenerateAndCheck = async () => {
-    if (isProcessingRef.current) {
-      return;
+const handleRuleKeyDown = (e) => {
+    // Check if Enter key is pressed without Shift
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault(); // Prevent newline in textarea
+      
+      // Only trigger Generate&Check if button would be enabled (isBound is true)
+      if (isBound) {
+        handleGenerateAndCheck();
+      }
     }
+  };
 
+const handleGenerateAndCheck = async () => {
+    if (isProcessingRef.current) return;
     isProcessingRef.current = true;
 
     try {
@@ -639,6 +833,7 @@ const EquationalReasoningNew = () => {
       let previousStartPosition = 0;
       let previousRacketValue = "";
       let currentIndex = undefined;
+      let studentSelectedNode = 0; // Initialize default
 
       if (isBound) {
         const userIndex = getPadIndex(userRow.num);
@@ -651,32 +846,73 @@ const EquationalReasoningNew = () => {
           if (previousRowIndex === 0) {
             // Getting from premise
             previousRacketValue = showSide === "LHS" ? leftPremise.racket : rightPremise.racket;
-            // Get the actual selected node from the premise state, not getStartPosition
             const premiseData = showSide === "LHS" ? leftPremise : rightPremise;
             previousStartPosition = premiseData.selectedNode ?? premiseData.startPosition ?? 0;
           } else {
-            // Since array index now equals line number, use previousRowIndex directly
             const previousField = racketRuleFields?.[showSide][previousRowIndex];
             previousRacketValue = previousField?.racket || "";
-            // Get the selected node from the field if available (restored), otherwise from PersistentPad's current selection
             const fromField = previousField?.selectedNode;
             const fromPad = padRefs.current[previousRowIndex]?.getStartPosition();
             previousStartPosition = fromField ?? fromPad ?? 0;
           }
-          currentIndex = userIndex; // index in array now equals line number
+          studentSelectedNode = previousStartPosition; // Capture selection!
+          currentIndex = userIndex;
         }
       }
 
-      // Validate rule is entered
       if (!ruleFromFooter || ruleFromFooter.trim() === '') {
         setFooterRuleError('Must enter a rule');
         return;
       }
-
-      // Clear validation error if rule is valid
       setFooterRuleError('');
 
-      // Validate payload before sending
+      // --- VALIDATION BLOCK ---
+      const boundField = racketRuleFields?.[showSide][currentIndex];
+      const hasHiddenRule = boundField?.hide_justification || false;
+      const hasHiddenExpression = boundField?.hide_expression || false;
+
+      if (hasHiddenRule || hasHiddenExpression) {
+        const validationPayload = {
+          side: showSide,
+          lineNumber: currentIndex,
+          studentRule: ruleFromFooter, // Sending the Rule
+          studentSelectedNode: studentSelectedNode // Sending the Selection
+        };
+
+        try {
+          const validationResult = await equationalService.validateHiddenField(validationPayload);
+          
+          if (validationResult.errors && validationResult.errors.length > 0) {
+            validationResult.errors.forEach(error => toast.error(error));
+            return;
+          }
+          
+          toast.success(validationResult.message || "Correct!");
+          
+          // Update both flags based on backend response
+          // This handles cases where proving the rule unhides the expression too
+          setRacketRuleFields(prev => {
+            const updated = { ...prev };
+            if (updated[showSide] && updated[showSide][currentIndex]) {
+              updated[showSide][currentIndex] = {
+                ...updated[showSide][currentIndex],
+                hide_justification: validationResult.hide_justification,
+                hide_expression: validationResult.hide_expression
+              };
+            }
+            return updated;
+          });
+          
+          setFooterRule(boundField.rule);
+          return;
+          
+        } catch (error) {
+          toast.error('Error validating your answer.');
+          return;
+        }
+      }
+
+      // EXISTING CODE: No hidden fields, proceed with normal generation
       if (!previousRacketValue || previousRacketValue.trim() === '') {
         toast.error('No source expression found. Make sure the previous line has content.');
         return;
@@ -691,36 +927,39 @@ const EquationalReasoningNew = () => {
         ...(typeof currentIndex === 'number' && { lineNumber: currentIndex })
       };
 
-      // Reset status when new line generated
       const caseKey = 'base';
       setProofStatus(prev => ({ ...prev, [caseKey]: null }));
 
-      // Dismiss any previous error toasts before trying again
       toast.dismiss();
 
       const fullRacket = await equationalService.applyRule(payload);
 
-      // If the backend returned a valid generated line, append it to the UI
       if (!fullRacket) {
         console.error("applyRule returned undefined/null");
         return;
       }
 
       if (fullRacket && fullRacket.isValid) {
-        const newField = {
-          racket: fullRacket.racket || "",
-          jsonTree: fullRacket.jsonTree || {},
-          rule: ruleFromFooter,
-          startPosition: previousStartPosition,
-          selectedNode: previousStartPosition,
-          resultNode: fullRacket.resultNodeId ?? 0,
-          deleted: false
-        };
-
         setRacketRuleFields((prevFields) => {
           const sideArray = [...(prevFields[showSide] || [])];
           
-          // Check for duplicate
+          const newField = {
+            racket: fullRacket.racket || "",
+            jsonTree: fullRacket.jsonTree || {},
+            rule: ruleFromFooter,
+            startPosition: previousStartPosition,
+            selectedNode: previousStartPosition,
+            resultNode: fullRacket.resultNodeId ?? 0,
+            deleted: false,
+            // Preserve visibility flags if editing existing line
+            hide_expression: (typeof currentIndex === 'number' && sideArray[currentIndex]) 
+              ? sideArray[currentIndex].hide_expression 
+              : false,
+            hide_justification: (typeof currentIndex === 'number' && sideArray[currentIndex])
+              ? sideArray[currentIndex].hide_justification
+              : false
+          };
+          
           const hasMatchingField = sideArray.some((field) => (
             field && !field.deleted && field.racket === newField.racket && field.rule === newField.rule
           ));
@@ -731,16 +970,13 @@ const EquationalReasoningNew = () => {
           const isEditingMiddle = typeof currentIndex === 'number' && currentIndex >= 0 && currentIndex < sideArray.length - 1;
 
           if (isEditingMiddle) {
-            // Replace the targeted middle line
             sideArray[currentIndex] = newField;
-            // Ensure there's a trailing blank line
             const endLast = sideArray[sideArray.length - 1];
             const endIsEmpty = endLast && endLast.racket === "" && endLast.rule === "";
             if (!endIsEmpty) {
               sideArray.push(EMPTY_INITIAL_FIELD);
             }
           } else {
-            // Editing the end
             const lastField = sideArray[sideArray.length - 1];
             const lastIsEmpty = lastField && lastField.racket === "" && lastField.rule === "";
             
@@ -759,16 +995,11 @@ const EquationalReasoningNew = () => {
           };
         });
 
-        // Note: Current LHS/RHS will be updated by the useEffect that watches racketRuleFields
-
-        // Unbind the footer after successful generation to reset UI state
         if (isBound) {
           unbindFooter();
         }
 
-        await checkCurrentProofStatus();
       } else {
-        // Show a toast on invalid rule
         const message = (fullRacket && fullRacket.errors && fullRacket.errors[0]) || "Invalid rule";
         toast.error(message);
       }
@@ -776,167 +1007,6 @@ const EquationalReasoningNew = () => {
       isProcessingRef.current = false;
     }
   };
-
-  useEffect(() => {
-    // On mount, attempt to restore proof from database only if we're in an active session
-    // Use sessionStorage to distinguish between page refresh (restore) and new navigation (clear)
-    const restoreProof = async () => {
-      try {
-        const isActiveSession = sessionStorage.getItem('erProofActive') === 'true';
-        
-        if (!isActiveSession) {
-          // New session - clear any old proof data and start fresh
-          await erService.clearProof();
-          return;
-        }
-        
-        // Active session - attempt to restore from database (page refresh scenario)
-        const proofData = await equationalService.getProofLines();
-        
-        if (proofData.hasProof) {
-          // Restore form values
-          setFormValues(prev => ({
-            ...prev,
-            lHSGoal: proofData.lhsAnchorGoal || '',
-            rHSGoal: proofData.rhsAnchorGoal || '',
-            proofName: proofData.proofName || '',
-            proofTag: proofData.tag || ''
-          }));
-          
-          // Re-initialize the proof engine to get proper jsonTrees for premises
-          try {
-            const normalizeType = (t) => (t || '').replace(/\s*->\s*/g, ' > ').trim();
-            const definitions = JSON.parse(sessionStorage.getItem('definitions') || '[]');
-            
-            const engineSetup = await equationalService.setCurrentProof({
-              lhsPremise: proofData.lhsAnchorGoal,
-              rhsPremise: proofData.rhsAnchorGoal,
-              definitions: definitions.map(d => ({
-                label: d.label || d.name || '',
-                type: normalizeType(d.type),
-                expression: d.expression
-              }))
-            });
-
-            if (engineSetup && engineSetup.base && engineSetup.leap) {
-              const baseL = engineSetup.base.LHS || {};
-              const baseR = engineSetup.base.RHS || {};
-              // Set base case premises with proper jsonTrees
-              setLeftPremise(prev => ({
-                    ...prev,
-                    racket: baseL.racket || proofData.lhsAnchorGoal || '',
-                    jsonTree: baseL.jsonTree || {}, 
-                    rule: 'Premise', 
-                    startPosition: 0, 
-                    selectedNode: 0
-                }));
-                setRightPremise(prev => ({
-                    ...prev,
-                    racket: baseR.racket || proofData.rhsAnchorGoal || '',
-                    jsonTree: baseR.jsonTree || {}, 
-                    rule: 'Premise', 
-                    startPosition: 0, 
-                    selectedNode: 0
-                }));
-
-            //   setJsonTreeRep({
-            //     LHS: baseL.jsonTree || {},
-            //     RHS: baseR.jsonTree || {}
-            //   });
-            }
-          } catch (engineError) {
-            // Fall back to simple initialization without jsonTrees
-            setLeftPremise(prev => ({
-                ...prev,
-                racket: formValues.lHSGoal,
-                jsonTree: {}, 
-                rule: 'Premise', 
-                startPosition: 0, 
-                selectedNode: 0
-            }));
-            setRightPremise(prev => ({
-                ...prev,
-                racket: formValues.rHSGoal,
-                jsonTree: {}, 
-                rule: 'Premise', 
-                startPosition: 0, 
-                selectedNode: 0
-            }));
-          }
-          
-          // Initialize fields
-          setRacketFields({ LHS: [EMPTY_INITIAL_FIELD], RHS: [EMPTY_INITIAL_FIELD] });
-          
-          // Get proof lines and restore them
-          try {
-            const lines = await equationalService.getProofLines();
-            
-            if (lines && typeof lines === 'object') {
-              // Helper function to convert database lines to UI field format
-              const convertLinesToFields = (dbLines) => {
-                if (!Array.isArray(dbLines) || dbLines.length === 0) {
-                  return [EMPTY_INITIAL_FIELD];
-                }
-                
-                // Find the highest line number to size the array
-                const maxLineNum = Math.max(...dbLines.map(line => line.lineNumber));
-                
-                // Create array where index = database line_number
-                // Start with empty fields for all positions
-                const fields = [];
-                for (let i = 0; i <= maxLineNum; i++) {
-                  fields[i] = { ...EMPTY_INITIAL_FIELD };
-                }
-                
-                // Fill in the actual data from database
-                dbLines.forEach(line => {
-                  fields[line.lineNumber] = {
-                    racket: line.racket || '',
-                    jsonTree: line.jsonTree || {},
-                    rule: line.rule || '',
-                    startPosition: line.startPosition || 0,
-                    selectedNode: line.selectedNode || 0,
-                    resultNode: line.resultNode || 0,
-                    deleted: false
-                  };
-                });
-                
-                // Add trailing empty field for next line
-                fields.push(EMPTY_INITIAL_FIELD);
-                
-                return fields;
-              };
-              
-              // Restore base case fields
-              if (lines.base) {
-                const baseLHS = convertLinesToFields(lines.base.LHS);
-                const baseRHS = convertLinesToFields(lines.base.RHS);
-
-                setRacketFields({ LHS: baseLHS, RHS: baseRHS });
-              }
-            }
-          } catch (linesError) {
-            // Continue anyway - at least form values and IH are restored
-          }
-          
-          setProofStarted(true);
-          sessionStorage.setItem('erProofActive', 'true');
-        } else {
-          // No existing proof, clear to start fresh
-          await erService.clearProof();
-        }
-      } catch (error) {
-        // On error, clear to start fresh
-        try {
-          await erService.clearProof();
-        } catch (clearError) {
-          // Silent fail
-        }
-      }
-    };
-
-    restoreProof();
-  }, []);
 
   useEffect(() => {
     // Do not clear definitions here; keep session-applied definitions intact
@@ -985,7 +1055,7 @@ const EquationalReasoningNew = () => {
 
   useEffect(() => {
     if (showSubstitution) {
-      setInductionSubErrors([]);
+      setSubErrors([]);
     }
   }, [showSubstitution]);
 
@@ -1105,72 +1175,98 @@ const EquationalReasoningNew = () => {
     };
   }, [isBound, userRow.num, showSide, lhsPadRefs, rhsPadRefs]);
 
-  /**
-   * Parse a top-level function application like "(f x y)".
-   * Returns { name: 'f', params: ['x','y'] } or null if not a simple paren application.
-   */
-  const parseTopLevelApplication = (s) => {
-    if (!s) return null;
-    const trimmed = s.trim();
-    if (!trimmed.startsWith("(")) return null;
-    let depth = 0;
-    for (let i = 0; i < trimmed.length; i++) {
-      const ch = trimmed[i];
-      if (ch === "(") depth++;
-      else if (ch === ")") depth--;
-      if (depth === 0) {
-        const inner = trimmed.slice(1, i).trim();
-        if (inner.length === 0) return null;
-        const tokens = inner.split(/\s+/);
-        if (tokens.length >= 1) {
-          const name = tokens[0];
-          const params = tokens.slice(1);
-          return { name, params };
-        }
-        return null;
-      }
-    }
-    return null;
-  };
-
-  const handleInductionSubstitution = useCallback(
+  const handleSubstitution = useCallback(
     async ({ substitution, rule }) => {
       // Clear previous errors when user attempts a new submission
-      setInductionSubErrors([]);
+      setSubErrors([]);
       const caseKey = 'base';
       setProofStatus(prev => ({ ...prev, [caseKey]: null }));
       
       const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
       const padIndex = getPadIndex(userRow.num);
       
-      // Source is the PREVIOUS line to the bound line
-      // If binding line 001, source is line 000 (premise)
-      // If binding line 002, source is line 001, etc.
+      // Get current field states
+      const boundField = racketRuleFields?.[showSide][padIndex];
+      const hasHiddenRule = boundField?.hide_justification || false;
+      const hasHiddenExpression = boundField?.hide_expression || false;
+      
+      // 1. Calculate sourceSelectedNode (Where the rule is being applied)
+      let sourceSelectedNode = 0;
+      if (padIndex === 1) {
+          // If applying to line 1, source is Premise (Line 0)
+          sourceSelectedNode = showSide === "LHS"
+            ? (leftPremise?.selectedNode ?? leftPremise?.startPosition ?? 0)
+            : (rightPremise?.selectedNode ?? rightPremise?.startPosition ?? 0);
+      } else {
+          // Otherwise, source is the previous line
+          const sourceField = racketRuleFields?.[showSide][padIndex - 1];
+          sourceSelectedNode = sourceField?.selectedNode ?? sourceField?.startPosition ?? 0;
+      }
+
+      // 2. Validation Logic for Hidden Fields
+      // If either field is hidden, we validate the Rule + Selection "Master Key"
+      if (hasHiddenRule || hasHiddenExpression) {
+        const validationPayload = {
+          side: showSide,
+          lineNumber: padIndex,
+          studentRule: rule,
+          studentSelectedNode: sourceSelectedNode // Pass the selection to the backend!
+        };
+        
+        try {
+          const validationResult = await equationalService.validateHiddenField(validationPayload);
+          
+          if (validationResult.errors && validationResult.errors.length > 0) {
+            setSubErrors(validationResult.errors);
+            return false;
+          }
+          
+          // Success! Backend says input is valid.
+          toast.success(validationResult.message || "Correct!");
+
+          // 3. Update UI with the new visibility state from Backend
+          // The backend might have revealed BOTH fields if Rule+Selection were correct.
+          setRacketRuleFields(prev => {
+            const updated = { ...prev };
+            if (updated[showSide] && updated[showSide][padIndex]) {
+              updated[showSide][padIndex] = {
+                ...updated[showSide][padIndex],
+                hide_justification: validationResult.hide_justification,
+                hide_expression: validationResult.hide_expression
+              };
+            }
+            return updated;
+          });
+          
+          // Close modal without applying a "new" substitution line (since we just revealed one)
+          closeSubstitution();
+          return true;
+          
+        } catch (error) {
+          setSubErrors(["Error validating your answer"]);
+          return false;
+        }
+      }
+      
+      // ---------------------------------------------------------
+      // STANDARD SUBSTITUTION LOGIC (No hidden fields)
+      // ---------------------------------------------------------
       let currentRacket;
       let sourcePad;
-      let sourceSelectedNode;
       
       if (padIndex === 1) {
-        // Source is premise (line 000)
         currentRacket = showSide === "LHS"
           ? leftPremise?.racket || formValues.lHSGoal
           : rightPremise?.racket || formValues.rHSGoal;
         sourcePad = padRefs.current ? padRefs.current[0] : null;
-        // Get selectedNode from premise state
-        sourceSelectedNode = showSide === "LHS"
-          ? (leftPremise?.selectedNode ?? leftPremise?.startPosition ?? 0)
-          : (rightPremise?.selectedNode ?? rightPremise?.startPosition ?? 0);
       } else {
-        // Source is the previous line (padIndex - 1 in array, since array index = line number)
         const sourceField = racketRuleFields?.[showSide][padIndex - 1];
         currentRacket = sourceField?.racket || "";
         sourcePad = padRefs.current ? padRefs.current[padIndex - 1] : null;
-        // Get selectedNode from the source field state
-        sourceSelectedNode = sourceField?.selectedNode ?? sourceField?.startPosition ?? 0;
       }
       
       const startPos = sourcePad?.getStartPosition?.() ?? 0;
-      const selectedNode = sourceSelectedNode;
+      const selectedNode = sourceSelectedNode; // Reuse calculated node
 
       const payload = {
         substitution,
@@ -1180,19 +1276,18 @@ const EquationalReasoningNew = () => {
         currentRacket: currentRacket,
         side: showSide,
         case: "base",
-        lineNumber: padIndex  // Tell backend which line to update
+        lineNumber: padIndex
       };
 
       try {
         const response = await equationalService.substitution(payload);
 
         if (response.isValid) {
-          setInductionSubErrors([]);
+          setSubErrors([]);
           closeSubstitution();
 
           const racketStr = response.racket || currentRacket;
 
-          // Add a new proof line instead of modifying the premise
           const newField = {
             racket: racketStr,
             rule: response.rule || rule,
@@ -1200,37 +1295,34 @@ const EquationalReasoningNew = () => {
             selectedNode: selectedNode,
             resultNode: response.resultNodeId ?? 0,
             jsonTree: response.jsonTree || {},
-            deleted: false
+            deleted: false,
+            hide_expression: false,
+            hide_justification: false
           };
 
           setRacketRuleFields((prev) => {
             const currentFields = prev[showSide];
             const sideArray = [...currentFields];
             
-            // If we're editing a middle line (bound line), replace it
-            // Otherwise append to the end
             const isEditingMiddle = padIndex >= 0 && padIndex < sideArray.length - 1;
             
             if (isEditingMiddle) {
-              // Replace the bound line at padIndex
               sideArray[padIndex] = newField;
-              // Ensure there's a trailing blank line
               const endLast = sideArray[sideArray.length - 1];
               const endIsEmpty = endLast && endLast.racket === "" && endLast.rule === "";
               if (!endIsEmpty) {
                 sideArray.push(EMPTY_INITIAL_FIELD);
               }
             } else {
-              // Editing the end - check if the last field is empty
               const lastField = sideArray[sideArray.length - 1];
               const lastIsEmpty = !lastField?.racket || lastField.racket.trim() === '';
               
               if (lastIsEmpty) {
-                sideArray[sideArray.length - 1] = newField;  // Replace last empty field
-                sideArray.push(EMPTY_INITIAL_FIELD);  // Add new trailing empty
+                sideArray[sideArray.length - 1] = newField;
+                sideArray.push(EMPTY_INITIAL_FIELD);
               } else {
-                sideArray.push(newField);  // Append new field
-                sideArray.push(EMPTY_INITIAL_FIELD);  // Add trailing empty
+                sideArray.push(newField);
+                sideArray.push(EMPTY_INITIAL_FIELD);
               }
             }
             
@@ -1240,22 +1332,16 @@ const EquationalReasoningNew = () => {
             };
           });
 
-          // Unbind the footer
           setIsBound(false);
           setUserRow({ num: "" });
-
-        //   if (response.jsonTree) {
-        //     setJsonTreeRep((prev) => ({ ...prev, [showSide]: response.jsonTree }));
-        //   }
-
           setCurrentRacket(racketStr);
           return response;
         }
 
-        setInductionSubErrors(response.errors || ["Substitution failed"]);
+        setSubErrors(response.errors || ["Substitution failed"]);
         return false;
       } catch (error) {
-        setInductionSubErrors(["Failed to substitute rule"]);
+        setSubErrors(["Failed to substitute rule"]);
         return false;
       }
     },
@@ -1273,32 +1359,27 @@ const EquationalReasoningNew = () => {
     ]
   );
 
-  const escapeRegExp = (string) => {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  };
-
   function renderPersistentPadRow({
-    side,
-    index = 0,
-    field = {},
-    isPremise = false,
-    padRefs,
-    formValues,
-    jsonTreeRep,
-    handleFieldHighlight,
-    validationErrors,
-    isBound,
-    userRow,
-    handleRowNumberClick,
-    leftPremise,
-    rightPremise,
-    caseType
+  side,
+  index = 0,
+  field = {},
+  isPremise = false,
+  padRefs,
+  formValues,
+  jsonTreeRep,
+  handleFieldHighlight,
+  validationErrors,
+  isBound,
+  userRow,
+  handleRowNumberClick,
+  leftPremise,
+  rightPremise,
+  caseType,
+  currentUserType
   }) {
     const isLHS = side === "LHS";
-    // Since array index now equals database line_number, use index directly as padIndex
     const padIndex = index;
     
-    // For premise in Induction, use the substituted premise from state
     let equation;
     if (isPremise) {
       if (isLHS) {
@@ -1314,23 +1395,17 @@ const EquationalReasoningNew = () => {
       ? (isLHS ? leftPremise?.jsonTree : rightPremise?.jsonTree)
       : (field.jsonTree || jsonTreeRep[side]);
     
-    // Since array index now equals database line_number, use index directly
     const lineNum = index;
     const ruleValue = isPremise ? "Premise" : field.rule;
     const rulePlaceholder = isPremise ? `${side} Premise` : `${side} Rule`;
     const isRuleInvalid = !isPremise && !!validationErrors[side][index];
     const ruleValidationError = validationErrors[side][index];
 
-    // Prefer selectedNode (persisted) over startPosition; hard fallback to 0
-    // Show target highlight if:
-    // 1. User is currently bound to the next line, OR
-    // 2. The next line has already been generated (has content)
     const boundPadIndex = isBound ? parseInt(userRow.num, 10) : -1;
     const isUserBoundToNextLine = boundPadIndex === padIndex + 1;
     
     let startPosition;
     if (isPremise) {
-      // For premise, check if line 1 exists with content OR user is bound to line 1
       const nextLineHasContent = racketRuleFields[side] && racketRuleFields[side][1]?.racket;
       const showHighlight = nextLineHasContent || isUserBoundToNextLine;
       startPosition = showHighlight
@@ -1339,7 +1414,6 @@ const EquationalReasoningNew = () => {
           : (rightPremise && (rightPremise.selectedNode ?? rightPremise.startPosition)) ?? 0)
         : undefined;
     } else {
-      // For regular lines, check if next line has content OR user is bound to it
       const nextLineHasContent = racketRuleFields[side] && racketRuleFields[side][index + 1]?.racket;
       const showHighlight = nextLineHasContent || isUserBoundToNextLine;
       startPosition = showHighlight
@@ -1347,8 +1421,11 @@ const EquationalReasoningNew = () => {
         : undefined;
     }
 
-    // Extract resultNode from current line (shows what changed in this line's transformation)
     const resultNodeValue = isPremise ? undefined : (field && field.resultNode);
+    
+    // NEW: Get visibility flags from field
+    const hideExpression = isPremise ? false : (field?.hide_expression || false);
+    const hideJustification = isPremise ? false : (field?.hide_justification || false);
 
     return (
       <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? `premise-${caseType}-${side}` : `${side}-field-${padIndex}`}>
@@ -1378,6 +1455,10 @@ const EquationalReasoningNew = () => {
             isRuleInvalid={isRuleInvalid}
             ruleValidationError={ruleValidationError}
             isEditRow={false}
+            showEyeButtons={true}
+            currentUserType={currentUserType}
+            hideExpression={hideExpression}           // NEW: Pass visibility flag
+            hideJustification={hideJustification}     // NEW: Pass visibility flag
           />
         </Col>
       </Row>
@@ -1416,28 +1497,41 @@ const EquationalReasoningNew = () => {
         />
       );
     } else {
-      // Array index now equals line number, so use padIndex directly
+      // Get the bound line's field
       const field = racketRuleFields?.[showSide][padIndex];
       if (!field) return null;
 
       const calculatedStartPosition = field.selectedNode || field.startPosition || 0;
+      
+      // NEW: Check if fields are hidden
+      const isExpressionHidden = field.hide_expression || false;
+      const isRuleHidden = field.hide_justification || false;
+      
+      // NEW: If hidden, blank out the display value (but keep field readonly)
+      // The actual value stays in memory for validation
+      const displayEquation = isExpressionHidden ? "" : field.racket;
+      const displayJsonTree = isExpressionHidden ? {} : (field.jsonTree || jsonTreeRep[showSide]);
+      
+      // For the editable rule field: show blank if hidden, otherwise show current value
+      const displayRule = isRuleHidden ? "" : footerRule;
 
       return (
         <PersistentPad
           ref={footerPadRef}
-          equation={field.racket}
+          equation={displayEquation}  // Blank if hidden, but still readonly
           onHighlightChange={() => {}}
           side={showSide}
-          jsonTree={field.jsonTree || jsonTreeRep[showSide]}
+          jsonTree={displayJsonTree}  // Empty tree if hidden
           lineNum={padIndex}
           startPosition={calculatedStartPosition}
           tabIndex={0}
-          ruleValue={footerRule}
+          ruleValue={displayRule}  // Blank if hidden
           onRuleChange={e => {
             setFooterRule(e.target.value.trim());
             setFooterRuleError('');
           }}
-          isRuleReadOnly={false}
+          onRuleKeyDown={handleRuleKeyDown}
+          isRuleReadOnly={false}  // Rule is always editable in footer
           rulePlaceholder={`${showSide} Rule`}
           isRuleInvalid={!!footerRuleError}
           ruleValidationError={footerRuleError}
@@ -1464,7 +1558,10 @@ const EquationalReasoningNew = () => {
           toggleFunction={toggleOffcanvas}
         ></OffcanvasRuleSet>
         {showDefinitionsWindow && (
-          <Definitions toggleDefinitionsWindow={toggleDefinitionsWindow} />
+          <Definitions 
+            toggleDefinitionsWindow={toggleDefinitionsWindow} 
+            isLocked={proofStarted}
+          />
         )}
 
         {showProofComplete && <ProofComplete onDismiss={() => setShowProofComplete(false)} />}
@@ -1474,8 +1571,8 @@ const EquationalReasoningNew = () => {
             show={showSubstitution}
             handleClose={() => closeSubstitution()}
             racketRuleFields={(racketRuleFields?.[showSide] || [])}
-            handleSubstitution={handleInductionSubstitution}
-            errors={inductionSubErrors}
+            handleSubstitution={handleSubstitution}
+            errors={SubErrors}
           />
         )}
 
@@ -1802,7 +1899,8 @@ const EquationalReasoningNew = () => {
                   handleRowNumberClick,
                   leftPremise,
                   rightPremise,
-                  caseType: 'base'
+                  caseType: 'base',
+                  currentUserType: currentUserType
                 })
             )}
           </>
@@ -2002,6 +2100,54 @@ const EquationalReasoningNew = () => {
             }
           }}>
             Yes
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Overwrite Proof Confirmation Modal */}
+      <Modal show={showOverwriteModal} onHide={() => setShowOverwriteModal(null)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Confirm Overwrite of Proof</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          A proof with the name "<strong>{formValues.proofName}</strong>" and tag "<strong>{formValues.proofTag}</strong>" 
+          already exists. Starting this proof will overwrite the existing one. Do you wish to proceed?        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowOverwriteModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={() => {
+            setShowOverwriteModal(false);
+            setShowStartConfirmModal(true);
+          }}>
+            Overwrite & Start
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Start Proof Confirmation Modal - Warn about locking definitions */}
+      <Modal show={showStartConfirmModal} onHide={() => setShowStartConfirmModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Confirm Start Proof</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p>
+            Once you start this proof, the current state of <strong>Definitions</strong> will be locked-in.
+            You will not be able to create, edit, enable, or disable definitions until you clear this proof.
+          </p>
+          <p>
+            You can still view definitions, but they cannot be modified during the proof.
+          </p>
+          <p className="mb-0">
+            Do you wish to proceed?
+          </p>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowStartConfirmModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={proceedWithProofStart}>
+            Start Proof
           </Button>
         </Modal.Footer>
       </Modal>

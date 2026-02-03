@@ -71,7 +71,7 @@ class InductionProofViewTests(TransactionTestCase):
         proof_id = response.data['proof_id']
         proof = InductionProof.objects.get(id=proof_id, user=self.user, is_active=True)
         self.assertEqual(proof.induction_variable, 'n')
-        self.assertEqual(proof.anchor_value, 0)
+        self.assertEqual(proof.anchor_value, '0')
         self.assertEqual(proof.leap_variable, 'k')
         self.assertEqual(proof.name, 'Test Proof')
         self.assertEqual(proof.tag, 'test-tag')
