@@ -146,7 +146,7 @@ function ProofCard({ proof, onDelete }) {
       >
         <i className="fa-solid fa-trash-can"></i>
       </Button>
-      <p>
+      <p style={{ marginRight: "1.5em" }}>
         <b>Proof:</b> {proof.name} - {proof.tag}
       </p>
       <p>
