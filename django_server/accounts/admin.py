@@ -21,7 +21,14 @@ def export_to_csv(modeladmin, request, queryset):
     
     # Write data rows
     for obj in queryset:
-        row = [getattr(obj, field.name) for field in fields]
+        row = []
+        for field in fields:
+            value = getattr(obj, field.name)
+            # Convert value to string, handle None and objects
+            if value is None:
+                row.append('')
+            else:
+                row.append(str(value))
         writer.writerow(row)
     
     return response
