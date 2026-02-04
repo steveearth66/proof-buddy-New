@@ -1,5 +1,29 @@
 from django.contrib import admin
 from .models import InductionProof, InductionProofLine
+import csv
+from django.http import HttpResponse
+
+
+def export_to_csv(modeladmin, request, queryset):
+    """Export selected items to CSV"""
+    opts = modeladmin.model._meta
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename={opts.verbose_name_plural}.csv'
+    
+    writer = csv.writer(response)
+    fields = [field for field in opts.get_fields() if not field.many_to_many and not field.one_to_many]
+    
+    # Write header
+    writer.writerow([field.verbose_name for field in fields])
+    
+    # Write data rows
+    for obj in queryset:
+        row = [getattr(obj, field.name) for field in fields]
+        writer.writerow(row)
+    
+    return response
+
+export_to_csv.short_description = "Export selected to CSV"
 
 
 class InductionProofLineInline(admin.TabularInline):
@@ -17,6 +41,7 @@ class InductionProofAdmin(admin.ModelAdmin):
     search_fields = ('name', 'tag', 'user__username', 'induction_variable')
     readonly_fields = ('created_at', 'updated_at')
     inlines = [InductionProofLineInline]
+    actions = [export_to_csv]
     
     fieldsets = (
         ('Basic Information', {
@@ -51,6 +76,7 @@ class InductionProofLineAdmin(admin.ModelAdmin):
     list_filter = ('case', 'side', 'created_at')
     search_fields = ('proof__name', 'racket', 'rule')
     readonly_fields = ('created_at',)
+    actions = [export_to_csv]
     
     def racket_preview(self, obj):
         return obj.racket[:50] + '...' if len(obj.racket) > 50 else obj.racket

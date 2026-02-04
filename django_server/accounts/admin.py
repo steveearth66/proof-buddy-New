@@ -1,8 +1,32 @@
 from django.contrib import admin
 from .models import Account, ActivateAccount, ResetPassword
 from django.contrib.auth.admin import UserAdmin
+import csv
+from django.http import HttpResponse
 
 # Register your models here.
+
+
+def export_to_csv(modeladmin, request, queryset):
+    """Export selected items to CSV"""
+    opts = modeladmin.model._meta
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename={opts.verbose_name_plural}.csv'
+    
+    writer = csv.writer(response)
+    fields = [field for field in opts.get_fields() if not field.many_to_many and not field.one_to_many]
+    
+    # Write header
+    writer.writerow([field.verbose_name for field in fields])
+    
+    # Write data rows
+    for obj in queryset:
+        row = [getattr(obj, field.name) for field in fields]
+        writer.writerow(row)
+    
+    return response
+
+export_to_csv.short_description = "Export selected to CSV"
 
 
 class AccountAdmin(UserAdmin):
@@ -10,6 +34,7 @@ class AccountAdmin(UserAdmin):
                     'is_admin', 'is_staff', 'is_active', 'is_superuser', 'is_instructor')
     search_fields = ('email', 'username')
     readonly_fields = ('date_joined', 'last_login')
+    actions = [export_to_csv]
 
     filter_horizontal = ()
     list_filter = ()

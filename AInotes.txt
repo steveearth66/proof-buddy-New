@@ -646,3 +646,29 @@ Session 2026-01-30: List Induction (UP Direction) Implementation
 - [ ] All rule parameter names display correctly
 - [ ] Browser console has no errors
 - [ ] Backend terminal has no errors
+
+---
+
+LESSON: InductionRacket Overwrite Modal Debugging (Feb 1, 2026)
+
+PROBLEM: Overwrite modal wasn't appearing in InductionRacket when starting proof with duplicate name/tag, despite working in EquationalReasoningNew.
+
+INITIAL WRONG APPROACHES & WHY THEY FAILED:
+- Made arbitrary frontend changes (console.logs, tweaking duplicate check logic) without identifying root cause
+- Assumed frontend logic was broken when backend endpoint was actually misconfigured
+- Missing @api_view(["GET"]) decorator on get_induction_proofs endpoint caused 405 errors - Django REST framework requires explicit HTTP method decorators
+- Found duplicate @api_view decorators stacked (both POST and GET) which is invalid syntax
+
+FINAL ROOT CAUSE (after fixing backend):
+- Modal WAS working correctly all along
+- Testing methodology was flawed: clicking "Clear Proof" archives proofs (sets is_active=False), then trying to test overwrite
+- Overwrite modal only triggers for ACTIVE proofs (is_active=True) - this is correct behavior
+- Auto-restore feature in Induction prevents form access when active proof exists, making it hard to test naturally
+- Both ER and Induction filter by .filter(is_active=True) correctly
+
+WHY THE FIX WORKED:
+- Added @api_view(["GET"]) decorator: Enables Django REST endpoint to accept GET requests
+- Proper test methodology: Need incognito window OR clear sessionStorage OR manual admin deletion to create second active proof with same name/tag
+- Added is_active to Django admin display for easier debugging of proof state
+
+KEY TAKEAWAY: Before making frontend changes, verify backend endpoint configuration (decorators, HTTP methods, response format). Check database state of test data (is_active, status fields) before assuming code is broken. Understand the difference between correct behavior and incorrect testing methodology. Stop guessing - trace the actual request/response flow first.
