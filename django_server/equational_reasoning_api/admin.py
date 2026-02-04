@@ -11,21 +11,31 @@ def export_to_csv(modeladmin, request, queryset):
     response['Content-Disposition'] = f'attachment; filename={opts.verbose_name_plural}.csv'
     
     writer = csv.writer(response)
-    fields = [field for field in opts.get_fields() if not field.many_to_many and not field.one_to_many]
+    
+    # Get only concrete fields (exclude auto-created reverse relations)
+    fields = [
+        field for field in opts.get_fields() 
+        if not field.many_to_many 
+        and not field.one_to_many
+        and (field.concrete or field.name == 'id')
+    ]
     
     # Write header
-    writer.writerow([field.verbose_name for field in fields])
+    writer.writerow([field.name for field in fields])
     
     # Write data rows
     for obj in queryset:
         row = []
         for field in fields:
-            value = getattr(obj, field.name)
-            # Convert value to string, handle None and objects
-            if value is None:
+            try:
+                value = getattr(obj, field.name, None)
+                # Convert value to string, handle None and objects
+                if value is None:
+                    row.append('')
+                else:
+                    row.append(str(value))
+            except Exception:
                 row.append('')
-            else:
-                row.append(str(value))
         writer.writerow(row)
     
     return response
