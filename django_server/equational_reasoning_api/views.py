@@ -293,21 +293,20 @@ def apply_rule(request):
         if proof_id and len(target.proofLines) > 0:
             if is_valid:
                 calculated_line_number = line_number if line_number is not None else (len(target.proofLines) - 1)
-                
+
                 # Update previous line's selected_node
-                if line_number is None:
-                    prev_line_exists = EquationalProofLine.objects.filter(
+                prev_line_exists = EquationalProofLine.objects.filter(
+                    proof_id=proof_id,
+                    side=side.upper(),
+                    line_number=calculated_line_number - 1
+                ).exists()
+
+                if prev_line_exists:
+                    EquationalProofLine.objects.filter(
                         proof_id=proof_id,
                         side=side.upper(),
                         line_number=calculated_line_number - 1
-                    ).exists()
-                    
-                    if prev_line_exists:
-                        EquationalProofLine.objects.filter(
-                            proof_id=proof_id,
-                            side=side.upper(),
-                            line_number=calculated_line_number - 1
-                        ).update(selected_node=start_position)
+                    ).update(selected_node=start_position)
                 
                 # Save the new line
                 save_proof_line_to_db(
@@ -736,9 +735,8 @@ def validate_hidden_field(request):
             rule_text_match = compare_racket_exact(student_rule, line.rule)
             
             selection_match = True
-            # Only check selection if backend line HAS a start_position (premise doesn't)
-            if line.start_position is not None and student_selected is not None:
-                 if int(student_selected) != int(line.start_position):
+            if line.selected_node is not None and student_selected is not None:
+                 if int(student_selected) != int(line.selected_node):
                      selection_match = False
                      errors.append(f"Incorrect selection.")
 
