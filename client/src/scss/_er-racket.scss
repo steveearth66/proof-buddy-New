@@ -18,10 +18,12 @@
       background-color: $color-white;
       padding-left: 15px;
       padding-right: 15px;
+      height: auto;
+      position: fixed;
 
       @media (min-width: $breakpoint-md) {
         width: 100%;
-        height: 310px;
+        height: auto;
         position: fixed;
         top: 68px;
         left: 0;
@@ -114,27 +116,31 @@
 
       .form-separator {
         z-index: 99;
+        position: relative;
+        margin-top: 5px;
+        width: 100%;
 
         &::after {
           content: "";
           border-bottom: 2px solid $color-drexel-blue;
-          position: fixed;
+          position: absolute; 
           width: 100%;
           left: 0;
+          bottom: 0;
         }
       }
     }
 
     .form-bottom-part {
       z-index: 99;
-      margin-top: 20px;
+      margin-top: 0p !important;
 
       input::selection {
         background-color: var(--selectBGColor);
       }
 
       @media (min-width: $breakpoint-md) {
-        margin-top: 325px;
+        margin-top: 0px !important;
       }
 
       .racket-rule-container-wrap {

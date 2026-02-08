@@ -183,6 +183,25 @@ const InductionRacket = () => {
     handleSelect: ihRhsSelect 
   } = useParenHighlight(inductiveHypothesisRHS);
 
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
+  const topSectionRef = useRef(null);
+  const [topSectionHeight, setTopSectionHeight] = useState(310); // fallback default
+
+  useEffect(() => {
+    if (topSectionRef.current) {
+      // Measure the actual height of the section whenever it collapses/expands
+      const resizeObserver = new ResizeObserver((entries) => {
+        for (let entry of entries) {
+          console.log(entry.contentRect.height)
+          setTopSectionHeight(entry.contentRect.height + 20); // add 20px buffer
+        }
+      });
+
+      resizeObserver.observe(topSectionRef.current);
+      return () => resizeObserver.disconnect();
+    }
+  }, [isHeaderCollapsed]); // Re-run when toggle changes
+
   // Footer binding and PersistentPad refs - for interactive proof line highlighting
   const lhsPadRefs = useRef({});
   const rhsPadRefs = useRef({});
@@ -1942,7 +1961,7 @@ const InductionRacket = () => {
           className="er-racket-form"
           onSubmit={handleERRacketSubmission}
         >
-          <div className="form-top-section">
+          <div className="form-top-section" ref={topSectionRef}>
             <Row className="page-header-row" style={{ alignItems: 'center' }}>
               <Col xs="auto">
                 <h1 style={{ marginBottom: 0 }}>Induction: Racket</h1>
@@ -2113,8 +2132,8 @@ const InductionRacket = () => {
               </Form.Group>
             </Row>
 
-            <Row className="g-5">
-              <Form.Group as={Col} md="4" className="er-proof-goal-lhs" style={{ marginLeft: '450px' }}>
+            <Row className="g-5 justify-content-center">
+              <Form.Group as={Col} md="4" className="er-proof-goal-lhs">
                 <div className="mb-3">
                   <label htmlFor="eRProofLHSGoal" className="form-label">LHS Goal</label>
                   <RacketInput
@@ -2173,8 +2192,8 @@ const InductionRacket = () => {
             </Row>
 
             {(!proofStarted || !isAnchor) && (
-              <Row className="g-5">
-                <Form.Group as={Col} md="4" className="er-inductive-hypothesis-lhs" style={{ marginLeft: '450px' }}>
+              <Row className="g-5 justify-content-center">
+                <Form.Group as={Col} md="4" className="er-inductive-hypothesis-lhs">
                   <div className="mb-3">
                     <label htmlFor="eRInductiveHypothesisLHS" className="form-label">IH LHS</label>
                     <RacketInput
@@ -2213,12 +2232,11 @@ const InductionRacket = () => {
               </Row>
             )}
 
-            <Row className="er-current-state" style={{ alignItems: 'center', position: 'relative' }}>
+            <Row className="justify-content-center er-current-state" style={{ alignItems: 'center', position: 'relative' }}>
               <Form.Group
                 as={Col}
                 md="4"
                 className={`er-proof-current-lhs ${showSide === "LHS" ? "active" : ""}`}
-                style={{ marginLeft: '450px' }}
               >
                 <Form.Floating 
                   className="mb-3"
@@ -2295,9 +2313,10 @@ const InductionRacket = () => {
                   onClick={handleToggleSide}
                   style={{ backgroundImage: 'linear-gradient(135deg, #07294d 0, #006298 100%)', color: '#ffffff', borderColor: 'transparent' }}
                 >
-                  {showSide === "LHS"
-                    ? "Switch to Right Hand Side ⋙"
-                    : "⋘ Switch to Left Hand Side"}
+                  {isHeaderCollapsed 
+                    ? (showSide === "LHS" ? "Switch Side ⋙" : "⋘ Switch Side")
+                    : (showSide === "LHS" ? "Switch to Right Hand Side ⋙" : "⋘ Switch to Left Hand Side")
+                  }
                 </Button>
               </div>
               <div style={{ position: 'fixed', right: '10px', top: '215px', zIndex: 1020, color: '#F2A007', fontWeight: 'bold', fontSize: '20px' }}>
@@ -2316,12 +2335,12 @@ const InductionRacket = () => {
             </>
           )}
 
-          <div className="form-bottom-part">
+          <div className="form-bottom-part" style={{ paddingTop: `${topSectionHeight}px` }}>
 
             {!proofStarted && 
               !isGoalChecked[showSide]?.LeapGoal &&
               !isGoalChecked[showSide]?.AnchorGoal && (
-                <Row className="goal-btn-wrap">
+                <Row className="goal-btn-wrap mt-4">
                   <Button
                     className="orange-btn"
                     type="submit"
