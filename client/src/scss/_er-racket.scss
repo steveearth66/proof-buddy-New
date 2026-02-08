@@ -13,13 +13,70 @@
   .er-racket-form {
     margin-bottom: 10px;
 
+    .standard-view-content {
+      padding-bottom: 10px;
+
+      .standard-view-flex-container {
+        gap: 15px;
+      }
+
+      .switch-button-container {
+        flex: 0 0 auto; // Prevent the button from ever shrinking
+        min-width: fit-content;
+      }
+
+      .inputs-wrapper {
+        // This allows the inputs to shrink or move to a new line
+        flex: 1 1 300px; 
+        max-width: 100%;
+
+        .row {
+          margin: 0; // Clean up Bootstrap row margins
+          flex-wrap: wrap !important;
+        }
+
+        // Target the columns inside the standard view
+        .er-proof-goal-lhs, .er-proof-goal-rhs, 
+        .er-proof-current-lhs, .er-proof-current-rhs {
+          min-width: 280px; // Minimum width before stacking within the row
+          max-width: 100%;
+          flex: 1 1 auto;
+        }
+      }
+
+      // Responsive Breakpoint for Stacking
+      @media (max-width: 750px) {
+        .standard-view-flex-container {
+          flex-direction: column; // Stack button ABOVE inputs
+          align-items: center;
+        }
+
+        .switch-button-container {
+          width: 100%;
+          text-align: center;
+          margin-right: 0 !important;
+          margin-bottom: 15px;
+        }
+
+        .switch-btn {
+          width: 100% !important;
+          max-width: 450px; // Keep it from being too wide on desktops
+          
+          .btn-text-long {
+            display: none !important; // Hide long text
+          }
+        }
+      }
+    }
+
     .form-top-section {
       z-index: 99;
       background-color: $color-white;
       padding-left: 15px;
       padding-right: 15px;
-      height: auto;
+      height: auto !important;
       position: fixed;
+      flex-direction: column;
 
       @media (min-width: $breakpoint-md) {
         width: 100%;
@@ -32,18 +89,19 @@
 
       .page-header-row {
         h1 {
-          font-size: 36px;
+          font-size: clamp(20px, 2.5vw, 36px);
           margin: 20px 0;
           font-weight: $font-bold;
         }
         display: flex;
         align-items: center;
-        gap: 20px;
+        gap: clamp(5px, 1.5vw, 20px);
+        flex-wrap: wrap;
 
         .check-row {
           display: flex;
           align-items: center;
-          gap: 30px;
+          gap: clamp(5px, 1.5vw, 30px);
         }
       }
 
@@ -117,16 +175,16 @@
       .form-separator {
         z-index: 99;
         position: relative;
-        margin-top: 5px;
+        margin-top: 15px;
         width: 100%;
+        clear: both;
 
         &::after {
           content: "";
           border-bottom: 2px solid $color-drexel-blue;
-          position: absolute; 
+          display: block;
           width: 100%;
           left: 0;
-          bottom: 0;
         }
       }
     }

@@ -76,6 +76,17 @@ const EquationalReasoningNew = () => {
       }
     }, [isHeaderCollapsed]); // Re-run when toggle changes
 
+    const [windowWidth, setWindowWidth] = React.useState(window.innerWidth);
+
+    useEffect(() => {
+      const handleResize = () => setWindowWidth(window.innerWidth);
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // Define the logic: Show icon if collapsed OR if the screen is narrow
+    const proofUtilsShowIconOnly = isHeaderCollapsed || windowWidth < 1305;
+
     // Parenthesis highlighting hooks
     const { 
       highlightPositions: lhsGoalHighlights, 
@@ -1724,10 +1735,10 @@ const handleGenerateAndCheck = async () => {
               <Col xs="auto" className="d-flex align-items-center p-0">
                 <div className="d-flex align-items-center" style={{ gap: '10px' }}>
                   
-                  {/* UTILITIES AND STATUS: Moved from fixed position into the header flow */}
-                  <Dropdown className="proof-dropdown-btn proof-utilities" style={{ width: 'auto' }}>
-                    <Dropdown.Toggle id="dropdown-autoclose-true" style={{ minWidth: isHeaderCollapsed ? '0px' : '200px' }}>
-                      {isHeaderCollapsed ?<i className="fas fa-tools"></i> : "Proof Utilities"}
+                  {/* UTILITIES AND STATUS */}
+                  <Dropdown className="proof-dropdown-btn proof-utilities proof-utils-toggle" style={{ width: 'auto' }}>
+                    <Dropdown.Toggle id="dropdown-autoclose-true" style={{ minWidth: proofUtilsShowIconOnly ? '0px' : '200px' }}>
+                      {proofUtilsShowIconOnly ?<i className="fas fa-tools"></i> : "Proof Utilities"}
                     </Dropdown.Toggle>
 
                     <Dropdown.Menu style={{ minWidth: '200px' }}>
@@ -1776,139 +1787,149 @@ const handleGenerateAndCheck = async () => {
               </Col>
             </Row>
             {!isHeaderCollapsed && (
-              <>
-              <div className="d-flex align-items-stretch" style={{ paddingRight: '40px' }}>
-                {proofStarted && (
-                  <div className="d-flex flex-column justify-content-center me-3" style={{ minWidth: 'fit-content' }}>
-                    <div style={{ color: '#F2A007', fontWeight: 'bold', fontSize: '20px' }}>
-                      CURRENT = {showSide}
-                    </div>
-                    <Button
-                      size="lg"
-                      className="switch-btn"
-                      onClick={handleToggleSide}
-                      style={{ backgroundImage: 'linear-gradient(135deg, #07294d 0, #006298 100%)', color: '#ffffff', border: 'none' }}
-                    >
-                      {showSide === "LHS" ? "Switch to Right Hand Side ⋙" : "⋘ Switch to Left Hand Side"}
-                    </Button>
-                    </div>
-                )}
-                <div className="flex-grow-1">
-                <Row className="g-5 justify-content-center" style={{ paddingRight: '40px' }}>
-                  <Form.Group as={Col} md="4" className="er-proof-goal-lhs">
-                    <div className="mb-3">
-                      <label htmlFor="eRProofLHSGoal" className="form-label">LHS Goal</label>
-                      <RacketInput
-                        id="eRProofLHSGoal"
-                        name="lHSGoal"
-                        type="text"
-                        placeholder="LHS Goal"
-                        value={formValues.lHSGoal}
-                        onBlur={() => handleBlur("lHSGoal")}
-                        onChange={enhancedHandleChange}
-                        onKeyUp={lhsGoalKeyUp}
-                        onClick={lhsGoalSelect}
-                        ref={lhsGoalRef}
-                        highlightPositions={lhsGoalHighlights}
-                        isInvalid={
-                          !!validationMessages.lHSGoal ||
-                          !!goalValidationMessage?.LHS
-                        }
-                        disabled={proofStarted}
-                        required
-                        style={{ minWidth: `${Math.max((formValues.lHSGoal?.length || 20), 20)}ch` }}
-                      />
-                      <Form.Control.Feedback type="invalid" tooltip>
-                        {validationMessages.lHSGoal ||
-                          goalValidationMessage?.LHS}
-                      </Form.Control.Feedback>
-                    </div>
-                  </Form.Group>
-                  <Form.Group as={Col} md="4" className="er-proof-goal-rhs">
-                    <div className="mb-3">
-                      <label htmlFor="eRProofRHSGoal" className="form-label">RHS Goal</label>
-                      <RacketInput
-                        id="eRProofRHSGoal"
-                        name="rHSGoal"
-                        type="text"
-                        placeholder="RHS Goal"
-                        value={formValues.rHSGoal}
-                        onBlur={() => handleBlur("rHSGoal")}
-                        onChange={enhancedHandleChange}
-                        onKeyUp={rhsGoalKeyUp}
-                        onClick={rhsGoalSelect}
-                        ref={rhsGoalRef}
-                        highlightPositions={rhsGoalHighlights}
-                        isInvalid={
-                          !!validationMessages.rHSGoal ||
-                          !!goalValidationMessage?.RHS
-                        }
-                        disabled={proofStarted}
-                        required
-                        style={{ minWidth: `${Math.max((formValues.rHSGoal?.length || 20), 20)}ch` }}
-                      />
-                      <Form.Control.Feedback type="invalid" tooltip>
-                        {validationMessages.rHSGoal ||
-                          goalValidationMessage?.RHS}
-                      </Form.Control.Feedback>
-                    </div>
-                  </Form.Group>
-                </Row>
+              <div className="standard-view-content">
+                <div className="d-flex flex-wrap align-items-center standard-view-flex-container">
+                  {proofStarted && (
+                    <div className="d-flex flex-column justify-content-center me-3" style={{ minWidth: 'fit-content' }}>
+                      <div style={{ color: '#F2A007', fontWeight: 'bold', fontSize: '20px' }}>
+                        CURRENT = {showSide}
+                      </div>
+                      <Button
+                        size="lg"
+                        className="switch-btn"
+                        onClick={handleToggleSide}
+                        style={{ backgroundImage: 'linear-gradient(135deg, #07294d 0, #006298 100%)', color: '#ffffff', border: 'none' }}
+                      >
+                        {showSide === "LHS" ? (
+                          <>
+                            Switch
+                            <span className="btn-text-long"> to Right Hand</span> Side ⋙
+                          </>
+                        ) : (
+                          <>
+                            ⋘ Switch
+                            <span className="btn-text-long"> to Left Hand</span> Side
+                          </>
+                        )}
+                      </Button>
+                      </div>
+                  )}
+                  <div className="flex-grow-1 inputs-wrapper">
+                    <Row className="g-5 justify-content-center flex-wrap" style={{ paddingRight: '40px' }}>
+                      <Form.Group as={Col} md="4" className="er-proof-goal-lhs">
+                        <div className="mb-3">
+                          <label htmlFor="eRProofLHSGoal" className="form-label flex-wrap">LHS Goal</label>
+                          <RacketInput
+                            id="eRProofLHSGoal"
+                            name="lHSGoal"
+                            type="text"
+                            placeholder="LHS Goal"
+                            value={formValues.lHSGoal}
+                            onBlur={() => handleBlur("lHSGoal")}
+                            onChange={enhancedHandleChange}
+                            onKeyUp={lhsGoalKeyUp}
+                            onClick={lhsGoalSelect}
+                            ref={lhsGoalRef}
+                            highlightPositions={lhsGoalHighlights}
+                            isInvalid={
+                              !!validationMessages.lHSGoal ||
+                              !!goalValidationMessage?.LHS
+                            }
+                            disabled={proofStarted}
+                            required
+                            style={{ minWidth: `${Math.max((formValues.lHSGoal?.length || 20), 20)}ch` }}
+                          />
+                          <Form.Control.Feedback type="invalid" tooltip>
+                            {validationMessages.lHSGoal ||
+                              goalValidationMessage?.LHS}
+                          </Form.Control.Feedback>
+                        </div>
+                      </Form.Group>
+                      <Form.Group as={Col} md="4" className="er-proof-goal-rhs">
+                        <div className="mb-3">
+                          <label htmlFor="eRProofRHSGoal" className="form-label">RHS Goal</label>
+                          <RacketInput
+                            id="eRProofRHSGoal"
+                            name="rHSGoal"
+                            type="text"
+                            placeholder="RHS Goal"
+                            value={formValues.rHSGoal}
+                            onBlur={() => handleBlur("rHSGoal")}
+                            onChange={enhancedHandleChange}
+                            onKeyUp={rhsGoalKeyUp}
+                            onClick={rhsGoalSelect}
+                            ref={rhsGoalRef}
+                            highlightPositions={rhsGoalHighlights}
+                            isInvalid={
+                              !!validationMessages.rHSGoal ||
+                              !!goalValidationMessage?.RHS
+                            }
+                            disabled={proofStarted}
+                            required
+                            style={{ minWidth: `${Math.max((formValues.rHSGoal?.length || 20), 20)}ch` }}
+                          />
+                          <Form.Control.Feedback type="invalid" tooltip>
+                            {validationMessages.rHSGoal ||
+                              goalValidationMessage?.RHS}
+                          </Form.Control.Feedback>
+                        </div>
+                      </Form.Group>
+                    </Row>
 
-                <Row className="justify-content-center er-current-state" style={{ alignItems: 'center', position: 'relative', paddingRight: '40px' }}>
-                  <Form.Group
-                    as={Col}
-                    md="4"
-                    className={`er-proof-current-lhs ${showSide === "LHS" ? "active" : ""}`}
-                  >
-                    <Form.Floating 
-                      className="mb-3"
-                      style={{ 
-                        border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da',
-                        borderRadius: '0.375rem'
-                      }}
-                    >
-                      <Form.Control
-                        id="eRProofCurrentLHS"
-                        name="proofCurrentLHS"
-                        type="text"
-                        placeholder="Current LHS"
-                        value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')}
-                        readOnly
-                        style={{ cursor: "not-allowed", border: 'none', minWidth: `${Math.max(((lhsValue || currentLHS)?.length || 20), 20)}ch` }}
-                      />
-                      <label htmlFor="eRProofCurrentLHS">Current LHS</label>
-                    </Form.Floating>
-                  </Form.Group>
+                    <Row className="justify-content-center er-current-state flex-wrap" style={{ alignItems: 'center', position: 'relative', paddingRight: '40px' }}>
+                      <Form.Group
+                        as={Col}
+                        md="4"
+                        className={`er-proof-current-lhs ${showSide === "LHS" ? "active" : ""}`}
+                      >
+                        <Form.Floating 
+                          className="mb-3"
+                          style={{ 
+                            border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da',
+                            borderRadius: '0.375rem'
+                          }}
+                        >
+                          <Form.Control
+                            id="eRProofCurrentLHS"
+                            name="proofCurrentLHS"
+                            type="text"
+                            placeholder="Current LHS"
+                            value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')}
+                            readOnly
+                            style={{ cursor: "not-allowed", border: 'none', minWidth: `${Math.max(((lhsValue || currentLHS)?.length || 20), 20)}ch` }}
+                          />
+                          <label htmlFor="eRProofCurrentLHS">Current LHS</label>
+                        </Form.Floating>
+                      </Form.Group>
 
-                  <Form.Group
-                    as={Col}
-                    md="4"
-                    className={`er-proof-current-rhs ${showSide === "RHS" ? "active" : ""}`}
-                  >
-                    <Form.Floating 
-                      className="mb-3"
-                      style={{ 
-                        border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da',
-                        borderRadius: '0.375rem'
-                      }}
-                    >
-                      <Form.Control
-                        id="eRProofCurrentRHS"
-                        name="proofCurrentRHS"
-                        type="text"
-                        placeholder="Current RHS"
-                        value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')}
-                        readOnly
-                        style={{ cursor: "not-allowed", border: 'none', minWidth: `${Math.max(((rhsValue || currentRHS)?.length || 20), 20)}ch` }}
-                      />
-                      <label htmlFor="eRProofCurrentRHS">Current RHS</label>
-                    </Form.Floating>
-                  </Form.Group>
-                </Row>
+                      <Form.Group
+                        as={Col}
+                        md="4"
+                        className={`er-proof-current-rhs ${showSide === "RHS" ? "active" : ""}`}
+                      >
+                        <Form.Floating 
+                          className="mb-3"
+                          style={{ 
+                            border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da',
+                            borderRadius: '0.375rem'
+                          }}
+                        >
+                          <Form.Control
+                            id="eRProofCurrentRHS"
+                            name="proofCurrentRHS"
+                            type="text"
+                            placeholder="Current RHS"
+                            value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')}
+                            readOnly
+                            style={{ cursor: "not-allowed", border: 'none', minWidth: `${Math.max(((rhsValue || currentRHS)?.length || 20), 20)}ch` }}
+                          />
+                          <label htmlFor="eRProofCurrentRHS">Current RHS</label>
+                        </Form.Floating>
+                      </Form.Group>
+                    </Row>
+                  </div>
                 </div>
-                </div>
-              </>
+              </div>
             )}
 
             {/* ARROW CONTROLS - Positioned at bottom right of the flow */}
