@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import MainLayout from '../layouts/MainLayout';
 import erService from '../services/erService';
 import Row from 'react-bootstrap/Row';
@@ -14,38 +14,57 @@ import { Link } from 'react-router-dom';
 import '../scss/_proof-card.scss';
 import NumberedPagination from '../components/Pagination';
 import equationalService from '../services/equationalService';
+import inductionService from '../services/inductionService';
+
+const PROOF_TYPES = {
+  EQUATIONAL: 'EQUATIONAL',
+  INDUCTION: 'INDUCTION'
+};
+
+const PROOF_CONFIG = {
+  EQUATIONAL: {
+    service: equationalService,
+    fetchMethod: 'getRacketProofs',
+    deleteMethod: 'deleteRacketProof',
+    viewRoute: '/equational-reasoning-new',
+    label: 'Equational'
+  },
+  INDUCTION: {
+    service: inductionService,
+    fetchMethod: 'getInductionProofs',
+    deleteMethod: 'deleteInductionProof',
+    viewRoute: '/induction-racket',
+    label: 'Induction'
+  }
+};
 
 export default function Proofs() {
+  const [proofType, setProofType] = useState(PROOF_TYPES.EQUATIONAL);
   const [proofObject, setProofObject] = useState({});
   const [query, setQuery] = useState('');
   const [deleteTargetId, setDeleteTargetId] = useState(null);
-
-  const queryProofs = async ({ page = 1 }) => {
+  const currentStrategy = PROOF_CONFIG[proofType];
+  
+  const queryProofs = useCallback(async ({ page = 1 } = {}) => {
     try {
-      const proofsData = await equationalService.getRacketProofs({ query, page });
+      // Dynamic call based on the selected proof type
+      const proofsData = await currentStrategy.service[currentStrategy.fetchMethod]({ query, page });
       setProofObject(proofsData);
     } catch (error) {
-      console.error('Error fetching proofs:', error);
+      console.error(`Error fetching ${proofType} proofs:`, error);
+      setProofObject({ proofs: [] });
     }
-  };
+  }, [proofType, query, currentStrategy]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const proofsData = await equationalService.getRacketProofs({});
-        setProofObject(proofsData);
-      } catch (error) {
-        console.error('Error fetching proofs:', error);
-      }
-    };
-    fetchData();
-  }, []);
+    queryProofs();
+  }, [queryProofs]);
 
   const handleDelete = async () => {
     if (!deleteTargetId) return;
 
     try {
-      await equationalService.deleteRacketProof(deleteTargetId);
+      await currentStrategy.service[currentStrategy.deleteMethod](deleteTargetId);
       
       // Get Page Number to load after deletion
       const isLastItemOnPage = proofObject.proofs.length === 1;
@@ -66,30 +85,37 @@ export default function Proofs() {
   return (
     <MainLayout>
       <Container>
-        <Row>
-          <Col>
-            <h1>All Proofs</h1>
+        <Row className="align-items-center">
+          <Col><h1>All {currentStrategy.label} Proofs</h1></Col>
+          <Col xs="auto">
+            {/* Toggle between types */}
+            <Form.Select 
+              value={proofType} 
+              onChange={(e) => {
+                setProofType(e.target.value);
+                setQuery(''); // Clear search when switching types
+              }}
+            >
+              <option value={PROOF_TYPES.EQUATIONAL}>Equational Proofs</option>
+              <option value={PROOF_TYPES.INDUCTION}>Induction Proofs</option>
+            </Form.Select>
           </Col>
         </Row>
+
         <div className="proof-layout">
           <div className="search">
             <InputGroup>
               <Form.Control
-                placeholder="Search for a proof"
-                aria-label="Search for a proof"
-                aria-describedby="basic-addon2"
+                placeholder={`Search ${currentStrategy.label} proofs...`}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
-              <Button
-                variant="outline-secondary"
-                id="button-addon2"
-                onClick={queryProofs}
-              >
+              <Button variant="outline-secondary" onClick={() => queryProofs()}>
                 Search
               </Button>
             </InputGroup>
           </div>
+
           <div className="proofs">
             {Object.keys(proofObject).length === 0 ? (
               <Spinner animation="border" role="status">
@@ -97,9 +123,12 @@ export default function Proofs() {
               </Spinner>
             ) : (
               proofObject.proofs?.map((proof) => (
-                <ProofCard key={`${proof.tag}-${proof.name}`} 
-                            proof={proof} 
-                            onDelete={(id) => setDeleteTargetId(id)}/>
+                <ProofCard 
+                  key={`${proof.id}`} 
+                  proof={proof} 
+                  config={currentStrategy}
+                  onDelete={(id) => setDeleteTargetId(id)}
+                />
               ))
             )}
             {proofObject.proofs?.length === 0 && <p className='not-found'>No proofs found</p>}
@@ -123,14 +152,14 @@ export default function Proofs() {
             </Modal.Footer>
           </Modal>
 
-          <NumberedPagination {...proofObject} onPageChange={queryProofs} />
+          <NumberedPagination {...proofObject} onPageChange={(page) => queryProofs({ page })} />
         </div>
       </Container>
     </MainLayout>
   );
 }
 
-function ProofCard({ proof, onDelete }) {
+function ProofCard({ proof, onDelete, config }) {
   return (
     <div className="proof-card">
       <Button
@@ -152,7 +181,8 @@ function ProofCard({ proof, onDelete }) {
       <p>
         <b>Completed:</b> {proof.isComplete ? 'True' : 'False'}
       </p>
-      <Link to={`/equational-reasoning-new`} state={{ id: proof.id }}>
+      {/* Route is now dynamic based on config */}
+      <Link to={config.viewRoute} state={{ id: proof.id }}>
         <Button variant="outline-secondary" style={{ width: '100%' }}>
           View Proof
         </Button>
