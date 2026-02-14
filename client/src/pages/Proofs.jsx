@@ -152,7 +152,7 @@ export default function Proofs() {
             </Modal.Footer>
           </Modal>
 
-          <NumberedPagination {...proofObject} onPageChange={(page) => queryProofs({ page })} />
+          <NumberedPagination {...proofObject} onPageChange={(page) => queryProofs(page)} />
         </div>
       </Container>
     </MainLayout>

@@ -39,6 +39,7 @@ import {
   getPadRefs,
   getPadIndex
 } from "../utils/erRacketUtils";
+import { useLocation } from "react-router-dom";
 
 /**
  * InductionRacket component facilitates the Equational Reasoning Racket.
@@ -192,7 +193,6 @@ const InductionRacket = () => {
       // Measure the actual height of the section whenever it collapses/expands
       const resizeObserver = new ResizeObserver((entries) => {
         for (let entry of entries) {
-          console.log(entry.contentRect.height)
           setTopSectionHeight(entry.contentRect.height + 20); // add 20px buffer
         }
       });
@@ -788,198 +788,60 @@ const InductionRacket = () => {
       isProcessingRef.current = false;
     }
   };
+  
+  const location = useLocation();
+  const initializedRef = useRef(false);
+useEffect(() => {
+  const restoreProof = async () => {
+    try {
+      // 1. Determine the ID
+      const targetId = location.state?.id || sessionStorage.getItem('induction_current_proof_id');
+      const isActiveSession = sessionStorage.getItem('inductionProofActive') === 'true' || !!location.state?.id;
 
-  useEffect(() => {
-    // On mount, attempt to restore proof from database only if we're in an active session
-    // Use sessionStorage to distinguish between page refresh (restore) and new navigation (clear)
-    const restoreProof = async () => {
-      try {
-        const isActiveSession = sessionStorage.getItem('inductionProofActive') === 'true';
+      if (!isActiveSession || !targetId) return;
+
+      // 2. SET the session by ID (Calls the new backend view above)
+      // This establishes the proof_id in the Django cache
+      await inductionService.setSessionById(targetId);
+
+      // 3. FETCH the data to fill the UI
+      const proofData = await inductionService.getInductionProof(targetId);
+      
+      if (proofData) {
+        // 4. Update Session Storage
+        sessionStorage.setItem('induction_current_proof_id', targetId);
+        sessionStorage.setItem('inductionProofActive', 'true');
+
+        // 5. Populate Form Fields
+        setFormValues({
+          proofName: proofData.name,
+          proofTag: proofData.tag,
+          inductionVariable: proofData.induction_variable,
+          inductionValue: proofData.anchor_value,
+          leapVariable: proofData.leap_variable,
+          lHSGoal: proofData.lhs_leap_goal, // Or whichever goal you want as default
+          rHSGoal: proofData.rhs_leap_goal,
+          inductionType: proofData.induction_type
+        });
+
+        setInductiveHypothesisLHS(proofData.inductive_hypothesis_lhs);
+        setInductiveHypothesisRHS(proofData.inductive_hypothesis_rhs);
+
+        // 6. Load the Lines (UI components)
+        // Since setSessionById already "woke up" the engine, 
+        // this will successfully generate the jsonTrees.
+        await loadProofLinesFromDatabase();
         
-        if (!isActiveSession) {
-          // New session - clear any old proof data and start fresh
-          await inductionService.clearInduction();
-          return;
-        }
-        
-        // Active session - attempt to restore from database (page refresh scenario)
-        const proofData = await inductionService.getCurrentProof();
-        
-        if (proofData.hasProof) {
-          // Restore form values
-          setFormValues(prev => ({
-            ...prev,
-            inductionVariable: proofData.inductionVariable || '',
-            inductionValue: proofData.anchorValue !== undefined ? proofData.anchorValue.toString() : '',
-            leapVariable: proofData.leapVariable || '',
-            lHSGoal: proofData.lhsAnchorGoal || '',
-            rHSGoal: proofData.rhsAnchorGoal || '',
-            proofName: proofData.proofName || '',
-            proofTag: proofData.tag || ''
-          }));
-          
-          // Restore inductive hypotheses
-          setInductiveHypothesisLHS(proofData.inductiveHypothesisLHS || '');
-          setInductiveHypothesisRHS(proofData.inductiveHypothesisRHS || '');
-          
-          // Re-initialize the proof engine to get proper jsonTrees for premises
-          try {
-            const normalizeType = (t) => (t || '').replace(/\s*->\s*/g, ' > ').trim();
-            const definitions = JSON.parse(sessionStorage.getItem('definitions') || '[]');
-            
-            const engineSetup = await inductionService.setCurrentProof({
-              struct: (proofData.inductionType || 'integers').toLowerCase() === 'lists' ? 'list' : 'int',
-              ivar: proofData.inductionVariable,
-              aval: String(proofData.anchorValue),
-              lvar: proofData.leapVariable,
-              lhsPremise: proofData.lhsAnchorGoal,
-              rhsPremise: proofData.rhsAnchorGoal,
-              definitions: definitions.map(d => ({
-                label: d.label || d.name || '',
-                type: normalizeType(d.type),
-                expression: d.expression
-              }))
-            });
-
-            if (engineSetup && engineSetup.base && engineSetup.leap) {
-              const baseL = engineSetup.base.LHS || {};
-              const baseR = engineSetup.base.RHS || {};
-              const leapL = engineSetup.leap.LHS || {};
-              const leapR = engineSetup.leap.RHS || {};
-
-              // Set base case premises with proper jsonTrees
-              setBasePremises({
-                LHS: {
-                  racket: baseL.racket || proofData.lhsAnchorGoal || '',
-                  rule: 'Premise',
-                  startPosition: 0,
-                  selectedNode: 0,
-                  jsonTree: baseL.jsonTree || {}
-                },
-                RHS: {
-                  racket: baseR.racket || proofData.rhsAnchorGoal || '',
-                  rule: 'Premise',
-                  startPosition: 0,
-                  selectedNode: 0,
-                  jsonTree: baseR.jsonTree || {}
-                }
-              });
-
-              // Set leap case premises with proper jsonTrees
-              setLeapPremises({
-                LHS: {
-                  racket: leapL.racket || proofData.lhsLeapGoal || '',
-                  rule: 'Premise',
-                  startPosition: 0,
-                  selectedNode: 0,
-                  jsonTree: leapL.jsonTree || {}
-                },
-                RHS: {
-                  racket: leapR.racket || proofData.rhsLeapGoal || '',
-                  rule: 'Premise',
-                  startPosition: 0,
-                  selectedNode: 0,
-                  jsonTree: leapR.jsonTree || {}
-                }
-              });
-
-              setJsonTreeRep({
-                LHS: baseL.jsonTree || {},
-                RHS: baseR.jsonTree || {}
-              });
-            }
-          } catch (engineError) {
-            // Fall back to simple initialization without jsonTrees
-            setBasePremises({
-              LHS: { racket: proofData.lhsAnchorGoal || '', jsonTree: {}, rule: 'Premise', startPosition: 0, selectedNode: 0 },
-              RHS: { racket: proofData.rhsAnchorGoal || '', jsonTree: {}, rule: 'Premise', startPosition: 0, selectedNode: 0 }
-            });
-            setLeapPremises({
-              LHS: { racket: proofData.lhsLeapGoal || '', jsonTree: {}, rule: 'Premise', startPosition: 0, selectedNode: 0 },
-              RHS: { racket: proofData.rhsLeapGoal || '', jsonTree: {}, rule: 'Premise', startPosition: 0, selectedNode: 0 }
-            });
-          }
-          
-          // Initialize fields
-          setBaseRacketFields({ LHS: [EMPTY_INITIAL_FIELD], RHS: [EMPTY_INITIAL_FIELD] });
-          setLeapRacketFields({ LHS: [EMPTY_INITIAL_FIELD], RHS: [EMPTY_INITIAL_FIELD] });
-          
-          // Get proof lines and restore them
-          try {
-            const lines = await inductionService.getProofLines();
-            
-            if (lines && typeof lines === 'object') {
-              // Helper function to convert database lines to UI field format
-              const convertLinesToFields = (dbLines) => {
-                if (!Array.isArray(dbLines) || dbLines.length === 0) {
-                  return [EMPTY_INITIAL_FIELD];
-                }
-                
-                // Find the highest line number to size the array
-                const maxLineNum = Math.max(...dbLines.map(line => line.lineNumber));
-                
-                // Create array where index = database line_number
-                // Start with empty fields for all positions
-                const fields = [];
-                for (let i = 0; i <= maxLineNum; i++) {
-                  fields[i] = { ...EMPTY_INITIAL_FIELD };
-                }
-                
-                // Fill in the actual data from database
-                dbLines.forEach(line => {
-                  fields[line.lineNumber] = {
-                    racket: line.racket || '',
-                    jsonTree: line.jsonTree || {},
-                    rule: line.rule || '',
-                    startPosition: line.startPosition || 0,
-                    selectedNode: line.selectedNode || 0,
-                    resultNode: line.resultNode || 0,
-                    deleted: false
-                  };
-                });
-                
-                // Add trailing empty field for next line
-                fields.push(EMPTY_INITIAL_FIELD);
-                
-                return fields;
-              };
-              
-              // Restore base case fields
-              if (lines.base) {
-                const baseLHS = convertLinesToFields(lines.base.LHS);
-                const baseRHS = convertLinesToFields(lines.base.RHS);
-                setBaseRacketFields({ LHS: baseLHS, RHS: baseRHS });
-              }
-              
-              // Restore leap case fields  
-              if (lines.leap) {
-                const leapLHS = convertLinesToFields(lines.leap.LHS);
-                const leapRHS = convertLinesToFields(lines.leap.RHS);
-                setLeapRacketFields({ LHS: leapLHS, RHS: leapRHS });
-              }
-            }
-          } catch (linesError) {
-            // Continue anyway - at least form values and IH are restored
-          }
-          
-          setProofStarted(true);
-          sessionStorage.setItem('inductionProofActive', 'true');
-        } else {
-          // No existing proof, clear to start fresh
-          await inductionService.clearInduction();
-        }
-      } catch (error) {
-        // On error, clear to start fresh
-        try {
-          await inductionService.clearInduction();
-        } catch (clearError) {
-          // Silent fail
-        }
+        setProofStarted(true);
+        if (location.state?.id) window.history.replaceState({}, document.title);
       }
-    };
+    } catch (error) {
+      console.error('Restoration failed:', error);
+    }
+  };
 
-    restoreProof();
-  }, []);
+  restoreProof();
+}, [loadProofLinesFromDatabase]);
 
   useEffect(() => {
     // Do not clear definitions here; keep session-applied definitions intact
@@ -1469,7 +1331,7 @@ const InductionRacket = () => {
           
           if (proofId) {
             toast.success('Induction proof started successfully!');
-            sessionStorage.setItem('current_proof_id', proofId);
+            sessionStorage.setItem('induction_current_proof_id', proofId);
             
             // Initialize the IndProof engine with UDFs, IH and premises
             try {

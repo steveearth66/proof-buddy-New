@@ -116,11 +116,7 @@ def clear_induction(request):
         # Find the active proof
         proof = InductionProof.objects.filter(user=user, is_active=True).order_by('-created_at').first()
         
-        if proof:
-            # Archive it (soft delete)
-            proof.is_active = False
-            proof.save()
-            
+        if proof:            
             # Clear the cache
             cache.delete(f"induction_obj_{user.username}")
             
@@ -572,7 +568,6 @@ def set_current_proof(request):
     """
     user = request.user
     data = request.data
-
     try:
         struct = str(data.get("struct", "int")).lower()
         ivar = data.get("ivar")
@@ -1376,3 +1371,77 @@ def clear_all_proof_lines(request):
         print(f"Error in clear_all_proof_lines: {str(e)}")
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def set_induction_session_by_id(request):
+    user = request.user
+    proof_id = request.data.get('proof_id')
+    
+    try:
+        # 1. Get raw data from DB
+        try:
+            proof = InductionProof.objects.get(id=proof_id, user=user)
+        except InductionProof.DoesNotExist:
+            return Response(
+                {"error": f"Proof with ID {proof_id} not found for this user."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # 2. Create the Engine Object
+        ind_proof = IndProof()
+        
+        # 3. Load Metadata/Variables
+        ind_proof.struct = 'list' if proof.induction_type.lower() == 'lists' else 'int'
+        ind_proof.ivar = proof.induction_variable
+        ind_proof.aval = proof.anchor_value
+        ind_proof.lvar = proof.leap_variable
+        
+        # 4. Reload the lines from DB into the engine memory
+        # (This uses the helper function already in your induction code)
+        reload_proof_lines_from_db(ind_proof, proof_id)
+        
+        # 5. Establish the Cache (This "Sets" the proof_id for all subsequent calls)
+        save_induction_obj_to_cache(user, ind_proof, proof_id)
+
+        return Response({"success": True}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def delete_proof(request):
+    """
+    Endpoint to mark a proof as deleted in the database (`is_active=False`).
+    """
+    proof_id = request.data.get('proof_id')
+    user = request.user
+    try:
+        if proof_id is not None:
+            # 1. Update the DB
+            updated_count = InductionProof.objects.filter(id=proof_id, user=user).update(is_active=False)
+            
+            if updated_count == 0:
+                return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
+
+            # 2. Clear cache if active proof_id is the same as the current cache
+            cached = cache.get(f"induction_proof_{user.username}") 
+            cache_cleared = False
+            if cached:
+                cached_proof_id = cached.get('proof_id')   
+
+                if cached_proof_id == proof_id:
+                    cache_cleared = True
+                    cache.delete(f"induction_proof_{user.username}")
+
+            return Response({
+                "success": True,
+                "message": "Proofed marked as inactive",
+                "cacheCleared": cache_cleared
+            }, status=status.HTTP_200_OK)    
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"message": f"Error setting proof to inactive: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST
+        )
