@@ -202,6 +202,14 @@ const InductionRacket = () => {
     }
   }, [isHeaderCollapsed]); // Re-run when toggle changes
 
+  const [windowWidth, setWindowWidth] = React.useState(window.innerWidth);
+  
+      useEffect(() => {
+        const handleResize = () => setWindowWidth(window.innerWidth);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+      }, []);
+
   // Footer binding and PersistentPad refs - for interactive proof line highlighting
   const lhsPadRefs = useRef({});
   const rhsPadRefs = useRef({});
@@ -791,57 +799,60 @@ const InductionRacket = () => {
   
   const location = useLocation();
   const initializedRef = useRef(false);
-useEffect(() => {
-  const restoreProof = async () => {
-    try {
-      // 1. Determine the ID
-      const targetId = location.state?.id || sessionStorage.getItem('induction_current_proof_id');
-      const isActiveSession = sessionStorage.getItem('inductionProofActive') === 'true' || !!location.state?.id;
+  useEffect(() => {
+    if (initializedRef.current) return;
 
-      if (!isActiveSession || !targetId) return;
+    const restoreProof = async () => {
+      try {
+        initializedRef.current = true;
+        // 1. Determine the ID
+        const targetId = location.state?.id || sessionStorage.getItem('induction_current_proof_id');
+        const isActiveSession = sessionStorage.getItem('inductionProofActive') === 'true' || !!location.state?.id;
 
-      // 2. SET the session by ID (Calls the new backend view above)
-      // This establishes the proof_id in the Django cache
-      await inductionService.setSessionById(targetId);
+        if (!isActiveSession || !targetId) return;
 
-      // 3. FETCH the data to fill the UI
-      const proofData = await inductionService.getInductionProof(targetId);
-      
-      if (proofData) {
-        // 4. Update Session Storage
-        sessionStorage.setItem('induction_current_proof_id', targetId);
-        sessionStorage.setItem('inductionProofActive', 'true');
+        // 2. SET the session by ID (Calls the new backend view above)
+        // This establishes the proof_id in the Django cache
+        await inductionService.setSessionById(targetId);
 
-        // 5. Populate Form Fields
-        setFormValues({
-          proofName: proofData.name,
-          proofTag: proofData.tag,
-          inductionVariable: proofData.induction_variable,
-          inductionValue: proofData.anchor_value,
-          leapVariable: proofData.leap_variable,
-          lHSGoal: proofData.lhs_leap_goal, // Or whichever goal you want as default
-          rHSGoal: proofData.rhs_leap_goal,
-          inductionType: proofData.induction_type
-        });
-
-        setInductiveHypothesisLHS(proofData.inductive_hypothesis_lhs);
-        setInductiveHypothesisRHS(proofData.inductive_hypothesis_rhs);
-
-        // 6. Load the Lines (UI components)
-        // Since setSessionById already "woke up" the engine, 
-        // this will successfully generate the jsonTrees.
-        await loadProofLinesFromDatabase();
+        // 3. FETCH the data to fill the UI
+        const proofData = await inductionService.getInductionProof(targetId);
         
-        setProofStarted(true);
-        if (location.state?.id) window.history.replaceState({}, document.title);
-      }
-    } catch (error) {
-      console.error('Restoration failed:', error);
-    }
-  };
+        if (proofData) {
+          // 4. Update Session Storage
+          sessionStorage.setItem('induction_current_proof_id', targetId);
+          sessionStorage.setItem('inductionProofActive', 'true');
 
-  restoreProof();
-}, [loadProofLinesFromDatabase]);
+          // 5. Populate Form Fields
+          setFormValues({
+            proofName: proofData.name,
+            proofTag: proofData.tag,
+            inductionVariable: proofData.induction_variable,
+            inductionValue: proofData.anchor_value,
+            leapVariable: proofData.leap_variable,
+            lHSGoal: proofData.lhs_leap_goal, // Or whichever goal you want as default
+            rHSGoal: proofData.rhs_leap_goal,
+            inductionType: proofData.induction_type
+          });
+
+          setInductiveHypothesisLHS(proofData.inductive_hypothesis_lhs);
+          setInductiveHypothesisRHS(proofData.inductive_hypothesis_rhs);
+
+          // 6. Load the Lines (UI components)
+          // Since setSessionById already "woke up" the engine, 
+          // this will successfully generate the jsonTrees.
+          await loadProofLinesFromDatabase();
+          
+          setProofStarted(true);
+          if (location.state?.id) window.history.replaceState({}, document.title);
+        }
+      } catch (error) {
+        console.error('Restoration failed:', error);
+      }
+    };
+
+    restoreProof();
+  }, [loadProofLinesFromDatabase]);
 
   useEffect(() => {
     // Do not clear definitions here; keep session-applied definitions intact
@@ -1823,379 +1834,253 @@ useEffect(() => {
           className="er-racket-form"
           onSubmit={handleERRacketSubmission}
         >
-          <div className="form-top-section" ref={topSectionRef}>
-            <Row className="page-header-row" style={{ alignItems: 'center' }}>
-              <Col xs="auto">
-                <h1 style={{ marginBottom: 0 }}>Induction: Racket</h1>
-              </Col>
-              <Col xs="auto" className="check-row">
-                <Form.Check
-                  type="radio"
-                  id="integers"
-                  label="Integers"
-                  name="inductionType"
-                  value="integers"
-                  onChange={handleChange}
-                  defaultChecked
-                />
-                <Form.Check
-                  type="radio"
-                  id="lists"
-                  label="Lists"
-                  name="inductionType"
-                  value="lists"
-                  onChange={handleChange}
-                />
-              </Col>
-              <Form.Group as={Col} md="auto" className="er-proof-name">
-                <Form.Floating className="mb-3">
-                  <Form.Control
-                    id="eRProofName"
-                    name="proofName"
-                    type="text"
-                    placeholder="Enter name"
-                    value={formValues.proofName}
-                    onBlur={() => {
-                      handleBlur("proofName");
-                      clearProofValidationMessage();
-                    }}
-                    onChange={handleChange}
-                    isInvalid={
-                      !!validationMessages.proofName ||
-                      !!proofValidationMessage.name
-                    }
-                    disabled={proofStarted}
-                    required
-                  />
-                  <label htmlFor="eRProofName">Name</label>
-                  <Form.Control.Feedback type="invalid" tooltip>
-                    {validationMessages.proofName ||
-                      proofValidationMessage.name}
-                  </Form.Control.Feedback>
-                </Form.Floating>
-              </Form.Group>
-              <Form.Group as={Col} md="auto" className="er-proof-tag">
-                <Form.Floating className="mb-3">
-                  <Form.Control
-                    id="eRProofTag"
-                    name="proofTag"
-                    type="text"
-                    placeholder="Enter tag"
-                    value={formValues.proofTag}
-                    onBlur={() => {
-                      handleBlur("proofTag");
-                      clearProofValidationMessage();
-                    }}
-                    onChange={handleChange}
-                    isInvalid={
-                      !!proofValidationMessage.tag || !!validationMessages.tag
-                    }
-                    disabled={proofStarted}
-                    required
-                  />
-                  <label htmlFor="eRProofTag"># Tag</label>
-                  <Form.Control.Feedback type="invalid" tooltip>
-                    {proofValidationMessage.tag || validationMessages.tag}
-                  </Form.Control.Feedback>
-                </Form.Floating>
-              </Form.Group>
-              <Form.Group as={Col} md="auto" className="er-induction-variable">
-                <div className="mb-3">
-                  <label htmlFor="eRInductionVariable" className="form-label">IVar</label>
-                  <RacketInput
-                    id="eRInductionVariable"
-                    name="inductionVariable"
-                    type="text"
-                    placeholder="Induction Variable"
-                    value={formValues.inductionVariable}
-                    onBlur={() => {
-                      handleBlur("inductionVariable");
-                      clearProofValidationMessage();
-                    }}
-                    onChange={handleChange}
-                    onKeyUp={inductionVarKeyUp}
-                    onClick={inductionVarSelect}
-                    ref={inductionVarRef}
-                    highlightPositions={inductionVarHighlights}
-                    isInvalid={
-                      !!validationMessages.inductionVariable ||
-                      !!proofValidationMessage.inductionVariable
-                    }
-                    disabled={proofStarted}
-                    required
-                  />
-                  <Form.Control.Feedback type="invalid" tooltip>
-                    {validationMessages.inductionVariable ||
-                      proofValidationMessage.inductionVariable}
-                  </Form.Control.Feedback>
-                </div>
-              </Form.Group>
-              <Form.Group as={Col} md="auto" className="er-induction-value">
-                <div className="mb-3">
-                  <label htmlFor="eRInductionValue" className="form-label">AVal</label>
-                  <RacketInput
-                    id="eRInductionValue"
-                    name="inductionValue"
-                    type="text"
-                    placeholder="Anchor Value"
-                    value={formValues.inductionValue}
-                    onBlur={() => {
-                      handleBlur("inductionValue");
-                      clearProofValidationMessage();
-                    }}
-                    onChange={handleChange}
-                    onKeyUp={inductionValKeyUp}
-                    onClick={inductionValSelect}
-                    ref={inductionValRef}
-                    highlightPositions={inductionValHighlights}
-                    isInvalid={
-                      !!validationMessages.inductionValue ||
-                      !!proofValidationMessage.inductionValue
-                    }
-                    disabled={proofStarted}
-                    required
-                  />
-                  <Form.Control.Feedback type="invalid" tooltip>
-                    {validationMessages.inductionValue ||
-                      proofValidationMessage.inductionValue}
-                  </Form.Control.Feedback>
-                </div>
-              </Form.Group>
-              <Form.Group as={Col} md="auto" className="er-leap-variable">
-                <div className="mb-3">
-                  <label htmlFor="eRLeapVariable" className="form-label">LVar</label>
-                  <RacketInput
-                    id="eRLeapVariable"
-                    name="leapVariable"
-                    type="text"
-                    placeholder="Leap Variable"
-                    value={formValues.leapVariable}
-                    onBlur={() => {
-                      handleBlur("leapVariable");
-                      clearProofValidationMessage();
-                    }}
-                    onChange={handleChange}
-                    onKeyUp={leapVarKeyUp}
-                    onClick={leapVarSelect}
-                    ref={leapVarRef}
-                    highlightPositions={leapVarHighlights}
-                    isInvalid={
-                      !!validationMessages.leapVariable ||
-                      !!proofValidationMessage.leapVariable
-                    }
-                    disabled={proofStarted}
-                    required
-                  />
-                  <Form.Control.Feedback type="invalid" tooltip>
-                    {validationMessages.leapVariable ||
-                      proofValidationMessage.leapVariable}
-                  </Form.Control.Feedback>
-                </div>
-              </Form.Group>
+        <div className="form-top-section" ref={topSectionRef}>
+            {/* ROW 1: MASTER HEADER */}
+            <Row className="page-header-row align-items-center g-0 w-100" style={{ paddingRight: '40px' }}>    
+                {isHeaderCollapsed && (
+                    <div className="d-flex align-items-center w-100 flex-wrap gap-2 px-3">
+                        <Col xs="auto">
+                            <h1 style={{ marginBottom: 0, fontSize: '24px', whiteSpace: 'nowrap' }}>Induction: Racket</h1>
+                        </Col>
+                        <Col xs="auto" className="d-flex gap-2 ms-2">
+                            <Button
+                                size="sm"
+                                onClick={handleToggleSide}
+                                style={{ backgroundImage: 'linear-gradient(135deg, #07294d 0, #006298 100%)', color: '#ffffff', border: 'none', height: '40px', width: '40px', flexShrink: 0 }}
+                            >
+                                {showSide === "LHS" ? "<<<" : "⋙"}
+                            </Button>
+                            <Button
+                                size="sm"
+                                onClick={handleToggleCase}
+                                style={{ backgroundImage: 'linear-gradient(135deg, #07294d 0, #006298 100%)', color: '#ffffff', border: 'none', height: '40px', width: '40px', flexShrink: 0 }}
+                            >
+                                {isAnchor ? "B" : "L"}
+                            </Button>
+                        </Col>
+
+                        <Form.Group as={Col} className={`er-proof-current-lhs ${showSide === "LHS" ? "active" : ""}`}>
+                            <Form.Floating style={{ border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem', minWidth: 'fit-content' }}>
+                                <Form.Control 
+                                  type="text" value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')} 
+                                  readOnly 
+                                  style={{ cursor: "not-allowed", border: 'none', height: '40px', minWidth: `${Math.max((lhsValue?.length || 11), 11)}ch` }} 
+                                />
+                                <label>Current LHS</label>
+                            </Form.Floating>
+                        </Form.Group>
+
+                        <Form.Group as={Col} className={`er-proof-current-rhs ${showSide === "RHS" ? "active" : ""}`}>
+                            <Form.Floating style={{ border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem', minWidth: 'fit-content' }}>
+                                <Form.Control 
+                                  type="text" 
+                                  value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')} 
+                                  readOnly 
+                                  style={{ cursor: "not-allowed", border: 'none', height: '40px', minWidth: `${Math.max((lhsValue?.length || 11), 11)}ch` }} 
+                                />
+                                <label>Current RHS</label>
+                            </Form.Floating>
+                        </Form.Group>
+                        
+                        <Col xs="auto">
+                            <Dropdown className="proof-dropdown-btn proof-utilities">
+                                <Dropdown.Toggle id="dropdown-autoclose-true" style={{ minWidth: '50px' }}>
+                                    <i className="fas fa-tools"></i>
+                                </Dropdown.Toggle>
+                                <Dropdown.Menu style={{ minWidth: '200px' }}>
+                                  <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">
+                                    Definitions
+                                  </Dropdown.Item>
+                                  <Dropdown.Item onClick={toggleOffcanvas} href="#">
+                                    View Rule Set
+                                  </Dropdown.Item>
+                                  <Dropdown.Item 
+                                    onClick={checkCurrentProofStatus} 
+                                    href="#" 
+                                    disabled={!proofStarted}
+                                    style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}
+                                  >
+                                    Check Current Proof
+                                  </Dropdown.Item>
+                                  <Dropdown.Divider />
+                                  <Dropdown.Item 
+                                    onClick={handleClearProof} 
+                                    href="#" 
+                                    disabled={!proofStarted}
+                                    style={{ 
+                                      color: proofStarted ? 'red' : '#999', 
+                                      opacity: proofStarted ? 1 : 0.4,
+                                      cursor: proofStarted ? 'pointer' : 'not-allowed'
+                                    }}
+                                  >
+                                    Clear Proof
+                                  </Dropdown.Item>
+                                </Dropdown.Menu>
+                            </Dropdown>
+                        </Col>
+                        {proofStarted && proofStatus[isAnchor ? 'base' : 'leap'] && (
+                              <span
+                                style={{
+                                  fontWeight: "700",
+                                  color: proofStatus[isAnchor ? 'base' : 'leap'].state === "complete" ? "green" : "red",
+                                  fontSize: "16px"
+                                }}
+                              >
+                                {proofStatus[isAnchor ? 'base' : 'leap'].state === "complete"
+                                  ? `${proofStatus[isAnchor ? 'base' : 'leap'].label} COMPLETE`
+                                  : `${proofStatus[isAnchor ? 'base' : 'leap'].label} INCOMPLETE`}
+                              </span>
+                            )}
+                    </div>
+                )}
             </Row>
 
-            <Row className="g-5 justify-content-center">
-              <Form.Group as={Col} md="4" className="er-proof-goal-lhs">
-                <div className="mb-3">
-                  <label htmlFor="eRProofLHSGoal" className="form-label">LHS Goal</label>
-                  <RacketInput
-                    id="eRProofLHSGoal"
-                    name="lHSGoal"
-                    type="text"
-                    placeholder="LHS Goal"
-                    value={formValues.lHSGoal}
-                    onBlur={() => handleBlur("lHSGoal")}
-                    onChange={enhancedHandleChange}
-                    onKeyUp={lhsGoalKeyUp}
-                    onClick={lhsGoalSelect}
-                    ref={lhsGoalRef}
-                    highlightPositions={lhsGoalHighlights}
-                    isInvalid={
-                      !!validationMessages.lHSGoal ||
-                      !!goalValidationMessage.LHS.Goal
-                    }
-                    disabled={proofStarted}
-                    required
-                  />
-                  <Form.Control.Feedback type="invalid" tooltip>
-                    {validationMessages.lHSGoal ||
-                      goalValidationMessage.LHS.Goal}
-                  </Form.Control.Feedback>
-                </div>
-              </Form.Group>
-              <Form.Group as={Col} md="4" className="er-proof-goal-rhs">
-                <div className="mb-3">
-                  <label htmlFor="eRProofRHSGoal" className="form-label">RHS Goal</label>
-                  <RacketInput
-                    id="eRProofRHSGoal"
-                    name="rHSGoal"
-                    type="text"
-                    placeholder="RHS Goal"
-                    value={formValues.rHSGoal}
-                    onBlur={() => handleBlur("rHSGoal")}
-                    onChange={enhancedHandleChange}
-                    onKeyUp={rhsGoalKeyUp}
-                    onClick={rhsGoalSelect}
-                    ref={rhsGoalRef}
-                    highlightPositions={rhsGoalHighlights}
-                    isInvalid={
-                      !!validationMessages.rHSGoal ||
-                      !!goalValidationMessage.RHS.Goal
-                    }
-                    disabled={proofStarted}
-                    required
-                  />
-                  <Form.Control.Feedback type="invalid" tooltip>
-                    {validationMessages.rHSGoal ||
-                      goalValidationMessage.RHS.Goal}
-                  </Form.Control.Feedback>
-                </div>
-              </Form.Group>
-            </Row>
+            {/* EXPANDED VIEW: 3-COLUMN DASHBOARD */}
+            {!isHeaderCollapsed && (
+              <Row className="proof-dashboard align-items-stretch g-0 mt-1 d-flex flex-row flex-wrap justify-content-center align-items-start w-100">
+                  {/* COLUMN 1: SIDE SWITCH (Sidebar) */}
+                  <Col xs={12} md="auto" className="d-flex flex-column justify-content-center align-items-center px-4 mb-3 mb-md-0" style={{ minWidth: '300px', borderRight: windowWidth >= 768 ? '1px solid #dee2e6' : 'none' }}>
+                      <Row className="mb-2 mt-4">
+                        <h1 style={{ marginBottom: '10px', fontSize: '36px', whiteSpace: 'nowrap' }}>Induction: Racket</h1>
+                      </Row>
+                      {proofStarted && (
+                        <Row className="mb-3">
+                          <div className="text-center">
+                              <div style={{ color: '#F2A007', fontWeight: 'bold', fontSize: '20px' }}>SIDE = {showSide}</div>
+                              <Button size="lg" className="switch-btn w-auto px-4 mt-2" onClick={handleToggleSide} style={{ backgroundImage: 'linear-gradient(135deg, #07294d 0, #006298 100%)', color: '#ffffff', border: 'none', whiteSpace: 'nowrap' }}>
+                                  {showSide === "LHS" ? "Switch Side ⋙" : "⋘ Switch Side"}
+                              </Button>
+                          </div>
+                        </Row>
+                      )}
+                  </Col>
 
-            {(!proofStarted || !isAnchor) && (
-              <Row className="g-5 justify-content-center">
-                <Form.Group as={Col} md="4" className="er-inductive-hypothesis-lhs">
-                  <div className="mb-3">
-                    <label htmlFor="eRInductiveHypothesisLHS" className="form-label">IH LHS</label>
-                    <RacketInput
-                      id="eRInductiveHypothesisLHS"
-                      name="inductiveHypothesisLHS"
-                      type="text"
-                      placeholder="Inductive Hypothesis LHS"
-                      value={inductiveHypothesisLHS}
-                      onChange={(e) => setInductiveHypothesisLHS(e.target.value)}
-                      onKeyUp={ihLhsKeyUp}
-                      onClick={ihLhsSelect}
-                      ref={ihLhsRef}
-                      highlightPositions={ihLhsHighlights}
-                      disabled={proofStarted}
-                    />
-                  </div>
-                </Form.Group>
-                <Form.Group as={Col} md="4" className="er-inductive-hypothesis-rhs">
-                  <div className="mb-3">
-                    <label htmlFor="eRInductiveHypothesisRHS" className="form-label">IH RHS</label>
-                    <RacketInput
-                      id="eRInductiveHypothesisRHS"
-                      name="inductiveHypothesisRHS"
-                      type="text"
-                      placeholder="Inductive Hypothesis RHS"
-                      value={inductiveHypothesisRHS}
-                      onChange={(e) => setInductiveHypothesisRHS(e.target.value)}
-                      onKeyUp={ihRhsKeyUp}
-                      onClick={ihRhsSelect}
-                      ref={ihRhsRef}
-                      highlightPositions={ihRhsHighlights}
-                      disabled={proofStarted}
-                    />
-                  </div>
-                </Form.Group>
+                  {/* COLUMN 2: CENTER DATA (Wrappable) */}
+                  <Col xs={12} md className="px-4 flex-grow-1" style={{ minWidth: '350px' }}>
+                      <Row className="g-2 mb-3">
+                          <Form.Group as={Col} sm="6"><Form.Floating><Form.Control id="eRProofName" name="proofName" type="text" placeholder="Name" value={formValues.proofName} onBlur={() => handleBlur("proofName")} onChange={handleChange} disabled={proofStarted} required />
+                            <label>Proof Name</label>
+                            </Form.Floating>
+                            </Form.Group>
+                          <Form.Group as={Col} sm="6"><Form.Floating>
+                            <Form.Control id="eRProofTag" name="proofTag" type="text" placeholder="Tag" value={formValues.proofTag} onBlur={() => handleBlur("proofTag")} onChange={handleChange} disabled={proofStarted} required /><label># Tag</label></Form.Floating></Form.Group>
+                      </Row>
+                      <Row className="g-2 mb-3">
+                          <Form.Group as={Col} md="4"><label className="form-label small fw-bold">IVar</label><RacketInput id="eRInductionVariable" name="inductionVariable" value={formValues.inductionVariable} onBlur={() => handleBlur("inductionVariable")} onChange={handleChange} onKeyUp={inductionVarKeyUp} onClick={inductionVarSelect} ref={inductionVarRef} highlightPositions={inductionVarHighlights} disabled={proofStarted} /></Form.Group>
+                          <Form.Group as={Col} md="4"><label className="form-label small fw-bold">AVal</label><RacketInput id="eRInductionValue" name="inductionValue" value={formValues.inductionValue} onBlur={() => handleBlur("inductionValue")} onChange={handleChange} onKeyUp={inductionValKeyUp} onClick={inductionValSelect} ref={inductionValRef} highlightPositions={inductionValHighlights} disabled={proofStarted} /></Form.Group>
+                          <Form.Group as={Col} md="4"><label className="form-label small fw-bold">LVar</label><RacketInput id="eRLeapVariable" name="leapVariable" value={formValues.leapVariable} onBlur={() => handleBlur("leapVariable")} onChange={handleChange} onKeyUp={leapVarKeyUp} onClick={leapVarSelect} ref={leapVarRef} highlightPositions={leapVarHighlights} disabled={proofStarted} /></Form.Group>
+                      </Row>
+                      <Row className="g-2 mb-3">
+                          <Form.Group as={Col} md="6" className="er-proof-goal-lhs">
+                            <label className="form-label small fw-bold">LHS Goal</label>
+                            <RacketInput id="eRProofLHSGoal" name="lHSGoal" value={formValues.lHSGoal} onBlur={() => handleBlur("lHSGoal")} onChange={enhancedHandleChange} onKeyUp={lhsGoalKeyUp} onClick={lhsGoalSelect} ref={lhsGoalRef} highlightPositions={lhsGoalHighlights} disabled={proofStarted} />
+                            </Form.Group>
+                          <Form.Group as={Col} md="6" className="er-proof-goal-rhs">
+                            <label className="form-label small fw-bold">RHS Goal</label>
+                            <RacketInput id="eRProofRHSGoal" name="rHSGoal" value={formValues.rHSGoal} onBlur={() => handleBlur("rHSGoal")} onChange={enhancedHandleChange} onKeyUp={rhsGoalKeyUp} onClick={rhsGoalSelect} ref={rhsGoalRef} highlightPositions={rhsGoalHighlights} disabled={proofStarted} />
+                            </Form.Group>
+                      </Row>
+                      <Row className="justify-content-center er-current-state g-2 mb-3">
+                          <Form.Group as={Col} sm="6" className={showSide === "LHS" ? "active" : ""}><Form.Floating style={{ border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}><Form.Control type="text" value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')} readOnly style={{ border: 'none' }} /><label>Current LHS</label></Form.Floating></Form.Group>
+                          <Form.Group as={Col} sm="6" className={showSide === "RHS" ? "active" : ""}><Form.Floating style={{ border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}><Form.Control type="text" value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')} readOnly style={{ border: 'none' }} /><label>Current RHS</label></Form.Floating></Form.Group>
+                      </Row>
+                  </Col>
+
+                  {/* COLUMN 3: CASE SWITCH (Wraps and stays horizontally aligned) */}
+                  <Col 
+                      xs={12} 
+                      xl="auto" 
+                      className="d-flex flex-column justify-content-center align-items-center px-4 mt-3 mt-xl-0" 
+                      style={{ minWidth: '300px', borderLeft: windowWidth >= 1200 ? '1px solid #dee2e6' : 'none', gap: '20px', minHeight: '100%' }}
+                    >
+                    {/* Item 1: Dropdown */}
+                    <Dropdown className="proof-dropdown-btn proof-utilities w-auto">
+                      <Dropdown.Toggle id="dropdown-autoclose-true" style={{ minWidth: '200px' }}>
+                        Proof Utilities
+                      </Dropdown.Toggle>
+                      <Dropdown.Menu style={{ minWidth: '200px' }}>
+                        <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">Definitions</Dropdown.Item>
+                        <Dropdown.Item onClick={toggleOffcanvas} href="#">View Rule Set</Dropdown.Item>
+                        <Dropdown.Item 
+                          onClick={checkCurrentProofStatus} 
+                          disabled={!proofStarted}
+                          style={{ opacity: proofStarted ? 1 : 0.4 }}
+                        >
+                          Check Current Proof
+                        </Dropdown.Item>
+                        <Dropdown.Divider />
+                        <Dropdown.Item onClick={handleClearProof} disabled={!proofStarted} style={{ color: 'red' }}>
+                          Clear Proof
+                        </Dropdown.Item>
+                      </Dropdown.Menu>
+                    </Dropdown>
+                    {proofStarted && proofStatus[isAnchor ? 'base' : 'leap'] && (
+                      <span
+                        style={{
+                          fontWeight: "700",
+                          color: proofStatus[isAnchor ? 'base' : 'leap'].state === "complete" ? "green" : "red",
+                          fontSize: "20px"
+                        }}
+                      >
+                        {proofStatus[isAnchor ? 'base' : 'leap'].state === "complete"
+                          ? `${proofStatus[isAnchor ? 'base' : 'leap'].label} COMPLETE`
+                          : `${proofStatus[isAnchor ? 'base' : 'leap'].label} INCOMPLETE`}
+                      </span>
+                    )}
+
+                    {/* Item 2: Radios */}
+                    <div className="check-row d-flex align-items-center px-3 border rounded bg-light" style={{ height: '58px' }}>
+                      <Form.Check 
+                        type="radio" id="integers" label="Integers" name="inductionType" 
+                        value="integers" className="me-3" onChange={handleChange} defaultChecked 
+                      />
+                      <Form.Check 
+                        type="radio" id="lists" label="Lists" name="inductionType" 
+                        value="lists" onChange={handleChange} 
+                      />
+                    </div>
+
+                    {/* Item 3: Case Switch */}
+                    {proofStarted && (
+                      <div className="text-center d-flex flex-column align-items-center">
+                        <div style={{ color: '#F2A007', fontWeight: 'bold', fontSize: '20px', whiteSpace: 'nowrap' }}>
+                          CASE = {isAnchor ? "BASE" : "LEAP"}
+                        </div>
+                        <Button 
+                          size="lg" 
+                          className="switch-btn w-auto px-4 mt-1" 
+                          onClick={handleToggleCase} 
+                          style={{ backgroundImage: 'linear-gradient(135deg, #07294d 0, #006298 100%)', color: '#ffffff', border: 'none', whiteSpace: 'nowrap' }}
+                        >
+                          {isAnchor ? "Switch to Leap Case" : "Switch to Base Case"}
+                        </Button>
+                      </div>
+                    )}
+                  </Col>
               </Row>
             )}
 
-            <Row className="justify-content-center er-current-state" style={{ alignItems: 'center', position: 'relative' }}>
-              <Form.Group
-                as={Col}
-                md="4"
-                className={`er-proof-current-lhs ${showSide === "LHS" ? "active" : ""}`}
-              >
-                <Form.Floating 
-                  className="mb-3"
-                  style={{ 
-                    border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da',
-                    borderRadius: '0.375rem'
-                  }}
+            {/* ARROW CONTROLS - Positioned at bottom right of the flow */}
+            {proofStarted && (
+              <div className="d-flex justify-content-end pr-2" style={{ marginTop: '-40px' }}>
+                <Button
+                  variant="link"
+                  className="p-0 text-decoration-none"
+                  onClick={() => setIsHeaderCollapsed(!isHeaderCollapsed)}
+                  size="lg"
+                  style={{ color: '#6c757d', zIndex: 1050 }}
                 >
-                  <Form.Control
-                    id="eRProofCurrentLHS"
-                    name="proofCurrentLHS"
-                    type="text"
-                    placeholder="Current LHS"
-                    value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')}
-                    readOnly
-                    style={{ cursor: "not-allowed", border: 'none' }}
-                  />
-                  <label htmlFor="eRProofCurrentLHS">Current LHS</label>
-                </Form.Floating>
-              </Form.Group>
+                  <i className={`fas ${isHeaderCollapsed ? 'fa-angles-down' : 'fa-angles-up'}`}></i>
+                </Button>
+              </div>
+            )}
 
-              <Form.Group
-                as={Col}
-                md="4"
-                className={`er-proof-current-rhs ${showSide === "RHS" ? "active" : ""}`}
-              >
-                <Form.Floating 
-                  className="mb-3"
-                  style={{ 
-                    border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da',
-                    borderRadius: '0.375rem'
-                  }}
-                >
-                  <Form.Control
-                    id="eRProofCurrentRHS"
-                    name="proofCurrentRHS"
-                    type="text"
-                    placeholder="Current RHS"
-                    value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')}
-                    readOnly
-                    style={{ cursor: "not-allowed", border: 'none' }}
-                  />
-                  <label htmlFor="eRProofCurrentRHS">Current RHS</label>
-                </Form.Floating>
-              </Form.Group>
-            </Row>
-
-            {!isAnchor && (
             <Form.Text
               as={"div"}
               id="formSeparator"
               className="form-separator"
-              style={{ marginTop: '-10px' }}
-            ></Form.Text> )}
-
-            {isAnchor && (
-            <Form.Text
-              as={"div"}
-              id="formSeparator"
-              className="form-separator"
-              style={{ marginTop: '10px' }}
-            ></Form.Text> )}
-          </div>
-
-          {proofStarted && (
-            <>
-              <div style={{ position: 'fixed', left: '10px', top: '215px', zIndex: 1020, color: '#F2A007', fontWeight: 'bold', fontSize: '20px' }}>
-                CURRENT = {showSide}
-              </div>
-              <div style={{ position: 'fixed', left: '10px', top: '245px', zIndex: 1020 }}>
-                <Button
-                  size="lg"
-                  className="switch-btn"
-                  onClick={handleToggleSide}
-                  style={{ backgroundImage: 'linear-gradient(135deg, #07294d 0, #006298 100%)', color: '#ffffff', borderColor: 'transparent' }}
-                >
-                  {isHeaderCollapsed 
-                    ? (showSide === "LHS" ? "Switch Side ⋙" : "⋘ Switch Side")
-                    : (showSide === "LHS" ? "Switch to Right Hand Side ⋙" : "⋘ Switch to Left Hand Side")
-                  }
-                </Button>
-              </div>
-              <div style={{ position: 'fixed', right: '10px', top: '215px', zIndex: 1020, color: '#F2A007', fontWeight: 'bold', fontSize: '20px' }}>
-                CURRENT = {isAnchor ? "BASE" : "LEAP"}
-              </div>
-              <div style={{ position: 'fixed', right: '10px', top: '245px', zIndex: 1020 }}>
-                <Button
-                  size="lg"
-                  className="switch-btn"
-                  onClick={handleToggleCase}
-                  style={{ backgroundImage: 'linear-gradient(135deg, #07294d 0, #006298 100%)', color: '#ffffff', borderColor: 'transparent' }}
-                >
-                  {isAnchor ? "Switch to Leap Case" : "Switch to Base Case"}
-                </Button>
-              </div>
-            </>
-          )}
+            ></Form.Text>
+        </div>
 
           <div className="form-bottom-part" style={{ paddingTop: `${topSectionHeight}px` }}>
 
@@ -2214,60 +2099,6 @@ useEffect(() => {
           </div>
         </Form>
       </Container>
-      
-      <div style={{ position: 'fixed', right: '375px', top: '65px', zIndex: 1020 }}>
-        <Dropdown className="proof-dropdown-btn proof-utilities">
-          <Dropdown.Toggle id="dropdown-autoclose-true" style={{ minWidth: '200px' }}>
-            Proof Utilities
-          </Dropdown.Toggle>
-
-          <Dropdown.Menu style={{ minWidth: '200px' }}>
-            <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">
-              Definitions
-            </Dropdown.Item>
-            <Dropdown.Item onClick={toggleOffcanvas} href="#">
-              View Rule Set
-            </Dropdown.Item>
-            <Dropdown.Item 
-              onClick={checkCurrentProofStatus} 
-              href="#" 
-              disabled={!proofStarted}
-              style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}
-            >
-              Check Current Proof
-            </Dropdown.Item>
-            <Dropdown.Divider />
-            <Dropdown.Item 
-              onClick={handleClearProof} 
-              href="#" 
-              disabled={!proofStarted}
-              style={{ 
-                color: proofStarted ? 'red' : '#999', 
-                opacity: proofStarted ? 1 : 0.4,
-                cursor: proofStarted ? 'pointer' : 'not-allowed'
-              }}
-            >
-              Clear Proof
-            </Dropdown.Item>
-          </Dropdown.Menu>
-        </Dropdown>
-      </div>
-      
-      {proofStarted && proofStatus[isAnchor ? 'base' : 'leap'] && (
-        <div style={{ position: 'fixed', right: '50px', top: '65px', zIndex: 1020 }}>
-          <span
-            style={{
-              fontWeight: "700",
-              color: proofStatus[isAnchor ? 'base' : 'leap'].state === "complete" ? "green" : "red",
-              fontSize: "28px"
-            }}
-          >
-            {proofStatus[isAnchor ? 'base' : 'leap'].state === "complete"
-              ? `${proofStatus[isAnchor ? 'base' : 'leap'].label} COMPLETE`
-              : `${proofStatus[isAnchor ? 'base' : 'leap'].label} INCOMPLETE`}
-          </span>
-        </div>
-      )}
       
       {proofStarted && (
         <div 
