@@ -1578,6 +1578,26 @@ const handleGenerateAndCheck = async () => {
     });
     return <div>Loading...</div>;
   }
+
+    const handleDropdownToggle = (isOpen, menuId) => {
+    if (isOpen) {
+      requestAnimationFrame(() => {
+        const menu = document.getElementById(menuId);
+        
+        if (menu) {
+          menu.classList.remove('is-positioned');
+          window.dispatchEvent(new Event('resize'));
+
+          setTimeout(() => {
+            menu.classList.add('is-positioned');
+          }, 70);
+        }
+      });
+    } else {
+      const menu = document.getElementById(menuId);
+      if (menu) menu.classList.remove('is-positioned');
+    }
+  };
     
   return (
     <MainLayout>
@@ -1735,12 +1755,26 @@ const handleGenerateAndCheck = async () => {
                 <div className="d-flex align-items-center" style={{ gap: '10px' }}>
                   
                   {/* UTILITIES AND STATUS */}
-                  <Dropdown className="proof-dropdown-btn proof-utilities proof-utils-toggle" style={{ width: 'auto' }}>
+                  <Dropdown 
+                    align="end"
+                    className="proof-dropdown-btn proof-utilities proof-utils-toggle"
+                    onToggle={(isOpen) => handleDropdownToggle(isOpen, 'utils-menu')}
+                    style={{ width: 'auto' }}
+                  >
                     <Dropdown.Toggle id="dropdown-autoclose-true" style={{ minWidth: proofUtilsShowIconOnly ? '0px' : '200px' }}>
                       {proofUtilsShowIconOnly ?<i className="fas fa-tools"></i> : "Proof Utilities"}
                     </Dropdown.Toggle>
 
-                    <Dropdown.Menu style={{ minWidth: '200px' }}>
+                    <Dropdown.Menu 
+                      id="utils-menu" 
+                      style={{ minWidth: '200px' }}
+                      popperConfig={{
+                        strategy: 'fixed',
+                        modifiers: [
+                          { name: 'preventOverflow', options: { boundary: 'viewport' } }
+                        ]
+                      }}
+                    >
                       <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">
                         Definitions
                       </Dropdown.Item>
@@ -2041,9 +2075,16 @@ const handleGenerateAndCheck = async () => {
             borderImage: `linear-gradient(to right, ${currentColor} 50%, ${nextColor} 50%) 1`
           }}
         >
-          <Row className="input-row">
-            <Col md="1">
-              <Form.Floating className="mb-3">
+          <Row className="input-row mb-0 align-items-center">
+            <Col 
+              xs 
+              className="flex-shrink-1" 
+              style={{ 
+                maxWidth: `${Math.max(7, (userRow.num || "").length) + 4}ch`,
+                minWidth: '7ch'
+              }}
+            >              
+            <Form.Floating className="mb-3">
                 <Form.Control
                   id="userRowNum"
                   name="userRowNum"
@@ -2052,28 +2093,32 @@ const handleGenerateAndCheck = async () => {
                   value={userRow.num}
                   onChange={(e) => setUserRow({ ...userRow, num: e.target.value })}
                   disabled={isBound}
-                />
+                  style={{ 
+                    maxWidth: `${Math.max(7, (userRow.num || "").length) + 4}ch`,
+                    minWidth: '7ch' 
+                  }}                />
                 <label htmlFor="userRowNum">Num</label>
               </Form.Floating>
             </Col>
 
             {!isBound && (
-              <Col md="2" className="d-flex align-items-center">
+              <Col xs="auto" className="d-flex flex-shrink-0">
                 <Button
                   variant="primary"
                   onClick={() => bindFooterToRow(userRow.num)}
+                  style={{ textWrap: "nowrap" }}
                 >
                   Fill Values
                 </Button>
               </Col>
             )}
 
-            <Col md={isBound ? "9" : "7"}>
+            <Col className="flex-grow-1">
               {isBound && renderFooterPad()}
             </Col>
 
             {isBound && (
-              <Col md="2" className="d-flex align-items-center">
+              <Col xs="auto" className="d-flex flex-shrink-0">
                 <Button
                   variant="secondary"
                   onClick={() => unbindFooter()}
@@ -2083,64 +2128,62 @@ const handleGenerateAndCheck = async () => {
               </Col>
             )}
           </Row>
-          <Row className="button-row">
-            <Col md="5"></Col>
-            <Col md="3" className="rules-btn-grp">
-              <Button
-                className="orange-btn delete-btn"
-                disabled={(() => {
-                  // Disabled if not bound
-                  if (!isBound) {
-                    return true;
-                  }
-                  
-                  const lineNum = parseInt(userRow.num, 10);
-                  
-                  // Disabled if premise line (line 0)
-                  if (lineNum === 0) {
-                    return true;
-                  }
-                  
-                  // Disabled if line is blank
-                  const fields = (racketRuleFields?.[showSide] || []);
-                  
-                  if (!fields || !fields[lineNum]) {
-                    return true;
-                  }
-                  
-                  const racket = (fields[lineNum].racket || '').trim();
-                  
-                  if (racket === '') {
-                    return true;
-                  }
-                  
-                  // Enable for non-blank, non-premise lines
-                  return false;
-                })()}
-                onClick={() => setShowClearConfirm(true)}
-              >
-                Clear Line
-              </Button>
-            </Col>
-            <Col md="2" className="rules-btn-grp">
-              <Button
-                className="orange-btn green-btn"
-                onClick={handleGenerateAndCheck}
-                disabled={!isBound}
-              >
-                Generate & Check
-              </Button>
-            </Col>
-            <Col md="2" className="rules-btn-grp">
-              <Button
-                className="orange-btn green-btn"
-                onClick={() => updateShowSubstitution()}
-                disabled={!isBound}
-              >
-                Substitution
-              </Button>
-            </Col>
-          </Row>
+          {isBound && (
+            <Row className="button-row mt-0">
+              <Col md="3" className="d-none d-md-block"></Col>
+              <Col xs="12" md="8" className="rules-btn-grp">
+                <Button
+                  className="orange-btn delete-btn"
+                  disabled={(() => {
+                    // Disabled if not bound
+                    if (!isBound) {
+                      return true;
+                    }
+                    
+                    const lineNum = parseInt(userRow.num, 10);
+                    
+                    // Disabled if premise line (line 0)
+                    if (lineNum === 0) {
+                      return true;
+                    }
+                    
+                    // Disabled if line is blank
+                    const fields = (racketRuleFields?.[showSide] || []);
+                    
+                    if (!fields || !fields[lineNum]) {
+                      return true;
+                    }
+                    
+                    const racket = (fields[lineNum].racket || '').trim();
+                    
+                    if (racket === '') {
+                      return true;
+                    }
+                    
+                    // Enable for non-blank, non-premise lines
+                    return false;
+                  })()}
+                  onClick={() => setShowClearConfirm(true)}
+                >
+                  Clear Line
+                </Button>
+                <Button
+                  className="orange-btn green-btn"
+                  onClick={handleGenerateAndCheck}
+                  disabled={!isBound}
+                >
+                  {windowWidth < 576 ? "Gen & Check" : "Generate & Check"}
+                </Button>
+                <Button
+                  className="orange-btn green-btn"
+                  onClick={() => updateShowSubstitution()}
+                  disabled={!isBound}
+                >
+                  {windowWidth < 576 ? "Sub" : "Substitution"}
+                </Button>
+              </Col>
+            </Row>
+            )}
         </div>
         );
       })()}

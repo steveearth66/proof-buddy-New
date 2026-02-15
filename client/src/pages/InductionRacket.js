@@ -1802,6 +1802,26 @@ const InductionRacket = () => {
     }
   };
 
+  const handleDropdownToggle = (isOpen, menuId) => {
+    if (isOpen) {
+      requestAnimationFrame(() => {
+        const menu = document.getElementById(menuId);
+        
+        if (menu) {
+          menu.classList.remove('is-positioned');
+          window.dispatchEvent(new Event('resize'));
+
+          setTimeout(() => {
+            menu.classList.add('is-positioned');
+          }, 70);
+        }
+      });
+    } else {
+      const menu = document.getElementById(menuId);
+      if (menu) menu.classList.remove('is-positioned');
+    }
+  };
+
   return (
     <MainLayout>
       <Container className="er-racket-container">
@@ -1848,7 +1868,7 @@ const InductionRacket = () => {
                                 onClick={handleToggleSide}
                                 style={{ backgroundImage: 'linear-gradient(135deg, #07294d 0, #006298 100%)', color: '#ffffff', border: 'none', height: '40px', width: '40px', flexShrink: 0 }}
                             >
-                                {showSide === "LHS" ? "<<<" : "⋙"}
+                                {showSide === "LHS" ? "⋘" : "⋙"}
                             </Button>
                             <Button
                                 size="sm"
@@ -1883,11 +1903,23 @@ const InductionRacket = () => {
                         </Form.Group>
                         
                         <Col xs="auto">
-                            <Dropdown className="proof-dropdown-btn proof-utilities">
-                                <Dropdown.Toggle id="dropdown-autoclose-true" style={{ minWidth: '50px' }}>
-                                    <i className="fas fa-tools"></i>
-                                </Dropdown.Toggle>
-                                <Dropdown.Menu style={{ minWidth: '200px' }}>
+                            <Dropdown 
+                              align="end"
+                              className="proof-dropdown-btn proof-utilities"
+                              onToggle={(isOpen) => handleDropdownToggle(isOpen, 'menu-collapsed')}
+                            >
+                              <Dropdown.Toggle variant="success" id="toggle-collapsed" style={{ minWidth: '50px' }}>
+                                <i className="fas fa-tools"></i>
+                              </Dropdown.Toggle>
+                              <Dropdown.Menu
+                                id="menu-collapsed"
+                                popperConfig={{
+                                  strategy: 'fixed',
+                                  modifiers: [
+                                    { name: 'preventOverflow', options: { boundary: 'viewport' } }
+                                  ]
+                                }}
+                              >
                                   <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">
                                     Definitions
                                   </Dropdown.Item>
@@ -1990,15 +2022,28 @@ const InductionRacket = () => {
                   <Col 
                       xs={12} 
                       xl="auto" 
-                      className="d-flex flex-column justify-content-center align-items-center px-4 mt-3 mt-xl-0" 
+                      className="d-flex flex-row flex-xl-column flex-wrap justify-content-center align-items-center px-4 mt-3 mt-xl-0"
                       style={{ minWidth: '300px', borderLeft: windowWidth >= 1200 ? '1px solid #dee2e6' : 'none', gap: '20px', minHeight: '100%' }}
                     >
                     {/* Item 1: Dropdown */}
-                    <Dropdown className="proof-dropdown-btn proof-utilities w-auto">
-                      <Dropdown.Toggle id="dropdown-autoclose-true" style={{ minWidth: '200px' }}>
+                    <Dropdown 
+                      align="end"
+                      className="proof-dropdown-btn proof-utilities"
+                      onToggle={(isOpen) => handleDropdownToggle(isOpen, 'menu-expanded')}
+                    >
+                      <Dropdown.Toggle id="toggle-expanded" style={{ minWidth: '200px' }}>
                         Proof Utilities
                       </Dropdown.Toggle>
-                      <Dropdown.Menu style={{ minWidth: '200px' }}>
+                      <Dropdown.Menu 
+                        id="menu-expanded"
+                        style={{ minWidth: '200px' }}
+                        popperConfig={{
+                          strategy: 'fixed',
+                          modifiers: [
+                            { name: 'preventOverflow', options: { boundary: 'viewport' } }
+                          ]
+                        }}
+                      >
                         <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">Definitions</Dropdown.Item>
                         <Dropdown.Item onClick={toggleOffcanvas} href="#">View Rule Set</Dropdown.Item>
                         <Dropdown.Item 
@@ -2159,8 +2204,15 @@ const InductionRacket = () => {
             borderImage: `linear-gradient(to right, ${currentColor} 50%, ${nextColor} 50%) 1`
           }}
         >
-          <Row className="input-row">
-            <Col md="1">
+          <Row className="input-row mb-0 align-items-center">
+            <Col 
+              xs 
+              className="flex-shrink-1" 
+              style={{ 
+                maxWidth: `${Math.max(7, (userRow.num || "").length) + 4}ch`,
+                minWidth: '7ch'
+              }}
+            >
               <Form.Floating className="mb-3">
                 <Form.Control
                   id="userRowNum"
@@ -2170,28 +2222,33 @@ const InductionRacket = () => {
                   value={userRow.num}
                   onChange={(e) => setUserRow({ ...userRow, num: e.target.value })}
                   disabled={isBound}
+                  style={{ 
+                    maxWidth: `${Math.max(7, (userRow.num || "").length) + 4}ch`,
+                    minWidth: '7ch' 
+                  }}
                 />
                 <label htmlFor="userRowNum">Num</label>
               </Form.Floating>
             </Col>
 
             {!isBound && (
-              <Col md="2" className="d-flex align-items-center">
+              <Col xs="auto" className="d-flex flex-shrink-0">
                 <Button
                   variant="primary"
                   onClick={() => bindFooterToRow(userRow.num)}
+                  style={{ textWrap: "nowrap" }}
                 >
                   Fill Values
                 </Button>
               </Col>
             )}
 
-            <Col md={isBound ? "9" : "7"}>
+            <Col className="flex-grow-1">
               {isBound && renderFooterPad()}
             </Col>
 
             {isBound && (
-              <Col md="2" className="d-flex align-items-center">
+              <Col xs="auto" className="d-flex flex-shrink-0">
                 <Button
                   variant="secondary"
                   onClick={() => unbindFooter()}
@@ -2201,64 +2258,62 @@ const InductionRacket = () => {
               </Col>
             )}
           </Row>
-          <Row className="button-row">
-            <Col md="5"></Col>
-            <Col md="3" className="rules-btn-grp">
-              <Button
-                className="orange-btn delete-btn"
-                disabled={(() => {
-                  // Disabled if not bound
-                  if (!isBound) {
-                    return true;
-                  }
-                  
-                  const lineNum = parseInt(userRow.num, 10);
-                  
-                  // Disabled if premise line (line 0)
-                  if (lineNum === 0) {
-                    return true;
-                  }
-                  
-                  // Disabled if line is blank
-                  const fields = racketRuleFields[showSide];
-                  
-                  if (!fields || !fields[lineNum]) {
-                    return true;
-                  }
-                  
-                  const racket = (fields[lineNum].racket || '').trim();
-                  
-                  if (racket === '') {
-                    return true;
-                  }
-                  
-                  // Enable for non-blank, non-premise lines
-                  return false;
-                })()}
-                onClick={() => setShowClearConfirm(true)}
-              >
-                Clear Line
-              </Button>
-            </Col>
-            <Col md="2" className="rules-btn-grp">
-              <Button
-                className="orange-btn green-btn"
-                onClick={handleGenerateAndCheck}
-                disabled={!isBound}
-              >
-                Generate & Check
-              </Button>
-            </Col>
-            <Col md="2" className="rules-btn-grp">
-              <Button
-                className="orange-btn green-btn"
-                onClick={() => updateShowSubstitution()}
-                disabled={!isBound}
-              >
-                Substitution
-              </Button>
-            </Col>
-          </Row>
+          {isBound && (
+            <Row className="button-row mt-0">
+              <Col md="3" className="d-none d-md-block"></Col>
+              <Col xs="12" md="8" className="rules-btn-grp">
+                <Button
+                  className="orange-btn delete-btn"
+                  disabled={(() => {
+                    // Disabled if not bound
+                    if (!isBound) {
+                      return true;
+                    }
+                    
+                    const lineNum = parseInt(userRow.num, 10);
+                    
+                    // Disabled if premise line (line 0)
+                    if (lineNum === 0) {
+                      return true;
+                    }
+                    
+                    // Disabled if line is blank
+                    const fields = racketRuleFields[showSide];
+                    
+                    if (!fields || !fields[lineNum]) {
+                      return true;
+                    }
+                    
+                    const racket = (fields[lineNum].racket || '').trim();
+                    
+                    if (racket === '') {
+                      return true;
+                    }
+                    
+                    // Enable for non-blank, non-premise lines
+                    return false;
+                  })()}
+                  onClick={() => setShowClearConfirm(true)}
+                >
+                  Clear Line
+                </Button>
+                <Button
+                  className="orange-btn green-btn"
+                  onClick={handleGenerateAndCheck}
+                  disabled={!isBound}
+                >
+                  {windowWidth < 576 ? "Gen & Check" : "Generate & Check"}
+                </Button>
+                <Button
+                  className="orange-btn green-btn"
+                  onClick={() => updateShowSubstitution()}
+                  disabled={!isBound}
+                >
+                  {windowWidth < 576 ? "Sub" : "Substitution"}
+                </Button>
+              </Col>
+            </Row>
+          )}
         </div>
         );
       })()}

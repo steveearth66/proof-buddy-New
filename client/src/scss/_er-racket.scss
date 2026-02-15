@@ -79,6 +79,9 @@
       position: fixed;
       flex-direction: column;
 
+      max-height: 80vh;
+      overflow-y: auto;
+
       @media (min-width: $breakpoint-md) {
         width: 100%;
         height: auto;
@@ -212,6 +215,7 @@
     .form-bottom-part {
       z-index: 99;
       margin-top: 0p !important;
+      width: 100vw;
 
       input::selection {
         background-color: var(--selectBGColor);
@@ -278,6 +282,8 @@
       .goal-btn-wrap {
         justify-content: center;
         margin-bottom: 20px;
+        display: flex;
+        width: 100%;
 
         .orange-btn {
           font-size: 22px;
@@ -441,12 +447,19 @@
   width: 100%;
   background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
   border-top: 3px solid #0066cc;
-  padding: 15px 25px;
+  padding: 10px 25px;
   box-shadow: 
     0 -4px 15px rgba(0, 0, 0, 0.15),
     0 -2px 8px rgba(0, 102, 204, 0.1);
   z-index: 1000;
   backdrop-filter: blur(5px);
+
+  @media (max-width: $breakpoint-sm-min) {
+    padding-bottom: 5px;
+    .rules-btn-grp {
+      padding-bottom: 0;
+    }
+  }
 
   &::before {
     content: '';
@@ -466,6 +479,7 @@
   .input-row {
     margin: 0;
     margin-bottom: 10px;
+    gap: 10px;
     
     .btn {
       font-weight: 600;
@@ -499,12 +513,32 @@
   }
 
   .rules-btn-grp {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 12px;
+    justify-content: flex-end;
+
+    @media (max-width: $breakpoint-sm) {
+      flex-wrap: wrap;
+      justify-content: center;
+      padding: 10px 0;
+    }
+
     button {
+      width: auto;
+      min-width: fit-content;
+      white-space: nowrap;
+
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.5px;
       border-radius: 6px;
       transition: all 0.3s ease;
+
+      font-size: 1.1rem;
+      padding: 8px 14px;
+      line-height: 1.2;
       
       &:not(:disabled) {
         box-shadow: 0 2px 8px rgba(255, 165, 0, 0.3);
@@ -608,6 +642,41 @@
             white-space: nowrap;
           }
         }
+      }
+    }
+  }
+}
+
+.proof-dropdown-btn {
+  .dropdown-menu {
+    border: 0;
+    border-radius: 0;
+    background-image: $blue-gradient;
+    margin: 0;
+    padding: 0 !important;
+    z-index: 2000 !important;
+
+    &.show {
+        opacity: 0;
+    }
+
+    &.show.is-positioned {
+        opacity: 1;
+        transition: opacity 0.1s ease-in;
+    }
+
+    a.dropdown-item {
+      font-size: 20px;
+      color: white;
+      padding: 8px 21px;
+      border-top: 1px solid white;
+      width: 100%;
+      font-weight: 500;
+
+      &:hover,
+      &:focus {
+        color: #07294d;
+        background-image: $orange-gradient;
       }
     }
   }
