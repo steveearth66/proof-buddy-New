@@ -193,7 +193,7 @@ const InductionRacket = () => {
       // Measure the actual height of the section whenever it collapses/expands
       const resizeObserver = new ResizeObserver((entries) => {
         for (let entry of entries) {
-          setTopSectionHeight(entry.contentRect.height + 20); // add 20px buffer
+          setTopSectionHeight(entry.contentRect.height);
         }
       });
 
@@ -1989,7 +1989,7 @@ const InductionRacket = () => {
 
                   {/* COLUMN 2: CENTER DATA (Wrappable) */}
                   <Col xs={12} md className="px-4 flex-grow-1" style={{ minWidth: '350px' }}>
-                      <Row className="g-2 mb-3">
+                      <Row className="g-2 mb-1">
                           <Form.Group as={Col} sm="6"><Form.Floating><Form.Control id="eRProofName" name="proofName" type="text" placeholder="Name" value={formValues.proofName} onBlur={() => handleBlur("proofName")} onChange={handleChange} disabled={proofStarted} required />
                             <label>Proof Name</label>
                             </Form.Floating>
@@ -1997,22 +1997,58 @@ const InductionRacket = () => {
                           <Form.Group as={Col} sm="6"><Form.Floating>
                             <Form.Control id="eRProofTag" name="proofTag" type="text" placeholder="Tag" value={formValues.proofTag} onBlur={() => handleBlur("proofTag")} onChange={handleChange} disabled={proofStarted} required /><label># Tag</label></Form.Floating></Form.Group>
                       </Row>
-                      <Row className="g-2 mb-3">
-                          <Form.Group as={Col} md="4"><label className="form-label small fw-bold">IVar</label><RacketInput id="eRInductionVariable" name="inductionVariable" value={formValues.inductionVariable} onBlur={() => handleBlur("inductionVariable")} onChange={handleChange} onKeyUp={inductionVarKeyUp} onClick={inductionVarSelect} ref={inductionVarRef} highlightPositions={inductionVarHighlights} disabled={proofStarted} /></Form.Group>
-                          <Form.Group as={Col} md="4"><label className="form-label small fw-bold">AVal</label><RacketInput id="eRInductionValue" name="inductionValue" value={formValues.inductionValue} onBlur={() => handleBlur("inductionValue")} onChange={handleChange} onKeyUp={inductionValKeyUp} onClick={inductionValSelect} ref={inductionValRef} highlightPositions={inductionValHighlights} disabled={proofStarted} /></Form.Group>
-                          <Form.Group as={Col} md="4"><label className="form-label small fw-bold">LVar</label><RacketInput id="eRLeapVariable" name="leapVariable" value={formValues.leapVariable} onBlur={() => handleBlur("leapVariable")} onChange={handleChange} onKeyUp={leapVarKeyUp} onClick={leapVarSelect} ref={leapVarRef} highlightPositions={leapVarHighlights} disabled={proofStarted} /></Form.Group>
+                      <Row className="g-2 mb-1">
+                          <Form.Group as={Col} md="4"><label className="form-label small fw-bold mb-0">IVar</label><RacketInput id="eRInductionVariable" name="inductionVariable" value={formValues.inductionVariable} onBlur={() => handleBlur("inductionVariable")} onChange={handleChange} onKeyUp={inductionVarKeyUp} onClick={inductionVarSelect} ref={inductionVarRef} highlightPositions={inductionVarHighlights} disabled={proofStarted} /></Form.Group>
+                          <Form.Group as={Col} md="4"><label className="form-label small fw-bold mb-0">AVal</label><RacketInput id="eRInductionValue" name="inductionValue" value={formValues.inductionValue} onBlur={() => handleBlur("inductionValue")} onChange={handleChange} onKeyUp={inductionValKeyUp} onClick={inductionValSelect} ref={inductionValRef} highlightPositions={inductionValHighlights} disabled={proofStarted} /></Form.Group>
+                          <Form.Group as={Col} md="4"><label className="form-label small fw-bold mb-0">LVar</label><RacketInput id="eRLeapVariable" name="leapVariable" value={formValues.leapVariable} onBlur={() => handleBlur("leapVariable")} onChange={handleChange} onKeyUp={leapVarKeyUp} onClick={leapVarSelect} ref={leapVarRef} highlightPositions={leapVarHighlights} disabled={proofStarted} /></Form.Group>
                       </Row>
-                      <Row className="g-2 mb-3">
+                      <Row className={`g-5 mb-${(!proofStarted || !isAnchor) ? "1" : "3"}`}>
                           <Form.Group as={Col} md="6" className="er-proof-goal-lhs">
-                            <label className="form-label small fw-bold">LHS Goal</label>
+                            <label className="form-label small fw-bold mb-0">LHS Goal</label>
                             <RacketInput id="eRProofLHSGoal" name="lHSGoal" value={formValues.lHSGoal} onBlur={() => handleBlur("lHSGoal")} onChange={enhancedHandleChange} onKeyUp={lhsGoalKeyUp} onClick={lhsGoalSelect} ref={lhsGoalRef} highlightPositions={lhsGoalHighlights} disabled={proofStarted} />
                             </Form.Group>
                           <Form.Group as={Col} md="6" className="er-proof-goal-rhs">
-                            <label className="form-label small fw-bold">RHS Goal</label>
+                            <label className="form-label small fw-bold mb-0">RHS Goal</label>
                             <RacketInput id="eRProofRHSGoal" name="rHSGoal" value={formValues.rHSGoal} onBlur={() => handleBlur("rHSGoal")} onChange={enhancedHandleChange} onKeyUp={rhsGoalKeyUp} onClick={rhsGoalSelect} ref={rhsGoalRef} highlightPositions={rhsGoalHighlights} disabled={proofStarted} />
                             </Form.Group>
                       </Row>
-                      <Row className="justify-content-center er-current-state g-2 mb-3">
+                      {(!proofStarted || !isAnchor) && (
+                        <Row className="g-5 mb-3">
+                          <Form.Group as={Col} md="6" className="er-inductive-hypothesis-lhs">
+                              <label htmlFor="eRInductiveHypothesisLHS" className="form-label small fw-bold mb-0">IH LHS</label>
+                              <RacketInput
+                                id="eRInductiveHypothesisLHS"
+                                name="inductiveHypothesisLHS"
+                                type="text"
+                                placeholder="Inductive Hypothesis LHS"
+                                value={inductiveHypothesisLHS}
+                                onChange={(e) => setInductiveHypothesisLHS(e.target.value)}
+                                onKeyUp={ihLhsKeyUp}
+                                onClick={ihLhsSelect}
+                                ref={ihLhsRef}
+                                highlightPositions={ihLhsHighlights}
+                                disabled={proofStarted}
+                              />
+                          </Form.Group>
+                          <Form.Group as={Col} md="6" className="er-inductive-hypothesis-rhs">
+                              <label htmlFor="eRInductiveHypothesisRHS" className="form-label small fw-bold mb-0">IH RHS</label>
+                              <RacketInput
+                                id="eRInductiveHypothesisRHS"
+                                name="inductiveHypothesisRHS"
+                                type="text"
+                                placeholder="Inductive Hypothesis RHS"
+                                value={inductiveHypothesisRHS}
+                                onChange={(e) => setInductiveHypothesisRHS(e.target.value)}
+                                onKeyUp={ihRhsKeyUp}
+                                onClick={ihRhsSelect}
+                                ref={ihRhsRef}
+                                highlightPositions={ihRhsHighlights}
+                                disabled={proofStarted}
+                              />
+                          </Form.Group>
+                        </Row>
+                      )}
+                      <Row className="justify-content-center er-current-state g-2 mb-0">
                           <Form.Group as={Col} sm="6" className={showSide === "LHS" ? "active" : ""}><Form.Floating style={{ border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}><Form.Control type="text" value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')} readOnly style={{ border: 'none' }} /><label>Current LHS</label></Form.Floating></Form.Group>
                           <Form.Group as={Col} sm="6" className={showSide === "RHS" ? "active" : ""}><Form.Floating style={{ border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}><Form.Control type="text" value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')} readOnly style={{ border: 'none' }} /><label>Current RHS</label></Form.Floating></Form.Group>
                       </Row>

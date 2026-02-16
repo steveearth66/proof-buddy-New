@@ -66,7 +66,7 @@ const EquationalReasoningNew = () => {
         // Measure the actual height of the section whenever it collapses/expands
         const resizeObserver = new ResizeObserver((entries) => {
           for (let entry of entries) {
-            setTopSectionHeight(entry.contentRect.height + 20);
+            setTopSectionHeight(entry.contentRect.height);
           }
         });
 
