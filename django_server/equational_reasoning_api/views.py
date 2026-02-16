@@ -291,8 +291,8 @@ def apply_rule(request):
         
         # Save to database
         if proof_id and len(target.proofLines) > 0:
+            calculated_line_number = line_number if line_number is not None else (len(target.proofLines) - 1)
             if is_valid:
-                calculated_line_number = line_number if line_number is not None else (len(target.proofLines) - 1)
 
                 # Update previous line's selected_node
                 prev_line_exists = EquationalProofLine.objects.filter(
@@ -307,6 +307,10 @@ def apply_rule(request):
                         side=side.upper(),
                         line_number=calculated_line_number - 1
                     ).update(selected_node=start_position)
+
+                error_value = ''
+                if calculated_line_number < len(target.proofLines):
+                    error_value = target.proofLines[calculated_line_number].errors
                 
                 # Save the new line
                 save_proof_line_to_db(
@@ -319,10 +323,10 @@ def apply_rule(request):
                     substitution=substitution or '',
                     selected_node=start_position,
                     result_node=result_node_id,
-                    errors=target.proofLines[-1].errors
+                    errors=error_value
                 )
             else:
-                line_index = line_number - 1
+                line_index = calculated_line_number - 1
                 last_line_obj = target.proofLines[line_index]
                 EquationalProofLine.objects.filter(
                     proof_id=proof_id,
