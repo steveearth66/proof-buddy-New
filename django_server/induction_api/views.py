@@ -157,6 +157,10 @@ def start_induction_proof(request):
     user = request.user
     json_data = request.data
     
+    # Clear any stale cached proof object to prevent validation contamination
+    # (Without this, check_goal validations use old UDFs from previous proofs)
+    cache.delete(f"induction_obj_{user.username}")
+    
     try:
         # Extract all data
         side = json_data.get('side', 'LHS')
@@ -1060,8 +1064,16 @@ def check_goal(request):
     """
     user = request.user
     data = request.data
-    proof, proof_id = get_or_set_induction_obj(user)
+    
+    # ALWAYS create a fresh IndProof for validation during proof setup
+    # This prevents contamination from stale cached proofs from previous sessions.
+    # During an active proof session, the proof will be properly initialized via
+    # set_current_proof and proof lines will be in the database, not cache.
+    proof = IndProof()
+    proof_id = None
+    
     try:
+        # reload_proof_lines_from_db will do nothing since proof_id is None
         reload_proof_lines_from_db(proof, proof_id)
 
         side = data.get("side", "LHS")

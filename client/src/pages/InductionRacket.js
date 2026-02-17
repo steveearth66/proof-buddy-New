@@ -825,19 +825,41 @@ const InductionRacket = () => {
             
             // --- SANITIZE GENERICS (Prevents "reading 'assumption' of null" crash) ---
             const rawDefinitions = metaData.definition || [];
-            const sanitizedGenerics = rawDefinitions
+            const dbGenerics = rawDefinitions
               .filter(d => d.is_generic)
               .map(g => ({
                 ...g,
+                // Normalize field names: DB has 'name', sessionStorage has 'label'
+                label: g.label || g.name,
+                name: g.name || g.label,
                 // Force restrictions to be a valid object if null in DB
                 restrictions: g.restrictions || { assumption: 'None', neverNull: false }
               }));
 
-            sessionStorage.setItem('generics', JSON.stringify(sanitizedGenerics));
+            // Merge with existing sessionStorage generics to preserve enabled state
+            const existingGenerics = JSON.parse(sessionStorage.getItem('generics') || '[]');
+            const mergedGenerics = dbGenerics.map(dbGen => {
+              const existing = existingGenerics.find(eg => eg.label === dbGen.label || eg.name === dbGen.name);
+              if (existing) {
+                // Preserve enabled state from sessionStorage
+                return { ...dbGen, enabled: existing.enabled ?? dbGen.enabled };
+              }
+              return dbGen;
+            });
+            
+            // Add any sessionStorage generics not in database yet
+            existingGenerics.forEach(eg => {
+              const isInDb = dbGenerics.some(dbGen => dbGen.label === eg.label || dbGen.name === eg.label);
+              if (!isInDb) {
+                mergedGenerics.push(eg);
+              }
+            });
+
+            sessionStorage.setItem('generics', JSON.stringify(mergedGenerics));
             
             // Notify other components (like sidebar) that generics are ready
             window.dispatchEvent(new CustomEvent('genericsUpdated', { 
-                detail: { allGenerics: sanitizedGenerics } 
+                detail: { allGenerics: mergedGenerics } 
             }));
             // -------------------------------------------------------------------------
 
@@ -1327,6 +1349,7 @@ const InductionRacket = () => {
               const newGeneric = {
                 id: genericDef.id || `generic_${Date.now()}_${genericDef.name}`,
                 label: genericDef.name,
+                name: genericDef.name,  // Include both 'label' and 'name' for DB compatibility
                 type: genericDef.type,
                 notes: genericDef.description || `Generic variable ${genericDef.name}`,
                 restrictions: {
@@ -2135,10 +2158,12 @@ const InductionRacket = () => {
                       <Form.Check 
                         type="radio" id="integers" label="Integers" name="inductionType" 
                         value="integers" className="me-3" onChange={handleChange} defaultChecked 
+                        disabled={proofStarted}
                       />
                       <Form.Check 
                         type="radio" id="lists" label="Lists" name="inductionType" 
                         value="lists" onChange={handleChange} 
+                        disabled={proofStarted}
                       />
                     </div>
 
