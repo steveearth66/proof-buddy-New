@@ -435,25 +435,17 @@ const InductionRacket = () => {
           return [EMPTY_INITIAL_FIELD];
         }
         
-        // Include ALL lines (including premise at line 0) so array index = database line_number
-        const allLines = lines.sort((a, b) => a.lineNumber - b.lineNumber);
-        
-        if (allLines.length === 0) {
-          return [EMPTY_INITIAL_FIELD];
-        }
-        
-        // Find max line number to size array
-        const maxLineNum = Math.max(...allLines.map(l => l.lineNumber));
-        
-        // Create array where index matches database line number
-        // Initialize all slots with empty fields to avoid null
+        // Filter out Line 0 (Premise) for the grid
+        const maxLineNum = Math.max(...lines.map(l => l.lineNumber));
         const fields = [];
+        
+        // Initialize empty
         for (let i = 0; i <= maxLineNum; i++) {
-          fields[i] = { racket: '', rule: '', deleted: false, startPosition: 0, selectedNode: 0, substitution: '', jsonTree: {} };
+          fields[i] = { ...EMPTY_INITIAL_FIELD };
         }
         
-        // Fill in actual line data at correct indices (INCLUDING line 0)
-        allLines.forEach(line => {
+        // Fill data
+        lines.forEach(line => {
           fields[line.lineNumber] = {
             racket: line.racket || '',
             rule: line.rule || '',
@@ -461,6 +453,7 @@ const InductionRacket = () => {
             selectedNode: line.selectedNode || 0,
             substitution: line.substitution || '',
             jsonTree: line.jsonTree || {},
+            resultNode: line.resultNode || 0,
             deleted: false
           };
         });
@@ -470,48 +463,44 @@ const InductionRacket = () => {
         return fields;
       };
       
-      // Build the new state
-      const newBaseLHS = buildFieldsFromLines(proofLines.base?.LHS || []);
-      const newBaseRHS = buildFieldsFromLines(proofLines.base?.RHS || []);
-      const newLeapLHS = buildFieldsFromLines(proofLines.leap?.LHS || []);
-      const newLeapRHS = buildFieldsFromLines(proofLines.leap?.RHS || []);
-      
-      // Update base case fields
+      // 1. Update the Lines (Base & Leap)
       setBaseRacketFields({
-        LHS: newBaseLHS,
-        RHS: newBaseRHS
+        LHS: buildFieldsFromLines(proofLines.base?.LHS || []),
+        RHS: buildFieldsFromLines(proofLines.base?.RHS || [])
       });
       
-      // Update leap case fields
       setLeapRacketFields({
-        LHS: newLeapLHS,
-        RHS: newLeapRHS
+        LHS: buildFieldsFromLines(proofLines.leap?.LHS || []),
+        RHS: buildFieldsFromLines(proofLines.leap?.RHS || [])
       });
       
-      // Update premises with selectedNode from database (line 0)
-      // Only update if premise exists and selectedNode is valid
-      const baseLHSPremise = proofLines.base?.LHS?.find(l => l.lineNumber === 0);
-      const baseRHSPremise = proofLines.base?.RHS?.find(l => l.lineNumber === 0);
-      const leapLHSPremise = proofLines.leap?.LHS?.find(l => l.lineNumber === 0);
-      const leapRHSPremise = proofLines.leap?.RHS?.find(l => l.lineNumber === 0);
-      
-      if (baseLHSPremise || baseRHSPremise) {
-        setBasePremises(prev => ({
-          LHS: baseLHSPremise && prev.LHS ? { ...prev.LHS, selectedNode: baseLHSPremise.selectedNode || 0 } : prev.LHS,
-          RHS: baseRHSPremise && prev.RHS ? { ...prev.RHS, selectedNode: baseRHSPremise.selectedNode || 0 } : prev.RHS
-        }));
-      }
-      
-      if (leapLHSPremise || leapRHSPremise) {
-        setLeapPremises(prev => ({
-          LHS: leapLHSPremise && prev.LHS ? { ...prev.LHS, selectedNode: leapLHSPremise.selectedNode || 0 } : prev.LHS,
-          RHS: leapRHSPremise && prev.RHS ? { ...prev.RHS, selectedNode: leapRHSPremise.selectedNode || 0 } : prev.RHS
-        }));
-      }
+      // 2. Update the Premises State
+      const updatePremiseState = (linesArray, prevPremiseState) => {
+        const line0 = linesArray?.find(l => l.lineNumber === 0);
+        if (line0) {
+            return {
+                racket: line0.racket,
+                rule: 'Premise',
+                startPosition: 0,
+                selectedNode: line0.selectedNode || 0,
+                jsonTree: line0.jsonTree || {}
+            };
+        }
+        return prevPremiseState; // Fallback to existing if Line 0 missing
+      };
+
+      setBasePremises(prev => ({
+        LHS: updatePremiseState(proofLines.base?.LHS, prev.LHS),
+        RHS: updatePremiseState(proofLines.base?.RHS, prev.RHS)
+      }));
+
+      setLeapPremises(prev => ({
+        LHS: updatePremiseState(proofLines.leap?.LHS, prev.LHS),
+        RHS: updatePremiseState(proofLines.leap?.RHS, prev.RHS)
+      }));
 
     } catch (error) {
       console.error('[loadProofLines] Error loading proof lines:', error);
-      // Don't show error to user - this is a background operation
     }
   }, [setBaseRacketFields, setLeapRacketFields, setBasePremises, setLeapPremises]);
 
@@ -625,7 +614,7 @@ const InductionRacket = () => {
       
       // Clear sessionStorage flag so we don't restore from DB on reload
       sessionStorage.removeItem('inductionProofActive');
-      
+      sessionStorage.removeItem('induction_current_proof_id');
       toast.success('Proof archived successfully');
       
       // Reload the page to start fresh
@@ -802,56 +791,88 @@ const InductionRacket = () => {
   useEffect(() => {
     if (initializedRef.current) return;
 
-    const restoreProof = async () => {
+    const initializeProofSession = async () => {
+      initializedRef.current = true;
+      
       try {
-        initializedRef.current = true;
-        // 1. Determine the ID
-        const targetId = location.state?.id || sessionStorage.getItem('induction_current_proof_id');
-        const isActiveSession = sessionStorage.getItem('inductionProofActive') === 'true' || !!location.state?.id;
-
-        if (!isActiveSession || !targetId) return;
-
-        // 2. SET the session by ID (Calls the new backend view above)
-        // This establishes the proof_id in the Django cache
-        await inductionService.setSessionById(targetId);
-
-        // 3. FETCH the data to fill the UI
-        const proofData = await inductionService.getInductionProof(targetId);
+        // -------------------------------------------------------------
+        // STEP 1: NEGOTIATE SESSION ID & WAKE UP BACKEND
+        // -------------------------------------------------------------
+        const navId = location.state?.id || sessionStorage.getItem('induction_current_proof_id');
         
-        if (proofData) {
-          // 4. Update Session Storage
-          sessionStorage.setItem('induction_current_proof_id', targetId);
-          sessionStorage.setItem('inductionProofActive', 'true');
-
-          // 5. Populate Form Fields
-          setFormValues({
-            proofName: proofData.name,
-            proofTag: proofData.tag,
-            inductionVariable: proofData.induction_variable,
-            inductionValue: proofData.anchor_value,
-            leapVariable: proofData.leap_variable,
-            lHSGoal: proofData.lhs_leap_goal, // Or whichever goal you want as default
-            rHSGoal: proofData.rhs_leap_goal,
-            inductionType: proofData.induction_type
-          });
-
-          setInductiveHypothesisLHS(proofData.inductive_hypothesis_lhs);
-          setInductiveHypothesisRHS(proofData.inductive_hypothesis_rhs);
-
-          // 6. Load the Lines (UI components)
-          // Since setSessionById already "woke up" the engine, 
-          // this will successfully generate the jsonTrees.
-          await loadProofLinesFromDatabase();
+        if (navId) {
+          // This call is critical: it tells the backend "Load Proof #123 into memory"
+          // Without this, subsequent calls like getProofLines would fail or return empty
+          await inductionService.setSessionById(navId); 
           
-          setProofStarted(true);
-          if (location.state?.id) window.history.replaceState({}, document.title);
+          sessionStorage.setItem('induction_current_proof_id', navId);
+          sessionStorage.setItem('inductionProofActive', 'true');
         }
+
+        const isActiveSession = sessionStorage.getItem('inductionProofActive') === 'true';
+        
+        // If no session is active (fresh page load), stop here and let the UI render blank
+        if (!isActiveSession) {
+            return;
+        }
+
+        // -------------------------------------------------------------
+        // STEP 2: HYDRATE FORM METADATA & SANITIZE GENERICS
+        // (loadProofLinesFromDatabase does NOT do this part)
+        // -------------------------------------------------------------
+        if (navId) {
+            const metaData = await inductionService.getInductionProof(navId);
+            
+            // --- SANITIZE GENERICS (Prevents "reading 'assumption' of null" crash) ---
+            const rawDefinitions = metaData.definition || [];
+            const sanitizedGenerics = rawDefinitions
+              .filter(d => d.is_generic)
+              .map(g => ({
+                ...g,
+                // Force restrictions to be a valid object if null in DB
+                restrictions: g.restrictions || { assumption: 'None', neverNull: false }
+              }));
+
+            sessionStorage.setItem('generics', JSON.stringify(sanitizedGenerics));
+            
+            // Notify other components (like sidebar) that generics are ready
+            window.dispatchEvent(new CustomEvent('genericsUpdated', { 
+                detail: { allGenerics: sanitizedGenerics } 
+            }));
+            // -------------------------------------------------------------------------
+
+            // Hydrate the Top-Level Form Inputs
+            setFormValues(prev => ({
+                ...prev,
+                proofName: metaData.name || prev.proofName,
+                proofTag: metaData.tag || prev.proofTag,
+                lHSGoal: metaData.lhs_leap_goal || prev.lHSGoal,
+                rHSGoal: metaData.rhs_leap_goal || prev.rHSGoal,
+                inductionVariable: metaData.induction_variable || prev.inductionVariable,
+                inductionValue: metaData.anchor_value || prev.inductionValue,
+                leapVariable: metaData.leap_variable || prev.leapVariable,
+                inductionType: metaData.induction_type || prev.inductionType
+            }));
+
+            setInductiveHypothesisLHS(metaData.inductive_hypothesis_lhs || "");
+            setInductiveHypothesisRHS(metaData.inductive_hypothesis_rhs || "");
+        }
+
+        // -------------------------------------------------------------
+        // STEP 3: LOAD PROOF LINES (Delegated)
+        // This function handles fetching lines, mapping fields, and updating state
+        // -------------------------------------------------------------
+        await loadProofLinesFromDatabase(); 
+
+        setProofStarted(true);
+
       } catch (error) {
-        console.error('Restoration failed:', error);
+        console.error("Failed to restore session", error);
+        toast.error("Failed to load previous session.");
       }
     };
 
-    restoreProof();
+    initializeProofSession();
   }, [loadProofLinesFromDatabase]);
 
   useEffect(() => {
@@ -1280,7 +1301,7 @@ const InductionRacket = () => {
         is_anchor: isAnchorFlag,
         inductive_hypothesis_lhs: inductiveHypothesisLHS,
         inductive_hypothesis_rhs: inductiveHypothesisRHS,
-        definitions
+        definitions: definitions
       };
 
       const response = await inductionService.startInductionProof(inductionData);
