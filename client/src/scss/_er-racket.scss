@@ -10,38 +10,121 @@
 }
 
 .er-racket-container {
+  margin: 0;
   .er-racket-form {
     margin-bottom: 10px;
 
+    .standard-view-content {
+      padding-bottom: 10px;
+
+      .standard-view-flex-container {
+        gap: 15px;
+      }
+
+      .switch-button-container {
+        flex: 0 0 auto; // Prevent the button from ever shrinking
+        min-width: fit-content;
+      }
+
+      .inputs-wrapper {
+        // This allows the inputs to shrink or move to a new line
+        flex: 1 1 300px; 
+        max-width: 100%;
+
+        .row {
+          margin: 0;
+          flex-wrap: wrap !important;
+        }
+
+        // Target the columns inside the standard view
+        .er-proof-goal-lhs, .er-proof-goal-rhs, 
+        .er-proof-current-lhs, .er-proof-current-rhs {
+          min-width: 280px;
+          max-width: 100%;
+          flex: 1 1 auto;
+        }
+      }
+
+      // Responsive Breakpoint for Stacking
+      @media (max-width: 750px) {
+        .standard-view-flex-container {
+          flex-direction: column; // Stack button ABOVE inputs
+          align-items: center;
+        }
+
+        .switch-button-container {
+          width: 100%;
+          text-align: center;
+          margin-right: 0 !important;
+          margin-bottom: 15px;
+        }
+
+        .switch-btn {
+          width: 100% !important;
+          max-width: 450px; // Keep it from being too wide on desktops
+          
+          .btn-text-long {
+            display: none !important; // Hide long text
+          }
+        }
+      }
+    }
+
     .form-top-section {
-      z-index: 99;
+      z-index: 1040;
       background-color: $color-white;
       padding-left: 15px;
       padding-right: 15px;
+      height: auto !important;
+      position: fixed;
+      flex-direction: column;
+
+      max-height: 80vh;
+      overflow-y: auto;
 
       @media (min-width: $breakpoint-md) {
         width: 100%;
-        height: 310px;
+        height: auto;
         position: fixed;
         top: 68px;
         left: 0;
         right: 0;
       }
 
+      .proof-dashboard {
+        .col-xl-auto {
+          display: flex;
+          flex-direction: column;
+          align-items: center; 
+          justify-content: center;
+          text-align: center;
+          
+          .proof-utilities {
+            width: auto;
+            margin: 0 auto;
+            
+            button {
+              margin: 0 auto;
+            }
+          }
+        }
+      }
+
       .page-header-row {
         h1 {
-          font-size: 36px;
+          font-size: clamp(20px, 2.5vw, 36px);
           margin: 20px 0;
           font-weight: $font-bold;
         }
         display: flex;
         align-items: center;
-        gap: 20px;
+        gap: clamp(5px, 1.5vw, 20px);
+        flex-wrap: wrap;
 
         .check-row {
           display: flex;
           align-items: center;
-          gap: 30px;
+          gap: clamp(5px, 1.5vw, 30px);
         }
       }
 
@@ -114,11 +197,15 @@
 
       .form-separator {
         z-index: 99;
+        position: relative;
+        margin-top: 15px;
+        width: 100%;
+        clear: both;
 
         &::after {
           content: "";
           border-bottom: 2px solid $color-drexel-blue;
-          position: fixed;
+          display: block;
           width: 100%;
           left: 0;
         }
@@ -127,14 +214,15 @@
 
     .form-bottom-part {
       z-index: 99;
-      margin-top: 20px;
+      margin-top: 0p !important;
+      width: 100vw;
 
       input::selection {
         background-color: var(--selectBGColor);
       }
 
       @media (min-width: $breakpoint-md) {
-        margin-top: 325px;
+        margin-top: 0px !important;
       }
 
       .racket-rule-container-wrap {
@@ -194,6 +282,8 @@
       .goal-btn-wrap {
         justify-content: center;
         margin-bottom: 20px;
+        display: flex;
+        width: 100%;
 
         .orange-btn {
           font-size: 22px;
@@ -357,12 +447,19 @@
   width: 100%;
   background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
   border-top: 3px solid #0066cc;
-  padding: 15px 25px;
+  padding: 10px 25px;
   box-shadow: 
     0 -4px 15px rgba(0, 0, 0, 0.15),
     0 -2px 8px rgba(0, 102, 204, 0.1);
   z-index: 1000;
   backdrop-filter: blur(5px);
+
+  @media (max-width: $breakpoint-sm-min) {
+    padding-bottom: 5px;
+    .rules-btn-grp {
+      padding-bottom: 0;
+    }
+  }
 
   &::before {
     content: '';
@@ -382,6 +479,7 @@
   .input-row {
     margin: 0;
     margin-bottom: 10px;
+    gap: 10px;
     
     .btn {
       font-weight: 600;
@@ -415,12 +513,32 @@
   }
 
   .rules-btn-grp {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 12px;
+    justify-content: flex-end;
+
+    @media (max-width: $breakpoint-sm) {
+      flex-wrap: wrap;
+      justify-content: center;
+      padding: 10px 0;
+    }
+
     button {
+      width: auto;
+      min-width: fit-content;
+      white-space: nowrap;
+
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.5px;
       border-radius: 6px;
       transition: all 0.3s ease;
+
+      font-size: 1.1rem;
+      padding: 8px 14px;
+      line-height: 1.2;
       
       &:not(:disabled) {
         box-shadow: 0 2px 8px rgba(255, 165, 0, 0.3);
@@ -524,6 +642,41 @@
             white-space: nowrap;
           }
         }
+      }
+    }
+  }
+}
+
+.proof-dropdown-btn {
+  .dropdown-menu {
+    border: 0;
+    border-radius: 0;
+    background-image: $blue-gradient;
+    margin: 0;
+    padding: 0 !important;
+    z-index: 2000 !important;
+
+    &.show {
+        opacity: 0;
+    }
+
+    &.show.is-positioned {
+        opacity: 1;
+        transition: opacity 0.1s ease-in;
+    }
+
+    a.dropdown-item {
+      font-size: 20px;
+      color: white;
+      padding: 8px 21px;
+      border-top: 1px solid white;
+      width: 100%;
+      font-weight: 500;
+
+      &:hover,
+      &:focus {
+        color: #07294d;
+        background-image: $orange-gradient;
       }
     }
   }

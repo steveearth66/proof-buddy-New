@@ -39,6 +39,7 @@ import {
   getPadRefs,
   getPadIndex
 } from "../utils/erRacketUtils";
+import { useLocation } from "react-router-dom";
 
 /**
  * InductionRacket component facilitates the Equational Reasoning Racket.
@@ -182,6 +183,32 @@ const InductionRacket = () => {
     handleKeyUp: ihRhsKeyUp, 
     handleSelect: ihRhsSelect 
   } = useParenHighlight(inductiveHypothesisRHS);
+
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
+  const topSectionRef = useRef(null);
+  const [topSectionHeight, setTopSectionHeight] = useState(310); // fallback default
+
+  useEffect(() => {
+    if (topSectionRef.current) {
+      // Measure the actual height of the section whenever it collapses/expands
+      const resizeObserver = new ResizeObserver((entries) => {
+        for (let entry of entries) {
+          setTopSectionHeight(entry.contentRect.height);
+        }
+      });
+
+      resizeObserver.observe(topSectionRef.current);
+      return () => resizeObserver.disconnect();
+    }
+  }, [isHeaderCollapsed]); // Re-run when toggle changes
+
+  const [windowWidth, setWindowWidth] = React.useState(window.innerWidth);
+  
+      useEffect(() => {
+        const handleResize = () => setWindowWidth(window.innerWidth);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+      }, []);
 
   // Footer binding and PersistentPad refs - for interactive proof line highlighting
   const lhsPadRefs = useRef({});
@@ -408,25 +435,17 @@ const InductionRacket = () => {
           return [EMPTY_INITIAL_FIELD];
         }
         
-        // Include ALL lines (including premise at line 0) so array index = database line_number
-        const allLines = lines.sort((a, b) => a.lineNumber - b.lineNumber);
-        
-        if (allLines.length === 0) {
-          return [EMPTY_INITIAL_FIELD];
-        }
-        
-        // Find max line number to size array
-        const maxLineNum = Math.max(...allLines.map(l => l.lineNumber));
-        
-        // Create array where index matches database line number
-        // Initialize all slots with empty fields to avoid null
+        // Filter out Line 0 (Premise) for the grid
+        const maxLineNum = Math.max(...lines.map(l => l.lineNumber));
         const fields = [];
+        
+        // Initialize empty
         for (let i = 0; i <= maxLineNum; i++) {
-          fields[i] = { racket: '', rule: '', deleted: false, startPosition: 0, selectedNode: 0, substitution: '', jsonTree: {} };
+          fields[i] = { ...EMPTY_INITIAL_FIELD };
         }
         
-        // Fill in actual line data at correct indices (INCLUDING line 0)
-        allLines.forEach(line => {
+        // Fill data
+        lines.forEach(line => {
           fields[line.lineNumber] = {
             racket: line.racket || '',
             rule: line.rule || '',
@@ -434,6 +453,7 @@ const InductionRacket = () => {
             selectedNode: line.selectedNode || 0,
             substitution: line.substitution || '',
             jsonTree: line.jsonTree || {},
+            resultNode: line.resultNode || 0,
             deleted: false
           };
         });
@@ -443,48 +463,44 @@ const InductionRacket = () => {
         return fields;
       };
       
-      // Build the new state
-      const newBaseLHS = buildFieldsFromLines(proofLines.base?.LHS || []);
-      const newBaseRHS = buildFieldsFromLines(proofLines.base?.RHS || []);
-      const newLeapLHS = buildFieldsFromLines(proofLines.leap?.LHS || []);
-      const newLeapRHS = buildFieldsFromLines(proofLines.leap?.RHS || []);
-      
-      // Update base case fields
+      // 1. Update the Lines (Base & Leap)
       setBaseRacketFields({
-        LHS: newBaseLHS,
-        RHS: newBaseRHS
+        LHS: buildFieldsFromLines(proofLines.base?.LHS || []),
+        RHS: buildFieldsFromLines(proofLines.base?.RHS || [])
       });
       
-      // Update leap case fields
       setLeapRacketFields({
-        LHS: newLeapLHS,
-        RHS: newLeapRHS
+        LHS: buildFieldsFromLines(proofLines.leap?.LHS || []),
+        RHS: buildFieldsFromLines(proofLines.leap?.RHS || [])
       });
       
-      // Update premises with selectedNode from database (line 0)
-      // Only update if premise exists and selectedNode is valid
-      const baseLHSPremise = proofLines.base?.LHS?.find(l => l.lineNumber === 0);
-      const baseRHSPremise = proofLines.base?.RHS?.find(l => l.lineNumber === 0);
-      const leapLHSPremise = proofLines.leap?.LHS?.find(l => l.lineNumber === 0);
-      const leapRHSPremise = proofLines.leap?.RHS?.find(l => l.lineNumber === 0);
-      
-      if (baseLHSPremise || baseRHSPremise) {
-        setBasePremises(prev => ({
-          LHS: baseLHSPremise && prev.LHS ? { ...prev.LHS, selectedNode: baseLHSPremise.selectedNode || 0 } : prev.LHS,
-          RHS: baseRHSPremise && prev.RHS ? { ...prev.RHS, selectedNode: baseRHSPremise.selectedNode || 0 } : prev.RHS
-        }));
-      }
-      
-      if (leapLHSPremise || leapRHSPremise) {
-        setLeapPremises(prev => ({
-          LHS: leapLHSPremise && prev.LHS ? { ...prev.LHS, selectedNode: leapLHSPremise.selectedNode || 0 } : prev.LHS,
-          RHS: leapRHSPremise && prev.RHS ? { ...prev.RHS, selectedNode: leapRHSPremise.selectedNode || 0 } : prev.RHS
-        }));
-      }
+      // 2. Update the Premises State
+      const updatePremiseState = (linesArray, prevPremiseState) => {
+        const line0 = linesArray?.find(l => l.lineNumber === 0);
+        if (line0) {
+            return {
+                racket: line0.racket,
+                rule: 'Premise',
+                startPosition: 0,
+                selectedNode: line0.selectedNode || 0,
+                jsonTree: line0.jsonTree || {}
+            };
+        }
+        return prevPremiseState; // Fallback to existing if Line 0 missing
+      };
+
+      setBasePremises(prev => ({
+        LHS: updatePremiseState(proofLines.base?.LHS, prev.LHS),
+        RHS: updatePremiseState(proofLines.base?.RHS, prev.RHS)
+      }));
+
+      setLeapPremises(prev => ({
+        LHS: updatePremiseState(proofLines.leap?.LHS, prev.LHS),
+        RHS: updatePremiseState(proofLines.leap?.RHS, prev.RHS)
+      }));
 
     } catch (error) {
       console.error('[loadProofLines] Error loading proof lines:', error);
-      // Don't show error to user - this is a background operation
     }
   }, [setBaseRacketFields, setLeapRacketFields, setBasePremises, setLeapPremises]);
 
@@ -598,7 +614,7 @@ const InductionRacket = () => {
       
       // Clear sessionStorage flag so we don't restore from DB on reload
       sessionStorage.removeItem('inductionProofActive');
-      
+      sessionStorage.removeItem('induction_current_proof_id');
       toast.success('Proof archived successfully');
       
       // Reload the page to start fresh
@@ -769,198 +785,95 @@ const InductionRacket = () => {
       isProcessingRef.current = false;
     }
   };
-
+  
+  const location = useLocation();
+  const initializedRef = useRef(false);
   useEffect(() => {
-    // On mount, attempt to restore proof from database only if we're in an active session
-    // Use sessionStorage to distinguish between page refresh (restore) and new navigation (clear)
-    const restoreProof = async () => {
+    if (initializedRef.current) return;
+
+    const initializeProofSession = async () => {
+      initializedRef.current = true;
+      
       try {
+        // -------------------------------------------------------------
+        // STEP 1: NEGOTIATE SESSION ID & WAKE UP BACKEND
+        // -------------------------------------------------------------
+        const navId = location.state?.id || sessionStorage.getItem('induction_current_proof_id');
+        
+        if (navId) {
+          // This call is critical: it tells the backend "Load Proof #123 into memory"
+          // Without this, subsequent calls like getProofLines would fail or return empty
+          await inductionService.setSessionById(navId); 
+          
+          sessionStorage.setItem('induction_current_proof_id', navId);
+          sessionStorage.setItem('inductionProofActive', 'true');
+        }
+
         const isActiveSession = sessionStorage.getItem('inductionProofActive') === 'true';
         
+        // If no session is active (fresh page load), stop here and let the UI render blank
         if (!isActiveSession) {
-          // New session - clear any old proof data and start fresh
-          await inductionService.clearInduction();
-          return;
+            return;
         }
-        
-        // Active session - attempt to restore from database (page refresh scenario)
-        const proofData = await inductionService.getCurrentProof();
-        
-        if (proofData.hasProof) {
-          // Restore form values
-          setFormValues(prev => ({
-            ...prev,
-            inductionVariable: proofData.inductionVariable || '',
-            inductionValue: proofData.anchorValue !== undefined ? proofData.anchorValue.toString() : '',
-            leapVariable: proofData.leapVariable || '',
-            lHSGoal: proofData.lhsAnchorGoal || '',
-            rHSGoal: proofData.rhsAnchorGoal || '',
-            proofName: proofData.proofName || '',
-            proofTag: proofData.tag || ''
-          }));
-          
-          // Restore inductive hypotheses
-          setInductiveHypothesisLHS(proofData.inductiveHypothesisLHS || '');
-          setInductiveHypothesisRHS(proofData.inductiveHypothesisRHS || '');
-          
-          // Re-initialize the proof engine to get proper jsonTrees for premises
-          try {
-            const normalizeType = (t) => (t || '').replace(/\s*->\s*/g, ' > ').trim();
-            const definitions = JSON.parse(sessionStorage.getItem('definitions') || '[]');
+
+        // -------------------------------------------------------------
+        // STEP 2: HYDRATE FORM METADATA & SANITIZE GENERICS
+        // (loadProofLinesFromDatabase does NOT do this part)
+        // -------------------------------------------------------------
+        if (navId) {
+            const metaData = await inductionService.getInductionProof(navId);
             
-            const engineSetup = await inductionService.setCurrentProof({
-              struct: (proofData.inductionType || 'integers').toLowerCase() === 'lists' ? 'list' : 'int',
-              ivar: proofData.inductionVariable,
-              aval: String(proofData.anchorValue),
-              lvar: proofData.leapVariable,
-              lhsPremise: proofData.lhsAnchorGoal,
-              rhsPremise: proofData.rhsAnchorGoal,
-              definitions: definitions.map(d => ({
-                label: d.label || d.name || '',
-                type: normalizeType(d.type),
-                expression: d.expression
-              }))
-            });
+            // --- SANITIZE GENERICS (Prevents "reading 'assumption' of null" crash) ---
+            const rawDefinitions = metaData.definition || [];
+            const sanitizedGenerics = rawDefinitions
+              .filter(d => d.is_generic)
+              .map(g => ({
+                ...g,
+                // Force restrictions to be a valid object if null in DB
+                restrictions: g.restrictions || { assumption: 'None', neverNull: false }
+              }));
 
-            if (engineSetup && engineSetup.base && engineSetup.leap) {
-              const baseL = engineSetup.base.LHS || {};
-              const baseR = engineSetup.base.RHS || {};
-              const leapL = engineSetup.leap.LHS || {};
-              const leapR = engineSetup.leap.RHS || {};
-
-              // Set base case premises with proper jsonTrees
-              setBasePremises({
-                LHS: {
-                  racket: baseL.racket || proofData.lhsAnchorGoal || '',
-                  rule: 'Premise',
-                  startPosition: 0,
-                  selectedNode: 0,
-                  jsonTree: baseL.jsonTree || {}
-                },
-                RHS: {
-                  racket: baseR.racket || proofData.rhsAnchorGoal || '',
-                  rule: 'Premise',
-                  startPosition: 0,
-                  selectedNode: 0,
-                  jsonTree: baseR.jsonTree || {}
-                }
-              });
-
-              // Set leap case premises with proper jsonTrees
-              setLeapPremises({
-                LHS: {
-                  racket: leapL.racket || proofData.lhsLeapGoal || '',
-                  rule: 'Premise',
-                  startPosition: 0,
-                  selectedNode: 0,
-                  jsonTree: leapL.jsonTree || {}
-                },
-                RHS: {
-                  racket: leapR.racket || proofData.rhsLeapGoal || '',
-                  rule: 'Premise',
-                  startPosition: 0,
-                  selectedNode: 0,
-                  jsonTree: leapR.jsonTree || {}
-                }
-              });
-
-              setJsonTreeRep({
-                LHS: baseL.jsonTree || {},
-                RHS: baseR.jsonTree || {}
-              });
-            }
-          } catch (engineError) {
-            // Fall back to simple initialization without jsonTrees
-            setBasePremises({
-              LHS: { racket: proofData.lhsAnchorGoal || '', jsonTree: {}, rule: 'Premise', startPosition: 0, selectedNode: 0 },
-              RHS: { racket: proofData.rhsAnchorGoal || '', jsonTree: {}, rule: 'Premise', startPosition: 0, selectedNode: 0 }
-            });
-            setLeapPremises({
-              LHS: { racket: proofData.lhsLeapGoal || '', jsonTree: {}, rule: 'Premise', startPosition: 0, selectedNode: 0 },
-              RHS: { racket: proofData.rhsLeapGoal || '', jsonTree: {}, rule: 'Premise', startPosition: 0, selectedNode: 0 }
-            });
-          }
-          
-          // Initialize fields
-          setBaseRacketFields({ LHS: [EMPTY_INITIAL_FIELD], RHS: [EMPTY_INITIAL_FIELD] });
-          setLeapRacketFields({ LHS: [EMPTY_INITIAL_FIELD], RHS: [EMPTY_INITIAL_FIELD] });
-          
-          // Get proof lines and restore them
-          try {
-            const lines = await inductionService.getProofLines();
+            sessionStorage.setItem('generics', JSON.stringify(sanitizedGenerics));
             
-            if (lines && typeof lines === 'object') {
-              // Helper function to convert database lines to UI field format
-              const convertLinesToFields = (dbLines) => {
-                if (!Array.isArray(dbLines) || dbLines.length === 0) {
-                  return [EMPTY_INITIAL_FIELD];
-                }
-                
-                // Find the highest line number to size the array
-                const maxLineNum = Math.max(...dbLines.map(line => line.lineNumber));
-                
-                // Create array where index = database line_number
-                // Start with empty fields for all positions
-                const fields = [];
-                for (let i = 0; i <= maxLineNum; i++) {
-                  fields[i] = { ...EMPTY_INITIAL_FIELD };
-                }
-                
-                // Fill in the actual data from database
-                dbLines.forEach(line => {
-                  fields[line.lineNumber] = {
-                    racket: line.racket || '',
-                    jsonTree: line.jsonTree || {},
-                    rule: line.rule || '',
-                    startPosition: line.startPosition || 0,
-                    selectedNode: line.selectedNode || 0,
-                    resultNode: line.resultNode || 0,
-                    deleted: false
-                  };
-                });
-                
-                // Add trailing empty field for next line
-                fields.push(EMPTY_INITIAL_FIELD);
-                
-                return fields;
-              };
-              
-              // Restore base case fields
-              if (lines.base) {
-                const baseLHS = convertLinesToFields(lines.base.LHS);
-                const baseRHS = convertLinesToFields(lines.base.RHS);
-                setBaseRacketFields({ LHS: baseLHS, RHS: baseRHS });
-              }
-              
-              // Restore leap case fields  
-              if (lines.leap) {
-                const leapLHS = convertLinesToFields(lines.leap.LHS);
-                const leapRHS = convertLinesToFields(lines.leap.RHS);
-                setLeapRacketFields({ LHS: leapLHS, RHS: leapRHS });
-              }
-            }
-          } catch (linesError) {
-            // Continue anyway - at least form values and IH are restored
-          }
-          
-          setProofStarted(true);
-          sessionStorage.setItem('inductionProofActive', 'true');
-        } else {
-          // No existing proof, clear to start fresh
-          await inductionService.clearInduction();
+            // Notify other components (like sidebar) that generics are ready
+            window.dispatchEvent(new CustomEvent('genericsUpdated', { 
+                detail: { allGenerics: sanitizedGenerics } 
+            }));
+            // -------------------------------------------------------------------------
+
+            // Hydrate the Top-Level Form Inputs
+            setFormValues(prev => ({
+                ...prev,
+                proofName: metaData.name || prev.proofName,
+                proofTag: metaData.tag || prev.proofTag,
+                lHSGoal: metaData.lhs_leap_goal || prev.lHSGoal,
+                rHSGoal: metaData.rhs_leap_goal || prev.rHSGoal,
+                inductionVariable: metaData.induction_variable || prev.inductionVariable,
+                inductionValue: metaData.anchor_value || prev.inductionValue,
+                leapVariable: metaData.leap_variable || prev.leapVariable,
+                inductionType: metaData.induction_type || prev.inductionType
+            }));
+
+            setInductiveHypothesisLHS(metaData.inductive_hypothesis_lhs || "");
+            setInductiveHypothesisRHS(metaData.inductive_hypothesis_rhs || "");
         }
+
+        // -------------------------------------------------------------
+        // STEP 3: LOAD PROOF LINES (Delegated)
+        // This function handles fetching lines, mapping fields, and updating state
+        // -------------------------------------------------------------
+        await loadProofLinesFromDatabase(); 
+
+        setProofStarted(true);
+
       } catch (error) {
-        // On error, clear to start fresh
-        try {
-          await inductionService.clearInduction();
-        } catch (clearError) {
-          // Silent fail
-        }
+        console.error("Failed to restore session", error);
+        toast.error("Failed to load previous session.");
       }
     };
 
-    restoreProof();
-  }, []);
+    initializeProofSession();
+  }, [loadProofLinesFromDatabase]);
 
   useEffect(() => {
     // Do not clear definitions here; keep session-applied definitions intact
@@ -1388,7 +1301,7 @@ const InductionRacket = () => {
         is_anchor: isAnchorFlag,
         inductive_hypothesis_lhs: inductiveHypothesisLHS,
         inductive_hypothesis_rhs: inductiveHypothesisRHS,
-        definitions
+        definitions: definitions
       };
 
       const response = await inductionService.startInductionProof(inductionData);
@@ -1450,7 +1363,7 @@ const InductionRacket = () => {
           
           if (proofId) {
             toast.success('Induction proof started successfully!');
-            sessionStorage.setItem('current_proof_id', proofId);
+            sessionStorage.setItem('induction_current_proof_id', proofId);
             
             // Initialize the IndProof engine with UDFs, IH and premises
             try {
@@ -1910,6 +1823,26 @@ const InductionRacket = () => {
     }
   };
 
+  const handleDropdownToggle = (isOpen, menuId) => {
+    if (isOpen) {
+      requestAnimationFrame(() => {
+        const menu = document.getElementById(menuId);
+        
+        if (menu) {
+          menu.classList.remove('is-positioned');
+          window.dispatchEvent(new Event('resize'));
+
+          setTimeout(() => {
+            menu.classList.add('is-positioned');
+          }, 70);
+        }
+      });
+    } else {
+      const menu = document.getElementById(menuId);
+      if (menu) menu.classList.remove('is-positioned');
+    }
+  };
+
   return (
     <MainLayout>
       <Container className="er-racket-container">
@@ -1942,386 +1875,321 @@ const InductionRacket = () => {
           className="er-racket-form"
           onSubmit={handleERRacketSubmission}
         >
-          <div className="form-top-section">
-            <Row className="page-header-row" style={{ alignItems: 'center' }}>
-              <Col xs="auto">
-                <h1 style={{ marginBottom: 0 }}>Induction: Racket</h1>
-              </Col>
-              <Col xs="auto" className="check-row">
-                <Form.Check
-                  type="radio"
-                  id="integers"
-                  label="Integers"
-                  name="inductionType"
-                  value="integers"
-                  onChange={handleChange}
-                  defaultChecked
-                />
-                <Form.Check
-                  type="radio"
-                  id="lists"
-                  label="Lists"
-                  name="inductionType"
-                  value="lists"
-                  onChange={handleChange}
-                />
-              </Col>
-              <Form.Group as={Col} md="auto" className="er-proof-name">
-                <Form.Floating className="mb-3">
-                  <Form.Control
-                    id="eRProofName"
-                    name="proofName"
-                    type="text"
-                    placeholder="Enter name"
-                    value={formValues.proofName}
-                    onBlur={() => {
-                      handleBlur("proofName");
-                      clearProofValidationMessage();
-                    }}
-                    onChange={handleChange}
-                    isInvalid={
-                      !!validationMessages.proofName ||
-                      !!proofValidationMessage.name
-                    }
-                    disabled={proofStarted}
-                    required
-                  />
-                  <label htmlFor="eRProofName">Name</label>
-                  <Form.Control.Feedback type="invalid" tooltip>
-                    {validationMessages.proofName ||
-                      proofValidationMessage.name}
-                  </Form.Control.Feedback>
-                </Form.Floating>
-              </Form.Group>
-              <Form.Group as={Col} md="auto" className="er-proof-tag">
-                <Form.Floating className="mb-3">
-                  <Form.Control
-                    id="eRProofTag"
-                    name="proofTag"
-                    type="text"
-                    placeholder="Enter tag"
-                    value={formValues.proofTag}
-                    onBlur={() => {
-                      handleBlur("proofTag");
-                      clearProofValidationMessage();
-                    }}
-                    onChange={handleChange}
-                    isInvalid={
-                      !!proofValidationMessage.tag || !!validationMessages.tag
-                    }
-                    disabled={proofStarted}
-                    required
-                  />
-                  <label htmlFor="eRProofTag"># Tag</label>
-                  <Form.Control.Feedback type="invalid" tooltip>
-                    {proofValidationMessage.tag || validationMessages.tag}
-                  </Form.Control.Feedback>
-                </Form.Floating>
-              </Form.Group>
-              <Form.Group as={Col} md="auto" className="er-induction-variable">
-                <div className="mb-3">
-                  <label htmlFor="eRInductionVariable" className="form-label">IVar</label>
-                  <RacketInput
-                    id="eRInductionVariable"
-                    name="inductionVariable"
-                    type="text"
-                    placeholder="Induction Variable"
-                    value={formValues.inductionVariable}
-                    onBlur={() => {
-                      handleBlur("inductionVariable");
-                      clearProofValidationMessage();
-                    }}
-                    onChange={handleChange}
-                    onKeyUp={inductionVarKeyUp}
-                    onClick={inductionVarSelect}
-                    ref={inductionVarRef}
-                    highlightPositions={inductionVarHighlights}
-                    isInvalid={
-                      !!validationMessages.inductionVariable ||
-                      !!proofValidationMessage.inductionVariable
-                    }
-                    disabled={proofStarted}
-                    required
-                  />
-                  <Form.Control.Feedback type="invalid" tooltip>
-                    {validationMessages.inductionVariable ||
-                      proofValidationMessage.inductionVariable}
-                  </Form.Control.Feedback>
-                </div>
-              </Form.Group>
-              <Form.Group as={Col} md="auto" className="er-induction-value">
-                <div className="mb-3">
-                  <label htmlFor="eRInductionValue" className="form-label">AVal</label>
-                  <RacketInput
-                    id="eRInductionValue"
-                    name="inductionValue"
-                    type="text"
-                    placeholder="Anchor Value"
-                    value={formValues.inductionValue}
-                    onBlur={() => {
-                      handleBlur("inductionValue");
-                      clearProofValidationMessage();
-                    }}
-                    onChange={handleChange}
-                    onKeyUp={inductionValKeyUp}
-                    onClick={inductionValSelect}
-                    ref={inductionValRef}
-                    highlightPositions={inductionValHighlights}
-                    isInvalid={
-                      !!validationMessages.inductionValue ||
-                      !!proofValidationMessage.inductionValue
-                    }
-                    disabled={proofStarted}
-                    required
-                  />
-                  <Form.Control.Feedback type="invalid" tooltip>
-                    {validationMessages.inductionValue ||
-                      proofValidationMessage.inductionValue}
-                  </Form.Control.Feedback>
-                </div>
-              </Form.Group>
-              <Form.Group as={Col} md="auto" className="er-leap-variable">
-                <div className="mb-3">
-                  <label htmlFor="eRLeapVariable" className="form-label">LVar</label>
-                  <RacketInput
-                    id="eRLeapVariable"
-                    name="leapVariable"
-                    type="text"
-                    placeholder="Leap Variable"
-                    value={formValues.leapVariable}
-                    onBlur={() => {
-                      handleBlur("leapVariable");
-                      clearProofValidationMessage();
-                    }}
-                    onChange={handleChange}
-                    onKeyUp={leapVarKeyUp}
-                    onClick={leapVarSelect}
-                    ref={leapVarRef}
-                    highlightPositions={leapVarHighlights}
-                    isInvalid={
-                      !!validationMessages.leapVariable ||
-                      !!proofValidationMessage.leapVariable
-                    }
-                    disabled={proofStarted}
-                    required
-                  />
-                  <Form.Control.Feedback type="invalid" tooltip>
-                    {validationMessages.leapVariable ||
-                      proofValidationMessage.leapVariable}
-                  </Form.Control.Feedback>
-                </div>
-              </Form.Group>
+        <div className="form-top-section" ref={topSectionRef}>
+            {/* ROW 1: MASTER HEADER */}
+            <Row className="page-header-row align-items-center g-0 w-100" style={{ paddingRight: '40px' }}>    
+                {isHeaderCollapsed && (
+                    <div className="d-flex align-items-center w-100 flex-wrap gap-2 px-3">
+                        <Col xs="auto">
+                            <h1 style={{ marginBottom: 0, fontSize: '24px', whiteSpace: 'nowrap' }}>Induction: Racket</h1>
+                        </Col>
+                        <Col xs="auto" className="d-flex gap-2 ms-2">
+                            <Button
+                                size="sm"
+                                onClick={handleToggleSide}
+                                style={{ backgroundImage: 'linear-gradient(135deg, #07294d 0, #006298 100%)', color: '#ffffff', border: 'none', height: '40px', width: '40px', flexShrink: 0 }}
+                            >
+                                {showSide === "LHS" ? "⋘" : "⋙"}
+                            </Button>
+                            <Button
+                                size="sm"
+                                onClick={handleToggleCase}
+                                style={{ backgroundImage: 'linear-gradient(135deg, #07294d 0, #006298 100%)', color: '#ffffff', border: 'none', height: '40px', width: '40px', flexShrink: 0 }}
+                            >
+                                {isAnchor ? "B" : "L"}
+                            </Button>
+                        </Col>
+
+                        <Form.Group as={Col} className={`er-proof-current-lhs ${showSide === "LHS" ? "active" : ""}`}>
+                            <Form.Floating style={{ border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem', minWidth: 'fit-content' }}>
+                                <Form.Control 
+                                  type="text" value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')} 
+                                  readOnly 
+                                  style={{ cursor: "not-allowed", border: 'none', height: '40px', minWidth: `${Math.max((lhsValue?.length || 11), 11)}ch` }} 
+                                />
+                                <label>Current LHS</label>
+                            </Form.Floating>
+                        </Form.Group>
+
+                        <Form.Group as={Col} className={`er-proof-current-rhs ${showSide === "RHS" ? "active" : ""}`}>
+                            <Form.Floating style={{ border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem', minWidth: 'fit-content' }}>
+                                <Form.Control 
+                                  type="text" 
+                                  value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')} 
+                                  readOnly 
+                                  style={{ cursor: "not-allowed", border: 'none', height: '40px', minWidth: `${Math.max((lhsValue?.length || 11), 11)}ch` }} 
+                                />
+                                <label>Current RHS</label>
+                            </Form.Floating>
+                        </Form.Group>
+                        
+                        <Col xs="auto">
+                            <Dropdown 
+                              align="end"
+                              className="proof-dropdown-btn proof-utilities"
+                              onToggle={(isOpen) => handleDropdownToggle(isOpen, 'menu-collapsed')}
+                            >
+                              <Dropdown.Toggle variant="success" id="toggle-collapsed" style={{ minWidth: '50px' }}>
+                                <i className="fas fa-tools"></i>
+                              </Dropdown.Toggle>
+                              <Dropdown.Menu
+                                id="menu-collapsed"
+                                popperConfig={{
+                                  strategy: 'fixed',
+                                  modifiers: [
+                                    { name: 'preventOverflow', options: { boundary: 'viewport' } }
+                                  ]
+                                }}
+                              >
+                                  <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">
+                                    Definitions
+                                  </Dropdown.Item>
+                                  <Dropdown.Item onClick={toggleOffcanvas} href="#">
+                                    View Rule Set
+                                  </Dropdown.Item>
+                                  <Dropdown.Item 
+                                    onClick={checkCurrentProofStatus} 
+                                    href="#" 
+                                    disabled={!proofStarted}
+                                    style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}
+                                  >
+                                    Check Current Proof
+                                  </Dropdown.Item>
+                                  <Dropdown.Divider />
+                                  <Dropdown.Item 
+                                    onClick={handleClearProof} 
+                                    href="#" 
+                                    disabled={!proofStarted}
+                                    style={{ 
+                                      color: proofStarted ? 'red' : '#999', 
+                                      opacity: proofStarted ? 1 : 0.4,
+                                      cursor: proofStarted ? 'pointer' : 'not-allowed'
+                                    }}
+                                  >
+                                    Clear Proof
+                                  </Dropdown.Item>
+                                </Dropdown.Menu>
+                            </Dropdown>
+                        </Col>
+                        {proofStarted && proofStatus[isAnchor ? 'base' : 'leap'] && (
+                              <span
+                                style={{
+                                  fontWeight: "700",
+                                  color: proofStatus[isAnchor ? 'base' : 'leap'].state === "complete" ? "green" : "red",
+                                  fontSize: "16px"
+                                }}
+                              >
+                                {proofStatus[isAnchor ? 'base' : 'leap'].state === "complete"
+                                  ? `${proofStatus[isAnchor ? 'base' : 'leap'].label} COMPLETE`
+                                  : `${proofStatus[isAnchor ? 'base' : 'leap'].label} INCOMPLETE`}
+                              </span>
+                            )}
+                    </div>
+                )}
             </Row>
 
-            <Row className="g-5">
-              <Form.Group as={Col} md="4" className="er-proof-goal-lhs" style={{ marginLeft: '450px' }}>
-                <div className="mb-3">
-                  <label htmlFor="eRProofLHSGoal" className="form-label">LHS Goal</label>
-                  <RacketInput
-                    id="eRProofLHSGoal"
-                    name="lHSGoal"
-                    type="text"
-                    placeholder="LHS Goal"
-                    value={formValues.lHSGoal}
-                    onBlur={() => handleBlur("lHSGoal")}
-                    onChange={enhancedHandleChange}
-                    onKeyUp={lhsGoalKeyUp}
-                    onClick={lhsGoalSelect}
-                    ref={lhsGoalRef}
-                    highlightPositions={lhsGoalHighlights}
-                    isInvalid={
-                      !!validationMessages.lHSGoal ||
-                      !!goalValidationMessage.LHS.Goal
-                    }
-                    disabled={proofStarted}
-                    required
-                  />
-                  <Form.Control.Feedback type="invalid" tooltip>
-                    {validationMessages.lHSGoal ||
-                      goalValidationMessage.LHS.Goal}
-                  </Form.Control.Feedback>
-                </div>
-              </Form.Group>
-              <Form.Group as={Col} md="4" className="er-proof-goal-rhs">
-                <div className="mb-3">
-                  <label htmlFor="eRProofRHSGoal" className="form-label">RHS Goal</label>
-                  <RacketInput
-                    id="eRProofRHSGoal"
-                    name="rHSGoal"
-                    type="text"
-                    placeholder="RHS Goal"
-                    value={formValues.rHSGoal}
-                    onBlur={() => handleBlur("rHSGoal")}
-                    onChange={enhancedHandleChange}
-                    onKeyUp={rhsGoalKeyUp}
-                    onClick={rhsGoalSelect}
-                    ref={rhsGoalRef}
-                    highlightPositions={rhsGoalHighlights}
-                    isInvalid={
-                      !!validationMessages.rHSGoal ||
-                      !!goalValidationMessage.RHS.Goal
-                    }
-                    disabled={proofStarted}
-                    required
-                  />
-                  <Form.Control.Feedback type="invalid" tooltip>
-                    {validationMessages.rHSGoal ||
-                      goalValidationMessage.RHS.Goal}
-                  </Form.Control.Feedback>
-                </div>
-              </Form.Group>
-            </Row>
+            {/* EXPANDED VIEW: 3-COLUMN DASHBOARD */}
+            {!isHeaderCollapsed && (
+              <Row className="proof-dashboard align-items-stretch g-0 mt-1 d-flex flex-row flex-wrap justify-content-center align-items-start w-100">
+                  {/* COLUMN 1: SIDE SWITCH (Sidebar) */}
+                  <Col xs={12} md="auto" className="d-flex flex-column justify-content-center align-items-center px-4 mb-3 mb-md-0" style={{ minWidth: '300px', borderRight: windowWidth >= 768 ? '1px solid #dee2e6' : 'none' }}>
+                      <Row className="mb-2 mt-4">
+                        <h1 style={{ marginBottom: '10px', fontSize: '36px', whiteSpace: 'nowrap' }}>Induction: Racket</h1>
+                      </Row>
+                      {proofStarted && (
+                        <Row className="mb-3">
+                          <div className="text-center">
+                              <div style={{ color: '#F2A007', fontWeight: 'bold', fontSize: '20px' }}>SIDE = {showSide}</div>
+                              <Button size="lg" className="switch-btn w-auto px-4 mt-2" onClick={handleToggleSide} style={{ backgroundImage: 'linear-gradient(135deg, #07294d 0, #006298 100%)', color: '#ffffff', border: 'none', whiteSpace: 'nowrap' }}>
+                                  {showSide === "LHS" ? "Switch Side ⋙" : "⋘ Switch Side"}
+                              </Button>
+                          </div>
+                        </Row>
+                      )}
+                  </Col>
 
-            {(!proofStarted || !isAnchor) && (
-              <Row className="g-5">
-                <Form.Group as={Col} md="4" className="er-inductive-hypothesis-lhs" style={{ marginLeft: '450px' }}>
-                  <div className="mb-3">
-                    <label htmlFor="eRInductiveHypothesisLHS" className="form-label">IH LHS</label>
-                    <RacketInput
-                      id="eRInductiveHypothesisLHS"
-                      name="inductiveHypothesisLHS"
-                      type="text"
-                      placeholder="Inductive Hypothesis LHS"
-                      value={inductiveHypothesisLHS}
-                      onChange={(e) => setInductiveHypothesisLHS(e.target.value)}
-                      onKeyUp={ihLhsKeyUp}
-                      onClick={ihLhsSelect}
-                      ref={ihLhsRef}
-                      highlightPositions={ihLhsHighlights}
-                      disabled={proofStarted}
-                    />
-                  </div>
-                </Form.Group>
-                <Form.Group as={Col} md="4" className="er-inductive-hypothesis-rhs">
-                  <div className="mb-3">
-                    <label htmlFor="eRInductiveHypothesisRHS" className="form-label">IH RHS</label>
-                    <RacketInput
-                      id="eRInductiveHypothesisRHS"
-                      name="inductiveHypothesisRHS"
-                      type="text"
-                      placeholder="Inductive Hypothesis RHS"
-                      value={inductiveHypothesisRHS}
-                      onChange={(e) => setInductiveHypothesisRHS(e.target.value)}
-                      onKeyUp={ihRhsKeyUp}
-                      onClick={ihRhsSelect}
-                      ref={ihRhsRef}
-                      highlightPositions={ihRhsHighlights}
-                      disabled={proofStarted}
-                    />
-                  </div>
-                </Form.Group>
+                  {/* COLUMN 2: CENTER DATA (Wrappable) */}
+                  <Col xs={12} md className="px-4 flex-grow-1" style={{ minWidth: '350px' }}>
+                      <Row className="g-2 mb-1">
+                          <Form.Group as={Col} sm="6"><Form.Floating><Form.Control id="eRProofName" name="proofName" type="text" placeholder="Name" value={formValues.proofName} onBlur={() => handleBlur("proofName")} onChange={handleChange} disabled={proofStarted} required />
+                            <label>Proof Name</label>
+                            </Form.Floating>
+                            </Form.Group>
+                          <Form.Group as={Col} sm="6"><Form.Floating>
+                            <Form.Control id="eRProofTag" name="proofTag" type="text" placeholder="Tag" value={formValues.proofTag} onBlur={() => handleBlur("proofTag")} onChange={handleChange} disabled={proofStarted} required /><label># Tag</label></Form.Floating></Form.Group>
+                      </Row>
+                      <Row className="g-2 mb-1">
+                          <Form.Group as={Col} md="4"><label className="form-label small fw-bold mb-0">IVar</label><RacketInput id="eRInductionVariable" name="inductionVariable" value={formValues.inductionVariable} onBlur={() => handleBlur("inductionVariable")} onChange={handleChange} onKeyUp={inductionVarKeyUp} onClick={inductionVarSelect} ref={inductionVarRef} highlightPositions={inductionVarHighlights} disabled={proofStarted} /></Form.Group>
+                          <Form.Group as={Col} md="4"><label className="form-label small fw-bold mb-0">AVal</label><RacketInput id="eRInductionValue" name="inductionValue" value={formValues.inductionValue} onBlur={() => handleBlur("inductionValue")} onChange={handleChange} onKeyUp={inductionValKeyUp} onClick={inductionValSelect} ref={inductionValRef} highlightPositions={inductionValHighlights} disabled={proofStarted} /></Form.Group>
+                          <Form.Group as={Col} md="4"><label className="form-label small fw-bold mb-0">LVar</label><RacketInput id="eRLeapVariable" name="leapVariable" value={formValues.leapVariable} onBlur={() => handleBlur("leapVariable")} onChange={handleChange} onKeyUp={leapVarKeyUp} onClick={leapVarSelect} ref={leapVarRef} highlightPositions={leapVarHighlights} disabled={proofStarted} /></Form.Group>
+                      </Row>
+                      <Row className={`g-5 mb-${(!proofStarted || !isAnchor) ? "1" : "3"}`}>
+                          <Form.Group as={Col} md="6" className="er-proof-goal-lhs">
+                            <label className="form-label small fw-bold mb-0">LHS Goal</label>
+                            <RacketInput id="eRProofLHSGoal" name="lHSGoal" value={formValues.lHSGoal} onBlur={() => handleBlur("lHSGoal")} onChange={enhancedHandleChange} onKeyUp={lhsGoalKeyUp} onClick={lhsGoalSelect} ref={lhsGoalRef} highlightPositions={lhsGoalHighlights} disabled={proofStarted} />
+                            </Form.Group>
+                          <Form.Group as={Col} md="6" className="er-proof-goal-rhs">
+                            <label className="form-label small fw-bold mb-0">RHS Goal</label>
+                            <RacketInput id="eRProofRHSGoal" name="rHSGoal" value={formValues.rHSGoal} onBlur={() => handleBlur("rHSGoal")} onChange={enhancedHandleChange} onKeyUp={rhsGoalKeyUp} onClick={rhsGoalSelect} ref={rhsGoalRef} highlightPositions={rhsGoalHighlights} disabled={proofStarted} />
+                            </Form.Group>
+                      </Row>
+                      {(!proofStarted || !isAnchor) && (
+                        <Row className="g-5 mb-3">
+                          <Form.Group as={Col} md="6" className="er-inductive-hypothesis-lhs">
+                              <label htmlFor="eRInductiveHypothesisLHS" className="form-label small fw-bold mb-0">IH LHS</label>
+                              <RacketInput
+                                id="eRInductiveHypothesisLHS"
+                                name="inductiveHypothesisLHS"
+                                type="text"
+                                placeholder="Inductive Hypothesis LHS"
+                                value={inductiveHypothesisLHS}
+                                onChange={(e) => setInductiveHypothesisLHS(e.target.value)}
+                                onKeyUp={ihLhsKeyUp}
+                                onClick={ihLhsSelect}
+                                ref={ihLhsRef}
+                                highlightPositions={ihLhsHighlights}
+                                disabled={proofStarted}
+                              />
+                          </Form.Group>
+                          <Form.Group as={Col} md="6" className="er-inductive-hypothesis-rhs">
+                              <label htmlFor="eRInductiveHypothesisRHS" className="form-label small fw-bold mb-0">IH RHS</label>
+                              <RacketInput
+                                id="eRInductiveHypothesisRHS"
+                                name="inductiveHypothesisRHS"
+                                type="text"
+                                placeholder="Inductive Hypothesis RHS"
+                                value={inductiveHypothesisRHS}
+                                onChange={(e) => setInductiveHypothesisRHS(e.target.value)}
+                                onKeyUp={ihRhsKeyUp}
+                                onClick={ihRhsSelect}
+                                ref={ihRhsRef}
+                                highlightPositions={ihRhsHighlights}
+                                disabled={proofStarted}
+                              />
+                          </Form.Group>
+                        </Row>
+                      )}
+                      <Row className="justify-content-center er-current-state g-2 mb-0">
+                          <Form.Group as={Col} sm="6" className={showSide === "LHS" ? "active" : ""}><Form.Floating style={{ border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}><Form.Control type="text" value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')} readOnly style={{ border: 'none' }} /><label>Current LHS</label></Form.Floating></Form.Group>
+                          <Form.Group as={Col} sm="6" className={showSide === "RHS" ? "active" : ""}><Form.Floating style={{ border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}><Form.Control type="text" value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')} readOnly style={{ border: 'none' }} /><label>Current RHS</label></Form.Floating></Form.Group>
+                      </Row>
+                  </Col>
+
+                  {/* COLUMN 3: CASE SWITCH (Wraps and stays horizontally aligned) */}
+                  <Col 
+                      xs={12} 
+                      xl="auto" 
+                      className="d-flex flex-row flex-xl-column flex-wrap justify-content-center align-items-center px-4 mt-3 mt-xl-0"
+                      style={{ minWidth: '300px', borderLeft: windowWidth >= 1200 ? '1px solid #dee2e6' : 'none', gap: '20px', minHeight: '100%' }}
+                    >
+                    {/* Item 1: Dropdown */}
+                    <Dropdown 
+                      align="end"
+                      className="proof-dropdown-btn proof-utilities"
+                      onToggle={(isOpen) => handleDropdownToggle(isOpen, 'menu-expanded')}
+                    >
+                      <Dropdown.Toggle id="toggle-expanded" style={{ minWidth: '200px' }}>
+                        Proof Utilities
+                      </Dropdown.Toggle>
+                      <Dropdown.Menu 
+                        id="menu-expanded"
+                        style={{ minWidth: '200px' }}
+                        popperConfig={{
+                          strategy: 'fixed',
+                          modifiers: [
+                            { name: 'preventOverflow', options: { boundary: 'viewport' } }
+                          ]
+                        }}
+                      >
+                        <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">Definitions</Dropdown.Item>
+                        <Dropdown.Item onClick={toggleOffcanvas} href="#">View Rule Set</Dropdown.Item>
+                        <Dropdown.Item 
+                          onClick={checkCurrentProofStatus} 
+                          disabled={!proofStarted}
+                          style={{ opacity: proofStarted ? 1 : 0.4 }}
+                        >
+                          Check Current Proof
+                        </Dropdown.Item>
+                        <Dropdown.Divider />
+                        <Dropdown.Item onClick={handleClearProof} disabled={!proofStarted} style={{ color: 'red' }}>
+                          Clear Proof
+                        </Dropdown.Item>
+                      </Dropdown.Menu>
+                    </Dropdown>
+                    {proofStarted && proofStatus[isAnchor ? 'base' : 'leap'] && (
+                      <span
+                        style={{
+                          fontWeight: "700",
+                          color: proofStatus[isAnchor ? 'base' : 'leap'].state === "complete" ? "green" : "red",
+                          fontSize: "20px"
+                        }}
+                      >
+                        {proofStatus[isAnchor ? 'base' : 'leap'].state === "complete"
+                          ? `${proofStatus[isAnchor ? 'base' : 'leap'].label} COMPLETE`
+                          : `${proofStatus[isAnchor ? 'base' : 'leap'].label} INCOMPLETE`}
+                      </span>
+                    )}
+
+                    {/* Item 2: Radios */}
+                    <div className="check-row d-flex align-items-center px-3 border rounded bg-light" style={{ height: '58px' }}>
+                      <Form.Check 
+                        type="radio" id="integers" label="Integers" name="inductionType" 
+                        value="integers" className="me-3" onChange={handleChange} defaultChecked 
+                      />
+                      <Form.Check 
+                        type="radio" id="lists" label="Lists" name="inductionType" 
+                        value="lists" onChange={handleChange} 
+                      />
+                    </div>
+
+                    {/* Item 3: Case Switch */}
+                    {proofStarted && (
+                      <div className="text-center d-flex flex-column align-items-center">
+                        <div style={{ color: '#F2A007', fontWeight: 'bold', fontSize: '20px', whiteSpace: 'nowrap' }}>
+                          CASE = {isAnchor ? "BASE" : "LEAP"}
+                        </div>
+                        <Button 
+                          size="lg" 
+                          className="switch-btn w-auto px-4 mt-1" 
+                          onClick={handleToggleCase} 
+                          style={{ backgroundImage: 'linear-gradient(135deg, #07294d 0, #006298 100%)', color: '#ffffff', border: 'none', whiteSpace: 'nowrap' }}
+                        >
+                          {isAnchor ? "Switch to Leap Case" : "Switch to Base Case"}
+                        </Button>
+                      </div>
+                    )}
+                  </Col>
               </Row>
             )}
 
-            <Row className="er-current-state" style={{ alignItems: 'center', position: 'relative' }}>
-              <Form.Group
-                as={Col}
-                md="4"
-                className={`er-proof-current-lhs ${showSide === "LHS" ? "active" : ""}`}
-                style={{ marginLeft: '450px' }}
-              >
-                <Form.Floating 
-                  className="mb-3"
-                  style={{ 
-                    border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da',
-                    borderRadius: '0.375rem'
-                  }}
+            {/* ARROW CONTROLS - Positioned at bottom right of the flow */}
+            {proofStarted && (
+              <div className="d-flex justify-content-end pr-2" style={{ marginTop: '-40px' }}>
+                <Button
+                  variant="link"
+                  className="p-0 text-decoration-none"
+                  onClick={() => setIsHeaderCollapsed(!isHeaderCollapsed)}
+                  size="lg"
+                  style={{ color: '#6c757d', zIndex: 1050 }}
                 >
-                  <Form.Control
-                    id="eRProofCurrentLHS"
-                    name="proofCurrentLHS"
-                    type="text"
-                    placeholder="Current LHS"
-                    value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')}
-                    readOnly
-                    style={{ cursor: "not-allowed", border: 'none' }}
-                  />
-                  <label htmlFor="eRProofCurrentLHS">Current LHS</label>
-                </Form.Floating>
-              </Form.Group>
+                  <i className={`fas ${isHeaderCollapsed ? 'fa-angles-down' : 'fa-angles-up'}`}></i>
+                </Button>
+              </div>
+            )}
 
-              <Form.Group
-                as={Col}
-                md="4"
-                className={`er-proof-current-rhs ${showSide === "RHS" ? "active" : ""}`}
-              >
-                <Form.Floating 
-                  className="mb-3"
-                  style={{ 
-                    border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da',
-                    borderRadius: '0.375rem'
-                  }}
-                >
-                  <Form.Control
-                    id="eRProofCurrentRHS"
-                    name="proofCurrentRHS"
-                    type="text"
-                    placeholder="Current RHS"
-                    value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')}
-                    readOnly
-                    style={{ cursor: "not-allowed", border: 'none' }}
-                  />
-                  <label htmlFor="eRProofCurrentRHS">Current RHS</label>
-                </Form.Floating>
-              </Form.Group>
-            </Row>
-
-            {!isAnchor && (
             <Form.Text
               as={"div"}
               id="formSeparator"
               className="form-separator"
-              style={{ marginTop: '-10px' }}
-            ></Form.Text> )}
+            ></Form.Text>
+        </div>
 
-            {isAnchor && (
-            <Form.Text
-              as={"div"}
-              id="formSeparator"
-              className="form-separator"
-              style={{ marginTop: '10px' }}
-            ></Form.Text> )}
-          </div>
-
-          {proofStarted && (
-            <>
-              <div style={{ position: 'fixed', left: '10px', top: '215px', zIndex: 1020, color: '#F2A007', fontWeight: 'bold', fontSize: '20px' }}>
-                CURRENT = {showSide}
-              </div>
-              <div style={{ position: 'fixed', left: '10px', top: '245px', zIndex: 1020 }}>
-                <Button
-                  size="lg"
-                  className="switch-btn"
-                  onClick={handleToggleSide}
-                  style={{ backgroundImage: 'linear-gradient(135deg, #07294d 0, #006298 100%)', color: '#ffffff', borderColor: 'transparent' }}
-                >
-                  {showSide === "LHS"
-                    ? "Switch to Right Hand Side ⋙"
-                    : "⋘ Switch to Left Hand Side"}
-                </Button>
-              </div>
-              <div style={{ position: 'fixed', right: '10px', top: '215px', zIndex: 1020, color: '#F2A007', fontWeight: 'bold', fontSize: '20px' }}>
-                CURRENT = {isAnchor ? "BASE" : "LEAP"}
-              </div>
-              <div style={{ position: 'fixed', right: '10px', top: '245px', zIndex: 1020 }}>
-                <Button
-                  size="lg"
-                  className="switch-btn"
-                  onClick={handleToggleCase}
-                  style={{ backgroundImage: 'linear-gradient(135deg, #07294d 0, #006298 100%)', color: '#ffffff', borderColor: 'transparent' }}
-                >
-                  {isAnchor ? "Switch to Leap Case" : "Switch to Base Case"}
-                </Button>
-              </div>
-            </>
-          )}
-
-          <div className="form-bottom-part">
+          <div className="form-bottom-part" style={{ paddingTop: `${topSectionHeight}px` }}>
 
             {!proofStarted && 
               !isGoalChecked[showSide]?.LeapGoal &&
               !isGoalChecked[showSide]?.AnchorGoal && (
-                <Row className="goal-btn-wrap">
+                <Row className="goal-btn-wrap mt-4">
                   <Button
                     className="orange-btn"
                     type="submit"
@@ -2333,60 +2201,6 @@ const InductionRacket = () => {
           </div>
         </Form>
       </Container>
-      
-      <div style={{ position: 'fixed', right: '375px', top: '65px', zIndex: 1020 }}>
-        <Dropdown className="proof-dropdown-btn proof-utilities">
-          <Dropdown.Toggle id="dropdown-autoclose-true" style={{ minWidth: '200px' }}>
-            Proof Utilities
-          </Dropdown.Toggle>
-
-          <Dropdown.Menu style={{ minWidth: '200px' }}>
-            <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">
-              Definitions
-            </Dropdown.Item>
-            <Dropdown.Item onClick={toggleOffcanvas} href="#">
-              View Rule Set
-            </Dropdown.Item>
-            <Dropdown.Item 
-              onClick={checkCurrentProofStatus} 
-              href="#" 
-              disabled={!proofStarted}
-              style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}
-            >
-              Check Current Proof
-            </Dropdown.Item>
-            <Dropdown.Divider />
-            <Dropdown.Item 
-              onClick={handleClearProof} 
-              href="#" 
-              disabled={!proofStarted}
-              style={{ 
-                color: proofStarted ? 'red' : '#999', 
-                opacity: proofStarted ? 1 : 0.4,
-                cursor: proofStarted ? 'pointer' : 'not-allowed'
-              }}
-            >
-              Clear Proof
-            </Dropdown.Item>
-          </Dropdown.Menu>
-        </Dropdown>
-      </div>
-      
-      {proofStarted && proofStatus[isAnchor ? 'base' : 'leap'] && (
-        <div style={{ position: 'fixed', right: '50px', top: '65px', zIndex: 1020 }}>
-          <span
-            style={{
-              fontWeight: "700",
-              color: proofStatus[isAnchor ? 'base' : 'leap'].state === "complete" ? "green" : "red",
-              fontSize: "28px"
-            }}
-          >
-            {proofStatus[isAnchor ? 'base' : 'leap'].state === "complete"
-              ? `${proofStatus[isAnchor ? 'base' : 'leap'].label} COMPLETE`
-              : `${proofStatus[isAnchor ? 'base' : 'leap'].label} INCOMPLETE`}
-          </span>
-        </div>
-      )}
       
       {proofStarted && (
         <div 
@@ -2447,8 +2261,15 @@ const InductionRacket = () => {
             borderImage: `linear-gradient(to right, ${currentColor} 50%, ${nextColor} 50%) 1`
           }}
         >
-          <Row className="input-row">
-            <Col md="1">
+          <Row className="input-row mb-0 align-items-center">
+            <Col 
+              xs 
+              className="flex-shrink-1" 
+              style={{ 
+                maxWidth: `${Math.max(7, (userRow.num || "").length) + 4}ch`,
+                minWidth: '7ch'
+              }}
+            >
               <Form.Floating className="mb-3">
                 <Form.Control
                   id="userRowNum"
@@ -2458,28 +2279,33 @@ const InductionRacket = () => {
                   value={userRow.num}
                   onChange={(e) => setUserRow({ ...userRow, num: e.target.value })}
                   disabled={isBound}
+                  style={{ 
+                    maxWidth: `${Math.max(7, (userRow.num || "").length) + 4}ch`,
+                    minWidth: '7ch' 
+                  }}
                 />
                 <label htmlFor="userRowNum">Num</label>
               </Form.Floating>
             </Col>
 
             {!isBound && (
-              <Col md="2" className="d-flex align-items-center">
+              <Col xs="auto" className="d-flex flex-shrink-0">
                 <Button
                   variant="primary"
                   onClick={() => bindFooterToRow(userRow.num)}
+                  style={{ textWrap: "nowrap" }}
                 >
                   Fill Values
                 </Button>
               </Col>
             )}
 
-            <Col md={isBound ? "9" : "7"}>
+            <Col className="flex-grow-1">
               {isBound && renderFooterPad()}
             </Col>
 
             {isBound && (
-              <Col md="2" className="d-flex align-items-center">
+              <Col xs="auto" className="d-flex flex-shrink-0">
                 <Button
                   variant="secondary"
                   onClick={() => unbindFooter()}
@@ -2489,64 +2315,62 @@ const InductionRacket = () => {
               </Col>
             )}
           </Row>
-          <Row className="button-row">
-            <Col md="5"></Col>
-            <Col md="3" className="rules-btn-grp">
-              <Button
-                className="orange-btn delete-btn"
-                disabled={(() => {
-                  // Disabled if not bound
-                  if (!isBound) {
-                    return true;
-                  }
-                  
-                  const lineNum = parseInt(userRow.num, 10);
-                  
-                  // Disabled if premise line (line 0)
-                  if (lineNum === 0) {
-                    return true;
-                  }
-                  
-                  // Disabled if line is blank
-                  const fields = racketRuleFields[showSide];
-                  
-                  if (!fields || !fields[lineNum]) {
-                    return true;
-                  }
-                  
-                  const racket = (fields[lineNum].racket || '').trim();
-                  
-                  if (racket === '') {
-                    return true;
-                  }
-                  
-                  // Enable for non-blank, non-premise lines
-                  return false;
-                })()}
-                onClick={() => setShowClearConfirm(true)}
-              >
-                Clear Line
-              </Button>
-            </Col>
-            <Col md="2" className="rules-btn-grp">
-              <Button
-                className="orange-btn green-btn"
-                onClick={handleGenerateAndCheck}
-                disabled={!isBound}
-              >
-                Generate & Check
-              </Button>
-            </Col>
-            <Col md="2" className="rules-btn-grp">
-              <Button
-                className="orange-btn green-btn"
-                onClick={() => updateShowSubstitution()}
-                disabled={!isBound}
-              >
-                Substitution
-              </Button>
-            </Col>
-          </Row>
+          {isBound && (
+            <Row className="button-row mt-0">
+              <Col md="3" className="d-none d-md-block"></Col>
+              <Col xs="12" md="8" className="rules-btn-grp">
+                <Button
+                  className="orange-btn delete-btn"
+                  disabled={(() => {
+                    // Disabled if not bound
+                    if (!isBound) {
+                      return true;
+                    }
+                    
+                    const lineNum = parseInt(userRow.num, 10);
+                    
+                    // Disabled if premise line (line 0)
+                    if (lineNum === 0) {
+                      return true;
+                    }
+                    
+                    // Disabled if line is blank
+                    const fields = racketRuleFields[showSide];
+                    
+                    if (!fields || !fields[lineNum]) {
+                      return true;
+                    }
+                    
+                    const racket = (fields[lineNum].racket || '').trim();
+                    
+                    if (racket === '') {
+                      return true;
+                    }
+                    
+                    // Enable for non-blank, non-premise lines
+                    return false;
+                  })()}
+                  onClick={() => setShowClearConfirm(true)}
+                >
+                  Clear Line
+                </Button>
+                <Button
+                  className="orange-btn green-btn"
+                  onClick={handleGenerateAndCheck}
+                  disabled={!isBound}
+                >
+                  {windowWidth < 576 ? "Gen & Check" : "Generate & Check"}
+                </Button>
+                <Button
+                  className="orange-btn green-btn"
+                  onClick={() => updateShowSubstitution()}
+                  disabled={!isBound}
+                >
+                  {windowWidth < 576 ? "Sub" : "Substitution"}
+                </Button>
+              </Col>
+            </Row>
+          )}
         </div>
         );
       })()}

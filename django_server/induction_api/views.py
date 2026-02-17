@@ -116,11 +116,7 @@ def clear_induction(request):
         # Find the active proof
         proof = InductionProof.objects.filter(user=user, is_active=True).order_by('-created_at').first()
         
-        if proof:
-            # Archive it (soft delete)
-            proof.is_active = False
-            proof.save()
-            
+        if proof:            
             # Clear the cache
             cache.delete(f"induction_obj_{user.username}")
             
@@ -177,6 +173,7 @@ def start_induction_proof(request):
         is_anchor = json_data.get('is_anchor', False)
         inductive_hypothesis_lhs = json_data.get('inductive_hypothesis_lhs', '')
         inductive_hypothesis_rhs = json_data.get('inductive_hypothesis_rhs', '')
+        definitions = json_data.get('definitions', [])
         
         # Validate required fields
         if not all([proof_name, induction_variable, anchor_value is not None, leap_variable]):
@@ -304,12 +301,16 @@ def start_induction_proof(request):
         
         # 5. Automatically create generic variable definitions
         # For leap variable (type based on structure)
+        final_definitions_for_db = []
         generic_lvar = {
             'name': leap_variable,
             'type': 'list' if struct == 'list' else 'int',
             'body': '<generic>',
-            'description': f'Generic variable for leap case in induction on {induction_variable}'
+            'description': f'Generic variable for leap case in induction on {induction_variable}',
+            'is_generic': True,
+            'restrictions': {}
         }
+        final_definitions_for_db.append(generic_lvar)
         
         generics_to_create = [generic_lvar]
         
@@ -320,9 +321,25 @@ def start_induction_proof(request):
                 'name': 'a',
                 'type': 'Any',
                 'body': '<generic>',
-                'description': 'Generic element for cons in list induction'
+                'description': 'Generic element for cons in list induction',
+                'is_generic': True,
+                'restrictions': {}
             }
+            final_definitions_for_db.append(generic_a)
             generics_to_create.append(generic_a)
+
+        # C. Add User Definitions (UDFs) from Request
+        # Normalize fields to ensure consistency
+        for d in definitions:
+            final_definitions_for_db.append({
+                'label': d.get('label') or d.get('name'),
+                'name': d.get('name') or d.get('label'),
+                'type': d.get('type'),
+                'body': d.get('expression') or d.get('body'),
+                'expression': d.get('expression') or d.get('body'),
+                'description': d.get('description', 'User Defined Function'),
+                'is_generic': False
+            })
         
         # Create complete proof data
         proof_data = {
@@ -344,7 +361,7 @@ def start_induction_proof(request):
             'inductive_hypothesis_rhs' : inductive_hypothesis_rhs,
             'current_goal': 'base_case',
             'is_valid': True,
-            'definition': generics_to_create,
+            'definition': final_definitions_for_db,
         }
         
         serializer = InductionProofSerializer(data=proof_data)
@@ -502,7 +519,7 @@ def reload_proof_lines_from_db(proof, proof_id):
         
         # Get all proof lines for this proof, ordered by line number
         lines = InductionProofLine.objects.filter(proof_id=proof_id).order_by('case', 'side', 'line_number')
-        
+
         for line in lines:
             # Determine which ERProof to add to
             if line.case == 'base':
@@ -572,7 +589,6 @@ def set_current_proof(request):
     """
     user = request.user
     data = request.data
-
     try:
         struct = str(data.get("struct", "int")).lower()
         ivar = data.get("ivar")
@@ -580,8 +596,16 @@ def set_current_proof(request):
         lvar = data.get("lvar")
         lhsPremise = data.get("lhsPremise")
         rhsPremise = data.get("rhsPremise")
-        definitions = data.get("definitions", [])
+        definitions_and_generics = data.get("definitions", [])
+        definitions = []
         generics = data.get("generics", [])
+        
+        for item in definitions_and_generics:
+            if item.get('is_generic'):
+                generics.append(item)
+            else:
+                item['applied'] = True
+                definitions.append(item)
 
         # Basic validation
         missing = [k for k in ("ivar","aval","lvar","lhsPremise","rhsPremise") if not data.get(k)]
@@ -717,7 +741,8 @@ def set_current_proof(request):
                     rule='Premise',
                     start_position=0,
                     line_number=0,
-                    selected_node=0
+                    selected_node=0,
+                    json_tree=makeJson(ind.baseCase.LHS.proofLines[0].exprTree)
                 )
             if ind.baseCase.RHS.proofLines:
                 save_proof_line_to_db(
@@ -728,7 +753,8 @@ def set_current_proof(request):
                     rule='Premise',
                     start_position=0,
                     line_number=0,
-                    selected_node=0
+                    selected_node=0,
+                    json_tree=makeJson(ind.baseCase.RHS.proofLines[0].exprTree)
                 )
             # Save leap step premises (these have ivar substituted with (+ lvar 1))
             if ind.leapStep.LHS.proofLines:
@@ -740,7 +766,8 @@ def set_current_proof(request):
                     rule='Premise',
                     start_position=0,
                     line_number=0,
-                    selected_node=0
+                    selected_node=0,
+                    json_tree=makeJson(ind.leapStep.LHS.proofLines[0].exprTree)
                 )
             if ind.leapStep.RHS.proofLines:
                 save_proof_line_to_db(
@@ -751,7 +778,8 @@ def set_current_proof(request):
                     rule='Premise',
                     start_position=0,
                     line_number=0,
-                    selected_node=0
+                    selected_node=0,
+                    json_tree=makeJson(ind.leapStep.RHS.proofLines[0].exprTree)
                 )
 
         # Build frontend payload with jsonTrees for latest lines
@@ -826,6 +854,7 @@ def apply_rule(request):
     proof, proof_id = get_or_set_induction_obj(user)
 
     try:
+        reload_proof_lines_from_db(proof, proof_id)
         side = data.get("side", "LHS")
         case = data.get("case", "base")
         currentRacket = data.get("currentRacket", "")
@@ -856,6 +885,12 @@ def apply_rule(request):
         racket_str = target.getPrevRacket() if is_valid else "Error generating racket"
         jsonTree = makeJson(target.proofLines[-1].exprTree) if len(target.proofLines) else {}
         
+        if not is_valid and len(target.proofLines) > 0:
+            # append current line errors
+            current_line = target.proofLines[lineNumber - 1]
+            separator = ", " if current_line.errors else ""
+            current_line.errors += f'{separator}{target.errLog}'
+
         # Extract resultNodeId from the last proof line if available
         result_node_id = None
         if is_valid and len(target.proofLines) > 0:
@@ -865,7 +900,7 @@ def apply_rule(request):
         save_induction_obj_to_cache(user, proof, proof_id)
         
         # Save to database if we have a valid proof line
-        if is_valid and len(target.proofLines) > 0:
+        if len(target.proofLines) > 0:
             last_line = target.proofLines[-1]
             rule_with_sub = last_line.appliedRule or ''
             if substitution:
@@ -873,44 +908,53 @@ def apply_rule(request):
             
             # Use lineNumber from frontend if provided (editing specific line), otherwise calculate from array length (appending)
             calculated_line_number = lineNumber if lineNumber is not None else (len(target.proofLines) - 1)
-            
-            # Update the PREVIOUS line's selected_node (where user clicked to generate this line)
-            if calculated_line_number > 0:
-                try:
-                    prev_line_exists = InductionProofLine.objects.filter(
-                        proof_id=proof_id,
-                        case=case.lower(),
-                        side=side.upper(),
-                        line_number=calculated_line_number - 1
-                    ).exists()
-                    
-                    if prev_line_exists:
-                        InductionProofLine.objects.filter(
+            if is_valid:
+                # Update the PREVIOUS line's selected_node (where user clicked to generate this line)
+                if calculated_line_number > 0:
+                    try:
+                        prev_line_exists = InductionProofLine.objects.filter(
                             proof_id=proof_id,
                             case=case.lower(),
                             side=side.upper(),
                             line_number=calculated_line_number - 1
-                        ).update(selected_node=startPosition)
-                    else:
+                        ).exists()
+                        
+                        if prev_line_exists:
+                            InductionProofLine.objects.filter(
+                                proof_id=proof_id,
+                                case=case.lower(),
+                                side=side.upper(),
+                                line_number=calculated_line_number - 1
+                            ).update(selected_node=selectedNode)
+                        else:
+                            pass
+                    except Exception as e:
+                        # Continue anyway - this shouldn't block saving the new line
                         pass
-                except Exception as e:
-                    # Continue anyway - this shouldn't block saving the new line
-                    pass
-            
-            # Save the NEW line with selected_node=None (unknown until next line generated)
-            save_proof_line_to_db(
-                proof_id=proof_id,
-                case=case,
-                side=side,
-                racket=racket_str,
-                rule=rule_with_sub,
-                start_position=startPosition,
-                line_number=calculated_line_number,
-                substitution=substitution or '',
-                selected_node=None,  # Unknown until user generates next line
-                result_node=result_node_id,
-                json_tree=jsonTree
-            )
+                
+                # Save the NEW line with selected_node=None (unknown until next line generated)
+                save_proof_line_to_db(
+                    proof_id=proof_id,
+                    case=case,
+                    side=side,
+                    racket=racket_str,
+                    rule=rule_with_sub,
+                    start_position=startPosition,
+                    line_number=calculated_line_number,
+                    substitution=substitution or '',
+                    selected_node=None,  # Unknown until user generates next line
+                    result_node=result_node_id,
+                    json_tree=jsonTree
+                )
+            else:
+                pass
+                # line_index = calculated_line_number - 1
+                # last_line_obj = target.proofLines[line_index]
+                # InductionProofLine.objects.filter(
+                #     proof_id=proof_id,
+                #     side=side.upper(),
+                #     line_number=line_index
+                # ).update(errors=last_line_obj.errors)
 
         return Response({
             "isValid": is_valid,
@@ -921,6 +965,8 @@ def apply_rule(request):
             "resultNodeId": result_node_id
         }, status=status.HTTP_200_OK)
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return Response({"isValid": False, "errors": [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -1016,6 +1062,8 @@ def check_goal(request):
     data = request.data
     proof, proof_id = get_or_set_induction_obj(user)
     try:
+        reload_proof_lines_from_db(proof, proof_id)
+
         side = data.get("side", "LHS")
         case = data.get("case", "base")
         goal = data.get("goal")
@@ -1083,6 +1131,8 @@ def substitution(request):
     data = request.data
     proof, proof_id = get_or_set_induction_obj(user)
     try:
+        reload_proof_lines_from_db(proof, proof_id)
+
         case = data.get("case", "base")
         side = data.get("side", "LHS")
         rule = data.get("rule")
@@ -1376,3 +1426,111 @@ def clear_all_proof_lines(request):
         print(f"Error in clear_all_proof_lines: {str(e)}")
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def set_induction_session_by_id(request):
+    user = request.user
+    proof_id = request.data.get('proof_id')
+    
+    try:
+        try:
+            proof = InductionProof.objects.get(id=proof_id, user=user)
+        except InductionProof.DoesNotExist:
+            return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        # 1. Initialize the Engine
+        ind_proof = IndProof()
+        
+        # 2. HYDRATE THE ENGINE
+        ind_proof.struct = 'list' if proof.induction_type == 'lists' else 'int'
+        ind_proof.ivar = proof.induction_variable
+        ind_proof.aval = proof.anchor_value
+        ind_proof.lvar = proof.leap_variable
+        
+        # Fallback goals if lines are empty
+        ind_proof.lhsPremise = proof.lhs_leap_goal 
+        ind_proof.rhsPremise = proof.rhs_leap_goal 
+        
+        # 3. Load Definitions & Generics
+        db_defs = proof.definition or []
+        for d in db_defs:
+            if d.get('is_generic'):
+                # Handle 'name' vs 'label' mismatch
+                label = d.get('label') or d.get('name')
+                g_type = d.get('type', 'int')
+                # FIX: Ensure restrictions is a dict, never None
+                restrictions = d.get('restrictions') or {} 
+                
+                if label:
+                    # Add to Base Case (LHS & RHS)
+                    try:
+                        ind_proof.baseCase.LHS.addGeneric(label, g_type, restrictions)
+                        ind_proof.baseCase.RHS.addGeneric(label, g_type, restrictions)
+                    except Exception: 
+                        pass 
+
+                    # Add to Leap Step (LHS & RHS)
+                    try:
+                        ind_proof.leapStep.LHS.addGeneric(label, g_type, restrictions)
+                        ind_proof.leapStep.RHS.addGeneric(label, g_type, restrictions)
+                    except Exception: 
+                        pass
+            else:
+                # Load User Defined Functions (UDFs)
+                label = d.get('label') or d.get('name')
+                type_str = d.get('type')
+                body = d.get('expression') or d.get('body')
+                if label and type_str and body:
+                    ind_proof.baseCase.addUDF(label, type_str, body)
+                    ind_proof.leapStep.addUDF(label, type_str, body)
+        
+        # 4. Load Proof Lines
+        reload_proof_lines_from_db(ind_proof, proof_id)
+        
+        # 5. Save fully hydrated engine to Cache
+        save_induction_obj_to_cache(user, ind_proof, proof_id)
+
+        return Response({"success": True}, status=status.HTTP_200_OK)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def delete_proof(request):
+    """
+    Endpoint to mark a proof as deleted in the database (`is_active=False`).
+    """
+    proof_id = request.data.get('proof_id')
+    user = request.user
+    try:
+        if proof_id is not None:
+            # 1. Update the DB
+            updated_count = InductionProof.objects.filter(id=proof_id, user=user).update(is_active=False)
+            
+            if updated_count == 0:
+                return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
+
+            # 2. Clear cache if active proof_id is the same as the current cache
+            cached = cache.get(f"induction_proof_{user.username}") 
+            cache_cleared = False
+            if cached:
+                cached_proof_id = cached.get('proof_id')   
+
+                if cached_proof_id == proof_id:
+                    cache_cleared = True
+                    cache.delete(f"induction_proof_{user.username}")
+
+            return Response({
+                "success": True,
+                "message": "Proofed marked as inactive",
+                "cacheCleared": cache_cleared
+            }, status=status.HTTP_200_OK)    
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response(
+            {"message": f"Error setting proof to inactive: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST
+        )
