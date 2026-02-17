@@ -153,6 +153,46 @@ const getInductionProofs = async (params) => {
   }
 };
 
+const getInductionProof = async (proofId) => {
+  try {
+    const response = await axiosInstance.get(
+      `${API_GATEWAY}/proof/${proofId}`
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error fetching induction proof:");
+    throw error;
+  }
+};
+
+const setSessionById = async (proofId) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/set-induction-session-by-id`, {
+        proof_id: proofId
+      });
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error fetching induction proof:");
+    throw error;
+  }
+};
+
+const deleteInductionProof = async (proof_id) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/delete-proof`, { 
+      proof_id: proof_id 
+    }
+    );
+    return response.data;
+  }
+  catch(error) {
+    handleServiceError(error, "Error during proof deletion:");
+    throw error;
+  }
+};
+
 const inductionService = {
   startInductionProof,
   clearInduction,
@@ -165,7 +205,10 @@ const inductionService = {
   checkCompletion,
   getProofLines,
   getCurrentProof,
-  getInductionProofs
+  getInductionProofs,
+  getInductionProof,
+  setSessionById,
+  deleteInductionProof
 };
 
 export default inductionService;
