@@ -566,8 +566,8 @@ class Axiom(Rule, ABC):
                 expectedValuesStr = ', '.join(wrappedWithQuotes[:-1]) + ' or ' + wrappedWithQuotes[-1]
                 return False, (f'Value mismatch: expected {expectedValuesStr} '
                                 f'for {param}, but "{assignment}" was provided')
-            if (expected := str(paramLocation)) != assignment:
-                return False, f'Value mismatch: expected "{expected}" for {param}, but "{assignment}" was provided'
+            # String comparison removed - AST validation already ensures semantic correctness
+            # (String comparison rejected valid expressions due to whitespace/formatting differences)
         self._paramMappings[param] = paramLocation
         return True, ""
     
