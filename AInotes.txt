@@ -646,3 +646,170 @@ Session 2026-01-30: List Induction (UP Direction) Implementation
 - [ ] All rule parameter names display correctly
 - [ ] Browser console has no errors
 - [ ] Backend terminal has no errors
+
+---
+
+LESSON: InductionRacket Overwrite Modal Debugging (Feb 1, 2026)
+
+PROBLEM: Overwrite modal wasn't appearing in InductionRacket when starting proof with duplicate name/tag, despite working in EquationalReasoningNew.
+
+INITIAL WRONG APPROACHES & WHY THEY FAILED:
+- Made arbitrary frontend changes (console.logs, tweaking duplicate check logic) without identifying root cause
+- Assumed frontend logic was broken when backend endpoint was actually misconfigured
+- Missing @api_view(["GET"]) decorator on get_induction_proofs endpoint caused 405 errors - Django REST framework requires explicit HTTP method decorators
+- Found duplicate @api_view decorators stacked (both POST and GET) which is invalid syntax
+
+FINAL ROOT CAUSE (after fixing backend):
+- Modal WAS working correctly all along
+- Testing methodology was flawed: clicking "Clear Proof" archives proofs (sets is_active=False), then trying to test overwrite
+- Overwrite modal only triggers for ACTIVE proofs (is_active=True) - this is correct behavior
+- Auto-restore feature in Induction prevents form access when active proof exists, making it hard to test naturally
+- Both ER and Induction filter by .filter(is_active=True) correctly
+
+WHY THE FIX WORKED:
+- Added @api_view(["GET"]) decorator: Enables Django REST endpoint to accept GET requests
+- Proper test methodology: Need incognito window OR clear sessionStorage OR manual admin deletion to create second active proof with same name/tag
+- Added is_active to Django admin display for easier debugging of proof state
+
+KEY TAKEAWAY: Before making frontend changes, verify backend endpoint configuration (decorators, HTTP methods, response format). Check database state of test data (is_active, status fields) before assuming code is broken. Understand the difference between correct behavior and incorrect testing methodology. Stop guessing - trace the actual request/response flow first.
+---
+
+SESSION: Backend Cache & SessionStorage State Management (Feb 16, 2026)
+
+TWO CRITICAL BUGS FIXED IN THIS SESSION:
+
+**BUG #1: "Invalid Label for Definition" Error Requiring Double-Click to Start Proof**
+
+SYMPTOM:
+- First click on "Start Proof" button returned error: "invalid label for Definition f"
+- Second click worked fine and proof started successfully
+- Error was happening because backend cached IndProof object from PREVIOUS session had stale UDF with corrupted body '(h x)' instead of correct '(h 1)'
+
+INITIAL HYPOTHESIS (WRONG):
+- Thought premise substitution logic was broken (showing "(h x)" instead of "(h 1)")
+- Investigated substitution code paths looking for ivar→aval replacement bugs
+
+WHY THIS WAS WRONG:
+- Premise substitution was working correctly on second click
+- Real issue was that FIRST click was using contaminated cached proof from previous session
+- check_goal() was conditionally clearing cache only when proof_id was None
+- In this case, proof_id was 354 (from old session), so cache wasn't cleared → stale proof object reused → validation error
+
+ROOT CAUSE:
+- django_server/induction_api/views.py check_goal() endpoint was reusing cached IndProof for validation
+- Cache key: f"induction_obj_{user.username}"
+- Cache persists across server restarts (Redis/Memcached), so old proof_id=354 with UDF '(h x)' contaminated new session
+- First Start Proof attempt: check_goal loads cached IndProof with wrong UDF → 'f' definition corrupted → validation fails
+- Second Start Proof attempt: start_induction_proof clears cache → fresh validation → works
+
+THE FIX:
+Modified check_goal() to ALWAYS create fresh IndProof() for validation instead of loading from cache:
+
+```python
+# BEFORE (lines 95-101):
+ind, proof_id = get_or_set_induction_obj(user)
+if proof_id is None:
+    cache.delete(f"induction_obj_{user.username}")
+    ind = IndProof()
+
+# AFTER:
+# Always create fresh IndProof for validation to avoid cache contamination
+cache.delete(f"induction_obj_{user.username}")
+ind = IndProof()
+```
+
+Also added backup cache clear in start_induction_proof() as safety measure.
+
+LESSON: Backend cache persistence across sessions can contaminate new proofs. Always use fresh engine state for validation to avoid cross-session contamination. Don't trust cached objects for validation - they should only be used for ongoing proof work.
+
+---
+
+**BUG #2: Generic Variable Created with enabled=true but Showing as Disabled in UI**
+
+SYMPTOM:
+- When starting induction proof, backend creates generic 'k' 
+- Frontend saves it to sessionStorage with enabled=true
+- Console logs show generic saved correctly with enabled=true
+- Definitions panel shows "Enable" button (meaning enabled=false) instead of "Disable"
+- SessionStorage inspection shows "enabled":false despite console showing it was saved as true
+
+INITIAL HYPOTHESIS (WRONG):
+- Believed CustomEvent 'genericsUpdated' system was broken
+- Event was being dispatched but never received by Definitions component
+- Thought it was React lifecycle timing issue (component mounting/unmounting removing event listener before event fired)
+
+WHY THIS WAS WRONG:
+- Event system being broken wasn't causing the bug - just a red herring
+- UI was correctly updating via useEffect sync that reads from sessionStorage (Definitions.jsx lines 353-380)
+- Buttons initially showed "Disable" correctly, then CHANGED BACK to "Enable"
+- This wasn't an event timing issue - data was being OVERWRITTEN after initial save
+
+CRITICAL DEBUGGING CLUE:
+- User's sessionStorage screenshot showed "enabled":false even though console.log showed it was initially saved as enabled=true
+- This meant something was overwriting sessionStorage AFTER the initial save
+- Searched for all sessionStorage.setItem('generics') calls in codebase
+
+ROOT CAUSE:
+Definitions.jsx has a useEffect (lines 590-620) that calls erService.getUserGenerics() to fetch all generics from backend database. The merge logic was:
+
+```javascript
+// OLD BROKEN MERGE:
+const merged = [...userGenerics];  // Start with backend data
+storedGenerics.forEach(stored => {
+  const existsInBackend = userGenerics.find(ug => ug.label === stored.label);
+  if (!existsInBackend) {
+    merged.push(stored);  // Only add if not in backend
+  }
+});
+```
+
+EXECUTION SEQUENCE:
+1. InductionRacket saves k with enabled=true → sessionStorage ✓
+2. Definitions mounts, reads sessionStorage (k has enabled=true) ✓
+3. Buttons render "Disable" correctly ✓
+4. getUserGenerics() API call completes → backend returns k WITHOUT enabled field (backend model doesn't have this UI-only field)
+5. Merge logic blindly accepts backend data → overwrites sessionStorage with backend version (no enabled field) ❌
+6. Component re-renders, enabled=undefined → defaults to false ❌
+7. Buttons now show "Enable" (wrong)
+
+THE FIX:
+Modified Definitions.jsx lines 590-620 to preserve enabled state from sessionStorage during merge:
+
+```javascript
+// NEW WORKING MERGE:
+const merged = userGenerics.map(backendGen => {
+  const storedGen = storedGenerics.find(sg => sg.label === backendGen.label || sg.name === backendGen.name);
+  if (storedGen) {
+    // Preserve enabled state from sessionStorage
+    return { ...backendGen, enabled: storedGen.enabled ?? backendGen.enabled };
+  }
+  return backendGen;
+});
+
+// Add any sessionStorage generics that don't exist in backend yet
+storedGenerics.forEach(stored => {
+  const existsInBackend = merged.find(ug => ug.label === stored.label || ug.name === stored.name);
+  if (!existsInBackend) {
+    merged.push(stored);
+  }
+});
+```
+
+Also normalized field names (added both 'label' and 'name' fields) in InductionRacket.js so merge matching works correctly, since backend uses 'name' but sessionStorage uses 'label'.
+
+KEY LESSONS FOR FUTURE DEBUGGING:
+
+1. **Don't chase red herrings** - Event system not working was a distraction; the UI was updating fine via other means
+2. **Look for overwrites** - When saved data doesn't match retrieved data, search for ALL places that write to that storage key
+3. **Backend models ≠ Frontend state** - Backend doesn't include UI-only state (like 'enabled'). Always preserve local state during merges with backend data
+4. **SessionStorage inspection is critical** - Checking Application tab in DevTools reveals discrepancies between console.log and actual stored values
+5. **Field name normalization matters** - Mismatched field names ('label' vs 'name') can break merge logic silently
+6. **Async data fetches can overwrite local state** - When component mounts, useEffect hooks fire API calls that can clobber freshly-saved data
+
+DIAGNOSTIC PATTERN FOR SIMILAR BUGS:
+- User reports "I saved X but UI shows Y"
+- Console.log shows X saved correctly
+- Check sessionStorage/localStorage in Application tab - if it shows Y, something is overwriting it
+- Search codebase for ALL writes to that storage key (grep for setItem)
+- Look for async API calls (useEffect, .then()) that merge/overwrite data
+- Verify merge logic preserves frontend-only fields when combining with backend data

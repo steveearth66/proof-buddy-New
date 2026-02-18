@@ -442,7 +442,8 @@ def use_generic(proof: TwoSidedProof, id):
 def remove_generic(proof: TwoSidedProof, id):
     generic = Generic.objects.get(id=id)
     label = generic.label
-    del proof.generics[label]
+    if label in proof.generics:
+        del proof.generics[label]
 
 def delete_generic(proof: TwoSidedProof, id):
     try:

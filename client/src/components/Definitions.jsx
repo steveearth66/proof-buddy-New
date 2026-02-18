@@ -338,15 +338,39 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
   const [definitions, setDefinitions] = useState(
     JSON.parse(sessionStorage.getItem('definitions')) || []
   );
-  const [generics, setGenerics] = useState(
-    JSON.parse(sessionStorage.getItem('generics')) || []
-  );
+  const [generics, setGenerics] = useState(() => {
+    const stored = JSON.parse(sessionStorage.getItem('generics')) || [];
+    return stored;
+  });
   const [definitionToEdit, setDefinitionToEdit] = useState({});
   const [edit, setEdit] = useState(false);
 
+  // Re-sync with sessionStorage whenever component becomes visible
+  // (in case generics were updated while panel was closed)
+  useEffect(() => {
+    const syncGenerics = () => {
+      const stored = JSON.parse(sessionStorage.getItem('generics')) || [];
+      setGenerics(stored);
+    };
+    
+    // Sync immediately when component mounts/opens
+    syncGenerics();
+    
+    // Also listen for visibility changes
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        syncGenerics();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
   useEffect(() => {
     const handleGenericsUpdated = (event) => {
-      
       const { newGeneric, allGenerics } = event.detail;
       
       if (allGenerics) {
@@ -546,11 +570,19 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
             // Merge with any generics already in sessionStorage (from induction)
             const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
       
-      // Merge: prefer backend data but keep any that only exist in storage
-      const merged = [...userGenerics];
+      // Merge: prefer backend data but preserve 'enabled' state from sessionStorage
+      const merged = userGenerics.map(backendGen => {
+        const storedGen = storedGenerics.find(sg => sg.label === backendGen.label || sg.name === backendGen.name);
+        if (storedGen) {
+          // Preserve enabled state from sessionStorage
+          return { ...backendGen, enabled: storedGen.enabled ?? backendGen.enabled };
+        }
+        return backendGen;
+      });
       
+      // Add any sessionStorage generics that don't exist in backend yet
       storedGenerics.forEach(stored => {
-        const existsInBackend = userGenerics.find(ug => ug.label === stored.label);
+        const existsInBackend = merged.find(ug => ug.label === stored.label || ug.name === stored.name);
         if (!existsInBackend) {
           merged.push(stored);
         }
