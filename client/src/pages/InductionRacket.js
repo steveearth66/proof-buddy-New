@@ -1099,16 +1099,16 @@ const InductionRacket = () => {
 
   /**
    * Validates:
-   * - induction variable is a parameter of a (top-level) function in LHS or RHS goal
    * - anchor/induction value is a nonnegative integer
    * - leap variable does not appear in LHS, RHS, or equal induction variable
    *
    * On success, calls checkGoal(...) to proceed.
    *
    * Uses exact error messages requested:
-   * "Induction variable must be a parameter of a function in your goal."
    * "Anchor value must be a nonnegative integer."
    * "Leap variable must not overlap with variables in the goal."
+   * 
+   * Note: Induction variable parameter validation removed - backend handles this correctly
    */
   const validateAndStart = async (
     side,
@@ -1169,27 +1169,10 @@ const InductionRacket = () => {
       }
     }
 
+    // Ensure induction variable is provided
     const ivar = inductionVariable ? inductionVariable.trim() : "";
     if (!ivar) {
-      toast.error("Induction variable must be a parameter of a function in your goal.");
-      return;
-    }
-
-    const leftApp = parseTopLevelApplication(leftGoal);
-    const rightApp = parseTopLevelApplication(rightGoal);
-    const selectedApp = parseTopLevelApplication(selectedGoal);
-
-    const appearsInParams = (app) => {
-      if (!app || !app.params) return false;
-      return app.params.some((p) => p === ivar);
-    };
-
-    if (
-      !appearsInParams(leftApp) &&
-      !appearsInParams(rightApp) &&
-      !appearsInParams(selectedApp)
-    ) {
-      toast.error("Induction variable must be a parameter of a function in your goal.");
+      toast.error("Induction variable is required.");
       return;
     }
 

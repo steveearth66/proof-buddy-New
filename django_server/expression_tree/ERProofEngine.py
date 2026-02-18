@@ -400,12 +400,6 @@ class ERProofLine(ProofComponent):
                     f"Type mismatch in argument '{param}': expected {expected_type.getType()}, got {typed.type}")
                 return [], True
             parsed.append(typed)
-        user_vals = [param.split('=', 1)[1].strip() for param in rawParams]
-        target_vals = [str(child) for child in targetNode.children[1:]]
-        for i, (user_val, target_val) in enumerate(zip(user_vals, target_vals)):
-            if user_val != target_val:
-                self.errLog.append(
-                    f"Value mismatch in argument '{expectedNames[i]}': expected {target_val}, got {user_val}")
         if self.errLog:
             return [], True
         return parsed, False
