@@ -807,6 +807,7 @@ const InductionRacket = () => {
           
           sessionStorage.setItem('induction_current_proof_id', navId);
           sessionStorage.setItem('inductionProofActive', 'true');
+          window.history.replaceState({}, document.title);
         }
 
         const isActiveSession = sessionStorage.getItem('inductionProofActive') === 'true';
