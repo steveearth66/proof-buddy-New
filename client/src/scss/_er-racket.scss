@@ -73,6 +73,7 @@
     .form-top-section {
       z-index: 1040;
       background-color: $color-white;
+      padding-top: 12px;
       padding-left: 15px;
       padding-right: 15px;
       height: auto !important;
@@ -111,6 +112,8 @@
       }
 
       .page-header-row {
+        display: flex;
+        align-items: flex-start;
         h1 {
           font-size: clamp(20px, 2.5vw, 36px);
           margin: 20px 0;
@@ -125,6 +128,14 @@
           display: flex;
           align-items: center;
           gap: clamp(5px, 1.5vw, 30px);
+        }
+      }
+
+      .er-proof-name, .er-proof-tag {
+        .form-floating {
+          .invalid-feedback {
+            position: absolute;
+          }
         }
       }
 

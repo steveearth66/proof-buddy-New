@@ -1632,9 +1632,9 @@ const handleGenerateAndCheck = async () => {
           onSubmit={handleStartProof}
         >
           <div className="form-top-section" ref={topSectionRef} >
-            <Row className="page-header-row align-items-center" style={{ alignItems: 'center', paddingRight: '40px' }} >
+            <Row className="page-header-row align-items-center" style={{ paddingRight: '40px' }} >
               <Col xs="auto">
-                <h1 style={{ marginBottom: 0, fontSize: isHeaderCollapsed ? '24px' : '36px' }}>Equational Reasoning</h1>
+                <h1 className="mt-0" style={{ marginBottom: 0, fontSize: isHeaderCollapsed ? '24px' : '36px' }}>Equational Reasoning</h1>
               </Col>
               {/* COMPACT VIEW: Current Values move up to this row when collapsed */}
               {isHeaderCollapsed && (
@@ -1718,36 +1718,36 @@ const handleGenerateAndCheck = async () => {
                     required
                   />
                   <label htmlFor="eRProofName">Name</label>
-                  <Form.Control.Feedback type="invalid" tooltip>
+                  <Form.Control.Feedback type="invalid">
                     {validationMessages.proofName ||
                       proofValidationMessage.name}
                   </Form.Control.Feedback>
                 </Form.Floating>
               </Form.Group>
               <Form.Group as={Col} md="3" className="er-proof-tag">
-                <Form.Floating className="mb-3">
-                  <Form.Control
-                    id="eRProofTag"
-                    name="proofTag"
-                    type="text"
-                    placeholder="Enter tag"
-                    value={formValues.proofTag}
-                    onBlur={() => {
-                      handleBlur("proofTag");
-                      clearProofValidationMessage();
-                    }}
-                    onChange={handleChange}
-                    isInvalid={
-                      !!validationMessages.tag || !!proofValidationMessage.tag
-                    }
-                    disabled={proofStarted}
-                    required
-                  />
-                  <label htmlFor="eRProofTag"># Tag</label>
-                  <Form.Control.Feedback type="invalid" tooltip>
-                    {validationMessages.tag || proofValidationMessage.tag}
-                  </Form.Control.Feedback>
-                </Form.Floating>
+                  <Form.Floating className="mb-3">                
+                    <Form.Control
+                      id="eRProofTag"
+                      name="proofTag"
+                      type="text"
+                      placeholder="Enter tag"
+                      value={formValues.proofTag}
+                      onBlur={() => {
+                        handleBlur("proofTag");
+                        clearProofValidationMessage();
+                      }}
+                      onChange={handleChange}
+                      isInvalid={
+                        !!validationMessages.tag || !!proofValidationMessage.tag
+                      }
+                      disabled={proofStarted}
+                      required
+                    />
+                    <label htmlFor="eRProofTag"># Tag</label>
+                    <Form.Control.Feedback type="invalid">
+                      {validationMessages.tag || proofValidationMessage.tag}
+                    </Form.Control.Feedback>
+                  </Form.Floating>                   
               </Form.Group>
                 </>
               )}
@@ -1820,7 +1820,7 @@ const handleGenerateAndCheck = async () => {
               </Col>
             </Row>
             {!isHeaderCollapsed && (
-              <div className="standard-view-content">
+              <div className="standard-view-content p-0">
                 <div className="d-flex flex-wrap align-items-center standard-view-flex-container">
                   {proofStarted && (
                     <div className="d-flex flex-column justify-content-center me-3" style={{ minWidth: 'fit-content' }}>
@@ -1849,62 +1849,66 @@ const handleGenerateAndCheck = async () => {
                   )}
                   <div className="flex-grow-1 inputs-wrapper">
                     <Row className="g-5 justify-content-center flex-wrap" style={{ paddingRight: '40px' }}>
-                      <Form.Group as={Col} md="4" className="er-proof-goal-lhs">
+                      <Form.Group as={Col} md="4" className="mt-0 er-proof-goal-lhs">
                         <div className="mb-3">
                           <label htmlFor="eRProofLHSGoal" className="form-label flex-wrap">LHS Goal</label>
-                          <RacketInput
-                            id="eRProofLHSGoal"
-                            name="lHSGoal"
-                            type="text"
-                            placeholder="LHS Goal"
-                            value={formValues.lHSGoal}
-                            onBlur={() => handleBlur("lHSGoal")}
-                            onChange={enhancedHandleChange}
-                            onKeyUp={lhsGoalKeyUp}
-                            onClick={lhsGoalSelect}
-                            ref={lhsGoalRef}
-                            highlightPositions={lhsGoalHighlights}
-                            isInvalid={
-                              !!validationMessages.lHSGoal ||
-                              !!goalValidationMessage?.LHS
-                            }
-                            disabled={proofStarted}
-                            required
-                            style={{ minWidth: `${Math.max((formValues.lHSGoal?.length || 20), 20)}ch` }}
-                          />
-                          <Form.Control.Feedback type="invalid" tooltip>
-                            {validationMessages.lHSGoal ||
-                              goalValidationMessage?.LHS}
-                          </Form.Control.Feedback>
+                          <div className="position-relative">
+                            <RacketInput
+                              id="eRProofLHSGoal"
+                              name="lHSGoal"
+                              type="text"
+                              placeholder="LHS Goal"
+                              value={formValues.lHSGoal}
+                              onBlur={() => handleBlur("lHSGoal")}
+                              onChange={enhancedHandleChange}
+                              onKeyUp={lhsGoalKeyUp}
+                              onClick={lhsGoalSelect}
+                              ref={lhsGoalRef}
+                              highlightPositions={lhsGoalHighlights}
+                              isInvalid={
+                                !!validationMessages.lHSGoal ||
+                                !!goalValidationMessage?.LHS
+                              }
+                              disabled={proofStarted}
+                              required
+                              style={{ minWidth: `${Math.max((formValues.lHSGoal?.length || 20), 20)}ch` }}
+                            />
+                            <Form.Control.Feedback type="invalid" className={(validationMessages.lHSGoal || goalValidationMessage?.LHS) ? "d-block" : ""}>
+                              {validationMessages.lHSGoal ||
+                                goalValidationMessage?.LHS}
+                            </Form.Control.Feedback>
+                          </div>
                         </div>
                       </Form.Group>
-                      <Form.Group as={Col} md="4" className="er-proof-goal-rhs">
+                      <Form.Group as={Col} md="4" className="er-proof-goal-rhs mt-0">
                         <div className="mb-3">
                           <label htmlFor="eRProofRHSGoal" className="form-label">RHS Goal</label>
-                          <RacketInput
-                            id="eRProofRHSGoal"
-                            name="rHSGoal"
-                            type="text"
-                            placeholder="RHS Goal"
-                            value={formValues.rHSGoal}
-                            onBlur={() => handleBlur("rHSGoal")}
-                            onChange={enhancedHandleChange}
-                            onKeyUp={rhsGoalKeyUp}
-                            onClick={rhsGoalSelect}
-                            ref={rhsGoalRef}
-                            highlightPositions={rhsGoalHighlights}
-                            isInvalid={
-                              !!validationMessages.rHSGoal ||
-                              !!goalValidationMessage?.RHS
-                            }
-                            disabled={proofStarted}
-                            required
-                            style={{ minWidth: `${Math.max((formValues.rHSGoal?.length || 20), 20)}ch` }}
-                          />
-                          <Form.Control.Feedback type="invalid" tooltip>
-                            {validationMessages.rHSGoal ||
-                              goalValidationMessage?.RHS}
-                          </Form.Control.Feedback>
+                          <div className="position-relative">
+                            <RacketInput
+                              id="eRProofRHSGoal"
+                              name="rHSGoal"
+                              type="text"
+                              placeholder="RHS Goal"
+                              value={formValues.rHSGoal}
+                              onBlur={() => handleBlur("rHSGoal")}
+                              onChange={enhancedHandleChange}
+                              onKeyUp={rhsGoalKeyUp}
+                              onClick={rhsGoalSelect}
+                              ref={rhsGoalRef}
+                              highlightPositions={rhsGoalHighlights}
+                              isInvalid={
+                                !!validationMessages.rHSGoal ||
+                                !!goalValidationMessage?.RHS
+                              }
+                              disabled={proofStarted}
+                              required
+                              style={{ minWidth: `${Math.max((formValues.rHSGoal?.length || 20), 20)}ch` }}
+                            />
+                            <Form.Control.Feedback type="invalid" className={(validationMessages.rHSGoal || goalValidationMessage?.RHS) ? "d-block" : ""}>
+                              {validationMessages.rHSGoal ||
+                                goalValidationMessage?.RHS}
+                            </Form.Control.Feedback>
+                          </div>
                         </div>
                       </Form.Group>
                     </Row>

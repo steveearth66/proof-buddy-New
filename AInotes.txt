@@ -813,3 +813,19 @@ DIAGNOSTIC PATTERN FOR SIMILAR BUGS:
 - Search codebase for ALL writes to that storage key (grep for setItem)
 - Look for async API calls (useEffect, .then()) that merge/overwrite data
 - Verify merge logic preserves frontend-only fields when combining with backend data
+
+---
+
+ENVIRONMENT NOTE: Running Django Tests on Windows
+
+To run `py manage.py test` on Windows, always set the terminal encoding first:
+
+    $env:PYTHONIOENCODING="utf-8"; py manage.py test
+
+WHY THIS IS NEEDED:
+- Several test files use Unicode characters in print() statements (e.g., → \u2192, ✓ \u2713)
+- Windows PowerShell terminals default to cp1252 encoding, which cannot encode these characters
+- Without the env var, Python raises UnicodeEncodeError inside the test print() calls, causing those tests to be reported as ERROR instead of PASS/FAIL
+- This is not a code bug — it is purely a terminal encoding issue
+- Setting PYTHONIOENCODING="utf-8" tells Python's stdout to use UTF-8, allowing the Unicode characters to print correctly
+- Do NOT "fix" this by replacing Unicode characters in test files — that changes source code unnecessarily and the env var is the correct solution

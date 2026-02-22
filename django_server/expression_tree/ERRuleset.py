@@ -24,6 +24,8 @@ def isMatch(xNode: Node, yNode: Node) -> bool:
     #     return checker
     # else:
     #     return True
+    if len(xNode.children) != len(yNode.children):
+        return False
     sofar = True
     for i in range(len(xNode.children)):  # defaults to True if no children since no loop
         # if any are false, sofar will be false
@@ -566,8 +568,14 @@ class Axiom(Rule, ABC):
                 expectedValuesStr = ', '.join(wrappedWithQuotes[:-1]) + ' or ' + wrappedWithQuotes[-1]
                 return False, (f'Value mismatch: expected {expectedValuesStr} '
                                 f'for {param}, but "{assignment}" was provided')
-            # String comparison removed - AST validation already ensures semantic correctness
-            # (String comparison rejected valid expressions due to whitespace/formatting differences)
+            # Use AST-level comparison so whitespace/formatting differences don't cause
+            # false rejections, while still catching genuine mismatches (e.g. x=null vs x=1).
+            assignmentTree = makeBasicAst(assignment)[0]
+            if isMatch(paramLocation, assignmentTree):
+                self._paramMappings[param] = paramLocation
+                return True, ""
+            return False, (f'Value mismatch: expected "{str(paramLocation)}" '
+                           f'for {param}, but "{assignment}" was provided')
         self._paramMappings[param] = paramLocation
         return True, ""
     
@@ -864,6 +872,68 @@ class ListQProp(TypeQProp):
     def __init__(self):
         super().__init__('list?', Type.LIST)
 
+# --- helpers for AdvMath non-math abstraction ---
+
+def _collect_node_names(node: Node, names: set) -> None:
+    # harvests every string data token from the entire tree
+    # so that _fresh_var can avoid generating a name that already appears
+    if isinstance(node.data, str):
+        names.add(node.data)
+    for child in node.children:
+        _collect_node_names(child, names)
+
+def _fresh_var(used: set) -> str:
+    # returns the next lowercase letter (or two-letter combo) not already in 'used'
+    # and adds it to 'used' so future calls won't collide
+    import string
+    for c in string.ascii_lowercase:
+        if c not in used:
+            used.add(c)
+            return c
+    for c1 in string.ascii_lowercase:
+        for c2 in string.ascii_lowercase:
+            name = c1 + c2
+            if name not in used:
+                used.add(name)
+                return name
+    return "z_var"  # unreachable in practice
+
+_MATH_OPS = MathSet | ARITHMETIC  # {'+','-','*','expt','quotient','remainder','=','>','<','<=','>='}
+_OP_TRANSLATE = {"expt": "**", "quotient": "//", "remainder": "%", "=": "=="}
+
+def _abstractedMathStr(node: Node, abstract_pairs: list, used_names: set) -> str:
+    # Converts a node tree to a SymPy-readable infix string.
+    # Non-math function calls (e.g. (length L)) are replaced wholesale with a
+    # fresh placeholder variable.  Two calls that are structurally identical
+    # (isMatch) share the same placeholder so SymPy sees them as the same symbol.
+    # Leaf node: number, variable name, or math-operator token (+ - * etc.)
+    if node.children == []:
+        return node.data
+    # Parenthesized application: data="(", children=[op_node, arg1, arg2]
+    if node.data == "(" and len(node.children) >= 2:
+        op = node.children[0].data
+        if op in _MATH_OPS and len(node.children) == 3:
+            # Recognized binary math operator — recurse into both operands
+            op_str = _OP_TRANSLATE.get(op, op)
+            left = _abstractedMathStr(node.children[1], abstract_pairs, used_names)
+            right = _abstractedMathStr(node.children[2], abstract_pairs, used_names)
+            if left == "ERROR" or right == "ERROR":
+                return "ERROR"
+            return "(" + left + op_str + right + ")"
+        else:
+            # Non-math call (e.g. length, cons, rest, f, …) — treat entire
+            # subtree as an opaque symbol.  Reuse the same variable if we have
+            # already seen a structurally identical subtree (isMatch).
+            for existing_node, var_name in abstract_pairs:
+                if isMatch(existing_node, node):
+                    return var_name
+            var_name = _fresh_var(used_names)
+            abstract_pairs.append((node, var_name))
+            return var_name
+    return "ERROR"
+
+# --- end helpers ---
+
 class AdvMath(Rule):
     def __init__(self):
         super().__init__('advMath', RuleType.MATH)
@@ -871,13 +941,19 @@ class AdvMath(Rule):
 # presumes buildtree checked types/qty already for main node and the subnode
 # "subnode" is the exptree created by the user in the Substitution pane.
     def isApplicable(self, ruleNode: Node, subNode:Node) -> tuple[bool, str]:  # presumes buildtree checked types/qty already
-        for node in [ruleNode, subNode]:
-            if not node.allMath():
-                return False, f'Math rule requires only math functions, but {"main" if node==ruleNode else "substitute"} expression had {node.funcSet()-set(["+","-","*","expt", "quotient","remainder"])}'
-        
         try:
-            main_expr_str = ruleNode.mathStr()
-            sub_expr_str = subNode.mathStr()
+            # Collect every token name from both trees so _fresh_var won't
+            # collide with existing variable names like k, n, L, etc.
+            used_names: set = set()
+            _collect_node_names(ruleNode, used_names)
+            _collect_node_names(subNode, used_names)
+            # Shared list of (Node, placeholder_var) pairs — same subtree in
+            # both expressions will receive the same placeholder symbol.
+            abstract_pairs: list = []
+            main_expr_str = _abstractedMathStr(ruleNode, abstract_pairs, used_names)
+            sub_expr_str  = _abstractedMathStr(subNode,  abstract_pairs, used_names)
+            if main_expr_str == "ERROR" or sub_expr_str == "ERROR":
+                return False, 'Math rule: expression could not be converted for symbolic comparison'
             
             # Parse expressions with SymPy
             main_sympy = sp.sympify(main_expr_str)

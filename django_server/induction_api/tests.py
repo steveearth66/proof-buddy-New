@@ -214,7 +214,7 @@ class EngineEndpointTests(TransactionTestCase):
             'case': 'base',
             'side': 'LHS',
             'currentRacket': '(+ 0 1)',
-            'rule': 'math',
+            'rule': 'eval +',
             'startPosition': 0
         }
         

@@ -102,6 +102,11 @@ class InductionProofLine(models.Model):
     result_node = models.IntegerField(default=0)  # Node ID of the changed portion in the result expression (for dual highlighting)
     line_number = models.IntegerField(default=0)  # Order of line in the proof
     created_at = models.DateTimeField(auto_now_add=True)
+    errors = models.TextField(blank=True, default='') # Comma separated list of all errors that occured on the line
+    
+    # NEW: Visibility flags for hiding content from students
+    hide_expression = models.BooleanField(default=False)  # If True, hide the racket expression
+    hide_justification = models.BooleanField(default=False)  # If True, hide the rule/justification
     
     class Meta:
         ordering = ['case', 'side', 'line_number']
