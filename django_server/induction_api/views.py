@@ -108,7 +108,7 @@ def create_induction_proof(request):
 
 @api_view(["POST"])
 def clear_induction(request):
-    """Archive (soft delete) the current active proof for the user"""
+    """Clear cache of the current active proof for the user"""
     from .models import InductionProof
     user = request.user
     
@@ -348,6 +348,20 @@ def start_induction_proof(request):
                 'is_generic': False
             })
         
+        # Set proof with same name and tag to inactive if one exists
+         # 1. Try to find existing proof to update
+        proof_instance = InductionProof.objects.filter(
+            name=proof_name, 
+            tag=proof_tag, 
+            user=user,
+            is_active=True
+        ).first()
+
+        if proof_instance:
+            # Update goals if they changed
+            proof_instance.is_active = False
+            proof_instance.save()
+
         # Create complete proof data
         proof_data = {
             'user': user.id,
@@ -539,11 +553,12 @@ def reload_proof_lines_from_db(proof, proof_id):
             proof_line.appliedRule = line.rule
             proof_line.appliedRuleNodeId = line.selected_node  # Restore highlighting position
             target.proofLines.append(proof_line)
+            proof_line.errors = line.errors
     except Exception as e:
         pass
 
 
-def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, line_number, substitution='', selected_node=None, result_node=None, json_tree=None):
+def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, line_number, substitution='', selected_node=None, result_node=None, json_tree=None, errors=''):
     """Save a proof line to the database"""
     from .models import InductionProofLine, InductionProof
     if proof_id is None:
@@ -568,6 +583,7 @@ def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, li
                 'selected_node': node_id,
                 'result_node': result_node_id,
                 'json_tree': json_tree or {},
+                'errors': errors
             }
         )
     except InductionProof.DoesNotExist:
@@ -749,7 +765,8 @@ def set_current_proof(request):
                     start_position=0,
                     line_number=0,
                     selected_node=0,
-                    json_tree=makeJson(ind.baseCase.LHS.proofLines[0].exprTree)
+                    json_tree=makeJson(ind.baseCase.LHS.proofLines[0].exprTree),
+                    errors=ind.baseCase.LHS.proofLines[0].errors
                 )
             if ind.baseCase.RHS.proofLines:
                 save_proof_line_to_db(
@@ -761,7 +778,8 @@ def set_current_proof(request):
                     start_position=0,
                     line_number=0,
                     selected_node=0,
-                    json_tree=makeJson(ind.baseCase.RHS.proofLines[0].exprTree)
+                    json_tree=makeJson(ind.baseCase.RHS.proofLines[0].exprTree),
+                    errors=ind.baseCase.RHS.proofLines[0].errors
                 )
             # Save leap step premises (these have ivar substituted with (+ lvar 1))
             if ind.leapStep.LHS.proofLines:
@@ -774,7 +792,8 @@ def set_current_proof(request):
                     start_position=0,
                     line_number=0,
                     selected_node=0,
-                    json_tree=makeJson(ind.leapStep.LHS.proofLines[0].exprTree)
+                    json_tree=makeJson(ind.leapStep.LHS.proofLines[0].exprTree),
+                    errors=ind.leapStep.LHS.proofLines[0].errors
                 )
             if ind.leapStep.RHS.proofLines:
                 save_proof_line_to_db(
@@ -786,7 +805,8 @@ def set_current_proof(request):
                     start_position=0,
                     line_number=0,
                     selected_node=0,
-                    json_tree=makeJson(ind.leapStep.RHS.proofLines[0].exprTree)
+                    json_tree=makeJson(ind.leapStep.RHS.proofLines[0].exprTree),
+                    errors=ind.leapStep.RHS.proofLines[0].errors
                 )
 
         # Build frontend payload with jsonTrees for latest lines
@@ -850,6 +870,7 @@ def _apply_line(target: ERProof, currentRacket: str, rule: str | None, startPosi
 
 
 @api_view(["POST"]) 
+@permission_classes([IsAuthenticated])
 def apply_rule(request):
     """
     Apply a rule/substitution to the current case+side of the IndProof.
@@ -938,7 +959,11 @@ def apply_rule(request):
                     except Exception as e:
                         # Continue anyway - this shouldn't block saving the new line
                         pass
-                
+                    
+                error_value = ''
+                if calculated_line_number < len(target.proofLines):
+                    error_value = target.proofLines[calculated_line_number].errors
+
                 # Save the NEW line with selected_node=None (unknown until next line generated)
                 save_proof_line_to_db(
                     proof_id=proof_id,
@@ -951,17 +976,17 @@ def apply_rule(request):
                     substitution=substitution or '',
                     selected_node=None,  # Unknown until user generates next line
                     result_node=result_node_id,
-                    json_tree=jsonTree
+                    json_tree=jsonTree,
+                    errors=error_value
                 )
             else:
-                pass
-                # line_index = calculated_line_number - 1
-                # last_line_obj = target.proofLines[line_index]
-                # InductionProofLine.objects.filter(
-                #     proof_id=proof_id,
-                #     side=side.upper(),
-                #     line_number=line_index
-                # ).update(errors=last_line_obj.errors)
+                line_index = calculated_line_number - 1
+                last_line_obj = target.proofLines[line_index]
+                InductionProofLine.objects.filter(
+                    proof_id=proof_id,
+                    side=side.upper(),
+                    line_number=line_index
+                ).update(errors=last_line_obj.errors)
 
         return Response({
             "isValid": is_valid,
@@ -1182,6 +1207,12 @@ def substitution(request):
             if substitution:
                 rule_with_sub = f"{rule_with_sub} as {substitution}"
 
+        if not is_valid and len(target.proofLines) > 0:
+            # append current line errors
+            current_line = target.proofLines[lineNumber - 1]
+            separator = ", " if current_line.errors else ""
+            current_line.errors += f'{separator}{target.errLog}'
+
         save_induction_obj_to_cache(user, proof, proof_id)
         
         # Extract resultNodeId from the last proof line
@@ -1190,43 +1221,59 @@ def substitution(request):
             result_node_id = target.proofLines[-1].resultNodeId
         
         # Save to database if we have a valid proof line
-        if is_valid and len(target.proofLines) > 0:
-            last_line = target.proofLines[-1]
+        if len(target.proofLines) > 0:            
+            last_line = target.proofLines[-1]                
             # Use lineNumber from frontend if provided (editing specific line), otherwise calculate from array length (appending)
             calculated_line_number = lineNumber if lineNumber is not None else (len(target.proofLines) - 1)
             
-            # Update the PREVIOUS line's selected_node (where user clicked to generate this line)
-            if calculated_line_number > 0:
-                prev_line_exists = InductionProofLine.objects.filter(
-                    proof_id=proof_id,
-                    case=case.lower(),
-                    side=side.upper(),
-                    line_number=calculated_line_number - 1
-                ).exists()
-                
-                if prev_line_exists:
-                    InductionProofLine.objects.filter(
+            if is_valid:
+                # Update the PREVIOUS line's selected_node (where user clicked to generate this line)
+                if calculated_line_number > 0:
+                    prev_line_exists = InductionProofLine.objects.filter(
                         proof_id=proof_id,
                         case=case.lower(),
                         side=side.upper(),
                         line_number=calculated_line_number - 1
-                    ).update(selected_node=startPosition)
-                else:
-                    pass
-            
-            # Save the NEW line with selected_node=None (unknown until next line generated)
-            save_proof_line_to_db(
-                proof_id=proof_id,
-                case=case,
-                side=side,
-                racket=racket_str,
-                rule=rule_with_sub,
-                start_position=startPosition,
-                line_number=calculated_line_number,
-                substitution=substitution or '',
-                selected_node=None,  # Unknown until user generates next line
-                result_node=result_node_id
-            )
+                    ).exists()
+                    
+                    if prev_line_exists:
+                        InductionProofLine.objects.filter(
+                            proof_id=proof_id,
+                            case=case.lower(),
+                            side=side.upper(),
+                            line_number=calculated_line_number - 1
+                        ).update(selected_node=startPosition)
+                    else:
+                        pass
+
+                error_value = ''
+                if calculated_line_number < len(target.proofLines):
+                    error_value = target.proofLines[calculated_line_number].errors
+
+                # Save the NEW line with selected_node=None (unknown until next line generated)
+                save_proof_line_to_db(
+                    proof_id=proof_id,
+                    case=case,
+                    side=side,
+                    racket=racket_str,
+                    rule=rule_with_sub,
+                    start_position=startPosition,
+                    line_number=calculated_line_number,
+                    substitution=substitution or '',
+                    selected_node=None,  # Unknown until user generates next line
+                    result_node=result_node_id,
+                    json_tree=jsonTree,
+                    errors=error_value
+                )
+            else:
+                line_index = calculated_line_number - 1
+                last_line_obj = target.proofLines[line_index]
+                InductionProofLine.objects.filter(
+                    proof_id=proof_id,
+                    side=side.upper(),
+                    line_number=line_index
+                ).update(errors=last_line_obj.errors)
+
         return Response({
             "isValid": is_valid,
             "racket": racket_str,
@@ -1358,7 +1405,8 @@ def get_proof_lines(request):
                 'resultNode': line.result_node,
                 'lineNumber': line.line_number,
                 'substitution': line.substitution,
-                'jsonTree': json_tree
+                'jsonTree': json_tree,
+                'errors': line.errors
             }
             result[line.case][line.side].append(line_data)
         
@@ -1531,7 +1579,8 @@ def delete_proof(request):
             cached = cache.get(f"induction_proof_{user.username}") 
             cache_cleared = False
             if cached:
-                cached_proof_id = cached.get('proof_id')   
+                cached_proof = loads(cached)
+                cached_proof_id = cached_proof.get('id')   
 
                 if cached_proof_id == proof_id:
                     cache_cleared = True

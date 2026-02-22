@@ -807,6 +807,7 @@ const InductionRacket = () => {
           
           sessionStorage.setItem('induction_current_proof_id', navId);
           sessionStorage.setItem('inductionProofActive', 'true');
+          window.history.replaceState({}, document.title);
         }
 
         const isActiveSession = sessionStorage.getItem('inductionProofActive') === 'true';
@@ -2018,27 +2019,211 @@ const InductionRacket = () => {
                   {/* COLUMN 2: CENTER DATA (Wrappable) */}
                   <Col xs={12} md className="px-4 flex-grow-1" style={{ minWidth: '350px' }}>
                       <Row className="g-2 mb-1">
-                          <Form.Group as={Col} sm="6"><Form.Floating><Form.Control id="eRProofName" name="proofName" type="text" placeholder="Name" value={formValues.proofName} onBlur={() => handleBlur("proofName")} onChange={handleChange} disabled={proofStarted} required />
-                            <label>Proof Name</label>
+                          <Form.Group as={Col} sm="6">
+                            <Form.Floating>
+                              <Form.Control
+                                id="eRProofName"
+                                name="proofName"
+                                type="text"
+                                placeholder="Enter name"
+                                value={formValues.proofName}
+                                onBlur={() => {
+                                  handleBlur("proofName");
+                                  clearProofValidationMessage();
+                                }}
+                                onChange={handleChange}
+                                isInvalid={
+                                  !!validationMessages.proofName ||
+                                  !!proofValidationMessage.name
+                                }
+                                disabled={proofStarted}
+                                required
+                              />
+                              <label>Proof Name</label>
+                              <Form.Control.Feedback type="invalid">
+                                {validationMessages.proofName ||
+                                  proofValidationMessage.name}
+                              </Form.Control.Feedback>
                             </Form.Floating>
-                            </Form.Group>
-                          <Form.Group as={Col} sm="6"><Form.Floating>
-                            <Form.Control id="eRProofTag" name="proofTag" type="text" placeholder="Tag" value={formValues.proofTag} onBlur={() => handleBlur("proofTag")} onChange={handleChange} disabled={proofStarted} required /><label># Tag</label></Form.Floating></Form.Group>
+                          </Form.Group>
+                        <Form.Group as={Col} sm="6">
+                          <Form.Floating>
+                            <Form.Control
+                              id="eRProofTag"
+                              name="proofTag"
+                              type="text"
+                              placeholder="Enter tag"
+                              value={formValues.proofTag}
+                              onBlur={() => {
+                                handleBlur("proofTag");
+                                clearProofValidationMessage();
+                              }}
+                              onChange={handleChange}
+                              isInvalid={
+                                !!proofValidationMessage.tag || !!validationMessages.tag
+                              }
+                              disabled={proofStarted}
+                              required
+                            />
+                            <label htmlFor="eRProofTag"># Tag</label>
+                            <Form.Control.Feedback type="invalid">
+                              {proofValidationMessage.tag || validationMessages.tag}
+                            </Form.Control.Feedback>
+                          </Form.Floating>
+                        </Form.Group>
                       </Row>
                       <Row className="g-2 mb-1">
-                          <Form.Group as={Col} md="4"><label className="form-label small fw-bold mb-0">IVar</label><RacketInput id="eRInductionVariable" name="inductionVariable" value={formValues.inductionVariable} onBlur={() => handleBlur("inductionVariable")} onChange={handleChange} onKeyUp={inductionVarKeyUp} onClick={inductionVarSelect} ref={inductionVarRef} highlightPositions={inductionVarHighlights} disabled={proofStarted} /></Form.Group>
-                          <Form.Group as={Col} md="4"><label className="form-label small fw-bold mb-0">AVal</label><RacketInput id="eRInductionValue" name="inductionValue" value={formValues.inductionValue} onBlur={() => handleBlur("inductionValue")} onChange={handleChange} onKeyUp={inductionValKeyUp} onClick={inductionValSelect} ref={inductionValRef} highlightPositions={inductionValHighlights} disabled={proofStarted} /></Form.Group>
-                          <Form.Group as={Col} md="4"><label className="form-label small fw-bold mb-0">LVar</label><RacketInput id="eRLeapVariable" name="leapVariable" value={formValues.leapVariable} onBlur={() => handleBlur("leapVariable")} onChange={handleChange} onKeyUp={leapVarKeyUp} onClick={leapVarSelect} ref={leapVarRef} highlightPositions={leapVarHighlights} disabled={proofStarted} /></Form.Group>
+                          <Form.Group as={Col} md="4">
+                            <label className="form-label small fw-bold mb-0">IVar</label>
+                            <div className="position-relative">
+                              <RacketInput
+                                id="eRInductionVariable"
+                                name="inductionVariable"
+                                type="text"
+                                placeholder="Induction Variable"
+                                value={formValues.inductionVariable}
+                                onBlur={() => {
+                                  handleBlur("inductionVariable");
+                                  clearProofValidationMessage();
+                                }}
+                                onChange={handleChange}
+                                onKeyUp={inductionVarKeyUp}
+                                onClick={inductionVarSelect}
+                                ref={inductionVarRef}
+                                highlightPositions={inductionVarHighlights}
+                                isInvalid={
+                                  !!validationMessages.inductionVariable ||
+                                  !!proofValidationMessage.inductionVariable
+                                }
+                                disabled={proofStarted}
+                                required
+                              />
+                              <Form.Control.Feedback type="invalid" className={( !!validationMessages.inductionVariable || !!proofValidationMessage.inductionVariable) ? "d-block" : ""}>
+                                {validationMessages.inductionVariable ||
+                                  proofValidationMessage.inductionVariable}
+                              </Form.Control.Feedback>
+                            </div>
+                          </Form.Group>
+                          <Form.Group as={Col} md="4">
+                            <label className="form-label small fw-bold mb-0">AVal</label>
+                            <div className="position-relative">
+                              <RacketInput
+                                id="eRInductionValue"
+                                name="inductionValue"
+                                type="text"
+                                placeholder="Anchor Value"
+                                value={formValues.inductionValue}
+                                onBlur={() => {
+                                  handleBlur("inductionValue");
+                                  clearProofValidationMessage();
+                                }}
+                                onChange={handleChange}
+                                onKeyUp={inductionValKeyUp}
+                                onClick={inductionValSelect}
+                                ref={inductionValRef}
+                                highlightPositions={inductionValHighlights}
+                                isInvalid={
+                                  !!validationMessages.inductionValue ||
+                                  !!proofValidationMessage.inductionValue
+                                }
+                                disabled={proofStarted}
+                                required
+                              />
+                              <Form.Control.Feedback type="invalid" className={( !!validationMessages.inductionValue || !!proofValidationMessage.inductionValue) ? "d-block" : ""}>
+                                {validationMessages.inductionValue ||
+                                  proofValidationMessage.inductionValue}
+                              </Form.Control.Feedback>
+                            </div>
+                          </Form.Group>
+                          <Form.Group as={Col} md="4">
+                            <label className="form-label small fw-bold mb-0">LVar</label>
+                            <div className="position-relative">
+                              <RacketInput
+                                id="eRLeapVariable"
+                                name="leapVariable"
+                                type="text"
+                                placeholder="Leap Variable"
+                                value={formValues.leapVariable}
+                                onBlur={() => {
+                                  handleBlur("leapVariable");
+                                  clearProofValidationMessage();
+                                }}
+                                onChange={handleChange}
+                                onKeyUp={leapVarKeyUp}
+                                onClick={leapVarSelect}
+                                ref={leapVarRef}
+                                highlightPositions={leapVarHighlights}
+                                isInvalid={
+                                  !!validationMessages.leapVariable ||
+                                  !!proofValidationMessage.leapVariable
+                                }
+                                disabled={proofStarted}
+                                required
+                              />
+                              <Form.Control.Feedback type="invalid" className={( !!validationMessages.leapVariable || !!proofValidationMessage.leapVariable) ? "d-block" : ""}>
+                                {validationMessages.leapVariable ||
+                                  proofValidationMessage.leapVariable}
+                              </Form.Control.Feedback>
+                            </div>
+                          </Form.Group>
                       </Row>
                       <Row className={`g-5 mb-${(!proofStarted || !isAnchor) ? "1" : "3"}`}>
                           <Form.Group as={Col} md="6" className="er-proof-goal-lhs">
                             <label className="form-label small fw-bold mb-0">LHS Goal</label>
-                            <RacketInput id="eRProofLHSGoal" name="lHSGoal" value={formValues.lHSGoal} onBlur={() => handleBlur("lHSGoal")} onChange={enhancedHandleChange} onKeyUp={lhsGoalKeyUp} onClick={lhsGoalSelect} ref={lhsGoalRef} highlightPositions={lhsGoalHighlights} disabled={proofStarted} />
-                            </Form.Group>
+                            <div className="position-relative">
+                              <RacketInput
+                                id="eRProofLHSGoal"
+                                name="lHSGoal"
+                                type="text"
+                                placeholder="LHS Goal"
+                                value={formValues.lHSGoal}
+                                onBlur={() => handleBlur("lHSGoal")}
+                                onChange={enhancedHandleChange}
+                                onKeyUp={lhsGoalKeyUp}
+                                onClick={lhsGoalSelect}
+                                ref={lhsGoalRef}
+                                highlightPositions={lhsGoalHighlights}
+                                isInvalid={
+                                  !!validationMessages.lHSGoal ||
+                                  !!goalValidationMessage.LHS.Goal
+                                }
+                                disabled={proofStarted}
+                                required
+                              />
+                              <Form.Control.Feedback type="invalid" className={( !!validationMessages.lHSGoal || !!goalValidationMessage.LHS.Goal) ? "d-block" : ""}>
+                                {validationMessages.lHSGoal ||
+                                  goalValidationMessage.LHS.Goal}
+                              </Form.Control.Feedback>
+                            </div>
+                          </Form.Group>
                           <Form.Group as={Col} md="6" className="er-proof-goal-rhs">
                             <label className="form-label small fw-bold mb-0">RHS Goal</label>
-                            <RacketInput id="eRProofRHSGoal" name="rHSGoal" value={formValues.rHSGoal} onBlur={() => handleBlur("rHSGoal")} onChange={enhancedHandleChange} onKeyUp={rhsGoalKeyUp} onClick={rhsGoalSelect} ref={rhsGoalRef} highlightPositions={rhsGoalHighlights} disabled={proofStarted} />
-                            </Form.Group>
+                            <div className="position-relative">
+                              <RacketInput
+                                id="eRProofRHSGoal"
+                                name="rHSGoal"
+                                type="text"
+                                placeholder="RHS Goal"
+                                value={formValues.rHSGoal}
+                                onBlur={() => handleBlur("rHSGoal")}
+                                onChange={enhancedHandleChange}
+                                onKeyUp={rhsGoalKeyUp}
+                                onClick={rhsGoalSelect}
+                                ref={rhsGoalRef}
+                                highlightPositions={rhsGoalHighlights}
+                                isInvalid={
+                                  !!validationMessages.rHSGoal ||
+                                  !!goalValidationMessage.RHS.Goal
+                                }
+                                disabled={proofStarted}
+                                required
+                              />
+                              <Form.Control.Feedback type="invalid" className={(validationMessages.rHSGoal || goalValidationMessage.RHS.Goal) ? "d-block" : ""}>
+                                {validationMessages.rHSGoal ||
+                                  goalValidationMessage.RHS.Goal}
+                              </Form.Control.Feedback>
+                            </div>
+                          </Form.Group>
                       </Row>
                       {(!proofStarted || !isAnchor) && (
                         <Row className="g-5 mb-3">
