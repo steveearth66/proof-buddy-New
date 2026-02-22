@@ -13,9 +13,9 @@ import "../scss/_courses.scss";
 
 // --- Mock Data ---
 const INITIAL_COURSES = [
-  { id: 1, name: 'CS 101: Discrete Math', instructor: 'Prof. Johnson', term: 'Fall 2023', description: 'Introduction to logic, sets, and proofs.', joinCode: 'MATHROCKS', isActive: true },
-  { id: 2, name: 'PHIL 202: Symbolic Logic', instructor: 'Prof. Lee', term: 'Fall 2023', description: 'Formal logic and its applications.', joinCode: 'LOGIC101', isActive: false },
-  { id: 3, name: 'CS 202: Data Structures', instructor: 'Prof. Davis', term: 'Spring 2024', description: 'Fundamental data structures and algorithms.', joinCode: 'TREES24', isActive: true }
+  { id: 1, name: 'CS 101: Discrete Math', instructor: 'Prof. Johnson', term: 'Fall 2023', description: 'Introduction to logic, sets, and proofs.', joinCode: 'MATHROCKS', isActive: true, isJoinCodeActive: true },
+  { id: 2, name: 'PHIL 202: Symbolic Logic', instructor: 'Prof. Lee', term: 'Fall 2023', description: 'Formal logic and its applications.', joinCode: 'LOGIC101', isActive: false, isJoinCodeActive: false },
+  { id: 3, name: 'CS 202: Data Structures', instructor: 'Prof. Davis', term: 'Spring 2024', description: 'Fundamental data structures and algorithms.', joinCode: 'TREES24', isActive: true, isJoinCodeActive: true }
 ];
 
 const MOCK_ASSIGNMENTS = [
@@ -35,7 +35,7 @@ const MOCK_ASSIGNMENTS = [
   }
 ];
 
-export default function CourseCatalog() {
+export default function Courses() {
   const [courses, setCourses] = useState(INITIAL_COURSES);
   const [assignments, setAssignments] = useState(MOCK_ASSIGNMENTS);
   const [selectedCourse, setSelectedCourse] = useState(null);
@@ -61,6 +61,34 @@ export default function CourseCatalog() {
     setSelectedCourse(course);
   };
 
+  const handleToggleCourseStatus = (courseId) => {
+    // 1. Update the main courses array
+    setCourses(prevCourses => 
+      prevCourses.map(course => 
+        course.id === courseId ? { ...course, isActive: !course.isActive } : course
+      )
+    );
+    
+    // 2. Keep the selected course in sync if we are currently viewing it
+    if (selectedCourse && selectedCourse.id === courseId) {
+       setSelectedCourse(prev => ({ ...prev, isActive: !prev.isActive }));
+    }
+  };
+
+  const handleToggleJoinCode = (courseId) => {
+    setCourses(prev => prev.map(c => c.id === courseId ? { ...c, isJoinCodeActive: !c.isJoinCodeActive } : c));
+    if (selectedCourse?.id === courseId) {
+      setSelectedCourse(prev => ({ ...prev, isJoinCodeActive: !prev.isJoinCodeActive }));
+    }
+  };
+
+  const handleEditJoinCode = (courseId, newCode) => {
+    setCourses(prev => prev.map(c => c.id === courseId ? { ...c, joinCode: newCode } : c));
+    if (selectedCourse?.id === courseId) {
+      setSelectedCourse(prev => ({ ...prev, joinCode: newCode }));
+    }
+  };
+
   return (
     <MainLayout>
       <Container className="my-4 py-4 bg-white rounded shadow-sm border">
@@ -69,7 +97,7 @@ export default function CourseCatalog() {
           isStudent ? (
             <StudentCatalog courses={courses} onViewCourse={handleViewCourse} />
           ) : (
-            <InstructorCatalog courses={courses} onViewCourse={handleViewCourse} />
+            <InstructorCatalog courses={courses} onViewCourse={handleViewCourse} onToggleStatus={handleToggleCourseStatus} />
           )
         ) : (
           isStudent ? (
@@ -83,6 +111,9 @@ export default function CourseCatalog() {
               course={selectedCourse}
               assignments={assignments}
               onBack={() => setSelectedCourse(null)}
+              onToggleStatus={handleToggleCourseStatus}
+              onToggleJoinCode={handleToggleJoinCode}
+              onEditJoinCode={handleEditJoinCode}
             />
           )
         )}

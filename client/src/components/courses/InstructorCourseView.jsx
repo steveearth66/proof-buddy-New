@@ -1,8 +1,7 @@
-import React, { useState, useMemo } from 'react';
-import { Table, Button, Form, Badge } from "react-bootstrap";
-import NumberedPagination from '../Pagination';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Table, Button, Form, Badge, Card, Row, Col, InputGroup } from "react-bootstrap";
 import AddAssignmentModal from './modals/AddAssignmentModal';
-import useSortableTable from '../../hooks/useSortableTable'; // 1. Import Hook
+import useSortableTable from '../../hooks/useSortableTable';
 
 const MOCK_STUDENTS = [
   { id: 1, name: 'Student One', email: 'student1@example.com' },
@@ -10,7 +9,7 @@ const MOCK_STUDENTS = [
   { id: 3, name: 'Student Three', email: 'student3@example.com' }
 ];
 
-export default function InstructorCourseView({ course, assignments, onBack }) {
+export default function InstructorCourseView({ course, assignments, onBack, onToggleStatus, onToggleJoinCode, onEditJoinCode }) {
   const [assignmentPage, setAssignmentPage] = useState(1);
   const [showAddAssignmentModal, setShowAddAssignmentModal] = useState(false);
   const [newStudentEmail, setNewStudentEmail] = useState("");
@@ -35,6 +34,23 @@ export default function InstructorCourseView({ course, assignments, onBack }) {
     assignmentPage * itemsPerPage
   );
 
+  const [joinCodeInput, setJoinCodeInput] = useState(course.joinCode);
+
+  // Keep input in sync if course changes externally
+  useEffect(() => {
+    setJoinCodeInput(course.joinCode);
+  }, [course.joinCode]);
+
+  // Submit the new code when the user clicks away from the input
+  const handleCodeBlur = () => {
+    const cleanedCode = joinCodeInput.trim().toUpperCase();
+    if (cleanedCode !== course.joinCode && cleanedCode !== "") {
+      onEditJoinCode(course.id, cleanedCode);
+    } else {
+      setJoinCodeInput(course.joinCode); // keep last value if empty
+    }
+  };
+
   return (
     <div>
       <div className="mb-4">
@@ -43,14 +59,55 @@ export default function InstructorCourseView({ course, assignments, onBack }) {
         </Button>
         <h2 style={{ color: '#0a3d62' }}>Manage Course: {course.name}</h2>
       </div>
-
-      <div className="bg-light p-3 rounded mb-4 border d-flex justify-content-between align-items-center">
-        <div>
-          <span className="fw-semibold me-3">Course Join Code:</span>
-          <code className="fs-5 bg-white px-2 py-1 rounded border">{course.joinCode}</code>
-        </div>
-        <Form.Check type="switch" id="course-active-switch" label={course.isActive ? "Active (Students can join)" : "Disabled"} checked={course.isActive} onChange={() => console.log("Toggle Status")} />
-      </div>
+      <Card className="mb-4 shadow-sm border-0 bg-light w-100 p-1">
+        <Card.Body>
+          <Row className="align-items-center mb-3">
+            <Col md={8}>
+              <h6 className="mb-1 fw-bold">Course Visibility</h6>
+              <div className="text-muted small">Determines if the course and its contents are visible to enrolled students.</div>
+            </Col>
+            <Col md={4} className="d-flex justify-content-md-end mt-2 mt-md-0">
+              <Form.Check 
+                type="switch" 
+                id="course-active-switch" 
+                label={course.isActive ? "Active" : "Archived / Hidden"} 
+                checked={course.isActive} 
+                onChange={() => onToggleStatus(course.id)} 
+              />
+            </Col>
+          </Row>
+          
+          <hr className="text-muted my-3" />
+          <Row className="align-items-center">
+            <Col md={4}>
+              <h6 className="mb-1 fw-bold">Enrollment Code</h6>
+              <div className="text-muted small">Share this code to allow new students to join.</div>
+            </Col>
+            <Col md={4} className="mt-2 mt-md-0">
+              <InputGroup size="sm">
+                <InputGroup.Text><i className="fa-solid fa-key text-muted"></i></InputGroup.Text>
+                <Form.Control 
+                  type="text" 
+                  value={joinCodeInput} 
+                  onChange={(e) => setJoinCodeInput(e.target.value)}
+                  onBlur={handleCodeBlur}
+                  disabled={!course.isJoinCodeActive}
+                  className="fw-semibold font-monospace"
+                />
+              </InputGroup>
+            </Col>
+            <Col md={4} className="d-flex justify-content-md-end mt-2 mt-md-0">
+              <Form.Check 
+                type="switch" 
+                id="joincode-active-switch" 
+                label={course.isJoinCodeActive ? "Accepting Students" : "Disabled"} 
+                checked={course.isJoinCodeActive} 
+                onChange={() => onToggleJoinCode(course.id)} 
+              />
+            </Col>
+          </Row>
+        </Card.Body>
+      </Card>
 
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h4 className="mb-0">Assignments</h4>
@@ -59,17 +116,25 @@ export default function InstructorCourseView({ course, assignments, onBack }) {
         </Button>
       </div>
 
-      <Table striped bordered hover responsive className="align-middle mb-5">
+      <Table striped bordered hover responsive className="align-middle mb-4">
         <thead className="table-light">
           <tr>
-            <th style={{ cursor: 'pointer' }} onClick={() => handleSort('title')} onMouseDown={handleMouseDown}>
-              Assignment Title <i className={`ms-1 ${getSortIcon('title')}`}></i>
+            <th 
+              style={{ cursor: 'pointer', width: 'auto' }} 
+              onClick={() => handleSort('title')} 
+              onMouseDown={handleMouseDown}
+            >
+              Assignment <i className={`ms-1 ${getSortIcon('title')}`}></i>
             </th>
-            <th style={{ cursor: 'pointer' }} onClick={() => handleSort('dueDate')} onMouseDown={handleMouseDown}>
+            <th 
+              style={{ cursor: 'pointer', width: '10%', whiteSpace: 'nowrap' }} 
+              onClick={() => handleSort('dueDate')} 
+              onMouseDown={handleMouseDown}
+            >
               Due Date <i className={`ms-1 ${getSortIcon('dueDate')}`}></i>
             </th>
-            <th>Status</th>
-            <th className="text-center">Action</th>
+            <th style={{ width: '12%' }}>Status</th>
+            <th className="text-center" style={{ width: '1%', whiteSpace: 'nowrap' }}>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -77,8 +142,16 @@ export default function InstructorCourseView({ course, assignments, onBack }) {
             <tr key={assignment.id}>
               <td className="fw-semibold">{assignment.title}</td>
               <td>{assignment.dueDate}</td>
-              <td><Badge bg={assignment.status === 'Open' ? 'success' : 'secondary'}>{assignment.status}</Badge></td>
-              <td className="text-center">
+              <td>
+                <Badge 
+                  bg={assignment.status === 'Open' ? 'success' : 'secondary'} 
+                  className='w-100 py-2 text-uppercase letter-spacing-1' 
+                  style={{ fontSize: '0.85rem' }}
+                >
+                  {assignment.status}
+                </Badge>
+              </td>
+              <td className="text-center" style={{ whiteSpace: 'nowrap' }}>
                 <Button variant="outline-secondary" size="sm" className="me-2"><i className="fa-solid fa-pen"></i></Button>
                 <Button variant="outline-danger" size="sm"><i className="fa-solid fa-trash"></i></Button>
               </td>
@@ -87,21 +160,21 @@ export default function InstructorCourseView({ course, assignments, onBack }) {
         </tbody>
       </Table>
 
-      {/* ... Student Roster Block remains the same ... */}
+      {/* Student Roster */}
       <h4 className="mb-3">Enrolled Students</h4>
       <Table striped bordered hover responsive className="align-middle">
         <thead className="table-light">
           <tr>
-            <th>Name</th>
-            <th>Email</th>
-            <th className="text-center">Action</th>
+            <th style={{ width: '15%', whiteSpace: 'nowrap' }}>Name</th>
+            <th style={{ width: '0%', whiteSpace: 'nowrap' }}>Email</th>
+            <th className="text-center" style={{ width: '0%', whiteSpace: 'nowrap' }}>Action</th>
           </tr>
         </thead>
         <tbody>
           {MOCK_STUDENTS.map(student => (
             <tr key={student.id}>
               <td className="fw-semibold">{student.name}</td>
-              <td>{student.email}</td>
+              <td >{student.email}</td>
               <td className="text-center">
                 <Button variant="outline-danger" size="sm">Remove</Button>
               </td>

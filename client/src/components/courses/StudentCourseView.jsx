@@ -59,14 +59,22 @@ export default function StudentCourseView({ course, assignments, onBack }) {
       <Table striped bordered hover responsive className="align-middle">
         <thead className="table-light">
           <tr>
-            <th style={{ cursor: 'pointer', width: '40%' }} onClick={() => handleSort('title')}>
+            <th 
+              style={{ cursor: 'pointer', width: 'auto' }} 
+              onClick={() => handleSort('title')} 
+              onMouseDown={handleMouseDown}
+            >
               Assignment <i className={`ms-1 ${getSortIcon('title')}`}></i>
             </th>
-            <th style={{ cursor: 'pointer' }} onClick={() => handleSort('dueDate')}>
+            <th 
+              style={{ cursor: 'pointer', width: '15%', whiteSpace: 'nowrap' }} 
+              onClick={() => handleSort('dueDate')} 
+              onMouseDown={handleMouseDown}
+            >
               Due Date <i className={`ms-1 ${getSortIcon('dueDate')}`}></i>
             </th>
-            <th>Status</th>
-            <th className="text-center">Action</th>
+            <th style={{ width: '20%' }}>Status</th>
+            <th className="text-center" style={{ width: '1%', whiteSpace: 'nowrap' }}>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -99,9 +107,9 @@ export default function StudentCourseView({ course, assignments, onBack }) {
                           <Table size="sm" bordered hover className="mb-0 bg-white shadow-sm">
                             <thead className="table-light">
                               <tr>
-                                <th>Proof Name</th>
-                                <th>Status</th>
-                                <th className="text-center">Action</th>
+                                <th style={{ width: '25%' }}>Proof Name</th>
+                                <th style={{ width: '2%', whiteSpace: 'nowrap' }}>Status</th>
+                                <th className="text-center" style={{ width: '1%', whiteSpace: 'nowrap' }}>Action</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -109,15 +117,18 @@ export default function StudentCourseView({ course, assignments, onBack }) {
                                 const btnInfo = getButtonProps(proof.status);
                                 return (
                                   <tr key={proof.id}>
-                                    <td className="fw-medium">{proof.title}</td>
-                                    <td>
-                                      {proof.status === 'Completed' && <i className="fa-solid fa-circle-check text-success me-2"></i>}
-                                      {proof.status === 'In Progress' && <i className="fa-solid fa-circle-half-stroke text-warning me-2"></i>}
-                                      {proof.status === 'Not Started' && <i className="fa-regular fa-circle text-secondary me-2"></i>}
-                                      {proof.status}
+                                    <td className="fw-medium align-middle">{proof.title}</td>
+                                    
+                                    <td style={{ whiteSpace: 'nowrap' }}>
+                                      <div className="d-flex align-items-center">
+                                        {proof.status === 'Completed' && <i className="fa-solid fa-circle-check text-success me-2"></i>}
+                                        {proof.status === 'In Progress' && <i className="fa-solid fa-circle-half-stroke text-warning me-2"></i>}
+                                        {proof.status === 'Not Started' && <i className="fa-regular fa-circle text-secondary me-2"></i>}
+                                        <span className="align-middle" style={{ paddingTop: '2px' }}>{proof.status}</span>
+                                      </div>
                                     </td>
                                     <td className="text-center" style={{ width: '200px' }}>
-                                      <Button variant={btnInfo.variant} size="sm" className="w-100" onClick={() => handleProofAction(proof)}>
+                                      <Button variant={btnInfo.variant} size="sm" className="w-100" style={{ whiteSpace: 'nowrap' }} onClick={() => handleProofAction(proof)}>
                                         <i className={`${btnInfo.icon} me-2`}></i>{btnInfo.text}
                                       </Button>
                                     </td>

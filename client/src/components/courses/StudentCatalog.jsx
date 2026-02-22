@@ -36,29 +36,30 @@ export default function StudentCatalog({ courses, onViewCourse }) {
       <Table striped bordered hover responsive className="align-middle">
         <thead className="table-light">
           <tr>
-            <th
-              style={{ cursor: 'pointer' }}
-              onClick={() => handleSort('name')}
+            <th 
+              style={{ cursor: 'pointer', width: '25%' }} 
+              onClick={() => handleSort('name')} 
               onMouseDown={handleMouseDown}
             >
               Course Name <i className={`ms-1 ${getSortIcon('name')}`}></i>
             </th>
-            <th
-              style={{ cursor: 'pointer' }}
-              onClick={() => handleSort('instructor')}
+            <th 
+              style={{ cursor: 'pointer', width: '15%' }} 
+              onClick={() => handleSort('instructor')} 
               onMouseDown={handleMouseDown}
             >
               Instructor <i className={`ms-1 ${getSortIcon('instructor')}`}></i>
             </th>
-            <th
-              style={{ cursor: 'pointer' }}
-              onClick={() => handleSort('term')}
+            <th 
+              style={{ cursor: 'pointer', width: '10%', whiteSpace: 'nowrap' }} 
+              onClick={() => handleSort('term')} 
               onMouseDown={handleMouseDown}
             >
               Term <i className={`ms-1 ${getSortIcon('term')}`}></i>
             </th>
-            <th onMouseDown={handleMouseDown}>Description</th>
-            <th className="text-center" onMouseDown={handleMouseDown}>Action</th>
+            {/* Description naturally takes up the remaining ~50% of the space */}
+            <th style={{ width: 'auto' }}>Description</th>
+            <th className="text-center" style={{ width: '1%', whiteSpace: 'nowrap' }}>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -80,6 +81,7 @@ export default function StudentCatalog({ courses, onViewCourse }) {
                     variant="outline-primary"
                     size="sm"
                     onClick={() => onViewCourse(course.id)}
+                    style={{ whiteSpace: 'nowrap' }}
                   >
                     <i className="fa-solid fa-arrow-right-to-bracket me-2"></i>Enter Course
                   </Button>
@@ -97,6 +99,7 @@ export default function StudentCatalog({ courses, onViewCourse }) {
                       variant="outline-danger"
                       size="sm"
                       onClick={() => console.log(`Deleted Course ${course.id}`)}
+                      style={{ whiteSpace: 'nowrap' }}
                     >
                       <i className="fa-solid fa-door-open"></i>
                     </Button>
