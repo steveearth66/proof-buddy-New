@@ -842,7 +842,8 @@ const InductionRacket = () => {
               const existing = existingGenerics.find(eg => eg.label === dbGen.label || eg.name === dbGen.name);
               if (existing) {
                 // Preserve enabled state from sessionStorage
-                return { ...dbGen, enabled: existing.enabled ?? dbGen.enabled };
+                const resolved = existing.enabled ?? dbGen.enabled;
+                return { ...dbGen, enabled: resolved };
               }
               return dbGen;
             });

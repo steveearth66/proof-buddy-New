@@ -116,7 +116,10 @@ def clear_induction(request):
         # Find the active proof
         proof = InductionProof.objects.filter(user=user, is_active=True).order_by('-created_at').first()
         
-        if proof:            
+        if proof:
+            # Archive the proof in the database (soft delete)
+            proof.is_active = False
+            proof.save()
             # Clear the cache
             cache.delete(f"induction_obj_{user.username}")
             
@@ -890,8 +893,8 @@ def apply_rule(request):
         jsonTree = makeJson(target.proofLines[-1].exprTree) if len(target.proofLines) else {}
         
         if not is_valid and len(target.proofLines) > 0:
-            # append current line errors
-            current_line = target.proofLines[lineNumber - 1]
+            # append current line errors (lineNumber may be None if frontend didn't send it)
+            current_line = target.proofLines[lineNumber - 1] if lineNumber is not None else target.proofLines[-1]
             separator = ", " if current_line.errors else ""
             current_line.errors += f'{separator}{target.errLog}'
 

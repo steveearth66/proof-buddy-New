@@ -17,7 +17,7 @@
     border-radius: 5px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     width: 950px;
-    height: 75%;
+    height: 90%;
     overflow: hidden;
 }
 
@@ -45,7 +45,7 @@
 .definitions {
     display: flex;
     flex-direction: column;
-    flex: 5;
+    flex: 4;
     gap: 10px;
     overflow-y: auto;
 }
@@ -53,13 +53,13 @@
 .generics {
     display: flex;
     flex-direction: column;
-    flex: 3;
+    flex: 4;
     gap: 10px;
     overflow-y: scroll;
 }
 
 .definition-label, .generic-label {
-    font-size: 18px;
+    font-size: 15px;
     font-weight: 500;
 }
 

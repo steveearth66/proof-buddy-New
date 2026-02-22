@@ -230,20 +230,29 @@ class ProofLineDatabasePersistenceTests(TransactionTestCase):
     def test_delete_line_removes_from_database(self):
         """Test that delete-line endpoint removes proof lines from database"""
         print("\n→ Testing delete-line removes from database...")
-        
-        # Create proof
-        proof = InductionProof.objects.create(
-            user=self.user,
-            name='Delete Test',
-            tag='delete-test',
-            induction_variable='n',
-            anchor_value=0,
-            leap_variable='k',
-            lhs_anchor_goal='(+ 0 1)',
-            rhs_anchor_goal='1'
-        )
-        
-        # Initialize engine
+
+        # Step 1: Use start-induction-proof so premises are saved and proof_id is linked
+        proof_data = {
+            'proof_name': 'Delete Test',
+            'proof_tag': 'delete-test',
+            'lhs_leap_goal': '(+ n 1)',
+            'rhs_leap_goal': '(+ 1 n)',
+            'lhs_anchor_goal': '(+ 0 1)',
+            'rhs_anchor_goal': '1',
+            'induction_variable': 'n',
+            'anchor_value': '0',
+            'leap_variable': 'k',
+            'induction_type': 'integers',
+            'inductive_hypothesis_lhs': '(+ k 1)',
+            'inductive_hypothesis_rhs': '(+ 1 k)'
+        }
+        response = self.client.post('/api/v1/induction/start-induction-proof', proof_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        proof_id = response.data.get('proof_id')
+        self.assertIsNotNone(proof_id)
+        proof = InductionProof.objects.get(id=proof_id)
+
+        # Step 2: Initialize engine (this links proof_id and saves premises at line_number=0)
         init_data = {
             'struct': 'int',
             'ivar': 'n',
@@ -253,16 +262,10 @@ class ProofLineDatabasePersistenceTests(TransactionTestCase):
             'rhsPremise': '1',
             'definitions': []
         }
-        
         response = self.client.post('/api/v1/induction/set-current-proof', init_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        
-        # Link proof_id
-        from .views import get_or_set_induction_obj, save_induction_obj_to_cache
-        ind_proof, _ = get_or_set_induction_obj(self.user)
-        save_induction_obj_to_cache(self.user, ind_proof, proof.id)
-        
-        # Apply a rule to create a line
+
+        # Step 3: Apply a rule — premise is at line 0, so result goes to line 1
         rule_data = {
             'case': 'base',
             'side': 'LHS',
@@ -270,27 +273,26 @@ class ProofLineDatabasePersistenceTests(TransactionTestCase):
             'rule': 'eval +',
             'startPosition': 0
         }
-        
         response = self.client.post('/api/v1/induction/apply-rule', rule_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
-        # Count lines before delete
+        self.assertTrue(response.data.get('isValid'), f"Rule failed: {response.data}")
+
+        # Step 4: Count lines before delete (expect premise + rule result = 2)
         lines_before = InductionProofLine.objects.filter(proof=proof, case='base', side='LHS').count()
         self.assertGreater(lines_before, 0, "No lines saved before delete")
-        
-        # Delete line 1 (the generated line after the premise at line 0)
+
+        # Step 5: Delete line 1 (the rule result; line 0 is the premise)
         response = self.client.delete('/api/v1/induction/delete-line/base/LHS/1')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
-        # Verify line was cleared (not removed - the record still exists but is empty)
+
+        # Step 6: Verify line was cleared (record still exists but is empty)
         lines_after = InductionProofLine.objects.filter(proof=proof, case='base', side='LHS').count()
         self.assertEqual(lines_after, lines_before, "Line count should stay the same (cleared, not removed)")
-        
-        # Verify the line is now empty
+
         cleared_line = InductionProofLine.objects.get(proof=proof, case='base', side='LHS', line_number=1)
         self.assertEqual(cleared_line.racket, '', "Cleared line should have empty racket")
         self.assertEqual(cleared_line.rule, '', "Cleared line should have empty rule")
-        
+
         print(f"✓ Lines before delete: {lines_before}")
         print(f"✓ Lines after delete: {lines_after}")
         print(f"✓ Successfully cleared line in database")
