@@ -1207,7 +1207,7 @@ def substitution(request):
             if substitution:
                 rule_with_sub = f"{rule_with_sub} as {substitution}"
 
-        if not is_valid and len(target.proofLines) > 0:
+        if not is_valid and len(target.proofLines) > 0 and lineNumber is not None:
             # append current line errors
             current_line = target.proofLines[lineNumber - 1]
             separator = ", " if current_line.errors else ""
