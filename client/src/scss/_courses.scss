@@ -1,3 +1,5 @@
+@import './variables';
+
 .courses-container {
     .page-wrapper {
         max-width: 1200px;
@@ -105,4 +107,21 @@
     &.bs-tooltip-top .tooltip-arrow::before {
         border-top-color: #dc3545;
     }
+}
+
+.edit-icon-btn {
+  background: transparent;
+  border: none;
+  color: $color-cool-gray;
+  transition: color 0.2s ease-in-out;
+
+  &:not(.edit-code-btn-off):hover {
+    color: $color-font-black;
+  }
+
+  &:focus, &:active {
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
 }

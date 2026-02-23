@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Table, Button, Form, Badge, Card, Row, Col, InputGroup } from "react-bootstrap";
 import AddAssignmentModal from './modals/AddAssignmentModal';
 import useSortableTable from '../../hooks/useSortableTable';
@@ -34,20 +34,32 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
     assignmentPage * itemsPerPage
   );
 
+  const [editJoinCode, setEditJoinCode] = useState(false);
   const [joinCodeInput, setJoinCodeInput] = useState(course.joinCode);
+  const joinCodeRef = useRef(null);
 
   // Keep input in sync if course changes externally
   useEffect(() => {
     setJoinCodeInput(course.joinCode);
   }, [course.joinCode]);
 
-  // Submit the new code when the user clicks away from the input
+  // Submit the new code when the user clicks away from the input  
   const handleCodeBlur = () => {
     const cleanedCode = joinCodeInput.trim().toUpperCase();
     if (cleanedCode !== course.joinCode && cleanedCode !== "") {
       onEditJoinCode(course.id, cleanedCode);
     } else {
       setJoinCodeInput(course.joinCode); // keep last value if empty
+    }
+    setEditJoinCode(false);
+  };
+
+  const handleKeyDownJoinCode = (e) => {
+    if (e.key === 'Enter') {
+      e.target.blur();
+    } else if (e.key === 'Escape') {
+      setJoinCodeInput(course.joinCode);
+      setEditJoinCode(false);
     }
   };
 
@@ -66,17 +78,20 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
               <h6 className="mb-1 fw-bold">Course Visibility</h6>
               <div className="text-muted small">Determines if the course and its contents are visible to enrolled students.</div>
             </Col>
-            <Col md={4} className="d-flex justify-content-md-end mt-2 mt-md-0">
-              <Form.Check 
-                type="switch" 
-                id="course-active-switch" 
-                label={course.isActive ? "Active" : "Archived / Hidden"} 
-                checked={course.isActive} 
-                onChange={() => onToggleStatus(course.id)} 
+            <Col md={4} className="d-flex flex-column align-items-start align-items-md-end mt-2 mt-md-0">
+              <Form.Check
+                type="switch"
+                id="course-active-switch"
+                checked={course.isActive}
+                onChange={() => onToggleStatus(course.id)}
+                className="mb-1 me-0"
               />
+              <span className="text-muted small fw-semibold">
+                {course.isActive ? "Active" : "Archived / Hidden"}
+              </span>
             </Col>
           </Row>
-          
+
           <hr className="text-muted my-3" />
           <Row className="align-items-center">
             <Col md={4}>
@@ -85,25 +100,43 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
             </Col>
             <Col md={4} className="mt-2 mt-md-0">
               <InputGroup size="sm">
-                <InputGroup.Text><i className="fa-solid fa-key text-muted"></i></InputGroup.Text>
-                <Form.Control 
-                  type="text" 
-                  value={joinCodeInput} 
+                <InputGroup.Text className="bg-white"><i className="fa-solid fa-key text-muted"></i></InputGroup.Text>
+                <Form.Control
+                  ref={joinCodeRef}
+                  type="text"
+                  value={joinCodeInput}
                   onChange={(e) => setJoinCodeInput(e.target.value)}
                   onBlur={handleCodeBlur}
-                  disabled={!course.isJoinCodeActive}
-                  className="fw-semibold font-monospace"
+                  onKeyDown={handleKeyDownJoinCode}
+                  disabled={!course.isJoinCodeActive || !editJoinCode}
+                  className="fw-semibold font-monospace border-end-0"
                 />
+                <InputGroup.Text className="bg-white p-0">
+                  <button
+                    type="button"
+                    className={`edit-icon-btn px-2 ${(!course.isJoinCodeActive || editJoinCode) ? "edit-code-btn-off" : ""}`}
+                    onClick={() => {
+                      setEditJoinCode(true);
+                      setTimeout(() => joinCodeRef.current?.focus(), 0);
+                    }}
+                    disabled={!course.isJoinCodeActive || editJoinCode}
+                  >
+                    <i className="fa-solid fa-pen"></i>
+                  </button>
+                </InputGroup.Text>
               </InputGroup>
             </Col>
-            <Col md={4} className="d-flex justify-content-md-end mt-2 mt-md-0">
-              <Form.Check 
-                type="switch" 
-                id="joincode-active-switch" 
-                label={course.isJoinCodeActive ? "Accepting Students" : "Disabled"} 
-                checked={course.isJoinCodeActive} 
-                onChange={() => onToggleJoinCode(course.id)} 
+            <Col md={4} className="d-flex flex-column align-items-start align-items-md-end mt-2 mt-md-0">
+              <Form.Check
+                type="switch"
+                id="joincode-active-switch"
+                checked={course.isJoinCodeActive}
+                onChange={() => onToggleJoinCode(course.id)}
+                className="mb-1"
               />
+              <span className="text-muted small fw-semibold">
+                {course.isJoinCodeActive ? "Accepting Students" : "Disabled"}
+              </span>
             </Col>
           </Row>
         </Card.Body>
@@ -119,16 +152,16 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
       <Table striped bordered hover responsive className="align-middle mb-4">
         <thead className="table-light">
           <tr>
-            <th 
-              style={{ cursor: 'pointer', width: 'auto' }} 
-              onClick={() => handleSort('title')} 
+            <th
+              style={{ cursor: 'pointer', width: 'auto' }}
+              onClick={() => handleSort('title')}
               onMouseDown={handleMouseDown}
             >
               Assignment <i className={`ms-1 ${getSortIcon('title')}`}></i>
             </th>
-            <th 
-              style={{ cursor: 'pointer', width: '10%', whiteSpace: 'nowrap' }} 
-              onClick={() => handleSort('dueDate')} 
+            <th
+              style={{ cursor: 'pointer', width: '10%', whiteSpace: 'nowrap' }}
+              onClick={() => handleSort('dueDate')}
               onMouseDown={handleMouseDown}
             >
               Due Date <i className={`ms-1 ${getSortIcon('dueDate')}`}></i>
@@ -143,9 +176,9 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
               <td className="fw-semibold">{assignment.title}</td>
               <td>{assignment.dueDate}</td>
               <td>
-                <Badge 
-                  bg={assignment.status === 'Open' ? 'success' : 'secondary'} 
-                  className='w-100 py-2 text-uppercase letter-spacing-1' 
+                <Badge
+                  bg={assignment.status === 'Open' ? 'success' : 'secondary'}
+                  className='w-100 py-2 text-uppercase letter-spacing-1'
                   style={{ fontSize: '0.85rem' }}
                 >
                   {assignment.status}
@@ -185,7 +218,7 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
 
       <div className="mt-3 p-3 bg-light rounded border">
         <h6 className="mb-3">Add Student Manually</h6>
-        <Form className="d-flex gap-2" onSubmit={(e) => { e.preventDefault(); console.log("Add student:", newStudentEmail) }}>
+        <Form className="d-flex gap-2 mb-1" onSubmit={(e) => { e.preventDefault(); console.log("Add student:", newStudentEmail) }}>
           <Form.Control type="email" placeholder="Student Email Address" value={newStudentEmail} onChange={e => setNewStudentEmail(e.target.value)} style={{ maxWidth: '300px' }} />
           <Button variant="primary" type="submit" disabled={!newStudentEmail}>Add Student</Button>
         </Form>
