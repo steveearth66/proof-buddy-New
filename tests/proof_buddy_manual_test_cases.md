@@ -84,41 +84,50 @@ Test 10: Creating an Induction Racket Proof Wherein the Leap Variable Already Ex
 4. After seeing a green banner confirming “base case completed”, switch over the leap case. Repeat step 3 without creating a new UDF for the leap case. Afterwards click “Check proof” to validate the completion of the entire proof.
 5. Now create a separate proof with an identical leap variable by repeating steps 1-4.
 6. After completing it check the database and confirm that both proofs exist.
+
 Result: Passed, because having a same leap variable won’t cause overwriting of the previous proof
 
 Test 11: Creating an Induction Racket Proof Wherein the Anchor Variable Already Exists
-Create and start an IR proof with a nonempty name, tag, induction variable, anchor variable, and leap variable as well as the left hand side goal and right hand side goal.
-Also create a new UDF with a label, type, expression and click “Create Definition”
-Start with the Base Case by providing the first two lines, in the form of the UDF in terms of the base value. Click “Check proof” to validate the base case before starting the leap case.
-After seeing a green banner confirming “base case completed”, switch over the leap case. Repeat step 3 without creating a new UDF for the leap case. Afterwards click “Check proof” to validate the completion of the entire proof.
-Now create a separate proof with an identical anchor variable by repeating steps 1-4.
-After completing it check the database and confirm that both proofs exist.
+1. Create and start an IR proof with a nonempty name, tag, induction variable, anchor variable, and leap variable as well as the left hand side goal and right hand side goal.
+2. Also create a new UDF with a label, type, expression and click “Create Definition”
+3. Start with the Base Case by providing the first two lines, in the form of the UDF in terms of the base value. Click “Check proof” to validate the base case before starting the leap case.
+4. After seeing a green banner confirming “base case completed”, switch over the leap case. Repeat step 3 without creating a new UDF for the leap case. Afterwards click “Check proof” to validate the completion of the entire proof.
+5. Now create a separate proof with an identical anchor variable by repeating steps 1-4.
+6. After completing it check the database and confirm that both proofs exist.
+
 Result: Passed, because having a same anchor variable won’t cause overwriting of the previous proof
 
 Test 12: Creating an Induction Racket Proof Wherein the Induction Variable Already Exists
-Create and start an IR proof with a nonempty name, tag, induction variable, anchor variable, and leap variable as well as the left hand side goal and right hand side goal.
-Also create a new UDF with a label, type, expression and click “Create Definition”
-Start with the Base Case by providing the first two lines, in the form of the UDF in terms of the base value. Click “Check proof” to validate the base case before starting the leap case.
-After seeing a green banner confirming “base case completed”, switch over the leap case. Repeat step 3 without creating a new UDF for the leap case. Afterwards click “Check proof” to validate the completion of the entire proof.
-Now create a separate proof with an identical anchor variable by repeating steps 1-4.
-After completing it check the database and confirm that both proofs exist.
+1. Create and start an IR proof with a nonempty name, tag, induction variable, anchor variable, and leap variable as well as the left hand side goal and right hand side goal.
+2. Also create a new UDF with a label, type, expression and click “Create Definition”
+3. Start with the Base Case by providing the first two lines, in the form of the UDF in terms of the base value. Click “Check proof” to validate the base case before starting the leap case.
+4. After seeing a green banner confirming “base case completed”, switch over the leap case. Repeat step 3 without creating a new UDF for the leap case. Afterwards click “Check proof” to validate the completion of the entire proof.
+5. Now create a separate proof with an identical anchor variable by repeating steps 1-4.
+6. After completing it check the database and confirm that both proofs exist.
+
 Result: Passed, because having a same induction variable won’t cause overwriting of the previous proof
 
 Test 13: Creating an Induction Racket Proof to Test for Page Resizing
-Create and start an IR proof with a nonempty name, tag, induction variable, anchor variable, and leap variable as well as the left hand side goal and right hand side goal.
-Also create a new UDF with a label, type, expression and click “Create Definition”
+1. Create and start an IR proof with a nonempty name, tag, induction variable, anchor variable, and leap variable as well as the left hand side goal and right hand side goal.
+2. Also create a new UDF with a label, type, expression and click “Create Definition”
 Start with the Base Case by providing the first two lines, in the form of the UDF in terms of the base value. Click “Check proof” to validate the base case before starting the leap case.
-After seeing a green banner confirming “base case completed”, switch over the leap case. Repeat step 3 without creating a new UDF for the leap case. Afterwards click “Check proof” to validate the completion of the entire proof.
-Click on the browser context and resize the page to see Proof Buddy’s CSS responsiveness. 
+3. After seeing a green banner confirming “base case completed”, switch over the leap case. Repeat step 3 without creating a new UDF for the leap case. Afterwards click “Check proof” to validate the completion of the entire proof.
+4. Click on the browser context and resize the page to see Proof Buddy’s CSS responsiveness. 
+
+Result: passed
 
 Test 14: Test for the Collapsible
-Create and start an IR proof with a nonempty name, tag, induction variable, anchor variable, and leap variable as well as the left hand side goal and right hand side goal.
-Also create a new UDF with a label, type, expression and click “Create Definition”
+1. Create and start an IR proof with a nonempty name, tag, induction variable, anchor variable, and leap variable as well as the left hand side goal and right hand side goal.
+2. Also create a new UDF with a label, type, expression and click “Create Definition”
 Start with the Base Case by providing the first two lines, in the form of the UDF in terms of the base value. Click “Check proof” to validate the base case before starting the leap case.
-After seeing a green banner confirming “base case completed”, switch over the leap case. Repeat step 3 without creating a new UDF for the leap case. Afterwards click “Check proof” to validate the completion of the entire proof.
-Click on the collapsible and observe the new UI differences.
+3. After seeing a green banner confirming “base case completed”, switch over the leap case. Repeat step 3 without creating a new UDF for the leap case. Afterwards click “Check proof” to validate the completion of the entire proof.
+4. Click on the collapsible and observe the new UI differences.
+
+Result: passed
 
 Test 15: Test for the Placeholder Text and Warnings in Induction 
-Create and start an IR proof with a nonempty name, tag, induction variable, anchor variable, and leap variable as well as the left hand side goal and right hand side goal.
-Now delete the value provided to one of the fields.
-You will see the error messages for the empty fields and the placeholder text will reappear
+1. Create and start an IR proof with a nonempty name, tag, induction variable, anchor variable, and leap variable as well as the left hand side goal and right hand side goal.
+2. Now delete the value provided to one of the fields.
+3. You will see the error messages for the empty fields and the placeholder text will reappear
+
+Result: passed
