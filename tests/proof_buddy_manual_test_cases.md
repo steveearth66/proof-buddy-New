@@ -1,6 +1,6 @@
 **Equational Reasoning**
 
-Test 1: Basic Duplicate Creation - Monday 02/02/2026
+Test 1: Basic Duplicate Creation
 1. Create proof "Project_Alpha" with content "Version 1"
 2. Create another proof "Project_Alpha" with content "Version 2"
 3. erify only "Version 2" appears in proof list
@@ -8,7 +8,7 @@ Test 1: Basic Duplicate Creation - Monday 02/02/2026
 
 Results: Failed due to misunderstanding (both proofs co-exist)
 
-Test 2: Data Integrity Verification - Tuesday 02/03//2026
+Test 2: Data Integrity Verification
 1. Create proof "Budget_Q1" with unique description "Original"
 2. Create proof "Budget_Q1" with unique description "Updated"
 3. Verify UI shows "Updated" content
@@ -16,7 +16,7 @@ Test 2: Data Integrity Verification - Tuesday 02/03//2026
 
 Results: Passed, because “Updated”, in addition to “Original” show up in the UI
 
-Test 3: Delete Operation - Wednesday 02/05/2026
+Test 3: Delete Operation
 1. Create proof "TempDoc" → Create duplicate "TempDoc"
 2. Delete "TempDoc" from UI
 3. Verify deletion completes without error
@@ -24,7 +24,7 @@ Test 3: Delete Operation - Wednesday 02/05/2026
 
 Results: Failed, because I deleted the overridden TempDoc proof from the UI, but the database still has both duplicates 
 
-Test 4: Empty/Null Name Handling 02/09/20226
+Test 4: Empty/Null Name Handling
 1. Create a proof with no name (“”) with an arbitrary tag # value
 2. Provide the LHS and RHS goals, given that the chosen proof type is “Equational Reasoning”
 3. lick “Start Equational Reasoning Proof”
@@ -32,7 +32,7 @@ Test 4: Empty/Null Name Handling 02/09/20226
 
 Results: Passed, because the proof name is a required field, like the RHS and LHS goals.
 
-Test 5: Special Character Safety 02/10/2026
+Test 5: Special Character Safety
 1. Create a proof with a random name and tag containing special characters
 2. Provide the LHS and RHS goals, given that the chosen proof type is “Equational Reasoning”
 3. Click “Start Equational Reasoning Proof”
@@ -41,7 +41,7 @@ Test 5: Special Character Safety 02/10/2026
 
 Results: Passed, because the proof name was not left empty
 
-Test 6: Multi-Account Same Name 02/11/2026
+Test 6: Multi-Account Same Name
 1. Create an ER proof with a student account
 2. Create a duplicate ER proof with a teacher account
 3. Both should have the same name and tag
@@ -49,7 +49,7 @@ Test 6: Multi-Account Same Name 02/11/2026
 
 Results: Passed
 
-Test 7: Saving an Empty Proof 02/12/2026
+Test 7: Saving an Empty Proof
 1. Create an ER proof with a student/teacher  account
 2. Provide a name and tag
 3. Click “Start Equational Reasoning Proof”
@@ -57,7 +57,7 @@ Test 7: Saving an Empty Proof 02/12/2026
 
 Results: Passed, because the incomplete proof is saved to the database and it will be found in ‘All Proofs’.
 
-Test 8: Line Highlights (rules highlight, and results highlight) 02/14/2026
+Test 8: Line Highlights (rules highlight, and results highlight)
 1. Create and start an ER proof with a nonempty name, tag as well as LHS and RHS goals
 2. Click “Start Equational Reasoning Proof”
 3. The current LHS should be the same as the first line of the proof
@@ -66,7 +66,7 @@ Test 8: Line Highlights (rules highlight, and results highlight) 02/14/2026
 
 Result: Passed, because both the rules and the results are uniquely highlighted. 
 
-Test 9: Line Overlap (Target expression is bigger than the results expression) 02/15/2026
+Test 9: Line Overlap (Target expression is bigger than the results expression)
 1. Create and start an ER proof with a nonempty name, tag as well as LHS and RHS goals
 2. Click “Start Equational Reasoning Proof”
 3. The current LHS should be the same as the first line of the proof
