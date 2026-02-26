@@ -76,4 +76,14 @@ DEFAULT_UDFS = [
         "is_default": True,
         "deletable": False,
     },
+    {
+        "id": -8,  # Negative ID indicates non-database definition
+        "label": "(countTruthTableRows vars)",
+        "type": "INT>INT",
+        "expression": "(if (zero? vars) 1 (* 2 (countTruthTableRows (- vars 1))))",
+        "notes": "counts the number of rows in a truth table with the given number of variables",
+        "applied": False,
+        "is_default": True,
+        "deletable": False,
+    },
 ]
