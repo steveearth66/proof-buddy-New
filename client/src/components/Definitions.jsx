@@ -462,15 +462,16 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
           error: 'An error occurred. Please try again.'
         });
         setDefinitions((prev) => {
-          return prev.map((def) => {
+          const updated = prev.map((def) => {
             //if (def.id === id) {
             if (def.label === label) {
               def.applied = false;
             }
             return def;
           });
+          sessionStorage.setItem('definitions', JSON.stringify(updated)); // use updated array, not stale closure
+          return updated;
         });
-        sessionStorage.setItem('definitions', JSON.stringify(definitions));
       } catch (error) {
         console.error(error);
       }
@@ -483,15 +484,16 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
           error: 'An error occurred. Please try again.'
         });
         setDefinitions((prev) => {
-          return prev.map((def) => {
+          const updated = prev.map((def) => {
             //if (def.id === id) {
             if (def.label === label) {
               def.applied = true;
             }
             return def;
           });
-        })
-        sessionStorage.setItem('definitions', JSON.stringify(definitions));
+          sessionStorage.setItem('definitions', JSON.stringify(updated)); // use updated array, not stale closure
+          return updated;
+        });
       } catch (error) {
         console.error(error);
       }
@@ -692,7 +694,7 @@ function Definition({
               variant="outline-danger"
               //onClick={() => deleteDefinition(definition.id)}
               onClick={() => deleteDefinition(definition.label)}
-              disabled={isLocked}
+              disabled={isDefaultUDF || isLocked}
             >
               Delete
             </Button>
