@@ -66,16 +66,16 @@ DEFAULT_UDFS = [
     #     "is_default": True,
     #     "deletable": False,
     # },
-    {
-        "id": -7,  # Negative ID indicates non-database definition
-        "label": "(h x)",
-        "type": "INT>INT",
-        "expression": "(if (zero? x) 0 (+ (- (* 4 x) 5) (h (- x 1))))",
-        "notes": "used for question1 of lab12",
-        "applied": True,
-        "is_default": True,
-        "deletable": False,
-    },
+    #{
+    #    "id": -7,  # Negative ID indicates non-database definition
+    #   "label": "(h x)",
+    #    "type": "INT>INT",
+    #    "expression": "(if (zero? x) 0 (+ (- (* 4 x) 5) (h (- x 1))))",
+    #    "notes": "used for question1 of lab12",
+    #    "applied": True,
+    #    "is_default": True,
+    #    "deletable": False,
+    #},
     {
         "id": -8,  # Negative ID indicates non-database definition
         "label": "(countTruthTableRows vars)",
