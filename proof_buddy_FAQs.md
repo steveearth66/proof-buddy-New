@@ -1,6 +1,6 @@
 **PROOFBUDDY - FREQUENTLY ASKED QUESTIONS**
 
-Version: 2.0
+Version: 1.0
 
 Date: February 23, 2026
 
