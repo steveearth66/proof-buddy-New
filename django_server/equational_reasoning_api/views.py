@@ -78,7 +78,19 @@ def reload_proof_lines_from_db(proof_obj, proof_id):
         print(f"Error reloading proof lines: {e}")
 
 
-def save_proof_line_to_db(proof_id, side, racket, rule='', start_position=0, line_number=0, 
+def _check_rewrite_math_misuse(rule):
+    """Return an error message string if the user typed 'rewrite math' into the rule field
+    instead of using the Substitution button, or None if the rule is fine to proceed."""
+    rule_norm = (rule or '').strip().lower()
+    if rule_norm == 'rewrite math':
+        return ("The 'rewrite math' rule must be applied using the Substitution button, "
+                "not the rule field.")
+    if rule_norm.startswith('rewrite math'):
+        return "'rewrite math' does not require additional parameters to be applied."
+    return None
+
+
+def save_proof_line_to_db(proof_id, side, racket, rule='', start_position=0, line_number=0,
                          substitution='', selected_node=0, result_node=0,
                          hide_expression=False, hide_justification=False, errors=''):
     """Save or update a proof line in the database"""
@@ -252,9 +264,25 @@ def apply_rule(request):
         selected_node = data.get("selectedNode")
         substitution = data.get("substitution")
         line_number = data.get("lineNumber")
-        
+
+        # Guard: "rewrite math" must use the Substitution button, not the rule field
+        rewrite_math_error = _check_rewrite_math_misuse(rule)
+        if rewrite_math_error:
+            # Write the error to the previous DB line if we can identify it
+            if proof_id and line_number is not None and line_number > 0:
+                prev = EquationalProofLine.objects.filter(
+                    proof_id=proof_id,
+                    side=side.upper(),
+                    line_number=line_number - 1
+                ).first()
+                if prev:
+                    sep = ", " if prev.errors else ""
+                    prev.errors += f"{sep}{rewrite_math_error}"
+                    prev.save()
+            return Response({"isValid": False, "errors": [rewrite_math_error]}, status=status.HTTP_200_OK)
+
         target = proof_obj.LHS if side == "LHS" else proof_obj.RHS
-        
+
         # Clear previous errors
         target.errLog = []
         
