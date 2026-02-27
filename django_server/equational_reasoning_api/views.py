@@ -460,7 +460,7 @@ def substitution(request):
                         start_position=start_position,
                         line_number=calculated_line_number,
                         substitution=substitution_expr or '',
-                        selected_node=None,
+                        selected_node=start_position,
                         result_node=result_node_id
                     )
         else:
