@@ -558,6 +558,18 @@ def reload_proof_lines_from_db(proof, proof_id):
         pass
 
 
+def _check_rewrite_math_misuse(rule):
+    """Return an error message string if the user typed 'rewrite math' into the rule field
+    instead of using the Substitution button, or None if the rule is fine to proceed."""
+    rule_norm = (rule or '').strip().lower()
+    if rule_norm == 'rewrite math':
+        return ("The 'rewrite math' rule must be applied using the Substitution button, "
+                "not the rule field.")
+    if rule_norm.startswith('rewrite math'):
+        return "'rewrite math' does not require additional parameters to be applied."
+    return None
+
+
 def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, line_number, substitution='', selected_node=None, result_node=None, json_tree=None, errors=''):
     """Save a proof line to the database"""
     from .models import InductionProofLine, InductionProof
@@ -891,6 +903,24 @@ def apply_rule(request):
         selectedNode = data.get("selectedNode")
         substitution = data.get("substitution")
         lineNumber = data.get("lineNumber")
+
+        # Guard: "rewrite math" must use the Substitution button, not the rule field
+        rewrite_math_error = _check_rewrite_math_misuse(rule)
+        if rewrite_math_error:
+            # Write the error to the previous DB line if we can identify it
+            if proof_id and lineNumber is not None and lineNumber > 0:
+                from .models import InductionProofLine
+                prev = InductionProofLine.objects.filter(
+                    proof_id=proof_id,
+                    case=case.lower(),
+                    side=side.upper(),
+                    line_number=lineNumber - 1
+                ).first()
+                if prev:
+                    sep = ", " if prev.errors else ""
+                    prev.errors += f"{sep}{rewrite_math_error}"
+                    prev.save()
+            return Response({"isValid": False, "errors": [rewrite_math_error]}, status=status.HTTP_200_OK)
 
         # Check if proof engine is initialized
         if not hasattr(proof, 'baseCase') or not hasattr(proof, 'leapStep'):
