@@ -9,6 +9,7 @@ Runs all test modules in sequence:
 - test_integration: Node methods, JSON, rewrite demonstrations, proof building
 - test_induction: Full induction proof tests
 - induction_api persistence database tests
+- induction_api cross-mode name conflict tests
 
 Run with: python manage.py test proofs
 """
@@ -67,6 +68,16 @@ persistence_cmd = [
 persistence_failures = run_command("Database persistence", persistence_cmd, cwd=root_dir)
 
 totalFails += (1 if persistence_failures else 0)
+
+name_conflict_cmd = [
+    sys.executable,
+    "manage.py",
+    "test",
+    "induction_api.tests_name_conflict",
+]
+name_conflict_failures = run_command("Cross-mode name conflict", name_conflict_cmd, cwd=root_dir)
+
+totalFails += (1 if name_conflict_failures else 0)
 
 print()
 print("=" * 40)
