@@ -20,7 +20,7 @@ const useFormValidation = (formValues, validateField) => {
   const handleBlur = (field) => {
     setValidationMessages(prev => ({
       ...prev,
-      [field]: validateField(field, formValues[field], formValues),
+      [field]: validateField(field, formValues[field], formValues)
     }));
   };
 
