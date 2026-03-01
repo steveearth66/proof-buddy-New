@@ -682,6 +682,12 @@ const InductionRacket = () => {
       // Clear validation error if rule is valid
       setFooterRuleError('');
 
+      // If user typed "rewrite math", open Substitution modal with rule pre-filled
+      if (ruleFromFooter.trim().toLowerCase() === 'rewrite math') {
+        updateShowSubstitution();
+        return;
+      }
+
       // Validate payload before sending
       if (!previousRacketValue || previousRacketValue.trim() === '') {
         toast.error('No source expression found. Make sure the previous line has content.');
@@ -1870,6 +1876,7 @@ const InductionRacket = () => {
             racketRuleFields={racketRuleFields[showSide]}
             handleSubstitution={handleInductionSubstitution}
             errors={inductionSubErrors}
+            initialRule={footerRule}
           />
         )}
 

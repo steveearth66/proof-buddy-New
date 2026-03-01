@@ -14,11 +14,13 @@ You should take on the role of a paired programmer.  you may presume I am have e
 
 The ERracket mode works for the most part. So, it is critical that you not make any changes there, at least not without alerting me first to exactly what you are doing so we can make sure you don't break something which functions.
 
-The goal is to get the Induction mode to be working, so you should be looking at the ERracket equivalent versions (Frontend, hooks, api, endpoints, etc) and mirroring them accordingly for the induction structure versions.  You should really only be making changes to the Induction version of the code, and not to the ERracket versions unless absolutely necessary (and always informing me first).
+When directed to implement a plan, proceed with the implementation slowly and carefully. let me verify the work manually msyelf to check everything is correct and nothing got broken before moving onto the next step.  you can recommend to me some relevant tests to do after each step.
 
 also, you should always stay within the expected structures that have been defined.  So, for example, the backend works primarily with trees, so do NOT try to work with them as strings.
 When debugging, you may print to the browser dev console log as well as to the backend powershell terminal; however, you should put in a comment in the source code next to each print to make it easier to find and remove them when have found the error and no longer need them. make sure when you remove them to do so carefully and not accidentally delete any adjacent code/parentheses. also do not create any consecutive blank lines 
-You (the AI) should never add into this AInotes.txt file of your own accord mid-session; instead, we will wait until the session is complete and at the end I (the human user) will have you create a summary and approve it to be appended into this prompt file.
+You (the AI) should never add into this AInotes.txt file of your own accord mid-session; instead, we will wait until the session is complete and at the end I (the human user) will have you create a summary and approve it to be appended into this prompt file.  Your summary should include a brief overview of the dead-end solutions you tried that did not work, why they didn't work, why you mistakenly thought they would, how you came to realize the correct fix, and why that worked while the other ones didn't. it should be in plaintext so that, once approved, you can append it into this file.
+
+
 when trying to fix bugs, don't get fixated on the symptoms, look for the root cause
 
 Session from 2025-12-26: selectedNode Implementation
@@ -829,3 +831,35 @@ WHY THIS IS NEEDED:
 - This is not a code bug — it is purely a terminal encoding issue
 - Setting PYTHONIOENCODING="utf-8" tells Python's stdout to use UTF-8, allowing the Unicode characters to print correctly
 - Do NOT "fix" this by replacing Unicode characters in test files — that changes source code unnecessarily and the env var is the correct solution
+
+---
+
+SESSION 2026-03-01: "rewrite math" Auto-Redirect to Substitution Modal
+
+FEATURE IMPLEMENTED:
+When a user types "rewrite math" into the primary footer rule field and clicks Generate & Check, instead of receiving an error message telling them to use the Substitution button, the Substitution modal now opens automatically with "rewrite math" already pre-filled in its Rule field. Additionally, whatever rule text the user has typed in the footer rule field is now always pre-filled in the modal's Rule field when the modal is opened via the SUBSTITUTION button — not just in the "rewrite math" case.
+
+DEAD END #1: Using useEffect + handleChange to seed the Rule field
+
+First attempt added an initialRule prop to Substitution.jsx and called handleChange({ target: { name: "rule", value: initialRule } }) inside useEffect([], []) on mount. The Rule field remained blank.
+
+Why I thought it would work: useEffect with an empty dependency array runs after the first render, which seemed like the right time to programmatically set a field value.
+
+Why it actually failed: handleChange comes from the useInputState hook, which uses a regular useState setter that closes over the values object at creation time. Calling handleChange from inside useEffect meant the closure captured the initial empty values. More critically, the stale closure and React's batching meant the state update either got discarded or didn't propagate to the form in a way the controlled input could see on that first render. The field appeared blank because the controlled input's value was already bound to the initialized empty string before the effect ran.
+
+How I found the real fix: Recognized that the problem was the timing — trying to update state after initialization rather than getting the value in there from the start. The correct fix was to pass initialRule directly into the initialValues object that useState uses, so rule: initialRule || "" is the starting value from the very first render. No effect needed. This worked because useState only reads its initial argument once (on mount), so seeding it there guarantees the field is populated before any render occurs.
+
+DEAD END #2: Editing the wrong file for EquationalReasoning
+
+Added initialRule={footerRule} to the Substitution render inside EquationalReasoning.js (line ~1057). The modal Rule field remained blank in the Equational Reasoning page. Debug logging showed initialRule received: undefined.
+
+Why I thought EquationalReasoning.js was the right file: The workspace has both EquationalReasoning.js and EquationalReasoningNew.js. The file I found first via grep for showSubstitution and handleGenerateAndCheck was EquationalReasoning.js, which does contain a Substitution render and a footerRule state, so it looked correct.
+
+Why it actually failed: The active Equational Reasoning page that the router serves is EquationalReasoningNew.js — a completely separate component with its own Substitution render, its own footerRule state, and its own handleGenerateAndCheck. Editing EquationalReasoning.js had zero effect on what the user saw.
+
+How I found the real fix: The debug log showed the file path EquationalReasoningNew.js:23 in the browser console. That was the direct evidence pointing to the correct file. Once I added initialRule={footerRule} to the Substitution render in EquationalReasoningNew.js, it worked immediately.
+
+KEY LESSONS:
+- When a prop-seeding approach involves calling a state setter inside a useEffect, consider whether setting the initial state value directly is simpler and more reliable — it almost always is for one-time initialization.
+- Always verify which file the browser is actually executing before editing. The console stack trace (file name and line number) is the ground truth. In this codebase, there are parallel files for the same UI (EquationalReasoning.js vs EquationalReasoningNew.js); grep results alone don't tell you which one is active.
+- The "rewrite math" guard in handleGenerateAndCheck needed no additional state because footerRule was already being passed as initialRule at the Substitution render site. Calling updateShowSubstitution() was sufficient — the value was already wired.

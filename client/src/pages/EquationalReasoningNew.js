@@ -892,6 +892,12 @@ const handleGenerateAndCheck = async () => {
       }
       setFooterRuleError('');
 
+      // If user typed "rewrite math", open Substitution modal with rule pre-filled
+      if (ruleFromFooter.trim().toLowerCase() === 'rewrite math') {
+        updateShowSubstitution();
+        return;
+      }
+
       // --- VALIDATION BLOCK ---
       const boundField = racketRuleFields?.[showSide][currentIndex];
       const hasHiddenRule = boundField?.hide_justification || false;
@@ -1619,6 +1625,7 @@ const handleGenerateAndCheck = async () => {
             racketRuleFields={(racketRuleFields?.[showSide] || [])}
             handleSubstitution={handleSubstitution}
             errors={SubErrors}
+            initialRule={footerRule}
           />
         )}
 
