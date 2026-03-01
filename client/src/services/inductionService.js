@@ -165,6 +165,19 @@ const getInductionProof = async (proofId) => {
   }
 };
 
+const checkNameConflict = async (name) => {
+  try {
+    const response = await axiosInstance.get(
+      `${API_GATEWAY}/check-name-conflict`,
+      { params: { name } }
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error checking name conflict:");
+    throw error;
+  }
+};
+
 const setSessionById = async (proofId) => {
   try {
     const response = await axiosInstance.post(
@@ -208,7 +221,8 @@ const inductionService = {
   getInductionProofs,
   getInductionProof,
   setSessionById,
-  deleteInductionProof
+  deleteInductionProof,
+  checkNameConflict
 };
 
 export default inductionService;

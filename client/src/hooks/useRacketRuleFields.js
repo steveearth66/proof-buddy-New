@@ -199,14 +199,6 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
           ? contextOverrides.currentRacket
           : currentRacket;
 
-      console.log("[Substitution] Sending request:", {
-        substitution,
-        rule,
-        startPosition: effectiveStartPosition,
-        currentRacket: effectiveCurrentRacket,
-        side
-      });
-
       const data = {
         substitution,
         rule,
@@ -217,8 +209,6 @@ const useRacketRuleFields = (startPosition, currentRacket, name, tag, side) => {
 
       try {
         const response = await erService.substitution(data);
-
-        console.log("[Substitution] Response received:", response);
 
         if (response.isValid) {
           setSubstitutionErrors([]);

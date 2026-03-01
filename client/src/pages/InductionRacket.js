@@ -133,6 +133,7 @@ const InductionRacket = () => {
   const [proofStatus, setProofStatus] = useState({ base: null, leap: null }); // tracks base/leap completeness separately
   const [showOverwriteModal, setShowOverwriteModal] = useState(false);
   const [showStartConfirmModal, setShowStartConfirmModal] = useState(false);
+  const [conflictType, setConflictType] = useState(null);
 
   // Parenthesis highlighting hooks
   const { 
@@ -231,18 +232,13 @@ const InductionRacket = () => {
   const handleERRacketSubmission = async (e) => {
     e.preventDefault();
     
-    // Check for duplicate proof name/tag first
+    // Check for duplicate proof name (across both Induction and ER proof tables)
     try {
-      const duplicateCheck = await inductionService.getInductionProofs({ 
-        query: formValues.proofName 
-      });
-
-      const hasMatch = duplicateCheck.proofs?.some(p => 
-        p.name === formValues.proofName && p.tag === formValues.proofTag
-      );
+      const conflictCheck = await inductionService.checkNameConflict(formValues.proofName);
 
       // If a match exists, show overwrite modal
-      if (hasMatch) {
+      if (conflictCheck.conflict) {
+        setConflictType(conflictCheck.type);
         setShowOverwriteModal(true);
         return;
       }
@@ -686,6 +682,12 @@ const InductionRacket = () => {
       // Clear validation error if rule is valid
       setFooterRuleError('');
 
+      // If user typed "rewrite math", open Substitution modal with rule pre-filled
+      if (ruleFromFooter.trim().toLowerCase() === 'rewrite math') {
+        updateShowSubstitution();
+        return;
+      }
+
       // Validate payload before sending
       if (!previousRacketValue || previousRacketValue.trim() === '') {
         toast.error('No source expression found. Make sure the previous line has content.');
@@ -843,7 +845,8 @@ const InductionRacket = () => {
               const existing = existingGenerics.find(eg => eg.label === dbGen.label || eg.name === dbGen.name);
               if (existing) {
                 // Preserve enabled state from sessionStorage
-                return { ...dbGen, enabled: existing.enabled ?? dbGen.enabled };
+                const resolved = existing.enabled ?? dbGen.enabled;
+                return { ...dbGen, enabled: resolved };
               }
               return dbGen;
             });
@@ -1873,6 +1876,7 @@ const InductionRacket = () => {
             racketRuleFields={racketRuleFields[showSide]}
             handleSubstitution={handleInductionSubstitution}
             errors={inductionSubErrors}
+            initialRule={footerRule}
           />
         )}
 
@@ -2647,7 +2651,7 @@ const InductionRacket = () => {
           <Modal.Title>Confirm Overwrite of Proof</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          A proof with the name "<strong>{formValues.proofName}</strong>" and tag "<strong>{formValues.proofTag}</strong>" 
+          An <strong>{conflictType}</strong> proof with the name "<strong>{formValues.proofName}</strong>" 
           already exists. Starting this proof will overwrite the existing one. Do you wish to proceed?
         </Modal.Body>
         <Modal.Footer>

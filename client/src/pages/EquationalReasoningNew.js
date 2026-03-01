@@ -30,6 +30,7 @@ import ClickableRowNumber from "../components/ClickableRowNumber";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import { useDynamicHeight } from "../hooks/useDynamicHeight";
 import equationalService from "../services/equationalService";
+import inductionService from "../services/inductionService";
 import {
   ARROW_KEYS,
   INITIAL_FORM_VALUES,
@@ -149,6 +150,7 @@ const EquationalReasoningNew = () => {
     const [errors, setErrors] = useState([]);
     const [showOverwriteModal, setShowOverwriteModal] = useState(false);
     const [showStartConfirmModal, setShowStartConfirmModal] = useState(false);
+    const [conflictType, setConflictType] = useState(null);
     // Start proof
     const handleStartProof = async (e) => {
       e.preventDefault();
@@ -169,16 +171,11 @@ const EquationalReasoningNew = () => {
       }
 
       try {
-        const duplicateCheck = await equationalService.getRacketProofs({ 
-          query: formValues.proofName 
-        });
-
-        const hasMatch = duplicateCheck.proofs?.some(p => 
-          p.name === formValues.proofName && p.tag === formValues.proofTag
-        );
+        const conflictCheck = await inductionService.checkNameConflict(formValues.proofName);
 
         // If a match exists, show overwrite modal
-        if (hasMatch) {
+        if (conflictCheck.conflict) {
+          setConflictType(conflictCheck.type);
           setShowOverwriteModal(true);
           return; 
         }
@@ -894,6 +891,12 @@ const handleGenerateAndCheck = async () => {
         return;
       }
       setFooterRuleError('');
+
+      // If user typed "rewrite math", open Substitution modal with rule pre-filled
+      if (ruleFromFooter.trim().toLowerCase() === 'rewrite math') {
+        updateShowSubstitution();
+        return;
+      }
 
       // --- VALIDATION BLOCK ---
       const boundField = racketRuleFields?.[showSide][currentIndex];
@@ -1622,6 +1625,7 @@ const handleGenerateAndCheck = async () => {
             racketRuleFields={(racketRuleFields?.[showSide] || [])}
             handleSubstitution={handleSubstitution}
             errors={SubErrors}
+            initialRule={footerRule}
           />
         )}
 
@@ -2275,8 +2279,9 @@ const handleGenerateAndCheck = async () => {
           <Modal.Title>Confirm Overwrite of Proof</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          A proof with the name "<strong>{formValues.proofName}</strong>" and tag "<strong>{formValues.proofTag}</strong>" 
-          already exists. Starting this proof will overwrite the existing one. Do you wish to proceed?        </Modal.Body>
+          An <strong>{conflictType}</strong> proof with the name "<strong>{formValues.proofName}</strong>" 
+          already exists. Starting this proof will overwrite the existing one. Do you wish to proceed?
+        </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowOverwriteModal(false)}>
             Cancel

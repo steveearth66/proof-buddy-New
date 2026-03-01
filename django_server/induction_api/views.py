@@ -116,7 +116,10 @@ def clear_induction(request):
         # Find the active proof
         proof = InductionProof.objects.filter(user=user, is_active=True).order_by('-created_at').first()
         
-        if proof:            
+        if proof:
+            # Archive the proof in the database (soft delete)
+            proof.is_active = False
+            proof.save()
             # Clear the cache
             cache.delete(f"induction_obj_{user.username}")
             
@@ -345,19 +348,19 @@ def start_induction_proof(request):
                 'is_generic': False
             })
         
-        # Set proof with same name and tag to inactive if one exists
-         # 1. Try to find existing proof to update
-        proof_instance = InductionProof.objects.filter(
-            name=proof_name, 
-            tag=proof_tag, 
+        # Archive any existing active proof (Induction or ER) with the same name
+        # Name alone is now sufficient to trigger archiving (cross-table)
+        InductionProof.objects.filter(
+            name=proof_name,
             user=user,
             is_active=True
-        ).first()
-
-        if proof_instance:
-            # Update goals if they changed
-            proof_instance.is_active = False
-            proof_instance.save()
+        ).update(is_active=False)
+        from equational_reasoning_api.models import EquationalProof as _ERProof
+        _ERProof.objects.filter(
+            name=proof_name,
+            user=user,
+            is_active=True
+        ).update(is_active=False)
 
         # Create complete proof data
         proof_data = {
@@ -553,6 +556,43 @@ def reload_proof_lines_from_db(proof, proof_id):
             proof_line.errors = line.errors
     except Exception as e:
         pass
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def check_name_conflict(request):
+    """
+    Check whether any active proof (Induction or Equational Reasoning) owned by
+    the current user already uses the given name.
+    Query param: ?name=<proof name>
+    Returns: { conflict: bool, type: "Induction" | "Equational Reasoning" | null, name: str }
+    """
+    from equational_reasoning_api.models import EquationalProof
+    user = request.user
+    name = request.GET.get('name', '').strip()
+    if not name:
+        return Response({'conflict': False, 'type': None, 'name': name}, status=status.HTTP_200_OK)
+    # Check Induction proofs first
+    ind_conflict = InductionProof.objects.filter(user=user, name=name, is_active=True).exists()
+    if ind_conflict:
+        return Response({'conflict': True, 'type': 'Induction', 'name': name}, status=status.HTTP_200_OK)
+    # Check Equational Reasoning proofs
+    er_conflict = EquationalProof.objects.filter(user=user, name=name, is_active=True).exists()
+    if er_conflict:
+        return Response({'conflict': True, 'type': 'Equational Reasoning', 'name': name}, status=status.HTTP_200_OK)
+    return Response({'conflict': False, 'type': None, 'name': name}, status=status.HTTP_200_OK)
+
+
+def _check_rewrite_math_misuse(rule):
+    """Return an error message string if the user typed 'rewrite math' into the rule field
+    instead of using the Substitution button, or None if the rule is fine to proceed."""
+    rule_norm = (rule or '').strip().lower()
+    if rule_norm == 'rewrite math':
+        return ("The 'rewrite math' rule must be applied using the Substitution button, "
+                "not the rule field.")
+    if rule_norm.startswith('rewrite math'):
+        return "'rewrite math' does not require additional parameters to be applied."
+    return None
 
 
 def save_proof_line_to_db(proof_id, case, side, racket, rule, start_position, line_number, substitution='', selected_node=None, result_node=None, json_tree=None, errors=''):
@@ -889,6 +929,24 @@ def apply_rule(request):
         substitution = data.get("substitution")
         lineNumber = data.get("lineNumber")
 
+        # Guard: "rewrite math" must use the Substitution button, not the rule field
+        rewrite_math_error = _check_rewrite_math_misuse(rule)
+        if rewrite_math_error:
+            # Write the error to the previous DB line if we can identify it
+            if proof_id and lineNumber is not None and lineNumber > 0:
+                from .models import InductionProofLine
+                prev = InductionProofLine.objects.filter(
+                    proof_id=proof_id,
+                    case=case.lower(),
+                    side=side.upper(),
+                    line_number=lineNumber - 1
+                ).first()
+                if prev:
+                    sep = ", " if prev.errors else ""
+                    prev.errors += f"{sep}{rewrite_math_error}"
+                    prev.save()
+            return Response({"isValid": False, "errors": [rewrite_math_error]}, status=status.HTTP_200_OK)
+
         # Check if proof engine is initialized
         if not hasattr(proof, 'baseCase') or not hasattr(proof, 'leapStep'):
             return Response({
@@ -911,8 +969,8 @@ def apply_rule(request):
         jsonTree = makeJson(target.proofLines[-1].exprTree) if len(target.proofLines) else {}
         
         if not is_valid and len(target.proofLines) > 0:
-            # append current line errors
-            current_line = target.proofLines[lineNumber - 1]
+            # append current line errors (lineNumber may be None if frontend didn't send it)
+            current_line = target.proofLines[lineNumber - 1] if lineNumber is not None else target.proofLines[-1]
             separator = ", " if current_line.errors else ""
             current_line.errors += f'{separator}{target.errLog}'
 
@@ -1204,7 +1262,7 @@ def substitution(request):
             if substitution:
                 rule_with_sub = f"{rule_with_sub} as {substitution}"
 
-        if not is_valid and len(target.proofLines) > 0:
+        if not is_valid and len(target.proofLines) > 0 and lineNumber is not None:
             # append current line errors
             current_line = target.proofLines[lineNumber - 1]
             separator = ", " if current_line.errors else ""

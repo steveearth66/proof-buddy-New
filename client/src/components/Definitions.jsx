@@ -163,6 +163,7 @@ function CreateDefinition({
             generic.restrictions = { neverNull: true };
 
           const createdGeneric = await erService.createGeneric(generic);
+          createdGeneric.enabled = true;
           generics.push(createdGeneric);
           sessionStorage.setItem('generics', JSON.stringify(generics));
           setSuccessMessage('Generic created successfully.');
@@ -461,15 +462,16 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
           error: 'An error occurred. Please try again.'
         });
         setDefinitions((prev) => {
-          return prev.map((def) => {
+          const updated = prev.map((def) => {
             //if (def.id === id) {
             if (def.label === label) {
               def.applied = false;
             }
             return def;
           });
+          sessionStorage.setItem('definitions', JSON.stringify(updated)); // use updated array, not stale closure
+          return updated;
         });
-        sessionStorage.setItem('definitions', JSON.stringify(definitions));
       } catch (error) {
         console.error(error);
       }
@@ -482,15 +484,16 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
           error: 'An error occurred. Please try again.'
         });
         setDefinitions((prev) => {
-          return prev.map((def) => {
+          const updated = prev.map((def) => {
             //if (def.id === id) {
             if (def.label === label) {
               def.applied = true;
             }
             return def;
           });
-        })
-        sessionStorage.setItem('definitions', JSON.stringify(definitions));
+          sessionStorage.setItem('definitions', JSON.stringify(updated)); // use updated array, not stale closure
+          return updated;
+        });
       } catch (error) {
         console.error(error);
       }
@@ -506,17 +509,14 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
           error: 'An error occurred. Please try again.'
         });
         setGenerics(prev => {
-          const updated = prev.map(gen => {
-            if (gen.id === generic.id) {
-              gen.enabled = false;
-            }
-            return gen;
-          });
+          const updated = prev.map(gen =>
+            gen.id === generic.id ? { ...gen, enabled: false } : gen
+          );
           sessionStorage.setItem('generics', JSON.stringify(updated));
           return updated;
         });
       } catch (error) {
-        console.error(error)
+        console.error(error);
       }
     } else {
       try {
@@ -526,12 +526,9 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
           error: 'An error occurred. Please try again.'
         });
         setGenerics(prev => {
-          const updated = prev.map(gen => {
-            if (gen.id === generic.id) {
-              gen.enabled = true;
-            }
-            return gen;
-          });
+          const updated = prev.map(gen =>
+            gen.id === generic.id ? { ...gen, enabled: true } : gen
+          );
           sessionStorage.setItem('generics', JSON.stringify(updated));
           return updated;
         });
@@ -567,17 +564,19 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
 
   useEffect(() => {
     erService.getUserGenerics().then(userGenerics => {
-            // Merge with any generics already in sessionStorage (from induction)
-            const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
+      const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
       
       // Merge: prefer backend data but preserve 'enabled' state from sessionStorage
       const merged = userGenerics.map(backendGen => {
         const storedGen = storedGenerics.find(sg => sg.label === backendGen.label || sg.name === backendGen.name);
         if (storedGen) {
-          // Preserve enabled state from sessionStorage
-          return { ...backendGen, enabled: storedGen.enabled ?? backendGen.enabled };
+          // sessionStorage is source of truth for enabled state.
+          // If enabled is undefined in sessionStorage, default to true (any known generic should start enabled).
+          const resolvedEnabled = storedGen.enabled !== undefined ? storedGen.enabled : true;
+          return { ...backendGen, enabled: resolvedEnabled };
         }
-        return backendGen;
+        const resolvedEnabled = backendGen.enabled ?? true;
+        return { ...backendGen, enabled: resolvedEnabled };
       });
       
       // Add any sessionStorage generics that don't exist in backend yet
@@ -695,7 +694,7 @@ function Definition({
               variant="outline-danger"
               //onClick={() => deleteDefinition(definition.id)}
               onClick={() => deleteDefinition(definition.label)}
-              disabled={isLocked}
+              disabled={isDefaultUDF || isLocked}
             >
               Delete
             </Button>

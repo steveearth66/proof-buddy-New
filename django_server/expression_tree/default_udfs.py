@@ -66,13 +66,23 @@ DEFAULT_UDFS = [
     #     "is_default": True,
     #     "deletable": False,
     # },
+    #{
+    #    "id": -7,  # Negative ID indicates non-database definition
+    #   "label": "(h x)",
+    #    "type": "INT>INT",
+    #    "expression": "(if (zero? x) 0 (+ (- (* 4 x) 5) (h (- x 1))))",
+    #    "notes": "used for question1 of lab12",
+    #    "applied": True,
+    #    "is_default": True,
+    #    "deletable": False,
+    #},
     {
-        "id": -7,  # Negative ID indicates non-database definition
-        "label": "(h x)",
+        "id": -8,  # Negative ID indicates non-database definition
+        "label": "(countTruthTableRows vars)",
         "type": "INT>INT",
-        "expression": "(if (zero? x) 0 (+ (- (* 4 x) 5) (h (- x 1))))",
-        "notes": "used for question1 of lab12",
-        "applied": True,
+        "expression": "(if (zero? vars) 1 (* 2 (countTruthTableRows (- vars 1))))",
+        "notes": "counts the number of rows in a truth table with the given number of variables",
+        "applied": False,
         "is_default": True,
         "deletable": False,
     },
