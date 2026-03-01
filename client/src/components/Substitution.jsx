@@ -16,11 +16,12 @@ export default function Substitution({
   handleClose,
   racketRuleFields,
   handleSubstitution,
-  errors
+  errors,
+  initialRule
 }) {
   const initialValues = {
     substitution: "",
-    rule: ""
+    rule: initialRule || ""
   };
 
   const [formValues, handleChange] = useInputState(initialValues);
@@ -53,6 +54,10 @@ export default function Substitution({
   );
 
   useEffect(() => {
+    // Fall back to the last proof line's rule when no rule was pre-supplied.
+    if (initialRule && initialRule.trim().length > 0) {
+      return;
+    }
     const undeletedProofLines = racketRuleFields.filter((line) => {
       return !line.deleted;
     });

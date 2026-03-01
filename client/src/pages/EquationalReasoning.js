@@ -1059,6 +1059,7 @@ function renderPersistentPadRow({
             handleSubstitution={handleSubstitution}
             racketRuleFields={racketFields[showSide]}
             errors={errors}
+            initialRule={footerRule}
           />
         )}
         

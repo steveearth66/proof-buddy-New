@@ -490,6 +490,20 @@ class ERProofLine(ProofComponent):
             )
             if hadErr or self.errLog:
                 return
+            # Value mismatch check: each assigned value must match the actual argument
+            # in the expression (e.g. 'apply fc x=4' on '(fc 3)' should be rejected).
+            mismatch_errors = []
+            for i, (param, value) in enumerate(zip(ruleParams, values)):
+                name, _ = param.split('=', 1)
+                expected_node = targetNode.children[i + 1]
+                if str(value) != str(expected_node):
+                    mismatch_errors.append(
+                        f"Value mismatch in argument '{name.strip()}': "
+                        f"expected {str(expected_node)}, got {str(value)}"
+                    )
+            if mismatch_errors:
+                self.errLog.extend(mismatch_errors)
+                return
 
         if selected._ruleType == RuleType.MATH:
             ok, err = selected.isApplicable(targetNode, subNode)
