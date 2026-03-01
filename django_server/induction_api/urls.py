@@ -19,4 +19,5 @@ urlpatterns = [
     path("clear-all-proof-lines", views.clear_all_proof_lines, name="clear_all_proof_lines"),
     path("set-induction-session-by-id", views.set_induction_session_by_id, name="set_induction_session_by_id"),
     path("delete-proof", views.delete_proof, name="delete_proof"),
+    path("check-name-conflict", views.check_name_conflict, name="check_name_conflict"),
 ]

@@ -1073,18 +1073,19 @@ def get_or_create_proof(data, user, definitions, generics):
     Finds an existing proof by name/tag to update, or creates a new one.
     Then populates it with lines and definitions.
     """
-    # 1. Try to find existing proof to update
-    proof_instance = EquationalProof.objects.filter(
-        name=data.get("name"), 
-        tag=data.get("tag"), 
+    # 1. Archive any existing active proof (Induction or ER) with the same name
+    # Name alone is now sufficient to trigger archiving (cross-table)
+    EquationalProof.objects.filter(
+        name=data.get("name"),
         user=user,
         is_active=True
-    ).first()
-
-    if proof_instance:
-        # Update goals if they changed
-        proof_instance.is_active = False
-        proof_instance.save()
+    ).update(is_active=False)
+    from induction_api.models import InductionProof as _IndProof
+    _IndProof.objects.filter(
+        name=data.get("name"),
+        user=user,
+        is_active=True
+    ).update(is_active=False)
         
     # 2. Create new proof if not found
     proof_serializer_data = {

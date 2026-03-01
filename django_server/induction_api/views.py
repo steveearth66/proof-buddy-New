@@ -348,19 +348,19 @@ def start_induction_proof(request):
                 'is_generic': False
             })
         
-        # Set proof with same name and tag to inactive if one exists
-         # 1. Try to find existing proof to update
-        proof_instance = InductionProof.objects.filter(
-            name=proof_name, 
-            tag=proof_tag, 
+        # Archive any existing active proof (Induction or ER) with the same name
+        # Name alone is now sufficient to trigger archiving (cross-table)
+        InductionProof.objects.filter(
+            name=proof_name,
             user=user,
             is_active=True
-        ).first()
-
-        if proof_instance:
-            # Update goals if they changed
-            proof_instance.is_active = False
-            proof_instance.save()
+        ).update(is_active=False)
+        from equational_reasoning_api.models import EquationalProof as _ERProof
+        _ERProof.objects.filter(
+            name=proof_name,
+            user=user,
+            is_active=True
+        ).update(is_active=False)
 
         # Create complete proof data
         proof_data = {
@@ -556,6 +556,31 @@ def reload_proof_lines_from_db(proof, proof_id):
             proof_line.errors = line.errors
     except Exception as e:
         pass
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def check_name_conflict(request):
+    """
+    Check whether any active proof (Induction or Equational Reasoning) owned by
+    the current user already uses the given name.
+    Query param: ?name=<proof name>
+    Returns: { conflict: bool, type: "Induction" | "Equational Reasoning" | null, name: str }
+    """
+    from equational_reasoning_api.models import EquationalProof
+    user = request.user
+    name = request.GET.get('name', '').strip()
+    if not name:
+        return Response({'conflict': False, 'type': None, 'name': name}, status=status.HTTP_200_OK)
+    # Check Induction proofs first
+    ind_conflict = InductionProof.objects.filter(user=user, name=name, is_active=True).exists()
+    if ind_conflict:
+        return Response({'conflict': True, 'type': 'Induction', 'name': name}, status=status.HTTP_200_OK)
+    # Check Equational Reasoning proofs
+    er_conflict = EquationalProof.objects.filter(user=user, name=name, is_active=True).exists()
+    if er_conflict:
+        return Response({'conflict': True, 'type': 'Equational Reasoning', 'name': name}, status=status.HTTP_200_OK)
+    return Response({'conflict': False, 'type': None, 'name': name}, status=status.HTTP_200_OK)
 
 
 def _check_rewrite_math_misuse(rule):

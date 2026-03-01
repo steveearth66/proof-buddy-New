@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 /**
  * A custom hook for handling form validation in React components.
- * It tracks which fields have been touched and validates fields only if they've been touched.
+ * Validation messages are only updated when a field loses focus (onBlur),
+ * never keystroke-by-keystroke, so partial input is never flagged live.
  *
  * @param {Object} formValues - An object representing the form's current values.
  * @param {Function} validateField - A function that takes a field name, its value, and all form values, then returns a validation message if the field is invalid.
@@ -14,28 +15,22 @@ import { useState, useEffect } from 'react';
  */
 const useFormValidation = (formValues, validateField) => {
   const [validationMessages, setValidationMessages] = useState({});
-  const [touched, setTouched] = useState({});
 
-  useEffect(() => {
-    const touchedFields = Object.keys(touched).filter(field => touched[field]);
-    const validationMessages = touchedFields.reduce((acc, field) => {
-      acc[field] = validateField(field, formValues[field], formValues);
-      return acc;
-    }, {});
-
-    setValidationMessages(validationMessages);
-  }, [formValues, touched, validateField]);
-
+  // Validate a single field at the moment the user leaves it.
   const handleBlur = (field) => {
-    setTouched({ ...touched, [field]: true });
+    setValidationMessages(prev => ({
+      ...prev,
+      [field]: validateField(field, formValues[field], formValues),
+    }));
   };
 
+  // Validate every field at once (used on submit when the form hasn't been touched yet).
   const setAllTouched = () => {
-    const allTouched = Object.keys(formValues).reduce((acc, key) => {
-      acc[key] = true;
+    const messages = Object.keys(formValues).reduce((acc, key) => {
+      acc[key] = validateField(key, formValues[key], formValues);
       return acc;
     }, {});
-    setTouched(allTouched);
+    setValidationMessages(messages);
   };
 
   const isFormValid = () => {
