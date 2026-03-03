@@ -1039,6 +1039,7 @@ def apply_rule(request):
                 last_line_obj = target.proofLines[line_index]
                 InductionProofLine.objects.filter(
                     proof_id=proof_id,
+                    case=case.lower(),
                     side=side.upper(),
                     line_number=line_index
                 ).update(errors=last_line_obj.errors)
@@ -1325,6 +1326,7 @@ def substitution(request):
                 last_line_obj = target.proofLines[line_index]
                 InductionProofLine.objects.filter(
                     proof_id=proof_id,
+                    case=case.lower(),
                     side=side.upper(),
                     line_number=line_index
                 ).update(errors=last_line_obj.errors)
