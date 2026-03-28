@@ -14,10 +14,48 @@ from expression_tree.IndProofs import IndProof
 from expression_tree.ERProofEngine import TwoSidedProof, ERProof, ERProofLine
 from expression_tree.ERCommon import makeJson
 from expression_tree.ERRuleset import recursiveReplaceNodes, IH
+from expression_tree.LemmaApplicator import build_lemma_rule
 from proofs.views import use_uploaded_generic
 
 
 User = get_user_model()
+
+
+# ========================
+# Lemma Lookup Helper
+# ========================
+
+def _lookup_lemma(name: str, user):
+    """
+    Look up a completed proof by *name* for *user*.
+    Returns ``(premise_str, conclusion_str, error_msg)``.
+    Checks EquationalProof first; falls back to InductionProof.
+    *error_msg* is ``None`` on success.
+    """
+    from equational_reasoning_api.models import EquationalProof as _EqProof
+    from .models import InductionProof as _IndProof
+
+    # Check i: does an equational proof with this name exist?
+    eq = _EqProof.objects.filter(name=name, user=user, is_active=True).order_by('-created_at').first()
+    if eq is not None:
+        # Check ii: is it complete?
+        if not eq.is_complete:
+            return None, None, f"Proof '{name}' has not been completed yet"
+        return eq.lhs_goal, eq.rhs_goal, None
+
+    # Check i: does an induction proof with this name exist?
+    ind = _IndProof.objects.filter(name=name, user=user, is_active=True).order_by('-created_at').first()
+    if ind is not None:
+        # Check ii: is it complete?
+        if not ind.is_complete:
+            return None, None, f"Proof '{name}' has not been completed yet"
+        # Reconstruct original goal by substituting leap_variable → induction_variable
+        k, n = ind.leap_variable, ind.induction_variable
+        premise_str = re.sub(r'\b' + re.escape(k) + r'\b', n, ind.inductive_hypothesis_lhs)
+        conclusion_str = re.sub(r'\b' + re.escape(k) + r'\b', n, ind.inductive_hypothesis_rhs)
+        return premise_str, conclusion_str, None
+
+    return None, None, f"No completed proof named '{name}' found"
 
 
 @api_view(["POST"])
@@ -962,7 +1000,37 @@ def apply_rule(request):
             proof.baseCase.markIncomplete()
         else:
             proof.leapStep.markIncomplete()
-        _apply_line(target, currentRacket, rule, startPosition, substitution)
+
+        # ── Lemma injection (checks i & ii at view layer) ──────────────────
+        # If the rule is "apply <name> ..." and <name> is not already in the
+        # ruleset, look it up as a completed proof and inject it temporarily.
+        _lemma_injected = False
+        _lemma_name = None
+        if rule:
+            _parts = rule.split()
+            if len(_parts) >= 2 and _parts[0] == "apply":
+                _lemma_name = _parts[1]
+                if _lemma_name not in target.ruleSet.get('apply', {}):
+                    _premise, _conclusion, _err = _lookup_lemma(_lemma_name, user)
+                    if _err:
+                        target.errLog.append(_err)
+                    else:
+                        _lemma_rule, _parse_err = build_lemma_rule(
+                            _lemma_name, _premise, _conclusion,
+                            target.ruleSet, target.generics
+                        )
+                        if _parse_err:
+                            target.errLog.append(_parse_err)
+                        else:
+                            target.ruleSet['apply'][_lemma_name] = _lemma_rule
+                            _lemma_injected = True
+
+        if not target.errLog:
+            _apply_line(target, currentRacket, rule, startPosition, substitution)
+
+        # Remove temporarily injected lemma rule
+        if _lemma_injected and _lemma_name and _lemma_name in target.ruleSet.get('apply', {}):
+            del target.ruleSet['apply'][_lemma_name]
 
         is_valid = len(target.errLog) == 0
         racket_str = target.getPrevRacket() if is_valid else "Error generating racket"

@@ -99,6 +99,24 @@ is_complete_failures = run_command("InductionProof is_complete persistence", is_
 
 totalFails += (1 if is_complete_failures else 0)
 
+lemma_app_cmd = [
+    sys.executable,
+    "-c",
+    (
+        "import django, os; "
+        "os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'django_server.settings'); "
+        "django.setup(); "
+        "exec(open('proofs/test_lemma_application.py').read())"
+    ),
+]
+# Run from the django_server directory so the relative open() path works
+lemma_app_failures = run_command(
+    "LemmaRule / LemmaApplicator engine tests",
+    lemma_app_cmd,
+    cwd=root_dir,
+)
+totalFails += (1 if lemma_app_failures else 0)
+
 print()
 print("=" * 40)
 print("TEST SUITE SUMMARY")
