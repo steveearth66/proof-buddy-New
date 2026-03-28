@@ -89,6 +89,16 @@ error_persistence_failures = run_command("Induction error persistence case isola
 
 totalFails += (1 if error_persistence_failures else 0)
 
+is_complete_cmd = [
+    sys.executable,
+    "manage.py",
+    "test",
+    "induction_api.tests_is_complete_persistence",
+]
+is_complete_failures = run_command("InductionProof is_complete persistence", is_complete_cmd, cwd=root_dir)
+
+totalFails += (1 if is_complete_failures else 0)
+
 print()
 print("=" * 40)
 print("TEST SUITE SUMMARY")

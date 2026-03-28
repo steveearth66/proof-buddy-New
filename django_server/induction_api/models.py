@@ -46,6 +46,7 @@ class InductionProof(models.Model):
     
     # Validation
     is_valid = models.BooleanField(default=True)
+    is_complete = models.BooleanField(default=False)
     definition = models.JSONField(default=list)
     
     # Metadata

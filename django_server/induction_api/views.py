@@ -1371,7 +1371,11 @@ def check_completion(request):
         
         # Check overall completion and update indProof.isComplete
         overall_complete = proof.checkComplete()
-        
+
+        # Persist overall completion status to database
+        if proof_id:
+            InductionProof.objects.filter(id=proof_id).update(is_complete=overall_complete)
+
         # Save updated completion status to cache
         save_induction_obj_to_cache(user, proof, proof_id)
         
