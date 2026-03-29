@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
 import erService from '../services/erService';
 import Row from 'react-bootstrap/Row';
@@ -39,7 +40,11 @@ const PROOF_CONFIG = {
 };
 
 export default function Proofs() {
-  const [proofType, setProofType] = useState(PROOF_TYPES.EQUATIONAL);
+  const [searchParams] = useSearchParams();
+  const initialType = searchParams.get('type') === 'induction'
+    ? PROOF_TYPES.INDUCTION
+    : PROOF_TYPES.EQUATIONAL;
+  const [proofType, setProofType] = useState(initialType);
   const [proofObject, setProofObject] = useState({});
   const [query, setQuery] = useState('');
   const [deleteTargetId, setDeleteTargetId] = useState(null);
