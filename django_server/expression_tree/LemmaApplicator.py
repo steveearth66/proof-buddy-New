@@ -7,6 +7,7 @@ No Django ORM access here — DB lookups live in the view layer.
 
 from .Parser import makeBasicAst
 from .ERRuleset import LemmaRule
+from .ERProofEngine import reservedLabels
 
 
 def _collect_free_vars(node, reserved: set, result: set) -> None:
@@ -30,7 +31,7 @@ def extract_free_vars(premise_str: str, ruleSet: dict, generics: dict) -> tuple:
     if errs:
         return [], errs
 
-    reserved = set()
+    reserved = set(reservedLabels)
     for cat_dict in ruleSet.values():
         reserved |= set(cat_dict.keys())
     reserved |= set(generics.keys())
@@ -54,7 +55,7 @@ def build_lemma_rule(label: str, premise_str: str, conclusion_str: str,
     if errs:
         return None, f"Could not parse lemma conclusion '{conclusion_str}': {errs[0]}"
 
-    reserved = set()
+    reserved = set(reservedLabels)
     for cat_dict in ruleSet.values():
         reserved |= set(cat_dict.keys())
     reserved |= set(generics.keys())

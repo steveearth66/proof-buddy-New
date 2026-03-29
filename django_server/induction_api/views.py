@@ -15,6 +15,7 @@ from expression_tree.ERProofEngine import TwoSidedProof, ERProof, ERProofLine
 from expression_tree.ERCommon import makeJson
 from expression_tree.ERRuleset import recursiveReplaceNodes, IH
 from expression_tree.LemmaApplicator import build_lemma_rule
+from expression_tree.default_udfs import DEFAULT_UDFS
 from proofs.views import use_uploaded_generic
 
 
@@ -839,7 +840,30 @@ def set_current_proof(request):
 
         # Save engine to cache, preserving proof_id that was set by start_induction_proof
         save_induction_obj_to_cache(user, ind, existing_proof_id)
-        
+
+        # Persist user-supplied generics to proof.definition so session restore finds them
+        if existing_proof_id and generics:
+            try:
+                db_proof = InductionProof.objects.get(id=existing_proof_id)
+                existing_defs = list(db_proof.definition or [])
+                existing_labels = {d.get('label') or d.get('name') for d in existing_defs}
+                for g in generics:
+                    glabel = g.get('label') or g.get('name')
+                    if glabel and glabel not in existing_labels:
+                        existing_defs.append({
+                            'name': glabel,
+                            'label': glabel,
+                            'type': g.get('type', 'Any'),
+                            'body': '<generic>',
+                            'is_generic': True,
+                            'description': f'User generic {glabel}',
+                            'restrictions': g.get('restrictions') or {}
+                        })
+                db_proof.definition = existing_defs
+                db_proof.save()
+            except InductionProof.DoesNotExist:
+                pass
+
         # Now save the properly initialized premises to database
         if existing_proof_id:
             # Save base case premises (these have ivar substituted with aval)
@@ -1024,19 +1048,53 @@ def apply_rule(request):
             if len(_parts) >= 2 and _parts[0] == "apply":
                 _lemma_name = _parts[1]
                 if _lemma_name not in target.ruleSet.get('apply', {}):
-                    _premise, _conclusion, _err = _lookup_lemma(_lemma_name, user)
-                    if _err:
-                        target.errLog.append(_err)
-                    else:
-                        _lemma_rule, _parse_err = build_lemma_rule(
-                            _lemma_name, _premise, _conclusion,
-                            target.ruleSet, target.generics
-                        )
-                        if _parse_err:
-                            target.errLog.append(_parse_err)
+                    # Before trying a proof lookup, check if this name matches a
+                    # UDF stored in the proof's definition list (handles cache-miss
+                    # where the engine was rebuilt without re-hydrating UDFs).
+                    _udf_recovered = False
+                    if proof_id:
+                        try:
+                            _db_proof = InductionProof.objects.get(id=proof_id)
+                            for _d in (_db_proof.definition or []):
+                                if _d.get('is_generic'):
+                                    continue
+                                _dlabel = _d.get('label') or _d.get('name') or ''
+                                _dudf = _dlabel.replace('(', ' ').replace(')', ' ').split()
+                                if _dudf and _dudf[0] == _lemma_name:
+                                    _dtype = _d.get('type')
+                                    _dbody = _d.get('expression') or _d.get('body')
+                                    if _dtype and _dbody:
+                                        target.addUDF(_dlabel, _dtype, _dbody)
+                                        _udf_recovered = True
+                                    break
+                        except InductionProof.DoesNotExist:
+                            pass
+                    # Also check default UDFs (e.g. reverse, append built-ins)
+                    if not _udf_recovered:
+                        for _d in DEFAULT_UDFS:
+                            _dlabel = _d.get('label') or ''
+                            _dudf = _dlabel.replace('(', ' ').replace(')', ' ').split()
+                            if _dudf and _dudf[0] == _lemma_name:
+                                _dtype = _d.get('type')
+                                _dbody = _d.get('expression') or _d.get('body')
+                                if _dtype and _dbody:
+                                    target.addUDF(_dlabel, _dtype, _dbody)
+                                    _udf_recovered = True
+                                break
+                    if not _udf_recovered:
+                        _premise, _conclusion, _err = _lookup_lemma(_lemma_name, user)
+                        if _err:
+                            target.errLog.append(_err)
                         else:
-                            target.ruleSet['apply'][_lemma_name] = _lemma_rule
-                            _lemma_injected = True
+                            _lemma_rule, _parse_err = build_lemma_rule(
+                                _lemma_name, _premise, _conclusion,
+                                target.ruleSet, target.generics
+                            )
+                            if _parse_err:
+                                target.errLog.append(_parse_err)
+                            else:
+                                target.ruleSet['apply'][_lemma_name] = _lemma_rule
+                                _lemma_injected = True
 
         if not target.errLog:
             _apply_line(target, currentRacket, rule, startPosition, substitution)
@@ -1657,6 +1715,15 @@ def set_induction_session_by_id(request):
         ind_proof.rhsPremise = proof.rhs_leap_goal 
         
         # 3. Load Definitions & Generics
+        # First, always load all default UDFs into the engine
+        for d in DEFAULT_UDFS:
+            label = d.get('label')
+            type_str = d.get('type')
+            body = d.get('expression')
+            if label and type_str and body:
+                ind_proof.baseCase.addUDF(label, type_str, body)
+                ind_proof.leapStep.addUDF(label, type_str, body)
+
         db_defs = proof.definition or []
         for d in db_defs:
             if d.get('is_generic'):

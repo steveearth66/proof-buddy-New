@@ -488,6 +488,10 @@ class ERProofLine(ProofComponent):
             mismatch_errors = []
             for i, (param, value) in enumerate(zip(ruleParams, values)):
                 name, _ = param.split('=', 1)
+                if i + 1 >= len(targetNode.children):
+                    # Wrong target node selected (e.g. applying 'append' on 'reverse' node);
+                    # isApplicable below will produce the proper error message.
+                    break
                 expected_node = targetNode.children[i + 1]
                 if str(value) != str(expected_node):
                     mismatch_errors.append(
