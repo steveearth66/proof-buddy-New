@@ -64,7 +64,8 @@ class ProofComponent:
             ruleDict=self.ruleSet,
             udfType=racTypeObj,
             isUdf=True,
-            generics=self.generics
+            generics=self.generics,
+            udfLabel=udfLabel
         )
         if bodyNode.errLog != []:
             self.errLog.extend(bodyNode.errLog)
@@ -299,7 +300,7 @@ class ERProof(ProofComponent):
         return "\n".join(lines)
 
 class ERProofLine(ProofComponent):
-    def __init__(self, goal, debug=False, ruleDict=None, udfType=None, isUdf=False, generics=None): #added optional pointer to parent proof's ruleset
+    def __init__(self, goal, debug=False, ruleDict=None, udfType=None, isUdf=False, generics=None, udfLabel=None): #added optional pointer to parent proof's ruleset
         super().__init__(ruleSet=ruleDict, generics=generics, debug=debug)
         self.exprTree = None
         self.positions = dict() # a dict of 4-tuples of the next pos when hitting up,down,left,right. keyd by startpos
@@ -333,7 +334,7 @@ class ERProofLine(ProofComponent):
         if self.errLog == []:
             self.errLog = Decorator.remTemps(decTree, self.errLog, racketLabels=self.racketLabels)
         if self.errLog == []: #added userType in case of UDF
-            decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog, userType=udfType)
+            decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog, userType=udfType, udfLabel=udfLabel)
         if self.errLog == []:
             self.exprTree = decTree
         if self.errLog == []: #makes the positions dict for arrow key navigation

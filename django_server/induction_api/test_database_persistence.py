@@ -1,4 +1,4 @@
-"""
+﻿"""
 Test suite for verifying proof line database persistence
 Run with: python manage.py test induction_api.test_database_persistence
 """
@@ -40,7 +40,7 @@ class ProofLineDatabasePersistenceTests(TransactionTestCase):
     
     def test_manual_proof_line_creation(self):
         """Test manually creating proof lines to verify model works correctly"""
-        print("\n→ Testing manual proof line creation...")
+        print("\n-> Testing manual proof line creation...")
         
         # Create a proof
         proof = InductionProof.objects.create(
@@ -106,7 +106,7 @@ class ProofLineDatabasePersistenceTests(TransactionTestCase):
     
     def test_apply_rule_saves_to_database(self):
         """Test that apply-rule endpoint saves proof lines to database"""
-        print("\n→ Testing apply-rule saves to database...")
+        print("\n-> Testing apply-rule saves to database...")
         
         # Create a proof in database first
         proof = InductionProof.objects.create(
@@ -165,7 +165,7 @@ class ProofLineDatabasePersistenceTests(TransactionTestCase):
     
     def test_substitution_saves_to_database(self):
         """Test that substitution endpoint saves proof lines with correct rule names"""
-        print("\n→ Testing substitution saves to database with correct rule...")
+        print("\n-> Testing substitution saves to database with correct rule...")
         
         # Create a proof
         proof = InductionProof.objects.create(
@@ -229,7 +229,7 @@ class ProofLineDatabasePersistenceTests(TransactionTestCase):
     
     def test_delete_line_removes_from_database(self):
         """Test that delete-line endpoint removes proof lines from database"""
-        print("\n→ Testing delete-line removes from database...")
+        print("\n-> Testing delete-line removes from database...")
 
         # Step 1: Use start-induction-proof so premises are saved and proof_id is linked
         proof_data = {
@@ -299,7 +299,7 @@ class ProofLineDatabasePersistenceTests(TransactionTestCase):
     
     def test_proof_line_organization(self):
         """Test that proof lines are properly organized by case, side, and line number"""
-        print("\n→ Testing proof line organization...")
+        print("\n-> Testing proof line organization...")
         
         proof = InductionProof.objects.create(
             user=self.user,
@@ -356,7 +356,7 @@ class ProofLineDatabasePersistenceTests(TransactionTestCase):
     
     def test_admin_relationship(self):
         """Test that proof lines are accessible through proof relationship"""
-        print("\n→ Testing proof-to-lines relationship...")
+        print("\n-> Testing proof-to-lines relationship...")
         
         proof = InductionProof.objects.create(
             user=self.user,

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Tests that user errors from failed rule applications are written only to the
 correct (case, side) combination in the database — not cross-contaminating the
 paired case (base ↔ leap) with the same side and line number.
@@ -86,7 +86,7 @@ class ErrorPersistenceCaseIsolationTests(TransactionTestCase):
         save_induction_obj_to_cache(self.user, ind, proof.id)
 
         # lhsPremise / rhsPremise are the general (un-substituted) goals.
-        # set-current-proof substitutes n→0 for base and n→(+ k 1) for leap,
+        # set-current-proof substitutes n->0 for base and n->(+ k 1) for leap,
         # then saves all four premise lines to the database.
         init_data = {
             'struct': 'int',
@@ -118,7 +118,7 @@ class ErrorPersistenceCaseIsolationTests(TransactionTestCase):
         A bad rule applied to BASE LHS must write an error only to the
         base LHS premise row.  The leap LHS premise row must stay error-free.
         """
-        print("\n→ Testing apply-rule error isolation between base and leap cases...")
+        print("\n-> Testing apply-rule error isolation between base and leap cases...")
 
         proof = self._start_proof('Error Isolation - apply_rule', 'err-apply-rule')
 
@@ -187,7 +187,7 @@ class ErrorPersistenceCaseIsolationTests(TransactionTestCase):
         A bad substitution applied to LEAP RHS must write an error only to the
         leap RHS premise row.  The base RHS premise row must stay error-free.
         """
-        print("\n→ Testing substitution error isolation between base and leap cases...")
+        print("\n-> Testing substitution error isolation between base and leap cases...")
 
         proof = self._start_proof('Error Isolation - substitution', 'err-substitution')
 
@@ -258,7 +258,7 @@ class ErrorPersistenceCaseIsolationTests(TransactionTestCase):
         the engine API) so the filter has something to hit in both cases, then
         confirms case isolation holds for that non-zero line_number.
         """
-        print("\n→ Testing apply-rule error isolation on a non-premise line (line 1)...")
+        print("\n-> Testing apply-rule error isolation on a non-premise line (line 1)...")
 
         proof = self._start_proof('Error Isolation - non-premise', 'err-non-premise')
 
@@ -332,7 +332,7 @@ class ErrorPersistenceCaseIsolationTests(TransactionTestCase):
         This specifically exercises the 'rewrite math' path (substitution value
         is passed through to _apply_line) rather than a plain rule failure.
         """
-        print("\n→ Testing rewrite-math substitution error isolation between cases...")
+        print("\n-> Testing rewrite-math substitution error isolation between cases...")
 
         proof = self._start_proof('Error Isolation - rewrite math', 'err-rewrite-math')
 
@@ -392,9 +392,9 @@ class ErrorPersistenceCaseIsolationTests(TransactionTestCase):
         Reverse direction: a bad rule on LEAP LHS must not write errors to
         the BASE LHS premise row.
         """
-        print("\n→ Testing apply-rule error isolation: leap failure does not touch base...")
+        print("\n-> Testing apply-rule error isolation: leap failure does not touch base...")
 
-        proof = self._start_proof('Error Isolation - apply_rule leap→base', 'err-apply-rule-rev')
+        proof = self._start_proof('Error Isolation - apply_rule leap->base', 'err-apply-rule-rev')
 
         base_premise = InductionProofLine.objects.filter(
             proof=proof, case='base', side='LHS', line_number=0
@@ -437,9 +437,9 @@ class ErrorPersistenceCaseIsolationTests(TransactionTestCase):
         Reverse direction for non-premise lines: a bad rule targeting line 1 on
         LEAP LHS must not write errors to BASE LHS line 1.
         """
-        print("\n→ Testing apply-rule error isolation on non-premise line: leap→base direction...")
+        print("\n-> Testing apply-rule error isolation on non-premise line: leap->base direction...")
 
-        proof = self._start_proof('Error Isolation - non-premise leap→base', 'err-non-premise-rev')
+        proof = self._start_proof('Error Isolation - non-premise leap->base', 'err-non-premise-rev')
 
         base_line1 = InductionProofLine.objects.create(
             proof=proof, case='base', side='LHS', racket='1',
@@ -479,9 +479,9 @@ class ErrorPersistenceCaseIsolationTests(TransactionTestCase):
         Reverse direction for rewrite-math: a bad substitution on LEAP LHS must
         not write errors to BASE LHS premise.
         """
-        print("\n→ Testing rewrite-math substitution error isolation: leap→base direction...")
+        print("\n-> Testing rewrite-math substitution error isolation: leap->base direction...")
 
-        proof = self._start_proof('Error Isolation - rewrite math leap→base', 'err-rewrite-rev')
+        proof = self._start_proof('Error Isolation - rewrite math leap->base', 'err-rewrite-rev')
 
         base_premise = InductionProofLine.objects.filter(
             proof=proof, case='base', side='LHS', line_number=0

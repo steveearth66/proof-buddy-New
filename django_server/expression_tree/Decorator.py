@@ -108,11 +108,13 @@ def remTemps(inputTree: Node, errLog=None, debug=False, racketLabels=None) -> li
     return errLog
 
 # function to check correct number of provided arguments for functions
-def argQty(treeNode: Node, userType = None) -> list[bool,str]:
+def argQty(treeNode: Node, userType = None, udfLabel=None) -> list[bool,str]:
     func = treeNode.children[0]
-    builtins = ["if", "first", "rest", "cons", "null?", "zero?", "list?", "integer?","expt", "<=",">=","quotient","remainder",\
-                "+", "-", "*", "=", ">",">=", "<", "<=","and", "or", "not", "xor","implies"]
-    if userType != None and func not in builtins: #needed now, can't wait for fillbody to do this
+    # Apply userType only for the recursive self-call: the function being defined
+    # is not yet in defDict, so its node has numArgs=None. But OTHER undefined
+    # functions also have numArgs=None (e.g. 'append' if not yet defined). We must
+    # distinguish them by matching the function name against udfLabel.
+    if userType is not None and func.numArgs is None and func.data == udfLabel:
         func.type = userType
         if func.type.isType("FUNCTION"):
             func.numArgs = len(func.type.getDomain())
@@ -130,19 +132,19 @@ def argQty(treeNode: Node, userType = None) -> list[bool,str]:
 # check functions meet number of arguments and type checking restrictions
 
 
-def checkFunctions(inputTree: Node, errLog, debug=False, userType=None) -> tuple[Node, list[str]]:
+def checkFunctions(inputTree: Node, errLog, debug=False, userType=None, udfLabel=None) -> tuple[Node, list[str]]:
     if inputTree == None:
         return inputTree, errLog
 
     # only check if the function has children
     if len(inputTree.children) > 0: # and inputTree.type.getType() in FLEX_TYPES:
-        typPass = argQty(inputTree, userType)
+        typPass = argQty(inputTree, userType, udfLabel)
         if not typPass[0]:
             errLog.append(typPass[1])
 
         # continue check for the children of the Node
         for child in inputTree.children:
-            checkFunctions(child, errLog, debug, userType)
+            checkFunctions(child, errLog, debug, userType, udfLabel)
 
     # return any errors
     return inputTree, errLog

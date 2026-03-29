@@ -179,7 +179,7 @@ function ProofCard({ proof, onDelete, config }) {
         <b>Proof:</b> {proof.name} - {proof.tag}
       </p>
       <p>
-        <b>Completed:</b> {proof.isComplete ? 'True' : 'False'}
+        <b>Completed:</b> {(proof.isComplete || proof.is_complete) ? 'True' : 'False'}
       </p>
       {/* Route is now dynamic based on config */}
       <Link to={config.viewRoute} state={{ id: proof.id }}>

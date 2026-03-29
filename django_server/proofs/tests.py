@@ -17,6 +17,7 @@ Run with: python manage.py test proofs
 from pathlib import Path
 import subprocess
 import sys
+import os
 
 print("=" * 40)
 print("PROOF BUDDY TEST SUITE")
@@ -45,7 +46,8 @@ def run_command(name: str, cmd: list[str], cwd: Path) -> int:
     """Run an external command; return 0 on success, else exit code."""
     try:
         print(f"\n[Summary] {name}")
-        result = subprocess.run(cmd, cwd=cwd, text=True)
+        env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+        result = subprocess.run(cmd, cwd=cwd, text=True, env=env)
         if result.returncode == 0:
             print(f"PASS: {name}")
         else:
@@ -98,6 +100,23 @@ is_complete_cmd = [
 is_complete_failures = run_command("InductionProof is_complete persistence", is_complete_cmd, cwd=root_dir)
 
 totalFails += (1 if is_complete_failures else 0)
+
+udf_in_udf_cmd = [
+    sys.executable,
+    "-c",
+    (
+        "import django, os; "
+        "os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'django_server.settings'); "
+        "django.setup(); "
+        "exec(open('proofs/test_udf_in_udf.py').read())"
+    ),
+]
+udf_in_udf_failures = run_command(
+    "UDF-calls-UDF arg-count tests",
+    udf_in_udf_cmd,
+    cwd=root_dir,
+)
+totalFails += (1 if udf_in_udf_failures else 0)
 
 lemma_app_cmd = [
     sys.executable,
