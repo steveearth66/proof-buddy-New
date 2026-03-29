@@ -1138,6 +1138,16 @@ def get_or_create_proof(data, user, definitions, generics):
     Finds an existing proof by name/tag to update, or creates a new one.
     Then populates it with lines and definitions.
     """
+    # Reject reserved names
+    _proof_name = (data.get("name") or "").strip()
+    _RESERVED_PROOF_NAMES = {"IH", "length", "append", "reverse"}
+    if _proof_name in _RESERVED_PROOF_NAMES:
+        from rest_framework.response import Response as _Resp
+        from rest_framework import status as _st
+        return _Resp(
+            {"error": f"'{_proof_name}' is a reserved name and cannot be used as a proof name."},
+            status=_st.HTTP_400_BAD_REQUEST
+        )
     # 1. Archive any existing active proof (Induction or ER) with the same name
     # Name alone is now sufficient to trigger archiving (cross-table)
     EquationalProof.objects.filter(

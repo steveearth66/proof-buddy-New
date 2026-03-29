@@ -1145,6 +1145,11 @@ const InductionRacket = () => {
     const rightGoal = formValues.rHSGoal;
     const selectedGoal = goalForSide || "";
 
+    const RESERVED_PROOF_NAMES = new Set(["IH", "length", "append", "reverse"]);
+    if (RESERVED_PROOF_NAMES.has((proofName || "").trim())) {
+      toast.error(`'${(proofName || "").trim()}' is a reserved name and cannot be used as a proof name.`);
+      return;
+    }
     // Validate anchor value based on induction type
     if (inductionType === 'lists') {
       // For lists: accept 'null' or quoted list notation like '(1) or '(1 2 3)

@@ -9,7 +9,8 @@ import copy
 
 reservedLabels = ["cons", "if", "first", "rest", "null?", "cons?", "zero?", "integer?", "list?", "consList", "expt", 
                   "quotient", "remainder", "and", "or", "not", "implies", "nand", "iff", "nor", "xor", ">", "<", "+", 
-                  "-", "*", "null", "=", "-+", "math", "cons-first-rest", "first-cons", "rest-cons", "null?-cons"]
+                  "-", "*", "null", "=", "-+", "math", "cons-first-rest", "first-cons", "rest-cons", "null?-cons",
+                  "IH", "length", "append", "reverse"]
 
 class ProofComponent:
     '''Defines shared functionality between classes in ERProofEngine, namely concerning ruleSet, generics, and errLog'''

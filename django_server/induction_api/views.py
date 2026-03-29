@@ -240,6 +240,13 @@ def start_induction_proof(request):
                 {"error": "Missing required fields: proof_name, induction_variable, anchor_value, and leap_variable are required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        # Reserved proof names cannot be used
+        RESERVED_PROOF_NAMES = {"IH", "length", "append", "reverse"}
+        if proof_name.strip() in RESERVED_PROOF_NAMES:
+            return Response(
+                {"error": f"'{proof_name.strip()}' is a reserved name and cannot be used as a proof name."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
         # Determine structure type
         struct = 'list' if induction_type.lower() == 'lists' else 'int'
@@ -1048,17 +1055,57 @@ def apply_rule(request):
             if len(_parts) >= 2 and _parts[0] == "apply":
                 _lemma_name = _parts[1]
                 if _lemma_name not in target.ruleSet.get('apply', {}):
-                    # Before trying a proof lookup, check if this name matches a
-                    # UDF stored in the proof's definition list (handles cache-miss
-                    # where the engine was rebuilt without re-hydrating UDFs).
-                    _udf_recovered = False
-                    if proof_id:
-                        try:
-                            _db_proof = InductionProof.objects.get(id=proof_id)
-                            for _d in (_db_proof.definition or []):
-                                if _d.get('is_generic'):
-                                    continue
-                                _dlabel = _d.get('label') or _d.get('name') or ''
+                    if _lemma_name == "IH":
+                        # "IH" is the built-in Inductive Hypothesis rule, not a user proof.
+                        # When the cache misses (server restart, cache clear) the IH rule is
+                        # lost from the ruleSet. Re-register it from the stored DB strings.
+                        _ih_recovered = False
+                        if proof_id:
+                            try:
+                                _db_proof = InductionProof.objects.get(id=proof_id)
+                                _ih_lhs_str = _db_proof.inductive_hypothesis_lhs
+                                _ih_rhs_str = _db_proof.inductive_hypothesis_rhs
+                                if _ih_lhs_str and _ih_rhs_str:
+                                    _ih_lhs_line = ERProofLine(_ih_lhs_str, target.debug, target.ruleSet, generics=target.generics)
+                                    _ih_rhs_line = ERProofLine(_ih_rhs_str, target.debug, target.ruleSet, generics=target.generics)
+                                    if not _ih_lhs_line.errLog and not _ih_rhs_line.errLog:
+                                        _ih_rule = IH(_ih_lhs_line.exprTree, _ih_rhs_line.exprTree)
+                                        proof.baseCase.ruleSet['apply']['IH'] = _ih_rule
+                                        proof.leapStep.ruleSet['apply']['IH'] = _ih_rule
+                                        # Re-save the repaired proof to cache so future
+                                        # requests don't repeat this recovery.
+                                        save_induction_obj_to_cache(user, proof, proof_id)
+                                        _ih_recovered = True
+                            except InductionProof.DoesNotExist:
+                                pass
+                        if not _ih_recovered:
+                            target.errLog.append("Inductive Hypothesis not available. Please restart the proof.")
+                    else:
+                        # Before trying a proof lookup, check if this name matches a
+                        # UDF stored in the proof's definition list (handles cache-miss
+                        # where the engine was rebuilt without re-hydrating UDFs).
+                        _udf_recovered = False
+                        if proof_id:
+                            try:
+                                _db_proof = InductionProof.objects.get(id=proof_id)
+                                for _d in (_db_proof.definition or []):
+                                    if _d.get('is_generic'):
+                                        continue
+                                    _dlabel = _d.get('label') or _d.get('name') or ''
+                                    _dudf = _dlabel.replace('(', ' ').replace(')', ' ').split()
+                                    if _dudf and _dudf[0] == _lemma_name:
+                                        _dtype = _d.get('type')
+                                        _dbody = _d.get('expression') or _d.get('body')
+                                        if _dtype and _dbody:
+                                            target.addUDF(_dlabel, _dtype, _dbody)
+                                            _udf_recovered = True
+                                        break
+                            except InductionProof.DoesNotExist:
+                                pass
+                        # Also check default UDFs (e.g. reverse, append built-ins)
+                        if not _udf_recovered:
+                            for _d in DEFAULT_UDFS:
+                                _dlabel = _d.get('label') or ''
                                 _dudf = _dlabel.replace('(', ' ').replace(')', ' ').split()
                                 if _dudf and _dudf[0] == _lemma_name:
                                     _dtype = _d.get('type')
@@ -1067,34 +1114,20 @@ def apply_rule(request):
                                         target.addUDF(_dlabel, _dtype, _dbody)
                                         _udf_recovered = True
                                     break
-                        except InductionProof.DoesNotExist:
-                            pass
-                    # Also check default UDFs (e.g. reverse, append built-ins)
-                    if not _udf_recovered:
-                        for _d in DEFAULT_UDFS:
-                            _dlabel = _d.get('label') or ''
-                            _dudf = _dlabel.replace('(', ' ').replace(')', ' ').split()
-                            if _dudf and _dudf[0] == _lemma_name:
-                                _dtype = _d.get('type')
-                                _dbody = _d.get('expression') or _d.get('body')
-                                if _dtype and _dbody:
-                                    target.addUDF(_dlabel, _dtype, _dbody)
-                                    _udf_recovered = True
-                                break
-                    if not _udf_recovered:
-                        _premise, _conclusion, _err = _lookup_lemma(_lemma_name, user)
-                        if _err:
-                            target.errLog.append(_err)
-                        else:
-                            _lemma_rule, _parse_err = build_lemma_rule(
-                                _lemma_name, _premise, _conclusion,
-                                target.ruleSet, target.generics
-                            )
-                            if _parse_err:
-                                target.errLog.append(_parse_err)
+                        if not _udf_recovered:
+                            _premise, _conclusion, _err = _lookup_lemma(_lemma_name, user)
+                            if _err:
+                                target.errLog.append(_err)
                             else:
-                                target.ruleSet['apply'][_lemma_name] = _lemma_rule
-                                _lemma_injected = True
+                                _lemma_rule, _parse_err = build_lemma_rule(
+                                    _lemma_name, _premise, _conclusion,
+                                    target.ruleSet, target.generics
+                                )
+                                if _parse_err:
+                                    target.errLog.append(_parse_err)
+                                else:
+                                    target.ruleSet['apply'][_lemma_name] = _lemma_rule
+                                    _lemma_injected = True
 
         if not target.errLog:
             _apply_line(target, currentRacket, rule, startPosition, substitution)

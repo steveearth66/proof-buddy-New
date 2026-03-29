@@ -161,6 +161,11 @@ const EquationalReasoningNew = () => {
         setErrors(["Name is required"]);
         return;
       }
+      const RESERVED_PROOF_NAMES = new Set(["IH", "length", "append", "reverse"]);
+      if (RESERVED_PROOF_NAMES.has(formValues.proofName.trim())) {
+        setErrors([`'${formValues.proofName.trim()}' is a reserved name and cannot be used as a proof name.`]);
+        return;
+      }
       if (!formValues.lHSGoal.trim() || !formValues.rHSGoal.trim()) {
         setErrors(["Both LHS and RHS goals are required"]);
         return;
