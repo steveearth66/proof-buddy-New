@@ -25,7 +25,10 @@ def extract_free_vars(premise_str: str, ruleSet: dict, generics: dict) -> tuple:
     """
     Parse *premise_str* and return ``(param_names, error_messages)``.
     *param_names* is a sorted list of alphabetic labels that are not already
-    defined in *ruleSet* or *generics*.
+    defined in *ruleSet* (i.e. not built-ins or user-defined functions).
+    Note: generics from the *calling* proof are intentionally NOT excluded —
+    a generic variable name in the caller's context may still be a free
+    parameter of the lemma.
     """
     tree, errs = makeBasicAst(premise_str)
     if errs:
@@ -34,7 +37,7 @@ def extract_free_vars(premise_str: str, ruleSet: dict, generics: dict) -> tuple:
     reserved = set(reservedLabels)
     for cat_dict in ruleSet.values():
         reserved |= set(cat_dict.keys())
-    reserved |= set(generics.keys())
+    # NB: we deliberately do NOT add generics.keys() here
 
     vars_found: set = set()
     _collect_free_vars(tree, reserved, vars_found)
@@ -58,7 +61,8 @@ def build_lemma_rule(label: str, premise_str: str, conclusion_str: str,
     reserved = set(reservedLabels)
     for cat_dict in ruleSet.values():
         reserved |= set(cat_dict.keys())
-    reserved |= set(generics.keys())
+    # NB: we deliberately do NOT add generics.keys() here — a generic in the
+    # calling proof (e.g. 'b') must still count as a free parameter of the lemma.
 
     vars_found: set = set()
     _collect_free_vars(premise_tree, reserved, vars_found)
