@@ -88,8 +88,6 @@ class ProofComponent:
             label = label.split()[0][1:]
         if label in self.ruleSet['apply']:
             del self.ruleSet['apply'][label]
-        else:
-            self.errLog.append(f"Could not find UDF with label '{label}'")
 
     def removeGeneric(self, label: str):
         if label in self.generics:

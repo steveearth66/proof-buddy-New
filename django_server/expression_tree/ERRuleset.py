@@ -1153,4 +1153,6 @@ DEFAULT_RULE_SET: dict[str, dict[str, Rule]] = {
 }
 
 def getDefaultRuleSet():
-    return DEFAULT_RULE_SET.copy()
+    result = DEFAULT_RULE_SET.copy()
+    result['apply'] = dict(DEFAULT_RULE_SET['apply'])
+    return result

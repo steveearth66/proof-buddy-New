@@ -29,10 +29,10 @@ def _fresh():
     p.errLog = []
     return p
 
-# ── 1. defining reverse (calls append) produces no errors ─────────────
+# ── 1. defining rev (calls append) produces no errors ─────────────
 p = _fresh()
-p.addUDF('(reverse L)', 'list>list',
-         '(if (null? L) null (append (reverse (rest L)) (cons (first L) null)))')
+p.addUDF('(rev L)', 'list>list',
+         '(if (null? L) null (append (rev (rest L)) (cons (first L) null)))')
 if p.errLog:
     _fail("define_reverse_no_error", p.errLog)
 else:
@@ -54,23 +54,23 @@ if not line.errLog:
 else:
     _fail("append_accepts_2_args", f"errLog={line.errLog}")
 
-# ── 4. reverse enforces 1-arg check ───────────────────────────────────
+# ── 4. rev enforces 1-arg check ───────────────────────────────────
 p = _fresh()
-p.addUDF('(reverse L)', 'list>list',
-         '(if (null? L) null (append (reverse (rest L)) (cons (first L) null)))')
+p.addUDF('(rev L)', 'list>list',
+         '(if (null? L) null (append (rev (rest L)) (cons (first L) null)))')
 p.errLog = []
-line = ERProofLine('(reverse null null)', ruleDict=p.ruleSet)
-if line.errLog == ['reverse only takes 1 argument, but 2 were provided']:
+line = ERProofLine('(rev null null)', ruleDict=p.ruleSet)
+if line.errLog == ['rev only takes 1 argument, but 2 were provided']:
     _pass("reverse_rejects_2_args")
 else:
     _fail("reverse_rejects_2_args", f"errLog={line.errLog}")
 
-# ── 5. reverse accepts exactly 1 arg ──────────────────────────────────
+# ── 5. rev accepts exactly 1 arg ──────────────────────────────────
 p = _fresh()
-p.addUDF('(reverse L)', 'list>list',
-         '(if (null? L) null (append (reverse (rest L)) (cons (first L) null)))')
+p.addUDF('(rev L)', 'list>list',
+         '(if (null? L) null (append (rev (rest L)) (cons (first L) null)))')
 p.errLog = []
-line = ERProofLine('(reverse null)', ruleDict=p.ruleSet)
+line = ERProofLine('(rev null)', ruleDict=p.ruleSet)
 if not line.errLog:
     _pass("reverse_accepts_1_arg")
 else:
@@ -93,8 +93,8 @@ proof = TwoSidedProof()
 proof.addUDF('(append L M)', '(LIST, LIST)>LIST',
              '(if (null? L) M (cons (first L) (append (rest L) M)))')
 proof.errLog = []
-proof.addUDF('(reverse L)', 'list>list',
-             '(if (null? L) null (append (reverse (rest L)) (cons (first L) null)))')
+proof.addUDF('(rev L)', 'list>list',
+             '(if (null? L) null (append (rev (rest L)) (cons (first L) null)))')
 if proof.errLog:
     _fail("reverse_with_append_as_default_udf", proof.errLog)
 else:
@@ -105,8 +105,8 @@ else:
 # loses its UDFs. reverse calling an unknown 'append' must not raise a
 # spurious arg-count error — the engine should accept it without numArgs info.
 p = ERProof()
-p.addUDF('(reverse L)', 'list>list',
-         '(if (null? L) null (append (reverse (rest L)) (cons (first L) null)))')
+p.addUDF('(rev L)', 'list>list',
+         '(if (null? L) null (append (rev (rest L)) (cons (first L) null)))')
 if p.errLog:
     _fail("reverse_without_append_predefined", p.errLog)
 else:

@@ -600,8 +600,24 @@ const InductionRacket = () => {
     }));
   };
 
+  const handleNewProof = async () => {
+    if (!window.confirm('Start a new proof? Your current proof will remain saved in "All Proofs".')) {
+      return;
+    }
+    try {
+      await inductionService.newProof();
+      sessionStorage.removeItem('inductionProofActive');
+      sessionStorage.removeItem('induction_current_proof_id');
+      toast.success('Ready to start a new proof!');
+      window.location.reload();
+    } catch (error) {
+      console.error('Error clearing session:', error);
+      toast.error('Failed to clear session');
+    }
+  };
+
   const handleClearProof = async () => {
-    if (!window.confirm('Are you sure you want to clear this proof? This will archive it and start a new proof.')) {
+    if (!window.confirm('Are you sure you want to discard this proof? It will be archived and hidden from your proofs.')) {
       return;
     }
 
@@ -1968,6 +1984,14 @@ const InductionRacket = () => {
                                   </Dropdown.Item>
                                   <Dropdown.Divider />
                                   <Dropdown.Item 
+                                    onClick={handleNewProof} 
+                                    href="#" 
+                                    disabled={!proofStarted}
+                                    style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}
+                                  >
+                                    New Proof
+                                  </Dropdown.Item>
+                                  <Dropdown.Item 
                                     onClick={handleClearProof} 
                                     href="#" 
                                     disabled={!proofStarted}
@@ -1977,7 +2001,7 @@ const InductionRacket = () => {
                                       cursor: proofStarted ? 'pointer' : 'not-allowed'
                                     }}
                                   >
-                                    Clear Proof
+                                    Discard Proof
                                   </Dropdown.Item>
                                 </Dropdown.Menu>
                             </Dropdown>
@@ -2306,8 +2330,11 @@ const InductionRacket = () => {
                           Check Current Proof
                         </Dropdown.Item>
                         <Dropdown.Divider />
-                        <Dropdown.Item onClick={handleClearProof} disabled={!proofStarted} style={{ color: 'red' }}>
-                          Clear Proof
+                        <Dropdown.Item onClick={handleNewProof} disabled={!proofStarted} style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}>
+                          New Proof
+                        </Dropdown.Item>
+                        <Dropdown.Item onClick={handleClearProof} disabled={!proofStarted} style={{ color: proofStarted ? 'red' : '#999', opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}>
+                          Discard Proof
                         </Dropdown.Item>
                       </Dropdown.Menu>
                     </Dropdown>

@@ -77,6 +77,16 @@ const clearInduction = async () => {
   }
 };
 
+const newProof = async () => {
+  try {
+    const response = await axiosInstance.post(`${API_GATEWAY}/new-proof`);
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error clearing session for new proof:");
+    throw error;
+  }
+};
+
 const checkInduction = async (data) => {
   try {
     const response = await axiosInstance.post(
@@ -209,6 +219,7 @@ const deleteInductionProof = async (proof_id) => {
 const inductionService = {
   startInductionProof,
   clearInduction,
+  newProof,
   checkInduction,
   substitution,
   checkGoal,

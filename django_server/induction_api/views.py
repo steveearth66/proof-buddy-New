@@ -174,6 +174,19 @@ def clear_induction(request):
             "error": str(e)
         }, status=status.HTTP_400_BAD_REQUEST)
 
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def new_proof(request):
+    """Clear the session cache without archiving the proof, so the user can start a new proof
+    while the current one remains visible in All Proofs."""
+    user = request.user
+    try:
+        cache.delete(f"induction_obj_{user.username}")
+        cache.delete(f"induction_proof_{user.username}")
+        return Response({"message": "Session cleared successfully"}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 @api_view(["GET"])
 def get_induction_proofs(request):
     user = request.user

@@ -70,7 +70,7 @@ if currExpStr != extract_value(lines[currLineNum]):
     print(f"ERROR: expected first line of base case to be {currExpStr} but got {extract_value(lines[currLineNum])}", always=True)
 else:
     print(f"PASS: first line of base case is {currExpStr}")
-pl = ERProofLine(currExpStr)
+pl = ERProofLine(currExpStr, ruleDict=indProof.baseCase.ruleSet)
 while currLineNum + 1 < len(lines):
     currLineNum += 1
     targetID = extract_value(lines[currLineNum])
@@ -295,7 +295,10 @@ if indproof2.indHypLHS is not None and indproof2.indHypRHS is not None:
 
 print(f"\nCreating generics for leap step: {lvar} of type {struct}\n")
 leapstep = indproof2.leapStep
-# Don't re-add UDF to leap step; IH rule already has the hypothesis encoded
+leapstep.addUDF(fname, ftype, fdef)
+if leapstep.errLog:
+    print(f"Error adding UDF to leap step: {leapstep.errLog}", always=True)
+    leapstep.errLog.clear()
 leapstep.addGeneric(lvar, struct)
 
 # Build the leap step premises by replacing ivar with (+ lvar 1)
