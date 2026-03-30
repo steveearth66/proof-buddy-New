@@ -16,6 +16,17 @@
     button: {
         width: 100%;
     }
+    .proof-goal {
+        font-size: 0.9rem;
+        word-break: break-word;
+        margin-bottom: 0.25rem;
+        &--complete {
+            color: #198754;
+        }
+        &--incomplete {
+            color: #dc3545;
+        }
+    }
 }
 
 .proof-layout {

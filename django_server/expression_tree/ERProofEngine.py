@@ -9,7 +9,8 @@ import copy
 
 reservedLabels = ["cons", "if", "first", "rest", "null?", "cons?", "zero?", "integer?", "list?", "consList", "expt", 
                   "quotient", "remainder", "and", "or", "not", "implies", "nand", "iff", "nor", "xor", ">", "<", "+", 
-                  "-", "*", "null", "=", "-+", "math", "cons-first-rest", "first-cons", "rest-cons", "null?-cons"]
+                  "-", "*", "null", "=", "-+", "math", "cons-first-rest", "first-cons", "rest-cons", "null?-cons",
+                  "IH"]
 
 class ProofComponent:
     '''Defines shared functionality between classes in ERProofEngine, namely concerning ruleSet, generics, and errLog'''
@@ -64,7 +65,8 @@ class ProofComponent:
             ruleDict=self.ruleSet,
             udfType=racTypeObj,
             isUdf=True,
-            generics=self.generics
+            generics=self.generics,
+            udfLabel=udfLabel
         )
         if bodyNode.errLog != []:
             self.errLog.extend(bodyNode.errLog)
@@ -87,8 +89,6 @@ class ProofComponent:
             label = label.split()[0][1:]
         if label in self.ruleSet['apply']:
             del self.ruleSet['apply'][label]
-        else:
-            self.errLog.append(f"Could not find UDF with label '{label}'")
 
     def removeGeneric(self, label: str):
         if label in self.generics:
@@ -299,7 +299,7 @@ class ERProof(ProofComponent):
         return "\n".join(lines)
 
 class ERProofLine(ProofComponent):
-    def __init__(self, goal, debug=False, ruleDict=None, udfType=None, isUdf=False, generics=None): #added optional pointer to parent proof's ruleset
+    def __init__(self, goal, debug=False, ruleDict=None, udfType=None, isUdf=False, generics=None, udfLabel=None): #added optional pointer to parent proof's ruleset
         super().__init__(ruleSet=ruleDict, generics=generics, debug=debug)
         self.exprTree = None
         self.positions = dict() # a dict of 4-tuples of the next pos when hitting up,down,left,right. keyd by startpos
@@ -333,7 +333,7 @@ class ERProofLine(ProofComponent):
         if self.errLog == []:
             self.errLog = Decorator.remTemps(decTree, self.errLog, racketLabels=self.racketLabels)
         if self.errLog == []: #added userType in case of UDF
-            decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog, userType=udfType)
+            decTree, self.errLog = Decorator.checkFunctions(decTree, self.errLog, userType=udfType, udfLabel=udfLabel)
         if self.errLog == []:
             self.exprTree = decTree
         if self.errLog == []: #makes the positions dict for arrow key navigation
@@ -489,6 +489,10 @@ class ERProofLine(ProofComponent):
             mismatch_errors = []
             for i, (param, value) in enumerate(zip(ruleParams, values)):
                 name, _ = param.split('=', 1)
+                if i + 1 >= len(targetNode.children):
+                    # Wrong target node selected (e.g. applying 'append' on 'reverse' node);
+                    # isApplicable below will produce the proper error message.
+                    break
                 expected_node = targetNode.children[i + 1]
                 if str(value) != str(expected_node):
                     mismatch_errors.append(

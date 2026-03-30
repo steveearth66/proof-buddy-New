@@ -13,7 +13,7 @@ class InductionProofSerializer(serializers.ModelSerializer):
             'lhs_anchor_goal', 'rhs_anchor_goal',
             'inductive_hypothesis_lhs', 'inductive_hypothesis_rhs',
             'induction_type', 'current_side', 'is_anchor_case',
-            'current_goal', 'is_valid', 'definition', 'created_at', 'updated_at'
+            'current_goal', 'is_valid', 'is_complete', 'definition', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'user', 'created_at', 'updated_at']
     

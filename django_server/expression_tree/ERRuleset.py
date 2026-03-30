@@ -534,6 +534,75 @@ class IH(Rule):
         elif nodeStr == rhsStr:
             return self.indHypLHS.clone()
 
+class LemmaRule(Rule):
+    """
+    Represents a user-proved lemma cited as a rewrite rule.
+    premise_tree    – the LHS of the proved equality (may contain free-variable params)
+    conclusion_tree – the RHS of the proved equality
+    param_names     – ordered list of free-variable names in premise/conclusion
+    """
+    def __init__(self, label: str, premise_tree: Node, conclusion_tree: Node, param_names: list):
+        super().__init__(label, RuleType.LEMMA)
+        self.premise_tree = premise_tree
+        self.conclusion_tree = conclusion_tree
+        self.param_names = param_names
+        self._param_values: dict = {}   # filled by isApplicable
+
+    def isApplicable(self, targetNode: Node, rawParams: list = None) -> tuple:
+        rawParams = rawParams or []
+
+        # iii. param count
+        if len(rawParams) != len(self.param_names):
+            needed = len(self.param_names)
+            return False, (
+                f"Lemma '{self.label}' requires {needed} "
+                f"parameter{'s' if needed != 1 else ''} "
+                f"({', '.join(self.param_names)}), "
+                f"but {len(rawParams)} {'were' if len(rawParams) != 1 else 'was'} given"
+            )
+
+        # iv. param names match (and collect parsed values)
+        self._param_values = {}
+        for raw in rawParams:
+            if '=' not in raw:
+                return False, f"Parameter assignment '{raw}' is missing '='"
+            name, value_str = raw.split('=', 1)
+            name = name.strip()
+            value_str = value_str.strip()
+            if name not in self.param_names:
+                return False, (
+                    f"Unknown parameter '{name}' for lemma '{self.label}' "
+                    f"(expected: {', '.join(self.param_names)})"
+                )
+            value_node, errs = makeBasicAst(value_str)
+            if errs:
+                return False, f"Could not parse value '{value_str}' for parameter '{name}': {errs}"
+            self._param_values[name] = value_node
+
+        for name in self.param_names:
+            if name not in self._param_values:
+                return False, f"Missing parameter '{name}' for lemma '{self.label}'"
+
+        # vi. structural LHS match: substitute params into premise copy and compare to targetNode
+        premise_copy = copy.deepcopy(self.premise_tree)
+        param_list = self.param_names
+        value_list = [self._param_values[n] for n in param_list]
+        recursiveReplaceNodes(premise_copy, param_list, value_list)
+        if not isMatch(premise_copy, targetNode):
+            return False, (
+                f"Lemma '{self.label}' LHS after substitution is '{str(premise_copy)}', "
+                f"which does not match highlighted expression '{str(targetNode)}'"
+            )
+
+        return True, f"LemmaRule.isApplicable() PASS"
+
+    def insertSubstitution(self, targetNode: Node) -> Node:
+        conclusion_copy = copy.deepcopy(self.conclusion_tree)
+        param_list = self.param_names
+        value_list = [self._param_values[n] for n in param_list]
+        recursiveReplaceNodes(conclusion_copy, param_list, value_list)
+        return conclusion_copy
+
 class Axiom(Rule, ABC):
     ParamFinder = Callable[[Node], tuple[Node | tuple[Node, ...], ...]] 
     # ParamFinder is a custom type representing a function that takes a node and returns a tuple
@@ -1084,4 +1153,6 @@ DEFAULT_RULE_SET: dict[str, dict[str, Rule]] = {
 }
 
 def getDefaultRuleSet():
-    return DEFAULT_RULE_SET.copy()
+    result = DEFAULT_RULE_SET.copy()
+    result['apply'] = dict(DEFAULT_RULE_SET['apply'])
+    return result

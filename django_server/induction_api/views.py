@@ -14,10 +14,49 @@ from expression_tree.IndProofs import IndProof
 from expression_tree.ERProofEngine import TwoSidedProof, ERProof, ERProofLine
 from expression_tree.ERCommon import makeJson
 from expression_tree.ERRuleset import recursiveReplaceNodes, IH
+from expression_tree.LemmaApplicator import build_lemma_rule
+from expression_tree.default_udfs import DEFAULT_UDFS
 from proofs.views import use_uploaded_generic
 
 
 User = get_user_model()
+
+
+# ========================
+# Lemma Lookup Helper
+# ========================
+
+def _lookup_lemma(name: str, user):
+    """
+    Look up a completed proof by *name* for *user*.
+    Returns ``(premise_str, conclusion_str, error_msg)``.
+    Checks EquationalProof first; falls back to InductionProof.
+    *error_msg* is ``None`` on success.
+    """
+    from equational_reasoning_api.models import EquationalProof as _EqProof
+    from .models import InductionProof as _IndProof
+
+    # Check i: does an equational proof with this name exist?
+    eq = _EqProof.objects.filter(name=name, user=user, is_active=True).order_by('-created_at').first()
+    if eq is not None:
+        # Check ii: is it complete?
+        if not eq.is_complete:
+            return None, None, f"Proof '{name}' has not been completed yet"
+        return eq.lhs_goal, eq.rhs_goal, None
+
+    # Check i: does an induction proof with this name exist?
+    ind = _IndProof.objects.filter(name=name, user=user, is_active=True).order_by('-created_at').first()
+    if ind is not None:
+        # Check ii: is it complete?
+        if not ind.is_complete:
+            return None, None, f"Proof '{name}' has not been completed yet"
+        # Reconstruct original goal by substituting leap_variable → induction_variable
+        k, n = ind.leap_variable, ind.induction_variable
+        premise_str = re.sub(r'\b' + re.escape(k) + r'\b', n, ind.inductive_hypothesis_lhs)
+        conclusion_str = re.sub(r'\b' + re.escape(k) + r'\b', n, ind.inductive_hypothesis_rhs)
+        return premise_str, conclusion_str, None
+
+    return None, None, f"No completed proof named '{name}' found"
 
 
 @api_view(["POST"])
@@ -136,6 +175,19 @@ def clear_induction(request):
             "error": str(e)
         }, status=status.HTTP_400_BAD_REQUEST)
 
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def new_proof(request):
+    """Clear the session cache without archiving the proof, so the user can start a new proof
+    while the current one remains visible in All Proofs."""
+    user = request.user
+    try:
+        cache.delete(f"induction_obj_{user.username}")
+        cache.delete(f"induction_proof_{user.username}")
+        return Response({"message": "Session cleared successfully"}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 @api_view(["GET"])
 def get_induction_proofs(request):
     user = request.user
@@ -186,6 +238,13 @@ def start_induction_proof(request):
         if not all([proof_name, induction_variable, anchor_value is not None, leap_variable]):
             return Response(
                 {"error": "Missing required fields: proof_name, induction_variable, anchor_value, and leap_variable are required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        # Reserved proof names cannot be used
+        RESERVED_PROOF_NAMES = {"IH", "length", "append", "reverse"}
+        if proof_name.strip() in RESERVED_PROOF_NAMES:
+            return Response(
+                {"error": f"'{proof_name.strip()}' is a reserved name and cannot be used as a proof name."},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -524,6 +583,39 @@ def get_or_set_induction_obj(user):
     return loads(cached['ind_proof']), proof_id
 
 
+def _ensure_udfs_hydrated(proof, proof_id):
+    """Re-register any UDFs that are missing from the proof engine ruleSet.
+    This is a safety net for cache-miss scenarios (server restart, cache expiry)
+    where the IndProof is rebuilt fresh and UDFs are lost. Called before every
+    rule application so that eval-* and other non-apply rules can also find UDFs."""
+    # baseCase and leapStep each have their own shared ruleSet (LHS+RHS share it)
+    two_sided = [proof.baseCase, proof.leapStep]
+    # Build the full list: DEFAULT_UDFS first, then any user defs stored in DB
+    all_defs = list(DEFAULT_UDFS)
+    if proof_id:
+        try:
+            _db_proof = InductionProof.objects.get(id=proof_id)
+            all_defs = all_defs + list(_db_proof.definition or [])
+        except InductionProof.DoesNotExist:
+            pass
+    for _d in all_defs:
+        if _d.get('is_generic'):
+            continue
+        _dlabel = _d.get('label') or _d.get('name') or ''
+        _dudf = _dlabel.replace('(', ' ').replace(')', ' ').split()
+        if not _dudf:
+            continue
+        _udf_name = _dudf[0]
+        _dtype = _d.get('type')
+        _dbody = _d.get('expression') or _d.get('body')
+        if not _dtype or not _dbody:
+            continue
+        for ts in two_sided:
+            if _udf_name not in ts.ruleSet.get('apply', {}):
+                ts.addUDF(_dlabel, _dtype, _dbody)
+                ts.errLog = []  # discard hydration noise; apply_rule clears per-target errLog
+
+
 def reload_proof_lines_from_db(proof, proof_id):
     """Reload all proof lines from database into the IndProof object"""
     from .models import InductionProofLine
@@ -788,7 +880,30 @@ def set_current_proof(request):
 
         # Save engine to cache, preserving proof_id that was set by start_induction_proof
         save_induction_obj_to_cache(user, ind, existing_proof_id)
-        
+
+        # Persist user-supplied generics to proof.definition so session restore finds them
+        if existing_proof_id and generics:
+            try:
+                db_proof = InductionProof.objects.get(id=existing_proof_id)
+                existing_defs = list(db_proof.definition or [])
+                existing_labels = {d.get('label') or d.get('name') for d in existing_defs}
+                for g in generics:
+                    glabel = g.get('label') or g.get('name')
+                    if glabel and glabel not in existing_labels:
+                        existing_defs.append({
+                            'name': glabel,
+                            'label': glabel,
+                            'type': g.get('type', 'Any'),
+                            'body': '<generic>',
+                            'is_generic': True,
+                            'description': f'User generic {glabel}',
+                            'restrictions': g.get('restrictions') or {}
+                        })
+                db_proof.definition = existing_defs
+                db_proof.save()
+            except InductionProof.DoesNotExist:
+                pass
+
         # Now save the properly initialized premises to database
         if existing_proof_id:
             # Save base case premises (these have ivar substituted with aval)
@@ -920,6 +1035,7 @@ def apply_rule(request):
 
     try:
         reload_proof_lines_from_db(proof, proof_id)
+        _ensure_udfs_hydrated(proof, proof_id)
         side = data.get("side", "LHS")
         case = data.get("case", "base")
         currentRacket = data.get("currentRacket", "")
@@ -962,7 +1078,97 @@ def apply_rule(request):
             proof.baseCase.markIncomplete()
         else:
             proof.leapStep.markIncomplete()
-        _apply_line(target, currentRacket, rule, startPosition, substitution)
+
+        # ── Lemma injection (checks i & ii at view layer) ──────────────────
+        # If the rule is "apply <name> ..." and <name> is not already in the
+        # ruleset, look it up as a completed proof and inject it temporarily.
+        _lemma_injected = False
+        _lemma_name = None
+        if rule:
+            _parts = rule.split()
+            if len(_parts) >= 2 and _parts[0] == "apply":
+                _lemma_name = _parts[1]
+                if _lemma_name not in target.ruleSet.get('apply', {}):
+                    if _lemma_name == "IH":
+                        # "IH" is the built-in Inductive Hypothesis rule, not a user proof.
+                        # When the cache misses (server restart, cache clear) the IH rule is
+                        # lost from the ruleSet. Re-register it from the stored DB strings.
+                        _ih_recovered = False
+                        if proof_id:
+                            try:
+                                _db_proof = InductionProof.objects.get(id=proof_id)
+                                _ih_lhs_str = _db_proof.inductive_hypothesis_lhs
+                                _ih_rhs_str = _db_proof.inductive_hypothesis_rhs
+                                if _ih_lhs_str and _ih_rhs_str:
+                                    _ih_lhs_line = ERProofLine(_ih_lhs_str, target.debug, target.ruleSet, generics=target.generics)
+                                    _ih_rhs_line = ERProofLine(_ih_rhs_str, target.debug, target.ruleSet, generics=target.generics)
+                                    if not _ih_lhs_line.errLog and not _ih_rhs_line.errLog:
+                                        _ih_rule = IH(_ih_lhs_line.exprTree, _ih_rhs_line.exprTree)
+                                        proof.baseCase.ruleSet['apply']['IH'] = _ih_rule
+                                        proof.leapStep.ruleSet['apply']['IH'] = _ih_rule
+                                        # Re-save the repaired proof to cache so future
+                                        # requests don't repeat this recovery.
+                                        save_induction_obj_to_cache(user, proof, proof_id)
+                                        _ih_recovered = True
+                            except InductionProof.DoesNotExist:
+                                pass
+                        if not _ih_recovered:
+                            target.errLog.append("Inductive Hypothesis not available. Please restart the proof.")
+                    else:
+                        # Before trying a proof lookup, check if this name matches a
+                        # UDF stored in the proof's definition list (handles cache-miss
+                        # where the engine was rebuilt without re-hydrating UDFs).
+                        _udf_recovered = False
+                        if proof_id:
+                            try:
+                                _db_proof = InductionProof.objects.get(id=proof_id)
+                                for _d in (_db_proof.definition or []):
+                                    if _d.get('is_generic'):
+                                        continue
+                                    _dlabel = _d.get('label') or _d.get('name') or ''
+                                    _dudf = _dlabel.replace('(', ' ').replace(')', ' ').split()
+                                    if _dudf and _dudf[0] == _lemma_name:
+                                        _dtype = _d.get('type')
+                                        _dbody = _d.get('expression') or _d.get('body')
+                                        if _dtype and _dbody:
+                                            target.addUDF(_dlabel, _dtype, _dbody)
+                                            _udf_recovered = True
+                                        break
+                            except InductionProof.DoesNotExist:
+                                pass
+                        # Also check default UDFs (e.g. reverse, append built-ins)
+                        if not _udf_recovered:
+                            for _d in DEFAULT_UDFS:
+                                _dlabel = _d.get('label') or ''
+                                _dudf = _dlabel.replace('(', ' ').replace(')', ' ').split()
+                                if _dudf and _dudf[0] == _lemma_name:
+                                    _dtype = _d.get('type')
+                                    _dbody = _d.get('expression') or _d.get('body')
+                                    if _dtype and _dbody:
+                                        target.addUDF(_dlabel, _dtype, _dbody)
+                                        _udf_recovered = True
+                                    break
+                        if not _udf_recovered:
+                            _premise, _conclusion, _err = _lookup_lemma(_lemma_name, user)
+                            if _err:
+                                target.errLog.append(_err)
+                            else:
+                                _lemma_rule, _parse_err = build_lemma_rule(
+                                    _lemma_name, _premise, _conclusion,
+                                    target.ruleSet, target.generics
+                                )
+                                if _parse_err:
+                                    target.errLog.append(_parse_err)
+                                else:
+                                    target.ruleSet['apply'][_lemma_name] = _lemma_rule
+                                    _lemma_injected = True
+
+        if not target.errLog:
+            _apply_line(target, currentRacket, rule, startPosition, substitution)
+
+        # Remove temporarily injected lemma rule
+        if _lemma_injected and _lemma_name and _lemma_name in target.ruleSet.get('apply', {}):
+            del target.ruleSet['apply'][_lemma_name]
 
         is_valid = len(target.errLog) == 0
         racket_str = target.getPrevRacket() if is_valid else "Error generating racket"
@@ -1228,6 +1434,7 @@ def substitution(request):
     proof, proof_id = get_or_set_induction_obj(user)
     try:
         reload_proof_lines_from_db(proof, proof_id)
+        _ensure_udfs_hydrated(proof, proof_id)
 
         case = data.get("case", "base")
         side = data.get("side", "LHS")
@@ -1371,7 +1578,11 @@ def check_completion(request):
         
         # Check overall completion and update indProof.isComplete
         overall_complete = proof.checkComplete()
-        
+
+        # Persist overall completion status to database
+        if proof_id:
+            InductionProof.objects.filter(id=proof_id).update(is_complete=overall_complete)
+
         # Save updated completion status to cache
         save_induction_obj_to_cache(user, proof, proof_id)
         
@@ -1572,6 +1783,15 @@ def set_induction_session_by_id(request):
         ind_proof.rhsPremise = proof.rhs_leap_goal 
         
         # 3. Load Definitions & Generics
+        # First, always load all default UDFs into the engine
+        for d in DEFAULT_UDFS:
+            label = d.get('label')
+            type_str = d.get('type')
+            body = d.get('expression')
+            if label and type_str and body:
+                ind_proof.baseCase.addUDF(label, type_str, body)
+                ind_proof.leapStep.addUDF(label, type_str, body)
+
         db_defs = proof.definition or []
         for d in db_defs:
             if d.get('is_generic'):

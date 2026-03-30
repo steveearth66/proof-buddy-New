@@ -8,8 +8,17 @@ Runs all test modules in sequence:
 - test_axioms_and_udfs: Axiom tests and user-defined function tests
 - test_integration: Node methods, JSON, rewrite demonstrations, proof building
 - test_induction: Full induction proof tests
-- induction_api persistence database tests
-- induction_api cross-mode name conflict tests
+- induction_api.tests: Induction proof view and engine endpoint tests
+- induction_api.test_database_persistence: DB persistence
+- induction_api.test_proof_line_persistence: Proof line persistence
+- induction_api.test_proof_management: Clear/new proof management
+- induction_api.tests_name_conflict: Cross-mode name conflict
+- induction_api.test_error_persistence: Error persistence case isolation
+- induction_api.tests_is_complete_persistence: is_complete persistence
+- induction_api.test_wrong_highlight: Wrong-highlight IndexError regression
+- induction_api.test_lemma_param_generics: Lemma param generics exclusion regression
+- equational_reasoning_api.tests: EquationalProof model and serializer tests
+- equational_reasoning_api.test_integration: Equational reasoning API integration
 
 Run with: python manage.py test proofs
 """
@@ -17,6 +26,7 @@ Run with: python manage.py test proofs
 from pathlib import Path
 import subprocess
 import sys
+import os
 
 print("=" * 40)
 print("PROOF BUDDY TEST SUITE")
@@ -45,7 +55,8 @@ def run_command(name: str, cmd: list[str], cwd: Path) -> int:
     """Run an external command; return 0 on success, else exit code."""
     try:
         print(f"\n[Summary] {name}")
-        result = subprocess.run(cmd, cwd=cwd, text=True)
+        env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+        result = subprocess.run(cmd, cwd=cwd, text=True, env=env)
         if result.returncode == 0:
             print(f"PASS: {name}")
         else:
@@ -58,6 +69,16 @@ def run_command(name: str, cmd: list[str], cwd: Path) -> int:
 
 root_dir = Path(__file__).resolve().parents[1]  # django_server
 project_root = root_dir.parent  # repository root
+
+persistence_cmd = [
+    sys.executable,
+    "manage.py",
+    "test",
+    "induction_api.tests",
+]
+induction_api_tests_failures = run_command("Induction API view and engine endpoint tests", persistence_cmd, cwd=root_dir)
+
+totalFails += (1 if induction_api_tests_failures else 0)
 
 persistence_cmd = [
     sys.executable,
@@ -88,6 +109,130 @@ error_persistence_cmd = [
 error_persistence_failures = run_command("Induction error persistence case isolation", error_persistence_cmd, cwd=root_dir)
 
 totalFails += (1 if error_persistence_failures else 0)
+
+is_complete_cmd = [
+    sys.executable,
+    "manage.py",
+    "test",
+    "induction_api.tests_is_complete_persistence",
+]
+is_complete_failures = run_command("InductionProof is_complete persistence", is_complete_cmd, cwd=root_dir)
+
+totalFails += (1 if is_complete_failures else 0)
+
+proof_line_persistence_cmd = [
+    sys.executable,
+    "manage.py",
+    "test",
+    "induction_api.test_proof_line_persistence",
+]
+proof_line_persistence_failures = run_command("Proof line persistence", proof_line_persistence_cmd, cwd=root_dir)
+
+totalFails += (1 if proof_line_persistence_failures else 0)
+
+proof_management_cmd = [
+    sys.executable,
+    "manage.py",
+    "test",
+    "induction_api.test_proof_management",
+]
+proof_management_failures = run_command("Proof management (clear/new)", proof_management_cmd, cwd=root_dir)
+
+totalFails += (1 if proof_management_failures else 0)
+
+eq_model_cmd = [
+    sys.executable,
+    "manage.py",
+    "test",
+    "equational_reasoning_api.tests",
+]
+eq_model_failures = run_command("Equational reasoning model and serializer tests", eq_model_cmd, cwd=root_dir)
+
+totalFails += (1 if eq_model_failures else 0)
+
+eq_integration_cmd = [
+    sys.executable,
+    "manage.py",
+    "test",
+    "equational_reasoning_api.test_integration",
+]
+eq_integration_failures = run_command("Equational reasoning API integration", eq_integration_cmd, cwd=root_dir)
+
+totalFails += (1 if eq_integration_failures else 0)
+
+udf_in_udf_cmd = [
+    sys.executable,
+    "-c",
+    (
+        "import django, os; "
+        "os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'django_server.settings'); "
+        "django.setup(); "
+        "exec(open('proofs/test_udf_in_udf.py').read())"
+    ),
+]
+udf_in_udf_failures = run_command(
+    "UDF-calls-UDF arg-count tests",
+    udf_in_udf_cmd,
+    cwd=root_dir,
+)
+totalFails += (1 if udf_in_udf_failures else 0)
+
+lemma_app_cmd = [
+    sys.executable,
+    "-c",
+    (
+        "import django, os; "
+        "os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'django_server.settings'); "
+        "django.setup(); "
+        "exec(open('proofs/test_lemma_application.py').read())"
+    ),
+]
+# Run from the django_server directory so the relative open() path works
+lemma_app_failures = run_command(
+    "LemmaRule / LemmaApplicator engine tests",
+    lemma_app_cmd,
+    cwd=root_dir,
+)
+totalFails += (1 if lemma_app_failures else 0)
+
+wrong_highlight_cmd = [
+    sys.executable,
+    "manage.py",
+    "test",
+    "induction_api.test_wrong_highlight",
+]
+wrong_highlight_failures = run_command(
+    "Wrong-highlight IndexError regression",
+    wrong_highlight_cmd,
+    cwd=root_dir,
+)
+totalFails += (1 if wrong_highlight_failures else 0)
+
+lemma_param_generics_cmd = [
+    sys.executable,
+    "manage.py",
+    "test",
+    "induction_api.test_lemma_param_generics",
+]
+lemma_param_generics_failures = run_command(
+    "Lemma param generics exclusion regression",
+    lemma_param_generics_cmd,
+    cwd=root_dir,
+)
+totalFails += (1 if lemma_param_generics_failures else 0)
+
+proof_card_fields_cmd = [
+    sys.executable,
+    "manage.py",
+    "test",
+    "induction_api.tests_proof_card_fields",
+]
+proof_card_fields_failures = run_command(
+    "Proof card goal fields (list endpoint)",
+    proof_card_fields_cmd,
+    cwd=root_dir,
+)
+totalFails += (1 if proof_card_fields_failures else 0)
 
 print()
 print("=" * 40)
