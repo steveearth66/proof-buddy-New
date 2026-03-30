@@ -165,6 +165,9 @@ export default function Proofs() {
 }
 
 function ProofCard({ proof, onDelete, config }) {
+  const lhs = proof.lhs || proof.lhs_leap_goal || '';
+  const rhs = proof.rhs || proof.rhs_leap_goal || '';
+  const complete = proof.isComplete || proof.is_complete;
   return (
     <div className="proof-card">
       <Button
@@ -183,13 +186,18 @@ function ProofCard({ proof, onDelete, config }) {
       <p style={{ marginRight: "1.5em" }}>
         <b>Proof:</b> {proof.name} - {proof.tag}
       </p>
+      {(lhs || rhs) && (
+        <p className={`proof-goal proof-goal--${complete ? 'complete' : 'incomplete'}`}>
+          <b>Goal:</b> {lhs} = {rhs}
+        </p>
+      )}
       <p>
-        <b>Completed:</b> {(proof.isComplete || proof.is_complete) ? 'True' : 'False'}
+        <b>Completed:</b> {complete ? 'True' : 'False'}
       </p>
       {/* Route is now dynamic based on config */}
       <Link to={config.viewRoute} state={{ id: proof.id }}>
         <Button variant="outline-secondary" style={{ width: '100%' }}>
-          View Proof
+          Open Proof
         </Button>
       </Link>
     </div>

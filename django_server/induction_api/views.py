@@ -583,6 +583,39 @@ def get_or_set_induction_obj(user):
     return loads(cached['ind_proof']), proof_id
 
 
+def _ensure_udfs_hydrated(proof, proof_id):
+    """Re-register any UDFs that are missing from the proof engine ruleSet.
+    This is a safety net for cache-miss scenarios (server restart, cache expiry)
+    where the IndProof is rebuilt fresh and UDFs are lost. Called before every
+    rule application so that eval-* and other non-apply rules can also find UDFs."""
+    # baseCase and leapStep each have their own shared ruleSet (LHS+RHS share it)
+    two_sided = [proof.baseCase, proof.leapStep]
+    # Build the full list: DEFAULT_UDFS first, then any user defs stored in DB
+    all_defs = list(DEFAULT_UDFS)
+    if proof_id:
+        try:
+            _db_proof = InductionProof.objects.get(id=proof_id)
+            all_defs = all_defs + list(_db_proof.definition or [])
+        except InductionProof.DoesNotExist:
+            pass
+    for _d in all_defs:
+        if _d.get('is_generic'):
+            continue
+        _dlabel = _d.get('label') or _d.get('name') or ''
+        _dudf = _dlabel.replace('(', ' ').replace(')', ' ').split()
+        if not _dudf:
+            continue
+        _udf_name = _dudf[0]
+        _dtype = _d.get('type')
+        _dbody = _d.get('expression') or _d.get('body')
+        if not _dtype or not _dbody:
+            continue
+        for ts in two_sided:
+            if _udf_name not in ts.ruleSet.get('apply', {}):
+                ts.addUDF(_dlabel, _dtype, _dbody)
+                ts.errLog = []  # discard hydration noise; apply_rule clears per-target errLog
+
+
 def reload_proof_lines_from_db(proof, proof_id):
     """Reload all proof lines from database into the IndProof object"""
     from .models import InductionProofLine
@@ -1002,6 +1035,7 @@ def apply_rule(request):
 
     try:
         reload_proof_lines_from_db(proof, proof_id)
+        _ensure_udfs_hydrated(proof, proof_id)
         side = data.get("side", "LHS")
         case = data.get("case", "base")
         currentRacket = data.get("currentRacket", "")
@@ -1400,6 +1434,7 @@ def substitution(request):
     proof, proof_id = get_or_set_induction_obj(user)
     try:
         reload_proof_lines_from_db(proof, proof_id)
+        _ensure_udfs_hydrated(proof, proof_id)
 
         case = data.get("case", "base")
         side = data.get("side", "LHS")

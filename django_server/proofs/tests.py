@@ -221,6 +221,19 @@ lemma_param_generics_failures = run_command(
 )
 totalFails += (1 if lemma_param_generics_failures else 0)
 
+proof_card_fields_cmd = [
+    sys.executable,
+    "manage.py",
+    "test",
+    "induction_api.tests_proof_card_fields",
+]
+proof_card_fields_failures = run_command(
+    "Proof card goal fields (list endpoint)",
+    proof_card_fields_cmd,
+    cwd=root_dir,
+)
+totalFails += (1 if proof_card_fields_failures else 0)
+
 print()
 print("=" * 40)
 print("TEST SUITE SUMMARY")
