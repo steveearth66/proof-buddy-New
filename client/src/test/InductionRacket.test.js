@@ -15,6 +15,11 @@ jest.mock("../services/inductionService", () => ({
   clearInduction: jest.fn(),
 }));
 
+jest.mock("react-router-dom", () => ({
+  useLocation: () => ({ state: null, pathname: '/induction' }),
+  useNavigate: () => jest.fn(),
+}));
+
 jest.mock("../layouts/MainLayout", () => {
   const React = require('react');
   return {
@@ -52,6 +57,9 @@ jest.mock("../components", () => {
     },
     Substitution: function Substitution({ show, handleClose }) {
       return show ? React.createElement('div', { 'data-testid': 'substitution-modal' }, 'Substitution Modal') : null;
+    },
+    RacketInput: function RacketInput({ id, name, value, onChange, disabled }) {
+      return React.createElement('input', { 'data-testid': `racket-input-${name}`, id, name, value: value || '', onChange: onChange || (() => {}), disabled });
     },
   };
 });

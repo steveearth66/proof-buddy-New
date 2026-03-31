@@ -39,6 +39,15 @@ import {
   getPadRefs,
   getPadIndex
 } from "../utils/erRacketUtils";
+import {
+  initPlayState,
+  isActive as playIsActive,
+  visibleLineCount,
+  showContinue,
+  advancePlay,
+  cancelPlay,
+  getLastRealIndex
+} from "../utils/playModeUtils";
 import { useLocation } from "react-router-dom";
 
 /**
@@ -92,7 +101,10 @@ const InductionRacket = () => {
   // Computed current racketRuleFields based on isAnchor
   const racketRuleFields = isAnchor ? baseRacketFields : leapRacketFields;
   const setRacketRuleFields = isAnchor ? setBaseRacketFields : setLeapRacketFields;
-  
+
+  // Play mode state: tracks per-case per-side progress when opened via "Run Proof"
+  const [playState, setPlayState] = useState(() => initPlayState(['base', 'leap'], ['LHS', 'RHS'], false));
+
   // Induction-specific state (no dependency on useRacketRuleFields hook)
   const [validationErrors, setValidationErrors] = useState({ LHS: [], RHS: [] });
   const [inductionSubErrors, setInductionSubErrors] = useState([]);
@@ -557,6 +569,12 @@ const InductionRacket = () => {
    * Handle row number click to bind footer (only if not already bound).
    */
   const handleRowNumberClick = (rowNum) => {
+    // Block editing while play mode is active (hidden lines still exist)
+    const indCaseKey = isAnchor ? 'base' : 'leap';
+    if (showContinue(playState, indCaseKey, showSide, getLastRealIndex(racketRuleFields[showSide] || []))) {
+      toast.warning('Lines cannot be edited while still in play mode.');
+      return;
+    }
     // Only allow binding if footer is currently unbound
     if (!isBound) {
       bindFooterToRow(rowNum);
@@ -817,16 +835,21 @@ const InductionRacket = () => {
         // STEP 1: NEGOTIATE SESSION ID & WAKE UP BACKEND
         // -------------------------------------------------------------
         const navId = location.state?.id || sessionStorage.getItem('induction_current_proof_id');
-        
+        // Capture playMode flag before history state is cleared
+        const playModeRequested = location.state?.playMode === true;
+
         if (navId) {
           // This call is critical: it tells the backend "Load Proof #123 into memory"
           // Without this, subsequent calls like getProofLines would fail or return empty
-          await inductionService.setSessionById(navId); 
-          
+          await inductionService.setSessionById(navId);
+
           sessionStorage.setItem('induction_current_proof_id', navId);
           sessionStorage.setItem('inductionProofActive', 'true');
           window.history.replaceState({}, document.title);
         }
+
+        // Store flag so we can activate play mode after lines load
+        initializeProofSession._playMode = playModeRequested;
 
         const isActiveSession = sessionStorage.getItem('inductionProofActive') === 'true';
         
@@ -904,7 +927,12 @@ const InductionRacket = () => {
         // STEP 3: LOAD PROOF LINES (Delegated)
         // This function handles fetching lines, mapping fields, and updating state
         // -------------------------------------------------------------
-        await loadProofLinesFromDatabase(); 
+        await loadProofLinesFromDatabase();
+
+        // Activate play mode if the user clicked "Run Proof"
+        if (initializeProofSession._playMode) {
+          setPlayState(initPlayState(['base', 'leap'], ['LHS', 'RHS'], true));
+        }
 
         setProofStarted(true);
 
@@ -2448,29 +2476,64 @@ const InductionRacket = () => {
               <Alert variant={"success"}>Proof Complete!</Alert>
             )}
 
-            <>
-            {racketRuleFields[showSide].map((field, index) =>
-              field.deleted
-                ? null
-                : renderPersistentPadRow({
-                  side: showSide,
-                  isPremise: index === 0,
-                  index,
-                  field,
-                  padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
-                  formValues,
-                  jsonTreeRep,
-                  handleFieldHighlight,
-                  validationErrors,
-                  isBound,
-                  userRow,
-                  handleRowNumberClick,
-                  leftPremise,
-                  rightPremise,
-                  caseType: isAnchor ? 'base' : 'leap'
-                })
-            )}
-          </>
+            {(() => {
+              const indCaseKey = isAnchor ? 'base' : 'leap';
+              const indPlayCount = visibleLineCount(playState, indCaseKey, showSide);
+              const indLastReal = getLastRealIndex(racketRuleFields[showSide] || []);
+              return (
+                <>
+                  {racketRuleFields[showSide].map((field, index) => {
+                    // In play mode, hide lines beyond the current visible count
+                    if (indPlayCount !== null && index >= indPlayCount) return null;
+                    if (field.deleted) return null;
+                    return renderPersistentPadRow({
+                      side: showSide,
+                      isPremise: index === 0,
+                      index,
+                      field,
+                      padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
+                      formValues,
+                      jsonTreeRep,
+                      handleFieldHighlight,
+                      validationErrors,
+                      isBound,
+                      userRow,
+                      handleRowNumberClick,
+                      leftPremise,
+                      rightPremise,
+                      caseType: indCaseKey
+                    });
+                  })}
+                  {showContinue(playState, indCaseKey, showSide, indLastReal) && (
+                    <Row className="align-items-center" style={{ marginTop: '1rem' }}>
+                      <Col xs="auto">
+                        {showContinue(playState, indCaseKey, showSide, indLastReal) && (
+                          <Button
+                            variant="primary"
+                            onClick={() => setPlayState(prev =>
+                              advancePlay(prev, indCaseKey, showSide, indLastReal)
+                            )}
+                          >
+                            <i className="fa-solid fa-play" style={{ marginRight: '0.4rem' }}></i>
+                            Continue
+                          </Button>
+                        )}
+                      </Col>
+                      <Col className="d-flex justify-content-end">
+                        <Button
+                          variant="outline-danger"
+                          size="sm"
+                          onClick={() => setPlayState(prev => cancelPlay(prev, indCaseKey, showSide))}
+                        >
+                          <i className="fa-solid fa-xmark" style={{ marginRight: '0.4rem' }}></i>
+                          Cancel Play Mode
+                        </Button>
+                      </Col>
+                    </Row>
+                  )}
+                </>
+              );
+            })()}
         </div>
         </div>
       )}
@@ -2481,14 +2544,26 @@ const InductionRacket = () => {
         const padIndex = userRow.num && userRow.num !== "" ? parseInt(userRow.num, 10) : 0;
         const currentColor = colors[padIndex % 4];
         const nextColor = colors[(padIndex + 1) % 4];
-        
+        const footerStyle = {
+          borderTop: `3px solid transparent`,
+          borderImage: `linear-gradient(to right, ${currentColor} 50%, ${nextColor} 50%) 1`
+        };
+
+        const indCaseKeyForFooter = isAnchor ? 'base' : 'leap';
+        if (showContinue(playState, indCaseKeyForFooter, showSide, getLastRealIndex(racketRuleFields[showSide] || []))) {
+          return (
+            <div className="floating-footer" style={footerStyle}>
+              <div className="text-center py-2" style={{ color: '#6c757d', fontStyle: 'italic' }}>
+                Lines cannot be edited while in Play Mode
+              </div>
+            </div>
+          );
+        }
+
         return (
         <div 
           className="floating-footer"
-          style={{
-            borderTop: `3px solid transparent`,
-            borderImage: `linear-gradient(to right, ${currentColor} 50%, ${nextColor} 50%) 1`
-          }}
+          style={footerStyle}
         >
           <Row className="input-row mb-0 align-items-center">
             <Col 
