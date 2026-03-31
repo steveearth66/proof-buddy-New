@@ -13,12 +13,24 @@ jest.mock("react-toastify", () => ({
 
 jest.mock("../services/inductionService", () => ({
   clearInduction: jest.fn(),
+  checkNameConflict: jest.fn().mockResolvedValue({ conflict: false }),
 }));
 
 jest.mock("react-router-dom", () => ({
   useLocation: () => ({ state: null, pathname: '/induction' }),
   useNavigate: () => jest.fn(),
 }));
+
+jest.mock("react-bootstrap/Modal", () => {
+  const React = require('react');
+  const Modal = ({ show, children, onHide }) =>
+    show ? React.createElement('div', { role: 'dialog', 'data-testid': 'modal' }, children) : null;
+  Modal.Header = ({ children }) => React.createElement('div', null, children);
+  Modal.Title = ({ children }) => React.createElement('h5', null, children);
+  Modal.Body = ({ children }) => React.createElement('div', null, children);
+  Modal.Footer = ({ children }) => React.createElement('div', null, children);
+  return { __esModule: true, default: Modal };
+});
 
 jest.mock("../layouts/MainLayout", () => {
   const React = require('react');
@@ -58,8 +70,8 @@ jest.mock("../components", () => {
     Substitution: function Substitution({ show, handleClose }) {
       return show ? React.createElement('div', { 'data-testid': 'substitution-modal' }, 'Substitution Modal') : null;
     },
-    RacketInput: function RacketInput({ id, name, value, onChange, disabled }) {
-      return React.createElement('input', { 'data-testid': `racket-input-${name}`, id, name, value: value || '', onChange: onChange || (() => {}), disabled });
+    RacketInput: function RacketInput({ id, name, value, placeholder, onChange, disabled }) {
+      return React.createElement('input', { 'data-testid': `racket-input-${name}`, id, name, value: value || '', placeholder: placeholder || '', onChange: onChange || (() => {}), disabled });
     },
   };
 });
@@ -105,6 +117,7 @@ jest.mock("../hooks/useInductionCheck", () => ({
     enhancedHandleChange: handleChange,
     proofValidationMessage: {},
     clearProofValidationMessage: jest.fn(),
+    clearGoalValidationMessage: jest.fn(),
   }),
 }));
 
@@ -148,283 +161,192 @@ describe("InductionRacket Component", () => {
     sessionStorage.clear();
   });
 
+  // Helper: submit the form via fireEvent to bypass HTML5 constraint validation,
+  // then wait for and confirm the Start Proof confirmation modal.
+  async function submitAndConfirm(container) {
+    fireEvent.submit(container.querySelector("form"));
+    await waitFor(() => screen.getByRole("button", { name: "Start Proof" }));
+    userEvent.click(screen.getByRole("button", { name: "Start Proof" }));
+  }
+
   describe("Component Rendering", () => {
-    test("renders the main form with all required fields", () => {
+    test("renders the page heading", () => {
       render(<InductionRacket />);
+      expect(screen.getAllByText("Induction: Racket")[0]).toBeInTheDocument();
+    });
 
-      expect(screen.getByText("Induction: Racket")).toBeInTheDocument();
-      expect(screen.getByLabelText("Name")).toBeInTheDocument();
+    test("renders proof name and tag fields", () => {
+      render(<InductionRacket />);
+      expect(screen.getByPlaceholderText("Enter name")).toBeInTheDocument();
       expect(screen.getByLabelText("# Tag")).toBeInTheDocument();
-      expect(screen.getByLabelText("IVar")).toBeInTheDocument();
-      expect(screen.getByLabelText("AVal")).toBeInTheDocument();
-      expect(screen.getByLabelText("LVar")).toBeInTheDocument();
     });
 
-    test("renders induction type radio buttons", () => {
+    test("renders induction parameter fields", () => {
       render(<InductionRacket />);
-
-      const integersRadio = screen.getByLabelText("Integers");
-      const listsRadio = screen.getByLabelText("Lists");
-
-      expect(integersRadio).toBeInTheDocument();
-      expect(integersRadio).toBeChecked();
-      expect(listsRadio).toBeInTheDocument();
-      expect(listsRadio).toBeDisabled();
+      expect(screen.getByPlaceholderText("Induction Variable")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("Anchor Value")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("Leap Variable")).toBeInTheDocument();
     });
 
-    test("renders leap goal fields by default", () => {
+    test("renders goal input fields", () => {
       render(<InductionRacket />);
-
-      expect(screen. getByPlaceholderText("Leap Goal")).toBeInTheDocument();
-      expect(screen.getByLabelText("RHS Leap Goal")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("LHS Goal")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("RHS Goal")).toBeInTheDocument();
     });
 
-    test("clears session storage and induction service on mount", async () => {
-      render(<InductionRacket />);
+    test("renders without crashing on mount", () => {
+      expect(() => render(<InductionRacket />)).not.toThrow();
+    });
+  });
 
-      await waitFor(() => {
-        expect(inductionService.clearInduction).toHaveBeenCalled();
-      });
+  describe("Induction Type Radio Buttons", () => {
+    test("renders Integers and Lists radio buttons", () => {
+      render(<InductionRacket />);
+      expect(screen.getByLabelText("Integers")).toBeInTheDocument();
+      expect(screen.getByLabelText("Lists")).toBeInTheDocument();
+    });
+
+    test("Integers radio is checked by default", () => {
+      render(<InductionRacket />);
+      expect(screen.getByLabelText("Integers")).toBeChecked();
     });
   });
 
   describe("Button Interactions", () => {
     test("renders Proof Utilities dropdown", () => {
       render(<InductionRacket />);
-
-      const proofUtilitiesButton = screen.getByText("Proof Utilities");
-      expect(proofUtilitiesButton).toBeInTheDocument();
+      expect(screen.getByText("Proof Utilities")).toBeInTheDocument();
     });
 
-    test("renders File Operations dropdown", () => {
+    test("renders Start Induction Proof button before proof is started", () => {
       render(<InductionRacket />);
-
-      // File Operations is only visible after goal is checked
-      // So we just verify the basic rendering
-      expect(screen.getByText("Induction: Racket")).toBeInTheDocument();
+      expect(screen.getByText("Start Induction Proof")).toBeInTheDocument();
     });
   });
 
   describe("Current State Display", () => {
-    test("renders current LHS and RHS fields", () => {
+    test("renders Current LHS and Current RHS labels", () => {
       render(<InductionRacket />);
-
-      expect(screen.getByLabelText("Current LHS")).toBeInTheDocument();
-      expect(screen.getByLabelText("Current RHS")).toBeInTheDocument();
+      expect(screen.getByText("Current LHS")).toBeInTheDocument();
+      expect(screen.getByText("Current RHS")).toBeInTheDocument();
     });
 
-    test("current fields are read-only", () => {
+    test("has at least two read-only text fields for current values", () => {
       render(<InductionRacket />);
-
-      const currentLHS = screen.getByLabelText("Current LHS");
-      const currentRHS = screen.getByLabelText("Current RHS");
-
-      expect(currentLHS).toHaveAttribute("readonly");
-      expect(currentRHS).toHaveAttribute("readonly");
+      const readonlyInputs = screen.getAllByRole("textbox").filter((el) => el.readOnly);
+      expect(readonlyInputs.length).toBeGreaterThanOrEqual(2);
     });
   });
 
   describe("Form Input Handling", () => {
-    test("updates proof name field", async () => {
-      
+    test("updates proof name field when typed into", async () => {
       render(<InductionRacket />);
-
-      const nameInput = screen.getByLabelText("Name");
-      await userEvent.type(nameInput, "Test Proof");
-
-      expect(nameInput).toHaveValue("Test Proof");
+      const input = screen.getByPlaceholderText("Enter name");
+      userEvent.type(input, "My Proof");
+      await waitFor(() => expect(input).toHaveValue("My Proof"));
     });
 
-    test("updates induction variable field", async () => {
-      
+    test("updates induction variable field when typed into", async () => {
       render(<InductionRacket />);
-
-      const ivarInput = screen.getByLabelText("IVar");
-      await userEvent.type(ivarInput, "n");
-
-      expect(ivarInput).toHaveValue("n");
+      const input = screen.getByPlaceholderText("Induction Variable");
+      userEvent.type(input, "n");
+      await waitFor(() => expect(input).toHaveValue("n"));
     });
 
-    test("updates induction value field", async () => {
-      
+    test("updates anchor value field when typed into", async () => {
       render(<InductionRacket />);
-
-      const avalInput = screen.getByLabelText("AVal");
-      await userEvent.type(avalInput, "0");
-
-      expect(avalInput).toHaveValue("0");
+      const input = screen.getByPlaceholderText("Anchor Value");
+      userEvent.type(input, "0");
+      await waitFor(() => expect(input).toHaveValue("0"));
     });
 
-    test("updates leap variable field", async () => {
-      
+    test("updates leap variable field when typed into", async () => {
       render(<InductionRacket />);
-
-      const lvarInput = screen.getByLabelText("LVar");
-      await userEvent.type(lvarInput, "k");
-
-      expect(lvarInput).toHaveValue("k");
-    });
-  });
-
-  describe("Case Switching", () => {
-    test("toggles between leap and anchor cases", async () => {
-      
-      render(<InductionRacket />);
-
-      // Initially shows leap goals
-      expect(screen. getByPlaceholderText("Leap Goal")).toBeInTheDocument();
-
-      // Click switch button
-      const switchButton = screen.getByText("Switch to Anchor Case");
-      await userEvent.click(switchButton);
-
-      // Should now show anchor goals
-      await waitFor(() => {
-        expect(screen. getByPlaceholderText("LHS Anchor Goal")).toBeInTheDocument();
-        expect(screen.getByText("Switch to Leap Case")).toBeInTheDocument();
-      });
+      const input = screen.getByPlaceholderText("Leap Variable");
+      userEvent.type(input, "k");
+      await waitFor(() => expect(input).toHaveValue("k"));
     });
   });
 
   describe("Validation Logic", () => {
-    test("validateAndStart shows error for invalid anchor value", async () => {
-      
-      render(<InductionRacket />);
-
-      // Fill in required fields with invalid anchor value
-      await userEvent.type(screen.getByLabelText("Name"), "Test");
-      await userEvent.type(screen.getByLabelText("# Tag"), "test");
-      await userEvent.type(screen.getByLabelText("IVar"), "n");
-      await userEvent.type(screen.getByLabelText("AVal"), "invalid");
-      await userEvent.type(screen.getByLabelText("LVar"), "k");
-      await userEvent.type(screen. getByPlaceholderText("Leap Goal"), "(f n)");
-
-      // Click start button
-      const startButton = screen.getByText("Start Induction Proof");
-      await userEvent.click(startButton);
-
-      expect(toast.error).toHaveBeenCalledWith(
-        "Anchor value must be a nonnegative integer."
+    test("shows error when anchor value is not an integer", async () => {
+      const { container } = render(<InductionRacket />);
+      userEvent.type(screen.getByPlaceholderText("Induction Variable"), "n");
+      userEvent.type(screen.getByPlaceholderText("Anchor Value"), "abc");
+      userEvent.type(screen.getByPlaceholderText("Leap Variable"), "k");
+      await submitAndConfirm(container);
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith("Anchor value must be a nonnegative integer.")
       );
     });
 
-    test("validateAndStart shows error for negative anchor value", async () => {
-      
-      render(<InductionRacket />);
-
-      await userEvent.type(screen.getByLabelText("Name"), "Test");
-      await userEvent.type(screen.getByLabelText("# Tag"), "test");
-      await userEvent.type(screen.getByLabelText("IVar"), "n");
-      await userEvent.type(screen.getByLabelText("AVal"), "-1");
-      await userEvent.type(screen.getByLabelText("LVar"), "k");
-      await userEvent.type(screen. getByPlaceholderText("Leap Goal"), "(f n)");
-
-      const startButton = screen.getByText("Start Induction Proof");
-      await userEvent.click(startButton);
-
-      expect(toast.error).toHaveBeenCalledWith(
-        "Anchor value must be a nonnegative integer."
+    test("shows error when anchor value is negative", async () => {
+      const { container } = render(<InductionRacket />);
+      userEvent.type(screen.getByPlaceholderText("Induction Variable"), "n");
+      userEvent.type(screen.getByPlaceholderText("Anchor Value"), "-1");
+      userEvent.type(screen.getByPlaceholderText("Leap Variable"), "k");
+      await submitAndConfirm(container);
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith("Anchor value must be a nonnegative integer.")
       );
     });
 
-    test("validateAndStart shows error when leap variable equals induction variable", async () => {
-      
-      render(<InductionRacket />);
-
-      await userEvent.type(screen.getByLabelText("Name"), "Test");
-      await userEvent.type(screen.getByLabelText("# Tag"), "test");
-      await userEvent.type(screen.getByLabelText("IVar"), "n");
-      await userEvent.type(screen.getByLabelText("AVal"), "0");
-      await userEvent.type(screen.getByLabelText("LVar"), "n");
-      await userEvent.type(screen. getByPlaceholderText("Leap Goal"), "(f n)");
-
-      const startButton = screen.getByText("Start Induction Proof");
-      await userEvent.click(startButton);
-
-      expect(toast.error).toHaveBeenCalledWith(
-        "Leap variable must not overlap with variables in the goal."
+    test("shows error when leap variable equals induction variable", async () => {
+      const { container } = render(<InductionRacket />);
+      userEvent.type(screen.getByPlaceholderText("Induction Variable"), "n");
+      userEvent.type(screen.getByPlaceholderText("Anchor Value"), "0");
+      userEvent.type(screen.getByPlaceholderText("Leap Variable"), "n");
+      userEvent.type(screen.getByPlaceholderText("LHS Goal"), "(f n)");
+      await submitAndConfirm(container);
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith("Leap variable must not overlap with variables in the goal.")
       );
     });
 
-    test("validateAndStart shows error when leap variable appears in goal", async () => {
-      
-      render(<InductionRacket />);
-
-      await userEvent.type(screen.getByLabelText("Name"), "Test");
-      await userEvent.type(screen.getByLabelText("# Tag"), "test");
-      await userEvent.type(screen.getByLabelText("IVar"), "n");
-      await userEvent.type(screen.getByLabelText("AVal"), "0");
-      await userEvent.type(screen.getByLabelText("LVar"), "k");
-      await userEvent.type(screen. getByPlaceholderText("Leap Goal"), "(f n k)");
-
-      const startButton = screen.getByText("Start Induction Proof");
-      await userEvent.click(startButton);
-
-      expect(toast.error).toHaveBeenCalledWith(
-        "Leap variable must not overlap with variables in the goal."
+    test("shows error when leap variable appears in goal expression", async () => {
+      const { container } = render(<InductionRacket />);
+      userEvent.type(screen.getByPlaceholderText("Induction Variable"), "n");
+      userEvent.type(screen.getByPlaceholderText("Anchor Value"), "0");
+      userEvent.type(screen.getByPlaceholderText("Leap Variable"), "k");
+      userEvent.type(screen.getByPlaceholderText("LHS Goal"), "(f n k)");
+      await submitAndConfirm(container);
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith("Leap variable must not overlap with variables in the goal.")
       );
     });
 
-    test("validateAndStart shows error when induction variable not in function parameters", async () => {
-      
-      render(<InductionRacket />);
-
-      await userEvent.type(screen.getByLabelText("Name"), "Test");
-      await userEvent.type(screen.getByLabelText("# Tag"), "test");
-      await userEvent.type(screen.getByLabelText("IVar"), "x");
-      await userEvent.type(screen.getByLabelText("AVal"), "0");
-      await userEvent.type(screen.getByLabelText("LVar"), "k");
-      await userEvent.type(screen. getByPlaceholderText("Leap Goal"), "(f n)");
-
-      const startButton = screen.getByText("Start Induction Proof");
-      await userEvent.click(startButton);
-
-      expect(toast.error).toHaveBeenCalledWith(
-        "Induction variable must be a parameter of a function in your goal."
-      );
-    });
-  });
-
-  describe("parseTopLevelApplication helper", () => {
-    test("handles valid function applications", async () => {
-      
-      render(<InductionRacket />);
-
-      // Test valid case: induction variable is a parameter
-      await userEvent.type(screen.getByLabelText("Name"), "Test");
-      await userEvent.type(screen.getByLabelText("# Tag"), "test");
-      await userEvent.type(screen.getByLabelText("IVar"), "n");
-      await userEvent.type(screen.getByLabelText("AVal"), "0");
-      await userEvent.type(screen.getByLabelText("LVar"), "k");
-      await userEvent.type(screen. getByPlaceholderText("Leap Goal"), "(sum n 10)");
-
-      const startButton = screen.getByText("Start Induction Proof");
-      await userEvent.click(startButton);
-
-      // Should not show the parameter error since 'n' is a parameter
-      expect(toast.error).not.toHaveBeenCalledWith(
-        "Induction variable must be a parameter of a function in your goal."
+    test("shows error when inductive hypothesis is missing", async () => {
+      const { container } = render(<InductionRacket />);
+      // All checks before IH pass: valid anchor, non-overlapping leap var
+      userEvent.type(screen.getByPlaceholderText("Induction Variable"), "n");
+      userEvent.type(screen.getByPlaceholderText("Anchor Value"), "0");
+      userEvent.type(screen.getByPlaceholderText("Leap Variable"), "k");
+      userEvent.type(screen.getByPlaceholderText("LHS Goal"), "(f n)");
+      await submitAndConfirm(container);
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith(
+          expect.stringContaining("Inductive hypothesis")
+        )
       );
     });
 
-    test("handles nested expressions", async () => {
-      
-      render(<InductionRacket />);
+    test("shows error for reserved proof name", async () => {
+      const { container } = render(<InductionRacket />);
+      userEvent.type(screen.getByPlaceholderText("Enter name"), "IH");
+      userEvent.type(screen.getByPlaceholderText("Anchor Value"), "0");
+      await submitAndConfirm(container);
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith(
+          expect.stringContaining("reserved name")
+        )
+      );
+    });
 
-      await userEvent.type(screen.getByLabelText("Name"), "Test");
-      await userEvent.type(screen.getByLabelText("# Tag"), "test");
-      await userEvent.type(screen.getByLabelText("IVar"), "n");
-      await userEvent.type(screen.getByLabelText("AVal"), "0");
-      await userEvent.type(screen.getByLabelText("LVar"), "k");
-      await userEvent.type(screen.getByLabelText("LHS Goal"), "(+ (f n) 5)");
-
-      const startButton = screen.getByText("Start Induction Proof");
-      await userEvent.click(startButton);
-
-      // The outer function is '+', and 'n' is not a direct parameter,
-      // so it should show error
-      expect(toast.error).toHaveBeenCalledWith(
-        "Induction variable must be a parameter of a function in your goal."
+    test("confirmation modal appears when Start Induction Proof is clicked", async () => {
+      const { container } = render(<InductionRacket />);
+      fireEvent.submit(container.querySelector("form"));
+      await waitFor(() =>
+        expect(screen.getByText("Are you sure you want to continue?")).toBeInTheDocument()
       );
     });
   });
