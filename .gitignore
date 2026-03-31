@@ -7,6 +7,12 @@ yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
 
+# Database recovery/diagnostic scripts (large files, local only)
+django_server/recovery.sql
+django_server/restore_state.sql
+django_server/do_recovery.py
+django_server/recover_binlog.py
+
 **/__pycache__/**
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
