@@ -200,6 +200,12 @@ function ProofCard({ proof, onDelete, config }) {
           Open Proof
         </Button>
       </Link>
+      <Link to={config.viewRoute} state={{ id: proof.id, playMode: true }}>
+        <Button variant="outline-primary" style={{ width: '100%', marginTop: '0.5rem' }}>
+          <i className="fa-solid fa-play" style={{ marginRight: '0.4rem' }}></i>
+          Run Proof
+        </Button>
+      </Link>
     </div>
   );
 }

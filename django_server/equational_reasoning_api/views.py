@@ -1123,11 +1123,26 @@ def clear_user_proofs(user):
 
 @api_view(["POST"])
 def clear_proof(request):
+    """Clear the session cache without archiving the proof, so the user can start a new proof
+    while the current one remains visible in All Proofs."""
     user = request.user
-
     clear_user_proofs(user)
+    return Response({"message": "Session cleared successfully"}, status=status.HTTP_200_OK)
 
-    return Response(status=status.HTTP_200_OK)
+@api_view(["POST"])
+def discard_proof(request):
+    """Archive the active proof (set is_active=False) and clear the session cache.
+    The proof will no longer appear in All Proofs."""
+    user = request.user
+    try:
+        proof = EquationalProof.objects.filter(user=user, is_active=True).order_by('-created_at').first()
+        if proof:
+            proof.is_active = False
+            proof.save()
+        clear_user_proofs(user)
+        return Response({"message": "Proof archived successfully"}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 # ========================
 # Save/Create Proof Logic

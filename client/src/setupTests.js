@@ -4,6 +4,12 @@
 // learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom';
 
+global.ResizeObserver = class ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
+
 global.sessionStorage = {
   getItem: jest.fn(),
   setItem: jest.fn(),

@@ -39,6 +39,15 @@ import {
   getPadRefs,
   getPadIndex
 } from "../utils/erRacketUtils";
+import {
+  initPlayState,
+  isActive as playIsActive,
+  visibleLineCount,
+  showContinue,
+  advancePlay,
+  cancelPlay,
+  getLastRealIndex
+} from "../utils/playModeUtils";
 import userService from "../services/userService"
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -351,7 +360,10 @@ const EquationalReasoningNew = () => {
         LHS: [EMPTY_INITIAL_FIELD],
         RHS: [EMPTY_INITIAL_FIELD]
       });
-  
+
+    // Play mode state: tracks per-side progress when opened via "Run Proof"
+    const [playState, setPlayState] = useState(() => initPlayState(['base'], ['LHS', 'RHS'], false));
+
     const [SubErrors, setSubErrors] = useState([]);
 
   const [lhsValue, setLhsValue] = useState("");
@@ -411,8 +423,14 @@ const EquationalReasoningNew = () => {
           sessionStorage.setItem('current_proof_id', location.state.id);
           sessionStorage.setItem('erProofActive', 'true');
           
+          // Capture playMode flag before history state is cleared
+          const playModeRequested = location.state?.playMode === true;
+
           // Clear history so refresh doesn't re-trigger this
           window.history.replaceState({}, document.title);
+
+          // Store flag so we can activate play mode after lines load
+          initializeProofSession._playMode = playModeRequested;
         } 
         
         // -------------------------------------------------------------
@@ -512,6 +530,12 @@ const EquationalReasoningNew = () => {
           setCurrentRHS(findLast(proofData.RHS) || proofData.rhsAnchorGoal);
 
           setProofStarted(true);
+
+          // Activate play mode if the user clicked "Run Proof"
+          if (initializeProofSession._playMode) {
+            setPlayState(initPlayState(['base'], ['LHS', 'RHS'], true));
+          }
+
           toast.success("Proof loaded successfully!");
           
         } else {
@@ -776,6 +800,11 @@ const EquationalReasoningNew = () => {
    * Handle row number click to bind footer (only if not already bound).
    */
   const handleRowNumberClick = (rowNum) => {
+    // Block editing while play mode is active (hidden lines still exist)
+    if (showContinue(playState, 'base', showSide, getLastRealIndex(racketRuleFields?.[showSide] || []))) {
+      toast.warning('Lines cannot be edited while still in play mode.');
+      return;
+    }
     // Only allow binding if footer is currently unbound
     if (!isBound) {
       bindFooterToRow(rowNum);
@@ -822,18 +851,32 @@ const EquationalReasoningNew = () => {
     }
   };
 
+  const handleNewProof = async () => {
+    if (!window.confirm('Start a new proof? Your current proof will remain saved in "All Proofs".')) {
+      return;
+    }
+    try {
+      await equationalService.clearProof();
+      sessionStorage.removeItem('erProofActive');
+      sessionStorage.removeItem('current_proof_id');
+      toast.success('Ready to start a new proof!');
+      window.location.reload();
+    } catch (error) {
+      console.error('Error clearing session:', error);
+      toast.error('Failed to clear session');
+    }
+  };
+
   const handleClearProof = async () => {
-    if (!window.confirm('Are you sure you want to clear this proof? This will archive it and start a new proof.')) {
+    if (!window.confirm('Are you sure you want to discard this proof? It will be archived and hidden from your proofs.')) {
       return;
     }
 
     try {
-      await equationalService.clearProof();
-      
+      await equationalService.discardProof();
       // Clear sessionStorage flag so we don't restore from DB on reload
       sessionStorage.removeItem('erProofActive');
       sessionStorage.removeItem('current_proof_id');
-      
       toast.success('Proof archived successfully');
       // Reload the page to start fresh
       window.location.reload();
@@ -1799,6 +1842,14 @@ const handleGenerateAndCheck = async () => {
                         Check Current Proof
                       </Dropdown.Item>
                       <Dropdown.Divider />
+                      <Dropdown.Item
+                        onClick={handleNewProof}
+                        href="#"
+                        disabled={!proofStarted}
+                        style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}
+                      >
+                        New Proof
+                      </Dropdown.Item>
                       <Dropdown.Item 
                         onClick={handleClearProof} 
                         href="#" 
@@ -1809,7 +1860,7 @@ const handleGenerateAndCheck = async () => {
                           cursor: proofStarted ? 'pointer' : 'not-allowed'
                         }}
                       >
-                        Clear Proof
+                        Discard Proof
                       </Dropdown.Item>
                     </Dropdown.Menu>
                   </Dropdown>
@@ -2045,30 +2096,64 @@ const handleGenerateAndCheck = async () => {
               <Alert variant={"success"}>Proof Complete!</Alert>
             )}
 
-            <>
-            {(racketRuleFields?.[showSide] || []).map((field, index) =>
-              field.deleted
-                ? null
-                : renderPersistentPadRow({
-                  side: showSide,
-                  isPremise: index === 0,
-                  index,
-                  field,
-                  padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
-                  formValues,
-                  jsonTreeRep,
-                  handleFieldHighlight,
-                  validationErrors,
-                  isBound,
-                  userRow,
-                  handleRowNumberClick,
-                  leftPremise,
-                  rightPremise,
-                  caseType: 'base',
-                  currentUserType: currentUserType
-                })
-            )}
-          </>
+            {(() => {
+              const erPlayCount = visibleLineCount(playState, 'base', showSide);
+              const erLastReal = getLastRealIndex(racketRuleFields?.[showSide] || []);
+              return (
+                <>
+                  {(racketRuleFields?.[showSide] || []).map((field, index) => {
+                    // In play mode, hide lines beyond the current visible count
+                    if (erPlayCount !== null && index >= erPlayCount) return null;
+                    if (field.deleted) return null;
+                    return renderPersistentPadRow({
+                      side: showSide,
+                      isPremise: index === 0,
+                      index,
+                      field,
+                      padRefs: getPadRefs(showSide, lhsPadRefs, rhsPadRefs),
+                      formValues,
+                      jsonTreeRep,
+                      handleFieldHighlight,
+                      validationErrors,
+                      isBound,
+                      userRow,
+                      handleRowNumberClick,
+                      leftPremise,
+                      rightPremise,
+                      caseType: 'base',
+                      currentUserType: currentUserType
+                    });
+                  })}
+                  {showContinue(playState, 'base', showSide, erLastReal) && (
+                    <Row className="align-items-center" style={{ marginTop: '1rem' }}>
+                      <Col xs="auto">
+                        {showContinue(playState, 'base', showSide, erLastReal) && (
+                          <Button
+                            variant="primary"
+                            onClick={() => setPlayState(prev =>
+                              advancePlay(prev, 'base', showSide, erLastReal)
+                            )}
+                          >
+                            <i className="fa-solid fa-play" style={{ marginRight: '0.4rem' }}></i>
+                            Continue
+                          </Button>
+                        )}
+                      </Col>
+                      <Col className="d-flex justify-content-end">
+                        <Button
+                          variant="outline-danger"
+                          size="sm"
+                          onClick={() => setPlayState(prev => cancelPlay(prev, 'base', showSide))}
+                        >
+                          <i className="fa-solid fa-xmark" style={{ marginRight: '0.4rem' }}></i>
+                          Cancel Play Mode
+                        </Button>
+                      </Col>
+                    </Row>
+                  )}
+                </>
+              );
+            })()}
         </div>
         </div>
       )}
@@ -2079,14 +2164,25 @@ const handleGenerateAndCheck = async () => {
         const padIndex = userRow.num && userRow.num !== "" ? parseInt(userRow.num, 10) : 0;
         const currentColor = colors[padIndex % 4];
         const nextColor = colors[(padIndex + 1) % 4];
-        
+        const footerStyle = {
+          borderTop: `3px solid transparent`,
+          borderImage: `linear-gradient(to right, ${currentColor} 50%, ${nextColor} 50%) 1`
+        };
+
+        if (showContinue(playState, 'base', showSide, getLastRealIndex(racketRuleFields?.[showSide] || []))) {
+          return (
+            <div className="floating-footer" style={footerStyle}>
+              <div className="text-center py-2" style={{ color: '#6c757d', fontStyle: 'italic' }}>
+                Lines cannot be edited while in Play Mode
+              </div>
+            </div>
+          );
+        }
+
         return (
         <div 
           className="floating-footer"
-          style={{
-            borderTop: `3px solid transparent`,
-            borderImage: `linear-gradient(to right, ${currentColor} 50%, ${nextColor} 50%) 1`
-          }}
+          style={footerStyle}
         >
           <Row className="input-row mb-0 align-items-center">
             <Col 
