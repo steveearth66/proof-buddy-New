@@ -1039,6 +1039,7 @@ def apply_rule(request):
                 last_line_obj = target.proofLines[line_index]
                 InductionProofLine.objects.filter(
                     proof_id=proof_id,
+                    case=case.lower(),
                     side=side.upper(),
                     line_number=line_index
                 ).update(errors=last_line_obj.errors)
@@ -1325,6 +1326,7 @@ def substitution(request):
                 last_line_obj = target.proofLines[line_index]
                 InductionProofLine.objects.filter(
                     proof_id=proof_id,
+                    case=case.lower(),
                     side=side.upper(),
                     line_number=line_index
                 ).update(errors=last_line_obj.errors)
@@ -1369,7 +1371,11 @@ def check_completion(request):
         
         # Check overall completion and update indProof.isComplete
         overall_complete = proof.checkComplete()
-        
+
+        # Persist overall completion status to database
+        if proof_id:
+            InductionProof.objects.filter(id=proof_id).update(is_complete=overall_complete)
+
         # Save updated completion status to cache
         save_induction_obj_to_cache(user, proof, proof_id)
         
