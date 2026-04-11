@@ -1841,7 +1841,6 @@ const handleGenerateAndCheck = async () => {
                       >
                         Check Current Proof
                       </Dropdown.Item>
-                      <Dropdown.Divider />
                       <Dropdown.Item
                         onClick={handleNewProof}
                         href="#"
