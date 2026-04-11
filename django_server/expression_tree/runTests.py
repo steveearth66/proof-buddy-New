@@ -35,4 +35,20 @@ result = subprocess.run(
     cwd=manage_py_dir,
 )
 
-sys.exit(result.returncode)
+if result.returncode != 0:
+    sys.exit(result.returncode)
+
+# ── 3. Jest (React / JavaScript) tests ───────────────────────────────────────
+print()
+print("=" * 60)
+print("Jest: client JavaScript tests")
+print("=" * 60)
+
+client_dir = os.path.join(os.path.dirname(manage_py_dir), "client")
+jest_result = subprocess.run(
+    ["npx", "jest", "--no-coverage"],
+    cwd=client_dir,
+    shell=True,
+)
+
+sys.exit(jest_result.returncode)

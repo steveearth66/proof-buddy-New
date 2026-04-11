@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
 import erService from '../services/erService';
 import Row from 'react-bootstrap/Row';
@@ -39,7 +40,11 @@ const PROOF_CONFIG = {
 };
 
 export default function Proofs() {
-  const [proofType, setProofType] = useState(PROOF_TYPES.EQUATIONAL);
+  const [searchParams] = useSearchParams();
+  const initialType = searchParams.get('type') === 'induction'
+    ? PROOF_TYPES.INDUCTION
+    : PROOF_TYPES.EQUATIONAL;
+  const [proofType, setProofType] = useState(initialType);
   const [proofObject, setProofObject] = useState({});
   const [query, setQuery] = useState('');
   const [deleteTargetId, setDeleteTargetId] = useState(null);
@@ -160,6 +165,9 @@ export default function Proofs() {
 }
 
 function ProofCard({ proof, onDelete, config }) {
+  const lhs = proof.lhs || proof.lhs_leap_goal || '';
+  const rhs = proof.rhs || proof.rhs_leap_goal || '';
+  const complete = proof.isComplete || proof.is_complete;
   return (
     <div className="proof-card">
       <Button
@@ -178,13 +186,24 @@ function ProofCard({ proof, onDelete, config }) {
       <p style={{ marginRight: "1.5em" }}>
         <b>Proof:</b> {proof.name} - {proof.tag}
       </p>
+      {(lhs || rhs) && (
+        <p className={`proof-goal proof-goal--${complete ? 'complete' : 'incomplete'}`}>
+          <b>Goal:</b> {lhs} = {rhs}
+        </p>
+      )}
       <p>
-        <b>Completed:</b> {proof.isComplete ? 'True' : 'False'}
+        <b>Completed:</b> {complete ? 'True' : 'False'}
       </p>
       {/* Route is now dynamic based on config */}
       <Link to={config.viewRoute} state={{ id: proof.id }}>
         <Button variant="outline-secondary" style={{ width: '100%' }}>
-          View Proof
+          Open Proof
+        </Button>
+      </Link>
+      <Link to={config.viewRoute} state={{ id: proof.id, playMode: true }}>
+        <Button variant="outline-primary" style={{ width: '100%', marginTop: '0.5rem' }}>
+          <i className="fa-solid fa-play" style={{ marginRight: '0.4rem' }}></i>
+          Run Proof
         </Button>
       </Link>
     </div>

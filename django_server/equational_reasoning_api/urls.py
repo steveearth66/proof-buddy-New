@@ -15,6 +15,7 @@ urlpatterns = [
     path("proofs", views.get_user_proofs, name="get_user_proofs"),
     path("get-user-proof", views.get_user_proof, name="get_user_proof"),
     path("clear-proof", views.clear_proof, name="clear_proof"),
+    path("discard-proof", views.discard_proof, name="discard_proof"),
     path("save-proof", views.save_proof, name="save_proof"),
     path("delete-proof", views.delete_proof, name="delete_proof")
 ]

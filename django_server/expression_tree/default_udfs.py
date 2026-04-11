@@ -76,12 +76,22 @@ DEFAULT_UDFS = [
     #    "is_default": True,
     #    "deletable": False,
     #},
+    #{
+    #    "id": -8,  # Negative ID indicates non-database definition
+    #    "label": "(countTruthTableRows vars)",
+    #    "type": "INT>INT",
+    #    "expression": "(if (zero? vars) 1 (* 2 (countTruthTableRows (- vars 1))))",
+    #    "notes": "counts the number of rows in a truth table with the given number of variables",
+    #    "applied": False,
+    #    "is_default": True,
+    #    "deletable": False,
+    #},
     {
-        "id": -8,  # Negative ID indicates non-database definition
-        "label": "(countTruthTableRows vars)",
-        "type": "INT>INT",
-        "expression": "(if (zero? vars) 1 (* 2 (countTruthTableRows (- vars 1))))",
-        "notes": "counts the number of rows in a truth table with the given number of variables",
+        "id": -9,  # Negative ID indicates non-database definition
+        "label": "(reverse L)",
+        "type": "LIST>LIST",
+        "expression": "(if (null? L) null (append (reverse (rest L)) (cons (first L) null)))",
+        "notes": "Built-in function to append two lists together",
         "applied": False,
         "is_default": True,
         "deletable": False,

@@ -4,7 +4,7 @@ import Container from 'react-bootstrap/Container';
 import Nav from 'react-bootstrap/Nav';
 import Navbar from 'react-bootstrap/Navbar';
 import NavDropdown from 'react-bootstrap/NavDropdown';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import '../scss/_header.scss';
 
 /**
@@ -14,6 +14,10 @@ import '../scss/_header.scss';
  */
 const Header = () => {
   const { user } = useAuth();
+  const location = useLocation();
+  const allProofsHref = location.pathname.startsWith('/induction')
+    ? '/proofs?type=induction'
+    : '/proofs';
 
   return (
     <header className={`header nav-container`}>
@@ -41,7 +45,7 @@ const Header = () => {
                     </Nav.Link>
                   </Nav.Item>
                   <Nav.Item>
-                    <Nav.Link as={Link} to="/proofs" className="top-menu-item">
+                    <Nav.Link as={Link} to={allProofsHref} className="top-menu-item">
                       All Proofs
                     </Nav.Link>
                   </Nav.Item>

@@ -509,9 +509,9 @@ def update_definition(request):
 def delete_definition_api(request, label):
     user = request.user
     # delete_definition(user, id)
-    delete_definition(user, label)
+    deleted = delete_definition(user, label)
 
-    if not delete_definition:
+    if not deleted:
         return Response(status=status.HTTP_400_BAD_REQUEST)
 
     return Response(status=status.HTTP_200_OK)
