@@ -1,19 +1,24 @@
-from .models import Assignment, AssignmentSubmission, Term
-from .serializers import AssignmentSerializer, AssignmentSubmissionSerializer, TermSerializer, CreateTermSerializer, CreateAssignmentSerializer
+from .models import Assignment, AssignmentSubmission, Course
+from .serializers import AssignmentSerializer, AssignmentSubmissionSerializer, CourseSerializer, CreateCourseSerializer, CreateAssignmentSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
 from django.contrib.auth import get_user_model
+import hashlib
+import secrets
+import string
+from datetime import timedelta
+from django.utils import timezone
 
 User = get_user_model()
 
 # Create your views here.
 
-class TermViewSet(APIView):
+class CourseViewSet(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    # GET /terms/term_id
-    # GET /terms/
+    # GET /courses/course_id
+    # GET /courses/
     """
         [
             {
@@ -48,23 +53,23 @@ class TermViewSet(APIView):
     def get(self, request, *args, **kwargs):
         user = request.user
 
-        if kwargs.get("term_id"):
+        if kwargs.get("course_id"):
             try:
-                term = Term.objects.get(id=kwargs.get("term_id"))
-            except Term.DoesNotExist:
-                return Response({"message": "Term not found"}, status=status.HTTP_404_NOT_FOUND)
+                course = Course.objects.get(id=kwargs.get("course_id"))
+            except Course.DoesNotExist:
+                return Response({"message": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
 
-            if not (user.is_instructor and term.instructor == user) and user not in term.students.all() and not user.is_superuser:
-                return Response({"message": "You are not authorized to view this term."}, status=status.HTTP_403_FORBIDDEN)
+            if not (user.is_instructor and course.instructor == user) and user not in course.students.all() and not user.is_superuser:
+                return Response({"message": "You are not authorized to view this course."}, status=status.HTTP_403_FORBIDDEN)
 
-            serializer = TermSerializer(term, context={"request": request})
+            serializer = CourseSerializer(course, context={"request": request})
             return Response(serializer.data, status=status.HTTP_200_OK)
 
-        terms = Term.objects.filter(instructor=user) if user.is_instructor else Term.objects.filter(students=user)
-        serializer = TermSerializer(terms, many=True)
+        courses = Course.objects.filter(instructor=user) if user.is_instructor else Course.objects.filter(students=user)
+        serializer = CourseSerializer(courses, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    # POST /terms/
+    # POST /courses/
     # e.g. post data
     """
         {
@@ -74,18 +79,51 @@ class TermViewSet(APIView):
     """
     def post(self, request):
         if not (request.user.is_instructor or request.user.is_superuser):
-            return Response({"message": "You are not authorized to create a term"}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"message": "You are not authorized to create a course"}, status=status.HTTP_403_FORBIDDEN)
 
-        serializer = CreateTermSerializer(data=request.data, context={"request": request})
+        serializer = CreateCourseSerializer(data=request.data, context={"request": request})
         if serializer.is_valid():
-            term = serializer.save(request.data)
-            return Response(term, status=status.HTTP_201_CREATED)
+            course = serializer.save()
+            return Response(course, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def patch(self, request, *args, **kwargs):
+        course_id = kwargs.get("course_id")
+        
+        if not course_id:
+            return Response({"message": "Course ID is required."}, status=status.HTTP_400_BAD_REQUEST)
 
+        try:
+            course = Course.objects.get(id=course_id)
+        except Course.DoesNotExist:
+            return Response({"message": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        if not request.user.is_superuser and course.instructor != request.user:
+            return Response({"message": "You are not authorized to manage this course."}, status=status.HTTP_403_FORBIDDEN)
+
+        # ROUTE 1: Regenerate Join Code
+        if request.data.get("action") == "regenerate_code":
+            raw_code = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
+            course.join_code_hash = hashlib.sha256(raw_code.encode('utf-8')).hexdigest()
+            course.join_code_expires_at = timezone.now() + timedelta(days=7)
+            course.save()
+            return Response({
+                "join_code": raw_code,
+                "join_code_expires_at": course.join_code_expires_at
+            }, status=status.HTTP_200_OK)
+
+        # ROUTE 2: Standard Field Updates (like is_active)
+        if "is_active" in request.data:
+            course.is_active = request.data.get("is_active")
+            course.save()
+            
+        # Return the updated course data for standard updates
+        serializer = CourseSerializer(course, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class AssignmentViewSet(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    # GET /assignments/term_id
+    # GET /assignments/course_id
     """
         [
             {
@@ -122,18 +160,18 @@ class AssignmentViewSet(APIView):
             }
         ]
     """
-    def get(self, request, term_id):
+    def get(self, request, course_id):
         user = request.user
 
         try:
-            term = Term.objects.get(id=term_id)
-        except Term.DoesNotExist:
-            return Response({"message": "Term not found"}, status=status.HTTP_404_NOT_FOUND)
+            course = Course.objects.get(id=course_id)
+        except Course.DoesNotExist:
+            return Response({"message": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        if not (user.is_instructor and term.instructor == user) and user not in term.students.all() and not user.is_superuser:
-            return Response({"message": "You are not authorized to view any assignments for this term."}, status=status.HTTP_403_FORBIDDEN)
+        if not (user.is_instructor and course.instructor == user) and user not in course.students.all() and not user.is_superuser:
+            return Response({"message": "You are not authorized to view any assignments for this course."}, status=status.HTTP_403_FORBIDDEN)
 
-        assignments = Assignment.objects.filter(term=term)
+        assignments = Assignment.objects.filter(course=course)
         serializer = AssignmentSerializer(assignments, many=True, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -144,12 +182,21 @@ class AssignmentViewSet(APIView):
         "title": "Test 7",
         "description": "test assignment",
         "due_date": "2024-12-12",
-        "term": 55
+        "course": 55
     }
     """
     def post(self, request):
-        if not (request.user.is_instructor or not request.user.is_superuser):
+        if not (request.user.is_instructor or request.user.is_superuser):
             return Response({"message": "You are not authorized to create an assignment"}, status=status.HTTP_403_FORBIDDEN)
+
+        course_id = request.data.get("course")
+        try:
+            course = Course.objects.get(id=course_id)
+        except Course.DoesNotExist:
+            return Response({"message": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        if not request.user.is_superuser and course.instructor != request.user:
+            return Response({"message": "You can only create assignments for your own courses."}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = CreateAssignmentSerializer(data=request.data, context={"request": request})
         if serializer.is_valid():
@@ -178,20 +225,20 @@ def check_user(request):
 @permission_classes([permissions.IsAuthenticated])
 def remove_student(request):
     data = request.data
-    term = data.get("term")
+    course = data.get("course")
     student = data.get("student")
 
     try:
-        term = Term.objects.get(id=term)
-    except Term.DoesNotExist:
-        return Response({"message": "Term not found"}, status=status.HTTP_404_NOT_FOUND)
+        course = Course.objects.get(id=course)
+    except Course.DoesNotExist:
+        return Response({"message": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
 
     if (
-        not (request.user.is_instructor and term.instructor == request.user)
+        not (request.user.is_instructor and course.instructor == request.user)
         and not request.user.is_superuser
     ):
         return Response(
-            {"message": "You are not authorized to remove a student from this term."},
+            {"message": "You are not authorized to remove a student from this course."},
             status=status.HTTP_403_FORBIDDEN,
         )
 
@@ -204,7 +251,7 @@ def remove_student(request):
     except User.DoesNotExist:
         return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    term.students.remove(student)
+    course.students.remove(student)
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -212,20 +259,20 @@ def remove_student(request):
 @permission_classes([permissions.IsAuthenticated])
 def add_student(request):
     data = request.data
-    term = data.get("term")
+    course = data.get("course")
     student = data.get("student")
 
     try:
-        term = Term.objects.get(id=term)
-    except Term.DoesNotExist:
-        return Response({"message": "Term not found"}, status=status.HTTP_404_NOT_FOUND)
+        course = Course.objects.get(id=course)
+    except Course.DoesNotExist:
+        return Response({"message": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
 
     if (
-        not (request.user.is_instructor and term.instructor == request.user)
+        not (request.user.is_instructor and course.instructor == request.user)
         and not request.user.is_superuser
     ):
         return Response(
-            {"message": "You are not authorized to add a student to this term."},
+            {"message": "You are not authorized to add a student to this course."},
             status=status.HTTP_403_FORBIDDEN,
         )
 
@@ -238,6 +285,6 @@ def add_student(request):
     except User.DoesNotExist:
         return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    term.students.add(student)
-    data = TermSerializer(term).data
+    course.students.add(student)
+    data = CourseSerializer(course).data
     return Response(data, status=status.HTTP_200_OK)

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Table, Button, Form, Badge, Card, Row, Col, InputGroup } from "react-bootstrap";
+import { Table, Button, Form, Badge, Card, Row, Col, Spinner } from "react-bootstrap";
 import AddAssignmentModal from './modals/AddAssignmentModal';
 import useSortableTable from '../../hooks/useSortableTable';
 
@@ -9,11 +9,13 @@ const MOCK_STUDENTS = [
   { id: 3, name: 'Student Three', email: 'student3@example.com' }
 ];
 
-export default function InstructorCourseView({ course, assignments, onBack, onToggleStatus, onToggleJoinCode, onEditJoinCode }) {
+export default function InstructorCourseView({ course, assignments, onBack, onToggleStatus, onRegenerateJoinCode }) {
   const [assignmentPage, setAssignmentPage] = useState(1);
   const [showAddAssignmentModal, setShowAddAssignmentModal] = useState(false);
   const [newStudentEmail, setNewStudentEmail] = useState("");
   const itemsPerPage = 10;
+
+  const [expiresAt, setExpiresAt] = useState(course.join_code_expires_at);
 
   // 2. Filter & Hook
   const currentAssignments = useMemo(() => {
@@ -34,34 +36,37 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
     assignmentPage * itemsPerPage
   );
 
-  const [editJoinCode, setEditJoinCode] = useState(false);
-  const [joinCodeInput, setJoinCodeInput] = useState(course.joinCode);
-  const joinCodeRef = useRef(null);
+  // join code generation
+  // --- New Join Code States ---
+  const [newCode, setNewCode] = useState(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
-  // Keep input in sync if course changes externally
-  useEffect(() => {
-    setJoinCodeInput(course.joinCode);
-  }, [course.joinCode]);
-
-  // Submit the new code when the user clicks away from the input  
-  const handleCodeBlur = () => {
-    const cleanedCode = joinCodeInput.trim().toUpperCase();
-    if (cleanedCode !== course.joinCode && cleanedCode !== "") {
-      onEditJoinCode(course.id, cleanedCode);
-    } else {
-      setJoinCodeInput(course.joinCode); // keep last value if empty
+  const handleGenerateCode = async () => {
+    setIsGenerating(true);
+    setNewCode(null);
+    
+    const response = await onRegenerateJoinCode(course.id); 
+    
+    if (response && response.join_code) {
+        setNewCode(response.join_code);
+        setExpiresAt(response.join_code_expires_at);
     }
-    setEditJoinCode(false);
+    setIsGenerating(false);
   };
 
-  const handleKeyDownJoinCode = (e) => {
-    if (e.key === 'Enter') {
-      e.target.blur();
-    } else if (e.key === 'Escape') {
-      setJoinCodeInput(course.joinCode);
-      setEditJoinCode(false);
+  const handleCopy = () => {
+    if (newCode) {
+      navigator.clipboard.writeText(newCode);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
     }
   };
+
+  const isCodeActive = expiresAt && new Date(expiresAt) > new Date();
+  const formattedExpiration = expiresAt 
+      ? new Date(expiresAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) 
+      : "No code generated";
 
   return (
     <div>
@@ -82,12 +87,12 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
               <Form.Check
                 type="switch"
                 id="course-active-switch"
-                checked={course.isActive}
-                onChange={() => onToggleStatus(course.id)}
+                checked={course.is_active}
+                onChange={() => onToggleStatus(course.id, course.is_active)}
                 className="mb-1 me-0"
               />
               <span className="text-muted small fw-semibold">
-                {course.isActive ? "Active" : "Archived / Hidden"}
+                {course.is_active ? "Active" : "Archived / Hidden"}
               </span>
             </Col>
           </Row>
@@ -96,47 +101,55 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
           <Row className="align-items-center">
             <Col md={4}>
               <h6 className="mb-1 fw-bold">Enrollment Code</h6>
-              <div className="text-muted small">Share this code to allow new students to join.</div>
+              <div className="text-muted small">Generate a temporary 7-day code for students to join.</div>
             </Col>
+            
             <Col md={4} className="mt-2 mt-md-0">
-              <InputGroup size="sm">
-                <InputGroup.Text className="bg-white"><i className="fa-solid fa-key text-muted"></i></InputGroup.Text>
-                <Form.Control
-                  ref={joinCodeRef}
-                  type="text"
-                  value={joinCodeInput}
-                  onChange={(e) => setJoinCodeInput(e.target.value)}
-                  onBlur={handleCodeBlur}
-                  onKeyDown={handleKeyDownJoinCode}
-                  disabled={!course.isJoinCodeActive || !editJoinCode}
-                  className="fw-semibold font-monospace border-end-0"
-                />
-                <InputGroup.Text className="bg-white p-0">
-                  <button
-                    type="button"
-                    className={`edit-icon-btn px-2 ${(!course.isJoinCodeActive || editJoinCode) ? "edit-code-btn-off" : ""}`}
-                    onClick={() => {
-                      setEditJoinCode(true);
-                      setTimeout(() => joinCodeRef.current?.focus(), 0);
-                    }}
-                    disabled={!course.isJoinCodeActive || editJoinCode}
-                  >
-                    <i className="fa-solid fa-pen"></i>
-                  </button>
-                </InputGroup.Text>
-              </InputGroup>
+              {newCode ? (
+                 <div className="p-2 border rounded bg-white text-center shadow-sm">
+                   <div className="text-success small fw-bold mb-1">New Code Generated!</div>
+                   <div className="d-flex justify-content-center align-items-center gap-2">
+                       <code className="fs-5 text-primary mb-0">{newCode}</code>
+                       <Button 
+                         variant={isCopied ? "success" : "outline-secondary"} 
+                         size="sm" 
+                         onClick={handleCopy}
+                         title="Copy to clipboard"
+                       >
+                         {isCopied ? <i className="fa-solid fa-check"></i> : <i className="fa-regular fa-copy"></i>}
+                       </Button>
+                   </div>
+                   <div className="text-danger fw-semibold mt-1" style={{ fontSize: '0.75rem' }}>
+                     <i className="fa-solid fa-triangle-exclamation me-1"></i>
+                     Save this now. It will be hidden later.
+                   </div>
+                 </div>
+              ) : (
+                 <Button 
+                   variant="outline-primary" 
+                   size="sm" 
+                   onClick={handleGenerateCode} 
+                   disabled={isGenerating}
+                   className="w-100 fw-semibold"
+                 >
+                   {isGenerating ? (
+                     <Spinner size="sm" animation="border" />
+                   ) : (
+                     <><i className="fa-solid fa-arrows-rotate me-2"></i>Generate New Code</>
+                   )}
+                 </Button>
+              )}
             </Col>
             <Col md={4} className="d-flex flex-column align-items-start align-items-md-end mt-2 mt-md-0">
-              <Form.Check
-                type="switch"
-                id="joincode-active-switch"
-                checked={course.isJoinCodeActive}
-                onChange={() => onToggleJoinCode(course.id)}
-                className="mb-1"
-              />
-              <span className="text-muted small fw-semibold">
-                {course.isJoinCodeActive ? "Accepting Students" : "Disabled"}
+              <span className={`small fw-bold mb-1 ${isCodeActive ? 'text-success' : 'text-danger'}`}>
+                  {isCodeActive ? "Currently Accepting Students" : "Enrollment Closed"}
               </span>
+              {expiresAt && (
+                  <span className="text-muted small fw-semibold">
+                    {isCodeActive ? "Expires: " : "Expired: "} 
+                    {formattedExpiration}
+                  </span>
+              )}
             </Col>
           </Row>
         </Card.Body>

@@ -40,11 +40,6 @@ const Header = () => {
                     </Nav.Link>
                   </Nav.Item>
                   <Nav.Item>
-                    <Nav.Link as={Link} to="/terms" className="top-menu-item">
-                      Terms
-                    </Nav.Link>
-                  </Nav.Item>
-                  <Nav.Item>
                     <Nav.Link as={Link} to={allProofsHref} className="top-menu-item">
                       All Proofs
                     </Nav.Link>

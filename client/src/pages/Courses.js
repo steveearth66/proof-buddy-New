@@ -3,21 +3,15 @@ import MainLayout from '../layouts/MainLayout';
 import { Container } from "react-bootstrap";
 import userService from '../services/userService';
 
-// Import your new sub-components
 import StudentCatalog from '../components/courses/StudentCatalog';
 import StudentCourseView from '../components/courses/StudentCourseView';
 import InstructorCatalog from '../components/courses/InstructorCatalog';
 import InstructorCourseView from '../components/courses/InstructorCourseView';
+import courseService from '../services/courseServices'
 
 import "../scss/_courses.scss";
 
 // --- Mock Data ---
-const INITIAL_COURSES = [
-  { id: 1, name: 'CS 101: Discrete Math', instructor: 'Prof. Johnson', term: 'Fall 2023', description: 'Introduction to logic, sets, and proofs.', joinCode: 'MATHROCKS', isActive: true, isJoinCodeActive: true },
-  { id: 2, name: 'PHIL 202: Symbolic Logic', instructor: 'Prof. Lee', term: 'Fall 2023', description: 'Formal logic and its applications.', joinCode: 'LOGIC101', isActive: false, isJoinCodeActive: false },
-  { id: 3, name: 'CS 202: Data Structures', instructor: 'Prof. Davis', term: 'Spring 2024', description: 'Fundamental data structures and algorithms.', joinCode: 'TREES24', isActive: true, isJoinCodeActive: true }
-];
-
 const MOCK_ASSIGNMENTS = [
   {
     id: 101, title: 'Homework 1: Propositional Logic', dueDate: '10/27/23', courseId: 1, status: 'Open',
@@ -36,18 +30,45 @@ const MOCK_ASSIGNMENTS = [
 ];
 
 export default function Courses() {
-  const [courses, setCourses] = useState(INITIAL_COURSES);
+  const [courses, setCourses] = useState([]);
   const [assignments, setAssignments] = useState(MOCK_ASSIGNMENTS);
+  
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [currentUserType, setCurrentUserType] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    async function loadUser() {
-      const profile = await userService.getUserProfile();
-      setCurrentUserType(profile);
+    async function loadInitialData() {
+      try {
+        const profile = await userService.getUserProfile();
+        setCurrentUserType(profile);
+        
+        // Fetch real courses from your backend
+        const fetchedCourses = await courseService.getCourses();
+        setCourses(fetchedCourses);
+      } catch (error) {
+        console.error("Failed to load initial data", error);
+      } finally {
+        setIsLoading(false);
+      }
     }
-    loadUser();
+    loadInitialData();
   }, []);
+
+  // Handler to hit the API and update state
+  const handleCreateCourse = async (courseData) => {
+    try {
+      const newCourse = await courseService.createCourse(courseData);
+      setCourses(prev => [...prev, newCourse]);
+      
+      // Return the full course object so the modal can extract the join code
+      return { success: true, data: newCourse }; 
+    } catch (error) {
+      console.error("Failed to create course", error);
+      // Return a structured error
+      return { success: false, message: "Failed to create course. Please try again." };
+    }
+  };
 
   if (!currentUserType) {
     return <MainLayout><Container className="mt-5 text-center text-muted">Loading...</Container></MainLayout>;
@@ -61,31 +82,38 @@ export default function Courses() {
     setSelectedCourse(course);
   };
 
-  const handleToggleCourseStatus = (courseId) => {
-    // 1. Update the main courses array
-    setCourses(prevCourses => 
-      prevCourses.map(course => 
-        course.id === courseId ? { ...course, isActive: !course.isActive } : course
-      )
-    );
-    
-    // 2. Keep the selected course in sync if we are currently viewing it
-    if (selectedCourse && selectedCourse.id === courseId) {
-       setSelectedCourse(prev => ({ ...prev, isActive: !prev.isActive }));
+  const handleToggleCourseStatus = async (courseId, currentStatus) => {
+    const newStatus = !currentStatus;
+
+    // 1. Optimistic Update (Immediate UI response)
+    setCourses(prev => prev.map(c => c.id === courseId ? { ...c, is_active: newStatus } : c));
+    if (selectedCourse?.id === courseId) {
+      setSelectedCourse(prev => ({ ...prev, is_active: newStatus }));
+    }
+
+    // 2. Background Database Sync
+    try {
+      await courseService.toggleCourseStatus(courseId, newStatus);
+    } catch (error) {
+      // 3. Rollback on failure
+      console.error("Failed to update status", error);
+      alert("Failed to save status change to the server.");
+      
+      setCourses(prev => prev.map(c => c.id === courseId ? { ...c, is_active: currentStatus } : c));
+      if (selectedCourse?.id === courseId) {
+        setSelectedCourse(prev => ({ ...prev, is_active: currentStatus }));
+      }
     }
   };
 
-  const handleToggleJoinCode = (courseId) => {
-    setCourses(prev => prev.map(c => c.id === courseId ? { ...c, isJoinCodeActive: !c.isJoinCodeActive } : c));
-    if (selectedCourse?.id === courseId) {
-      setSelectedCourse(prev => ({ ...prev, isJoinCodeActive: !prev.isJoinCodeActive }));
-    }
-  };
-
-  const handleEditJoinCode = (courseId, newCode) => {
-    setCourses(prev => prev.map(c => c.id === courseId ? { ...c, joinCode: newCode } : c));
-    if (selectedCourse?.id === courseId) {
-      setSelectedCourse(prev => ({ ...prev, joinCode: newCode }));
+  const handleRegenerateJoinCode = async (courseId) => {
+    try {
+      const response = await courseService.regenerateJoinCode(courseId);
+      return response; 
+    } catch (error) {
+      console.error("Failed to regenerate join code", error);
+      alert("Failed to generate a new join code. Please try again.");
+      return null;
     }
   };
 
@@ -97,7 +125,12 @@ export default function Courses() {
           isStudent ? (
             <StudentCatalog courses={courses} onViewCourse={handleViewCourse} />
           ) : (
-            <InstructorCatalog courses={courses} onViewCourse={handleViewCourse} onToggleStatus={handleToggleCourseStatus} />
+            <InstructorCatalog 
+              courses={courses} 
+              onViewCourse={handleViewCourse} 
+              onToggleStatus={handleToggleCourseStatus} 
+              onCreateCourse={handleCreateCourse} 
+            />
           )
         ) : (
           isStudent ? (
@@ -112,8 +145,7 @@ export default function Courses() {
               assignments={assignments}
               onBack={() => setSelectedCourse(null)}
               onToggleStatus={handleToggleCourseStatus}
-              onToggleJoinCode={handleToggleJoinCode}
-              onEditJoinCode={handleEditJoinCode}
+              onRegenerateJoinCode={handleRegenerateJoinCode}
             />
           )
         )}

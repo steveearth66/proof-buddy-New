@@ -1,17 +1,24 @@
+import hashlib
+import secrets
+import string
+from datetime import timedelta
+from django.utils import timezone
 from rest_framework import serializers
-from .models import Assignment, AssignmentSubmission, Term
-from accounts.serializers import UserSerializer
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
+from .models import Assignment, AssignmentSubmission, Course, AssignmentProof
+from accounts.serializers import UserSerializer
 
 User = get_user_model()
 
-class TermSerializer(serializers.ModelSerializer):
+class CourseSerializer(serializers.ModelSerializer):
     instructor = serializers.SerializerMethodField()
     students = serializers.SerializerMethodField()
     created_by = serializers.SerializerMethodField()
+    
     class Meta:
-        model = Term
-        fields = ['id', 'name', 'instructor', 'students', 'created_by']
+        model = Course
+        fields = ['id', 'name', 'instructor', 'students', 'join_code_expires_at', 'created_by', 'is_active']
 
     def get_instructor(self, obj):
         return UserSerializer(obj.instructor).data
@@ -22,24 +29,57 @@ class TermSerializer(serializers.ModelSerializer):
     def get_students(self, obj):
         return UserSerializer(obj.students, many=True).data
 
-class CreateTermSerializer(serializers.ModelSerializer):
-    students = serializers.ListField(child=serializers.CharField())
-    class Meta:
-        model = Term
-        fields = ['name', 'instructor', 'students']
+class CreateCourseSerializer(serializers.ModelSerializer):
+    students = serializers.ListField(child=serializers.CharField(), required=False)
+    
+    # New write-only fields to control join code logic
+    generate_join_code = serializers.BooleanField(write_only=True, default=False)
+    expiration_date = serializers.DateTimeField(write_only=True, required=False)
 
-    def save(self, validated_data):
+    class Meta:
+        model = Course
+        fields = ['name', 'instructor', 'students', 'generate_join_code', 'expiration_date']
+
+    def save(self, **kwargs):
         request = self.context.get('request')
+        validated_data = self.validated_data
+        
+        # Extract the join code instructions
+        generate_join_code = validated_data.pop('generate_join_code', False)
+        expiration_date = validated_data.pop('expiration_date', None)
+
         validated_data['created_by'] = request.user
         validated_data['instructor'] = request.user
 
         student_identifiers = validated_data.pop('students', [])
-        students = User.objects.filter(username__in=student_identifiers) | User.objects.filter(email__in=student_identifiers)
 
-        term = super().create(validated_data)
-        term.students.set(students)
+        raw_code = None
+        if generate_join_code:
+            # Generate a random 8-character join code
+            raw_code = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
+            
+            # Hash it for database storage
+            validated_data['join_code_hash'] = hashlib.sha256(raw_code.encode('utf-8')).hexdigest()
+            
+            # Use provided expiration date, or default to 1 week from now
+            if expiration_date:
+                validated_data['join_code_expires_at'] = expiration_date
+            else:
+                validated_data['join_code_expires_at'] = timezone.now() + timedelta(days=7)
 
-        return TermSerializer(term).data
+        term = super().save(**kwargs)
+
+        if student_identifiers:
+            students = User.objects.filter(username__in=student_identifiers) | User.objects.filter(email__in=student_identifiers)
+            term.students.set(students)
+
+        response_data = CourseSerializer(term).data
+        
+        # Only inject the raw code into the return payload if it was generated
+        if raw_code:
+            response_data['join_code'] = raw_code 
+            
+        return response_data
 
 class AssignmentSerializer(serializers.ModelSerializer):
     submissions = serializers.SerializerMethodField()
@@ -72,15 +112,41 @@ class AssignmentSerializer(serializers.ModelSerializer):
         return UserSerializer(obj.created_by).data
     
 class CreateAssignmentSerializer(serializers.ModelSerializer):
+    # Expects a payload like: [{"type": "equationalproof", "id": 5}, {"type": "inductionproof", "id": 12}]
+    proofs = serializers.ListField(child=serializers.DictField(), write_only=True, required=False)
+
     class Meta:
         model = Assignment
-        fields = ['title', 'description', 'due_date', 'term']
+        fields = ['title', 'description', 'due_date', 'course', 'proofs'] 
 
     def create(self, validated_data):
         request = self.context.get('request')
         validated_data['created_by'] = request.user
+        
+        # Extract the proofs list before saving the Assignment model
+        proofs_data = validated_data.pop('proofs', [])
 
-        return super().create(validated_data)
+        assignment = super().create(validated_data)
+
+        # Map the provided proofs to the assignment
+        for proof in proofs_data:
+            p_type = proof.get('type') # 'equationalproof' or 'inductionproof'
+            p_id = proof.get('id')
+            
+            app_label = 'equational_reasoning_api' if p_type == 'equationalproof' else 'induction_api'
+            
+            try:
+                ctype = ContentType.objects.get(app_label=app_label, model=p_type)
+                AssignmentProof.objects.create(
+                    assignment=assignment,
+                    content_type=ctype,
+                    object_id=p_id
+                )
+            except ContentType.DoesNotExist:
+                # Silently skip invalid types, or you could raise a ValidationError here
+                continue 
+
+        return assignment
 
 class AssignmentSubmissionSerializer(serializers.ModelSerializer):
     student = serializers.SerializerMethodField()
