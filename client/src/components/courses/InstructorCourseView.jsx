@@ -10,13 +10,18 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
   const [newStudentEmail, setNewStudentEmail] = useState("");
   const itemsPerPage = 10;
 
+  const initialSeason = course.term ? course.term.split(' ')[0] : 'Fall';
+  const initialYear = course.term ? course.term.split(' ')[1] : new Date().getFullYear();
+  const [editSeason, setEditSeason] = useState(initialSeason);
+  const [editYear, setEditYear] = useState(initialYear);
+
   const [candidateList, setCandidateList] = useState([]);
   const [expiresAt, setExpiresAt] = useState(course.join_code_expires_at);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [studentFeedback, setStudentFeedback] = useState(null);
 
   const handleAddStudent = async (e, specificUsername = null) => {
-    if (e) e.preventDefault(); // Might be triggered directly by a button click
+    if (e) e.preventDefault();
     
     // Use the explicitly passed username if available, otherwise use the input box
     const identifierToSubmit = specificUsername || newStudentEmail.trim();
@@ -126,6 +131,46 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
       await onDeleteAssignment(assignment.id);
     }
   };
+
+  const [isEditingTerm, setIsEditingTerm] = useState(false); // NEW
+
+  // --- Description State ---
+  const [editDescription, setEditDescription] = useState(course?.description || "");
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+
+  // --- Handlers ---
+  const handleUpdateField = async (field, value) => {
+      
+  };
+
+  const handleTermSave = async () => {
+      const newTerm = `${editSeason} ${editYear}`;
+      if (newTerm !== course.term) {
+          const updatedCourse = await courseService.updateCourseTerm(course.id, newTerm); 
+          if (updatedCourse) onUpdateCourse(updatedCourse);
+      }
+      setIsEditingTerm(false); // Close edit mode
+  };
+
+  const handleDescriptionSave = async () => {
+      if (editDescription !== course.description) {
+          const updatedCourse = await courseService.updateCourseDescription(course.id, editDescription); 
+          if (updatedCourse) onUpdateCourse(updatedCourse);
+      }
+      setIsEditingDescription(false); // Close edit mode
+  };
+
+  const cancelTermEdit = () => {
+      // Reset to original values and close
+      setEditSeason(initialSeason);
+      setEditYear(initialYear);
+      setIsEditingTerm(false);
+  };
+
+  const cancelDescriptionEdit = () => {
+      setEditDescription(course?.description || "");
+      setIsEditingDescription(false);
+  };
   
   return (
     <div>
@@ -155,7 +200,86 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
               </span>
             </Col>
           </Row>
+          
+          {/* COURSE TERM ROW */}
+          <hr className="text-muted my-3" />
+          <Row className="align-items-center">
+            <Col md={9}>
+              <h6 className="mb-1 fw-bold">Course Term</h6>
+              <div className="text-muted small">Select the academic season and year.</div>
+            </Col>
+            
+            <Col md={3}>
+              {!isEditingTerm ? (
+                <div className="d-flex justify-content-between align-items-center bg-white border rounded p-1 ps-2">
+                  <span className="fw-semibold small">{course.term || "Not Set"}</span>
+                  <Button variant="light" size="sm" onClick={() => setIsEditingTerm(true)}>
+                    <i className="fa-solid fa-pen text-muted"></i>
+                  </Button>
+                </div>
+              ) : (
+                <div className="d-flex flex-column gap-2">
+                  <div className="d-flex gap-2">
+                    <Form.Select size="sm" value={editSeason} onChange={(e) => setEditSeason(e.target.value)}>
+                        <option value="Spring">Spring</option>
+                        <option value="Summer">Summer</option>
+                        <option value="Fall">Fall</option>
+                        <option value="Winter">Winter</option>
+                    </Form.Select>
+                    
+                    <Form.Control 
+                      type="number" size="sm" min="2020" max="2100"
+                      value={editYear} onChange={(e) => setEditYear(e.target.value)}
+                      style={{ width: '100px' }}
+                    />
+                  </div>
+                  <div className="d-flex gap-1 justify-content-end">
+                    <Button variant="outline-secondary" size="sm" onClick={cancelTermEdit}>Cancel</Button>
+                    <Button variant="primary" size="sm" onClick={handleTermSave}>Save</Button>
+                  </div>
+                </div>
+              )}
+            </Col>
+          </Row>
 
+          {/* COURSE DESCRIPTION ROW */}
+          <hr className="text-muted my-3" />
+          <Row className="align-items-start">
+            <Col md={5}>
+              <h6 className="mb-1 fw-bold">Course Description</h6>
+              <div className="text-muted small">Visible to students in the catalog.</div>
+            </Col>
+            
+            <Col md={7}>
+              {!isEditingDescription ? (
+                <div className="bg-white border rounded p-2 position-relative" style={{ minHeight: '60px' }}>
+                  <p className="mb-0 small text-muted pe-4">
+                    {course.description || <span className="fst-italic">No description provided.</span>}
+                  </p>
+                  <Button 
+                    variant="light" size="sm" 
+                    className="position-absolute top-0 end-0 m-1" 
+                    onClick={() => setIsEditingDescription(true)}
+                  >
+                    <i className="fa-solid fa-pen text-muted"></i>
+                  </Button>
+                </div>
+              ) : (
+                <div className="d-flex flex-column gap-2">
+                  <Form.Control 
+                    as="textarea" rows={3} size="sm"
+                    value={editDescription} 
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    placeholder="Enter course description..."
+                  />
+                  <div className="d-flex gap-1 justify-content-end">
+                    <Button variant="outline-secondary" size="sm" onClick={cancelDescriptionEdit}>Cancel</Button>
+                    <Button variant="primary" size="sm" onClick={handleDescriptionSave}>Save</Button>
+                  </div>
+                </div>
+              )}
+            </Col>
+          </Row>
           <hr className="text-muted my-3" />
           <Row className="align-items-center">
             <Col md={4}>

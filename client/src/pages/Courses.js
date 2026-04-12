@@ -139,13 +139,39 @@ export default function Courses() {
       }
   };
 
+  const handleJoinCourse = async (code) => {
+    const result = await courseService.joinCourse(code);
+    
+    if (result.success) {
+      setCourses(prev => [...prev, result.course]);
+      
+      return { success: true };
+    } else {
+      return { success: false, message: result.message };
+    }
+  };
+
+  const handleLeaveCourse = async (courseId) => {
+    const result = await courseService.leaveCourse(courseId);
+    if (result.success) {
+      setCourses(prev => prev.filter(c => c.id !== courseId));
+    } else {
+      toast.error(result.message);
+    }
+  };
+
   return (
     <MainLayout>
       <Container className="my-4 py-4 bg-white rounded shadow-sm border">
 
         {!selectedCourse ? (
           isStudent ? (
-            <StudentCatalog courses={courses} onViewCourse={handleViewCourse} />
+            <StudentCatalog 
+              courses={courses} 
+              onViewCourse={handleViewCourse} 
+              onJoinCourse={handleJoinCourse}
+              onLeaveCourse={handleLeaveCourse} 
+            />
           ) : (
             <InstructorCatalog 
               courses={courses} 

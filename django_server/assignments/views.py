@@ -67,7 +67,7 @@ class CourseViewSet(APIView):
             serializer = CourseSerializer(course, context={"request": request})
             return Response(serializer.data, status=status.HTTP_200_OK)
 
-        courses = Course.objects.filter(instructor=user) if user.is_instructor else Course.objects.filter(students=user)
+        courses = Course.objects.filter(instructor=user) if user.is_instructor else Course.objects.filter(students=user, is_active = True)
         serializer = CourseSerializer(courses, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -114,14 +114,14 @@ class CourseViewSet(APIView):
                 "join_code_expires_at": course.join_code_expires_at
             }, status=status.HTTP_200_OK)
 
-        # ROUTE 2: Standard Field Updates (like is_active)
-        if "is_active" in request.data:
-            course.is_active = request.data.get("is_active")
-            course.save()
+        # ROUTE 2: Standard Field Updates (Dynamic)
+        serializer = CourseSerializer(course, data=request.data, partial=True, context={"request": request})
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
             
-        # Return the updated course data for standard updates
-        serializer = CourseSerializer(course, context={"request": request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class AssignmentViewSet(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -335,8 +335,6 @@ class InstructorLibraryView(APIView):
             
         return Response(library)
 
-# Add this class to your assignments/views.py
-
 class AssignmentDetailView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -357,3 +355,56 @@ class AssignmentDetailView(APIView):
         assignment.delete()
         
         return Response(status=status.HTTP_204_NO_CONTENT)
+    
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def join_course(request):
+    join_code = request.data.get("code", "").strip()
+
+    if not join_code:
+        return Response({"message": "Please provide a join code."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 1. Filter for active courses where the join code hasn't expired
+    potential_courses = Course.objects.filter(
+        is_active=True,
+        join_code_expires_at__gt=timezone.now()
+    ).exclude(join_code_hash="")
+
+    # 2. Hash the incoming code using the exact same method as generation
+    input_hash = hashlib.sha256(join_code.encode('utf-8')).hexdigest()
+    print(input_hash)
+    # 3. Iterate and compare the raw hashes
+    for course in potential_courses:
+        if course.join_code_hash == input_hash:
+            
+            # 4. Prevent duplicate enrollments
+            if request.user in course.students.all():
+                return Response({"message": "You are already enrolled in this course."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # 5. Enroll the student
+            course.students.add(request.user)
+            
+            return Response({
+                "message": "Successfully joined the course!",
+                "course": CourseSerializer(course).data
+            }, status=status.HTTP_200_OK)
+
+    # If the loop finishes without returning, no valid code was found
+    return Response({"message": "Invalid or expired join code."}, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def leave_course(request):
+    course_id = request.data.get("course")
+    
+    try:
+        course = Course.objects.get(id=course_id)
+    except Course.DoesNotExist:
+        return Response({"message": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    # Check if the student is actually in the course
+    if request.user in course.students.all():
+        course.students.remove(request.user)
+        return Response({"message": "Successfully left the course."}, status=status.HTTP_200_OK)
+        
+    return Response({"message": "You are not enrolled in this course."}, status=status.HTTP_400_BAD_REQUEST)

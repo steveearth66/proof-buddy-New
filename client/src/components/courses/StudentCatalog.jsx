@@ -4,7 +4,7 @@ import NumberedPagination from '../Pagination';
 import JoinCourseModal from './modals/JoinCourseModal';
 import useSortableTable from '../../hooks/useSortableTable';
 
-export default function StudentCatalog({ courses, onViewCourse }) {
+export default function StudentCatalog({ courses, onViewCourse, onJoinCourse, onLeaveCourse }) {
   const [coursePage, setCoursePage] = useState(1);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const itemsPerPage = 10;
@@ -72,7 +72,11 @@ export default function StudentCatalog({ courses, onViewCourse }) {
               >
                 {course.name}
               </td>
-              <td>{course.instructor}</td>
+              <td>
+                {course.instructor?.first_name 
+                  ? `${course.instructor.first_name} ${course.instructor.last_name}` 
+                  : course.instructor?.username}
+              </td>
               <td>{course.term}</td>
               <td>{course.description}</td>
               <td className="text-center">
@@ -98,7 +102,11 @@ export default function StudentCatalog({ courses, onViewCourse }) {
                     <Button
                       variant="outline-danger"
                       size="sm"
-                      onClick={() => console.log(`Deleted Course ${course.id}`)}
+                      onClick={() => {
+                          if (window.confirm(`Are you sure you want to leave ${course.name}?`)) {
+                              onLeaveCourse(course.id);
+                          }
+                      }}
                       style={{ whiteSpace: 'nowrap' }}
                     >
                       <i className="fa-solid fa-door-open"></i>
@@ -125,7 +133,7 @@ export default function StudentCatalog({ courses, onViewCourse }) {
       <JoinCourseModal
         show={showJoinModal}
         onHide={() => setShowJoinModal(false)}
-        onJoin={(code) => console.log("Joining code:", code)}
+        onJoin={onJoinCourse}
       />
     </div>
   );

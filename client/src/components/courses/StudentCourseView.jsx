@@ -10,7 +10,7 @@ export default function StudentCourseView({ course, assignments, onBack }) {
 
   // 2. Filter assignments for THIS course, memoized for performance
   const currentAssignments = useMemo(() => {
-    return assignments.filter(a => a.courseId === course.id);
+    return assignments.filter(a => a.course === course.id);
   }, [assignments, course.id]);
 
   // 3. Pass the filtered assignments into the sorting hook
@@ -68,10 +68,10 @@ export default function StudentCourseView({ course, assignments, onBack }) {
             </th>
             <th 
               style={{ cursor: 'pointer', width: '15%', whiteSpace: 'nowrap' }} 
-              onClick={() => handleSort('dueDate')} 
+              onClick={() => handleSort('due_date')} 
               onMouseDown={handleMouseDown}
             >
-              Due Date <i className={`ms-1 ${getSortIcon('dueDate')}`}></i>
+              Due Date <i className={`ms-1 ${getSortIcon('due_date')}`}></i>
             </th>
             <th style={{ width: '20%' }}>Status</th>
             <th className="text-center" style={{ width: '1%', whiteSpace: 'nowrap' }}>Action</th>
@@ -93,7 +93,11 @@ export default function StudentCourseView({ course, assignments, onBack }) {
                         <i className={`fa-solid fa-chevron-${isExpanded ? 'down' : 'right'} text-primary`} style={{ width: '20px' }}></i>{assignment.title}
                       </Button>
                     </td>
-                    <td>{assignment.dueDate}</td>
+                    <td>
+                      {new Date(assignment.due_date).toLocaleDateString([], { 
+                          month: 'short', day: 'numeric', year: 'numeric' 
+                      })}
+                    </td>
                     <td>
                       {isFullyComplete ? <span className="text-success fw-semibold"><i className="fa-solid fa-check me-2"></i>Completed</span> : <span className="text-muted">{completedProofs} / {totalProofs} Proofs</span>}
                     </td>

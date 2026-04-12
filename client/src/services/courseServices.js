@@ -116,6 +116,28 @@ const toggleCourseStatus = async (courseId, newStatus) => {
     }
 };
 
+const updateCourseDescription = async (courseId, newDescription) => {
+    try {
+        const response = await axiosInstance.patch(`${API_GATEWAY}/courses/${courseId}`, { description: newDescription });
+        return response.data; 
+    } catch (error) {
+        console.error("Error updating course:", error);
+        handleServiceError(error, "Error updating course:");
+        throw error;
+    }
+};
+
+const updateCourseTerm = async (courseId, newTerm) => {
+    try {
+        const response = await axiosInstance.patch(`${API_GATEWAY}/courses/${courseId}`, { term: newTerm });
+        return response.data; 
+    } catch (error) {
+        console.error("Error updating course:", error);
+        handleServiceError(error, "Error updating course description:");
+        throw error;
+    }
+};
+
 const getInstructorLibrary = async () => {
     try {
         const response = await axiosInstance.get(`${API_GATEWAY}/instructor/library`);
@@ -136,6 +158,28 @@ const deleteAssignment = async (assignmentId) => {
     }
 };
 
-const courseService = { getCourses, checkUser, createCourse, getAssignments, getCourse, createAssignment, removeStudent, addStudent, regenerateJoinCode, toggleCourseStatus, getInstructorLibrary, deleteAssignment };
+const joinCourse = async (code) => {
+    try {
+        const response = await axiosInstance.post(`${API_GATEWAY}/join-course`, { code });
+        return { success: true, course: response.data.course };
+    } catch (error) {
+        handleServiceError(error, "Error joining course:");
+        return { 
+            success: false, 
+            message: error.response?.data?.message || "Failed to join course. Please try again." 
+        };
+    }
+};
+
+const leaveCourse = async (courseId) => {
+    try {
+        await axiosInstance.post(`${API_GATEWAY}/leave-course`, { course: courseId });
+        return { success: true };
+    } catch (error) {
+        return { success: false, message: error.response?.data?.message || "Failed to leave course." };
+    }
+};
+
+const courseService = { getCourses, createCourse, leaveCourse, checkUser, updateCourseDescription, updateCourseTerm, getAssignments, getCourse, createAssignment, removeStudent, addStudent, regenerateJoinCode, toggleCourseStatus, getInstructorLibrary, deleteAssignment, joinCourse };
 
 export default courseService;
