@@ -10,6 +10,8 @@ import secrets
 import string
 from datetime import timedelta
 from django.utils import timezone
+from equational_reasoning_api.models import EquationalProof
+from induction_api.models import InductionProof
 
 User = get_user_model()
 
@@ -259,32 +261,99 @@ def remove_student(request):
 @permission_classes([permissions.IsAuthenticated])
 def add_student(request):
     data = request.data
-    course = data.get("course")
-    student = data.get("student")
+    course_id = data.get("course")
+    student_identifier = data.get("student")
 
     try:
-        course = Course.objects.get(id=course)
+        course = Course.objects.get(id=course_id)
     except Course.DoesNotExist:
         return Response({"message": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    if (
-        not (request.user.is_instructor and course.instructor == request.user)
-        and not request.user.is_superuser
-    ):
+    if not (request.user.is_instructor and course.instructor == request.user) and not request.user.is_superuser:
         return Response(
             {"message": "You are not authorized to add a student to this course."},
             status=status.HTTP_403_FORBIDDEN,
         )
 
-    try:
-        student = (
-            User.objects.get(username=student)
-            if "@" not in student
-            else User.objects.get(email=student)
-        )
-    except User.DoesNotExist:
-        return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+    if "@" in student_identifier:
+        students = User.objects.filter(email=student_identifier, is_instructor=False)
+    else:
+        students = User.objects.filter(username=student_identifier, is_instructor=False)
 
+    if students.count() == 0:
+        # Check if the user exists but is an instructor
+        if User.objects.filter(email=student_identifier).exists() or User.objects.filter(username=student_identifier).exists():
+             return Response({"message": "Instructors cannot be added as students."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({"message": "Student not found. Check the spelling and try again."}, status=status.HTTP_404_NOT_FOUND)
+    
+    elif students.count() > 1:
+        # 3. Handle duplicates
+        candidates = [
+            {
+                "username": s.username,
+                "email": s.email,
+                "name": f"{s.first_name} {s.last_name}".strip() or "No Name Provided"
+            } for s in students
+        ]
+        return Response({
+            "message": "Multiple students share this email. Please select the correct one below.",
+            "requires_disambiguation": True,
+            "candidates": candidates
+        }, status=status.HTTP_409_CONFLICT)
+
+    # 4. Success: Only one student found
+    student = students.first()
     course.students.add(student)
     data = CourseSerializer(course).data
     return Response(data, status=status.HTTP_200_OK)
+
+class InstructorLibraryView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        equational = EquationalProof.objects.filter(user=request.user, is_active=True)
+        induction = InductionProof.objects.filter(user=request.user, is_active=True)
+        
+        library = []
+        
+        for proof in equational:
+            library.append({
+                'id': proof.id,
+                'title': proof.name or "Untitled Equational Proof",
+                'type': 'equationalproof',
+                'category': proof.tag or 'General'
+            })
+            
+        for proof in induction:
+            library.append({
+                'id': proof.id,
+                'title': proof.name or "Untitled Induction Proof",
+                'type': 'inductionproof',
+                'category': proof.tag or 'General'
+            })
+            
+        return Response(library)
+
+# Add this class to your assignments/views.py
+
+class AssignmentDetailView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, assignment_id):
+        try:
+            assignment = Assignment.objects.get(id=assignment_id)
+        except Assignment.DoesNotExist:
+            return Response({"message": "Assignment not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        if not request.user.is_superuser and assignment.course.instructor != request.user:
+            return Response(
+                {"message": "You are not authorized to delete this assignment."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Deleting the assignment will automatically cascade and delete the 
+        # AssignmentProof mappings (and submissions, if any) tied to it.
+        assignment.delete()
+        
+        return Response(status=status.HTTP_204_NO_CONTENT)

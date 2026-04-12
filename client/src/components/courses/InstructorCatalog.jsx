@@ -56,7 +56,24 @@ export default function InstructorCatalog({ courses, onViewCourse, onToggleStatu
                   onChange={() => onToggleStatus(course.id, course.is_active)}
                 />
               </td>
-              <td><i className="fa-solid fa-users text-muted me-2"></i>32</td>
+              <td>
+                {(() => {
+                  const count = course.students?.length || 0;
+                  // Determine the icon shape: 1 is singular, anything else (0 or 2+) is plural
+                  const iconName = count === 1 ? 'fa-user' : 'fa-users';
+                  // Fade the icon out even more if the count is 0
+                  const opacityClass = count === 0 ? 'opacity-25' : 'opacity-75';
+
+                  return (
+                    <>
+                      <i className={`fa-solid ${iconName} text-muted ${opacityClass} me-2`}></i>
+                      <span className={count === 0 ? 'text-muted' : 'fw-semibold'}>
+                        {count}
+                      </span>
+                    </>
+                  );
+                })()}
+              </td>
               <td className="text-center">
                 <Button variant="outline-primary" style={{ whiteSpace: 'nowrap' }} size="sm" onClick={() => onViewCourse(course.id)}>
                   <i className="fa-solid fa-gear me-2"></i>Manage

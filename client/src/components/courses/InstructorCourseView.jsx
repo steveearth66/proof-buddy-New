@@ -1,25 +1,78 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Table, Button, Form, Badge, Card, Row, Col, Spinner } from "react-bootstrap";
+import { Table, Button, Form, Badge, Card, Row, Col, InputGroup, Spinner, Alert, ListGroup } from "react-bootstrap";
 import AddAssignmentModal from './modals/AddAssignmentModal';
 import useSortableTable from '../../hooks/useSortableTable';
+import courseService from '../../services/courseServices';
 
-const MOCK_STUDENTS = [
-  { id: 1, name: 'Student One', email: 'student1@example.com' },
-  { id: 2, name: 'Student Two', email: 'student2@example.com' },
-  { id: 3, name: 'Student Three', email: 'student3@example.com' }
-];
-
-export default function InstructorCourseView({ course, assignments, onBack, onToggleStatus, onRegenerateJoinCode }) {
+export default function InstructorCourseView({ course, assignments, onBack, onToggleStatus, onRegenerateJoinCode, onUpdateCourse, onCreateAssignment, onDeleteAssignment }) {
   const [assignmentPage, setAssignmentPage] = useState(1);
   const [showAddAssignmentModal, setShowAddAssignmentModal] = useState(false);
   const [newStudentEmail, setNewStudentEmail] = useState("");
   const itemsPerPage = 10;
 
+  const [candidateList, setCandidateList] = useState([]);
   const [expiresAt, setExpiresAt] = useState(course.join_code_expires_at);
+  const [isAddingStudent, setIsAddingStudent] = useState(false);
+  const [studentFeedback, setStudentFeedback] = useState(null);
+
+  const handleAddStudent = async (e, specificUsername = null) => {
+    if (e) e.preventDefault(); // Might be triggered directly by a button click
+    
+    // Use the explicitly passed username if available, otherwise use the input box
+    const identifierToSubmit = specificUsername || newStudentEmail.trim();
+    if (!identifierToSubmit) return;
+
+    setIsAddingStudent(true);
+    setStudentFeedback(null);
+    setCandidateList([]); // Clear any existing candidates
+
+    const payload = {
+        course: course.id,
+        student: identifierToSubmit
+    };
+
+    const result = await courseService.addStudent(payload);
+    
+    setIsAddingStudent(false);
+
+    if (result.success) {
+        onUpdateCourse(result.data);
+        setNewStudentEmail("");
+        setStudentFeedback({ type: 'success', message: 'Student added successfully!' });
+        setTimeout(() => setStudentFeedback(null), 3000);
+    } else if (result.requires_disambiguation) {
+        // Catch the duplicates and show the UI!
+        setStudentFeedback({ type: 'warning', message: result.message });
+        setCandidateList(result.candidates);
+    } else {
+        setStudentFeedback({ type: 'danger', message: result.message });
+    }
+  };
+
+  const handleRemoveStudent = async (studentIdentifier) => {
+    if (!window.confirm(`Are you sure you want to remove ${studentIdentifier} from the course?`)) return;
+
+    const payload = {
+        course: course.id,
+        student: studentIdentifier
+    };
+
+    const success = await courseService.removeStudent(payload);
+
+    if (success) {
+        const updatedCourse = {
+            ...course,
+            students: course.students.filter(s => s.email !== studentIdentifier && s.username !== studentIdentifier)
+        };
+        onUpdateCourse(updatedCourse);
+    } else {
+        alert("Failed to remove student. Please try again.");
+    }
+  };
 
   // 2. Filter & Hook
   const currentAssignments = useMemo(() => {
-    return assignments.filter(a => a.courseId === course.id);
+    return assignments.filter(a => a.course === course.id);
   }, [assignments, course.id]);
 
   const {
@@ -68,6 +121,12 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
       ? new Date(expiresAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) 
       : "No code generated";
 
+  const handleDeleteAssignmentClick = async (assignment) => {
+    if (window.confirm(`Are you sure you want to delete "${assignment.title}"? This cannot be undone.`)) {
+      await onDeleteAssignment(assignment.id);
+    }
+  };
+  
   return (
     <div>
       <div className="mb-4">
@@ -184,25 +243,47 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
           </tr>
         </thead>
         <tbody>
-          {paginatedAssignments.map((assignment) => (
-            <tr key={assignment.id}>
-              <td className="fw-semibold">{assignment.title}</td>
-              <td>{assignment.dueDate}</td>
-              <td>
-                <Badge
-                  bg={assignment.status === 'Open' ? 'success' : 'secondary'}
-                  className='w-100 py-2 text-uppercase letter-spacing-1'
-                  style={{ fontSize: '0.85rem' }}
-                >
-                  {assignment.status}
-                </Badge>
-              </td>
-              <td className="text-center" style={{ whiteSpace: 'nowrap' }}>
-                <Button variant="outline-secondary" size="sm" className="me-2"><i className="fa-solid fa-pen"></i></Button>
-                <Button variant="outline-danger" size="sm"><i className="fa-solid fa-trash"></i></Button>
+          {paginatedAssignments.length > 0 ? (
+            paginatedAssignments.map((assignment) => {
+              // Calculate if the assignment is still open based on the due date
+              const isOpen = new Date(assignment.due_date) > new Date();
+              
+              return (
+                <tr key={assignment.id}>
+                  <td className="fw-semibold">
+                    {assignment.title}
+                    <div className="text-muted small" style={{ fontSize: '0.75rem' }}>
+                      {assignment.proofs?.length || 0} proof{assignment.proofs?.length === 1 ? "" : "s"} attached
+                    </div>
+                  </td>
+                  <td>
+                    {new Date(assignment.due_date).toLocaleDateString([], { 
+                        month: 'short', day: 'numeric', year: 'numeric' 
+                    })}
+                  </td>
+                  <td>
+                    <Badge
+                      bg={isOpen ? 'success' : 'secondary'}
+                      className='w-100 py-2 text-uppercase letter-spacing-1'
+                      style={{ fontSize: '0.85rem' }}
+                    >
+                      {isOpen ? 'Open' : 'Closed'}
+                    </Badge>
+                  </td>
+                  <td className="text-center" style={{ whiteSpace: 'nowrap' }}>
+                    {/* edit button for future development: <Button variant="outline-secondary" size="sm" className="me-2"><i className="fa-solid fa-pen"></i></Button> */}
+                    <Button variant="outline-danger" size="sm" onClick={() => handleDeleteAssignmentClick(assignment)}><i className="fa-solid fa-trash"></i></Button>
+                  </td>
+                </tr>
+              );
+            })
+          ) : (
+            <tr>
+              <td colSpan="4" className="text-center py-4 text-muted">
+                No assignments created yet. Click "Add Assignment" to get started!
               </td>
             </tr>
-          ))}
+          )}
         </tbody>
       </Table>
 
@@ -211,33 +292,93 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
       <Table striped bordered hover responsive className="align-middle">
         <thead className="table-light">
           <tr>
-            <th style={{ width: '15%', whiteSpace: 'nowrap' }}>Name</th>
-            <th style={{ width: '0%', whiteSpace: 'nowrap' }}>Email</th>
+            <th style={{ width: '15%', whiteSpace: 'nowrap' }}>Username</th>
+            <th style={{ width: '15%', whiteSpace: 'nowrap' }}>Email</th>
             <th className="text-center" style={{ width: '0%', whiteSpace: 'nowrap' }}>Action</th>
           </tr>
         </thead>
         <tbody>
-          {MOCK_STUDENTS.map(student => (
-            <tr key={student.id}>
-              <td className="fw-semibold">{student.name}</td>
-              <td >{student.email}</td>
-              <td className="text-center">
-                <Button variant="outline-danger" size="sm">Remove</Button>
-              </td>
-            </tr>
-          ))}
+          {course.students && course.students.length > 0 ? (
+              course.students.map(student => (
+                <tr key={student.id}>
+                  <td className="text-muted">{student.username}</td>
+                  <td>{student.email}</td>
+                  <td className="text-center">
+                    <Button variant="outline-danger" size="sm" onClick={() => handleRemoveStudent(student.username)}>
+                        Remove
+                    </Button>
+                  </td>
+                </tr>
+              ))
+          ) : (
+              <tr>
+                  <td colSpan="4" className="text-center py-4 text-muted">
+                      No students enrolled in this course yet. Share the Join Code to invite them!
+                  </td>
+              </tr>
+          )}
         </tbody>
       </Table>
 
       <div className="mt-3 p-3 bg-light rounded border">
         <h6 className="mb-3">Add Student Manually</h6>
-        <Form className="d-flex gap-2 mb-1" onSubmit={(e) => { e.preventDefault(); console.log("Add student:", newStudentEmail) }}>
-          <Form.Control type="email" placeholder="Student Email Address" value={newStudentEmail} onChange={e => setNewStudentEmail(e.target.value)} style={{ maxWidth: '300px' }} />
-          <Button variant="primary" type="submit" disabled={!newStudentEmail}>Add Student</Button>
+        {studentFeedback && (
+            <Alert variant={studentFeedback.type} className="py-2 px-3 small mb-2">
+                {studentFeedback.message}
+            </Alert>
+        )}
+        <Form className="d-flex gap-2 mb-1" onSubmit={handleAddStudent}>
+          <Form.Control 
+            type="text" 
+            placeholder="Student Email or Username" 
+            value={newStudentEmail} 
+            onChange={e => {
+                setNewStudentEmail(e.target.value);
+                setCandidateList([]); // Hide candidates if they start typing again
+                setStudentFeedback(null);
+            }} 
+            style={{ maxWidth: '300px' }} 
+            required
+          />
+          <Button variant="primary" type="submit" disabled={!newStudentEmail || isAddingStudent}>
+            {isAddingStudent ? <Spinner size="sm" animation="border" /> : "Add Student"}
+          </Button>
         </Form>
+
+        {/* NEW: The Disambiguation List */}
+        {candidateList.length > 0 && (
+            <div className="mt-3" style={{ maxWidth: '400px' }}>
+                <span className="text-muted small fw-bold mb-2 d-block">Select the correct student:</span>
+                <ListGroup>
+                    {candidateList.map(candidate => (
+                        <ListGroup.Item 
+                            key={candidate.username} 
+                            className="d-flex justify-content-between align-items-center"
+                        >
+                            <div>
+                                <div className="fw-semibold">{candidate.name}</div>
+                                <div className="text-muted small">@{candidate.username}</div>
+                            </div>
+                            <Button 
+                                variant="outline-primary" 
+                                size="sm" 
+                                onClick={() => handleAddStudent(null, candidate.username)}
+                            >
+                                Select
+                            </Button>
+                        </ListGroup.Item>
+                    ))}
+                </ListGroup>
+            </div>
+        )}
       </div>
 
-      <AddAssignmentModal show={showAddAssignmentModal} onHide={() => setShowAddAssignmentModal(false)} />
+      <AddAssignmentModal 
+        show={showAddAssignmentModal} 
+        onHide={() => setShowAddAssignmentModal(false)}
+        courseId={course.id} 
+        onCreateAssignment={onCreateAssignment}
+      />
     </div>
   );
 }

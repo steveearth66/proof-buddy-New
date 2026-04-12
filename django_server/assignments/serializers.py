@@ -8,6 +8,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from .models import Assignment, AssignmentSubmission, Course, AssignmentProof
 from accounts.serializers import UserSerializer
+from equational_reasoning_api.models import EquationalProof, EquationalProofLine
+from induction_api.models import InductionProof, InductionProofLine
 
 User = get_user_model()
 
@@ -85,9 +87,10 @@ class AssignmentSerializer(serializers.ModelSerializer):
     submissions = serializers.SerializerMethodField()
     submission = serializers.SerializerMethodField()
     created_by = serializers.SerializerMethodField()
+    proofs = serializers.SerializerMethodField()
     class Meta:
         model = Assignment
-        fields = ['id', 'title', 'description', 'due_date', 'submissions', 'submission', 'created_by']
+        fields = ['id', 'title', 'description', 'due_date', 'course', 'submissions', 'submission', 'created_by', 'proofs']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -111,6 +114,22 @@ class AssignmentSerializer(serializers.ModelSerializer):
     def get_created_by(self, obj):
         return UserSerializer(obj.created_by).data
     
+    def get_proofs(self, obj):
+        proof_mappings = obj.proof_items.all()
+        proofs_list = []
+
+        for mapping in proof_mappings:
+            proof = mapping.proof_object
+            if proof:
+                proof_title = getattr(proof, 'name', None) or f"Untitled {mapping.content_type.model}"
+                
+                proofs_list.append({
+                    'id': proof.id,
+                    'type': mapping.content_type.model, # 'equationalproof' or 'inductionproof'
+                    'title': proof_title
+                })
+        return proofs_list
+    
 class CreateAssignmentSerializer(serializers.ModelSerializer):
     # Expects a payload like: [{"type": "equationalproof", "id": 5}, {"type": "inductionproof", "id": 12}]
     proofs = serializers.ListField(child=serializers.DictField(), write_only=True, required=False)
@@ -128,23 +147,58 @@ class CreateAssignmentSerializer(serializers.ModelSerializer):
 
         assignment = super().create(validated_data)
 
-        # Map the provided proofs to the assignment
+        # 2. Deep Clone the Proofs
         for proof in proofs_data:
-            p_type = proof.get('type') # 'equationalproof' or 'inductionproof'
+            p_type = proof.get('type')
             p_id = proof.get('id')
             
-            app_label = 'equational_reasoning_api' if p_type == 'equationalproof' else 'induction_api'
-            
-            try:
-                ctype = ContentType.objects.get(app_label=app_label, model=p_type)
-                AssignmentProof.objects.create(
-                    assignment=assignment,
-                    content_type=ctype,
-                    object_id=p_id
-                )
-            except ContentType.DoesNotExist:
-                # Silently skip invalid types, or you could raise a ValidationError here
-                continue 
+            if p_type == 'equationalproof':
+                try:
+                    orig_proof = EquationalProof.objects.get(id=p_id)
+                    orig_lines = orig_proof.proof_lines.all()
+                    
+                    # Clone the Proof Header
+                    orig_proof.pk = None
+                    orig_proof.user = None # Orphan it from the instructor
+                    orig_proof.save()
+                    cloned_proof = orig_proof # Now has a new ID
+                    
+                    # Clone the Proof Lines
+                    for line in orig_lines:
+                        line.pk = None
+                        line.proof = cloned_proof
+                        line.save()
+                        
+                    # Bind the CLONED proof to the Assignment
+                    ctype = ContentType.objects.get(app_label='equational_reasoning_api', model='equationalproof')
+                    AssignmentProof.objects.create(assignment=assignment, content_type=ctype, object_id=cloned_proof.id)
+                
+                except EquationalProof.DoesNotExist:
+                    continue
+
+            elif p_type == 'inductionproof':
+                try:
+                    orig_proof = InductionProof.objects.get(id=p_id)
+                    orig_lines = orig_proof.proof_lines.all()
+                    
+                    # Clone the Proof Header
+                    orig_proof.pk = None
+                    orig_proof.user = None # Orphan it
+                    orig_proof.save()
+                    cloned_proof = orig_proof 
+                    
+                    # Clone the Proof Lines
+                    for line in orig_lines:
+                        line.pk = None
+                        line.proof = cloned_proof
+                        line.save()
+                        
+                    # Bind the CLONED proof to the Assignment
+                    ctype = ContentType.objects.get(app_label='induction_api', model='inductionproof')
+                    AssignmentProof.objects.create(assignment=assignment, content_type=ctype, object_id=cloned_proof.id)
+                
+                except InductionProof.DoesNotExist:
+                    continue
 
         return assignment
 

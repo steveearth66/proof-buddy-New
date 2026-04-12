@@ -1,25 +1,68 @@
-import React, { useState } from 'react';
-import { Modal, Button, Form, Table, OverlayTrigger, Tooltip } from "react-bootstrap";
+import React, { useEffect, useState } from 'react';
+import { Modal, Button, Form, Table, OverlayTrigger, Tooltip, Spinner } from "react-bootstrap";
 import NumberedPagination from '../../Pagination';
+import courseService from '../../../services/courseServices';
 
-const MOCK_INSTRUCTOR_PROOFS = [
-  { id: 1, title: 'Modus Ponens - Intro', category: 'Logic', difficulty: 'Easy' },
-  { id: 2, title: 'De Morgan\'s Laws', category: 'Set Theory', difficulty: 'Medium' },
-  { id: 3, title: 'Predicate Logic Basics', category: 'Logic', difficulty: 'Medium' },
-  { id: 4, title: 'Induction Example 1', category: 'Number Theory', difficulty: 'Hard' },
-  { id: 5, title: 'Induction Example 2', category: 'Number Theory', difficulty: 'Hard' }
-];
-
-export default function AddAssignmentModal({ show, onHide }) {
-  // --- View State (The Magic Fix) ---
-  // 'form' = the main assignment screen | 'library' = the proof selection screen
+export default function AddAssignmentModal({ show, onHide, courseId, onCreateAssignment }) {  
+  // --- View State ---
   const [currentView, setCurrentView] = useState('form'); 
+  
+  const [libraryProofs, setLibraryProofs] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (show) {
+      const loadLibrary = async () => {
+        setIsLoading(true);
+        const data = await courseService.getInstructorLibrary();
+        setLibraryProofs(data);
+        setIsLoading(false);
+      };
+      loadLibrary();
+    }
+  }, [show]);
 
   // --- Pagination State ---
   const [proofPage, setProofPage] = useState(1);
   const proofsPerPage = 5;
-  const totalProofPages = Math.ceil(MOCK_INSTRUCTOR_PROOFS.length / proofsPerPage) || 1;
-  const paginatedInstructorProofs = MOCK_INSTRUCTOR_PROOFS.slice((proofPage - 1) * proofsPerPage, proofPage * proofsPerPage);
+  const totalProofPages = Math.ceil(libraryProofs.length / proofsPerPage) || 1;
+  const paginatedInstructorProofs = libraryProofs.slice((proofPage - 1) * proofsPerPage, proofPage * proofsPerPage);
+
+  // --- Form State ---
+  const [title, setTitle] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!title || !dueDate || selectedProofs.length === 0) return;
+
+    setIsSubmitting(true);
+
+    const payload = {
+        title: title,
+        description: "No Description Provided",
+        due_date: dueDate,
+        course: courseId,
+        proofs: selectedProofs.map(p => ({
+            id: p.id,
+            type: p.type
+        }))
+    };
+
+    const success = await onCreateAssignment(payload);
+
+    setIsSubmitting(false);
+
+    if (success) {
+        // Reset the form and close
+        setTitle('');
+        setDueDate('');
+        setSelectedProofs([]);
+        setCurrentView('form');
+        onHide();
+    }
+  };
 
   // --- Selection & Drag State ---
   const [selectedProofs, setSelectedProofs] = useState([]);
@@ -174,21 +217,37 @@ export default function AddAssignmentModal({ show, onHide }) {
           </tbody>
         </Table>
 
-        <Form>
+        <Form id="create-assignment-form" onSubmit={handleSubmit}>
           <Form.Group className="mb-3">
             <Form.Label className="fw-semibold">Assignment Name</Form.Label>
-            <Form.Control type="text" placeholder="Enter Assignment Name" />
+            <Form.Control 
+              type="text" 
+              placeholder="Enter Assignment Name" 
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+            />
           </Form.Group>
           <Form.Group className="mb-3">
             <Form.Label className="fw-semibold">Set Due Date</Form.Label>
-            <Form.Control type="date" />
+            <Form.Control 
+              type="datetime-local" 
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              required
+            />
           </Form.Group>
         </Form>
       </Modal.Body>
       <Modal.Footer className="bg-light border-top-0">
-        <Button variant="outline-secondary" onClick={onHide}>Cancel</Button>
-        <Button variant="primary" onClick={onHide} disabled={selectedProofs.length === 0}>
-          Publish Assignment
+        <Button variant="outline-secondary" onClick={onHide} disabled={isSubmitting}>Cancel</Button>
+        <Button 
+          variant="primary" 
+          type="submit" 
+          form="create-assignment-form"
+          disabled={selectedProofs.length === 0 || isSubmitting || !title || !dueDate}
+        >
+          {isSubmitting ? <Spinner size="sm" animation="border" /> : "Publish Assignment"}
         </Button>
       </Modal.Footer>
     </>

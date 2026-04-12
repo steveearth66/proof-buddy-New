@@ -80,10 +80,19 @@ const addStudent = async ({ student, course }) => {
     try {
         const data = { student, course };
         const response = await axiosInstance.post(`${API_GATEWAY}/add-student`, data);
-        return response.data;
+        return { success: true, data: response.data }; 
     } catch (error) {
-        handleServiceError(error, "Error adding student:");
-        return false;
+        // Catch the duplicate email scenario
+        if (error.response?.status === 409) {
+            return { 
+                success: false, 
+                requires_disambiguation: true, 
+                candidates: error.response.data.candidates,
+                message: error.response.data.message 
+            };
+        }
+        const errorMessage = error.response?.data?.message || "Error adding student.";
+        return { success: false, message: errorMessage };
     }
 };
 
@@ -107,6 +116,26 @@ const toggleCourseStatus = async (courseId, newStatus) => {
     }
 };
 
-const courseService = { getCourses, checkUser, createCourse, getAssignments, getCourse, createAssignment, removeStudent, addStudent, regenerateJoinCode, toggleCourseStatus };
+const getInstructorLibrary = async () => {
+    try {
+        const response = await axiosInstance.get(`${API_GATEWAY}/instructor/library`);
+        return response.data;
+    } catch (error) {
+        handleServiceError(error, "Error fetching library:");
+        throw error;
+    }
+};
+
+const deleteAssignment = async (assignmentId) => {
+    try {
+        const response = await axiosInstance.delete(`${API_GATEWAY}/assignments/detail/${assignmentId}`);
+        return { success: true };
+    } catch (error) {
+        handleServiceError(error, "Error deleting assignment:");
+        return { success: false, message: error.response?.data?.message || "Failed to delete assignment." };
+    }
+};
+
+const courseService = { getCourses, checkUser, createCourse, getAssignments, getCourse, createAssignment, removeStudent, addStudent, regenerateJoinCode, toggleCourseStatus, getInstructorLibrary, deleteAssignment };
 
 export default courseService;

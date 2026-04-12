@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'react-toastify';
 import MainLayout from '../layouts/MainLayout';
 import { Container } from "react-bootstrap";
 import userService from '../services/userService';
@@ -11,27 +12,9 @@ import courseService from '../services/courseServices'
 
 import "../scss/_courses.scss";
 
-// --- Mock Data ---
-const MOCK_ASSIGNMENTS = [
-  {
-    id: 101, title: 'Homework 1: Propositional Logic', dueDate: '10/27/23', courseId: 1, status: 'Open',
-    proofs: [
-      { id: 1011, title: 'Modus Ponens - Intro', status: 'Completed' },
-      { id: 1012, title: 'De Morgan\'s Laws', status: 'In Progress' }
-    ]
-  },
-  {
-    id: 102, title: 'Homework 2: Predicate Logic', dueDate: '11/10/23', courseId: 1, status: 'Open',
-    proofs: [
-      { id: 1021, title: 'Predicate Logic Basics', status: 'Not Started' },
-      { id: 1022, title: 'Universal Instantiation', status: 'Not Started' }
-    ]
-  }
-];
-
 export default function Courses() {
   const [courses, setCourses] = useState([]);
-  const [assignments, setAssignments] = useState(MOCK_ASSIGNMENTS);
+  const [assignments, setAssignments] = useState([]);
   
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [currentUserType, setCurrentUserType] = useState(null);
@@ -77,9 +60,17 @@ export default function Courses() {
   const isStudent = currentUserType.is_student;
 
   // Handler to pass down to children
-  const handleViewCourse = (courseId) => {
+  const handleViewCourse = async (courseId) => {
     const course = courses.find(c => c.id === courseId);
     setSelectedCourse(course);
+
+    try {
+      const fetchedAssignments = await courseService.getAssignments(courseId);
+      setAssignments(fetchedAssignments);
+    } catch (error) {
+      console.error("failed to load assignments", error);
+      toast.error("Could not load assignments for this course.");
+    }
   };
 
   const handleToggleCourseStatus = async (courseId, currentStatus) => {
@@ -117,6 +108,37 @@ export default function Courses() {
     }
   };
 
+  const handleUpdateCourse = (updatedCourse) => {
+    setCourses(prev => prev.map(c => c.id === updatedCourse.id ? updatedCourse : c));
+    setSelectedCourse(updatedCourse);
+  };
+
+  const handleCreateAssignment = async (payload) => {
+    try {
+      const newAssignment = await courseService.createAssignment(payload);
+      
+      setAssignments(prev => [...prev, newAssignment]);
+      return true;
+    } catch (error) {
+      console.error("Failed to create assignment", error);
+      toast.error("Failed to create assignment. Please check your inputs.");
+      return false;
+    }
+  };
+
+  const handleDeleteAssignment = async (assignmentId) => {
+      const result = await courseService.deleteAssignment(assignmentId);
+      
+      if (result.success) {
+        // Remove it from the local UI state instantly
+        setAssignments(prev => prev.filter(a => a.id !== assignmentId));
+        return true;
+      } else {
+        toast.error(result.message);
+        return false;
+      }
+  };
+
   return (
     <MainLayout>
       <Container className="my-4 py-4 bg-white rounded shadow-sm border">
@@ -146,6 +168,9 @@ export default function Courses() {
               onBack={() => setSelectedCourse(null)}
               onToggleStatus={handleToggleCourseStatus}
               onRegenerateJoinCode={handleRegenerateJoinCode}
+              onUpdateCourse={handleUpdateCourse}
+              onCreateAssignment={handleCreateAssignment}
+              onDeleteAssignment={handleDeleteAssignment}
             />
           )
         )}
