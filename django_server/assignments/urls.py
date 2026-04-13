@@ -12,5 +12,6 @@ urlpatterns = [
     path("instructor/library", views.InstructorLibraryView.as_view()),
     path("assignments/detail/<int:assignment_id>", views.AssignmentDetailView.as_view()),
     path('join-course', views.join_course, name='join-course'),
-    path('leave-course', views.leave_course, name='leave-course')
+    path('leave-course', views.leave_course, name='leave-course'),
+    path('assignments/<int:assignment_id>/start-assignment-proof', views.start_assignment_proof, name='start-assignment-proof')
 ]

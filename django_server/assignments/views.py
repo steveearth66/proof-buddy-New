@@ -1,5 +1,5 @@
-from .models import Assignment, AssignmentSubmission, Course
-from .serializers import AssignmentSerializer, AssignmentSubmissionSerializer, CourseSerializer, CreateCourseSerializer, CreateAssignmentSerializer
+from .models import Assignment, StudentProofMapping, Course
+from .serializers import AssignmentSerializer, CourseSerializer, CreateCourseSerializer, CreateAssignmentSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -12,6 +12,8 @@ from datetime import timedelta
 from django.utils import timezone
 from equational_reasoning_api.models import EquationalProof
 from induction_api.models import InductionProof
+from django.shortcuts import get_object_or_404
+from django.contrib.contenttypes.models import ContentType
 
 User = get_user_model()
 
@@ -408,3 +410,74 @@ def leave_course(request):
         return Response({"message": "Successfully left the course."}, status=status.HTTP_200_OK)
         
     return Response({"message": "You are not enrolled in this course."}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def start_assignment_proof(request, assignment_id):
+    assignment = get_object_or_404(Assignment, id=assignment_id)
+    template_proof_id = request.data.get("proof_id")
+    proof_type = request.data.get("proof_type")
+
+    if not template_proof_id or not proof_type:
+        return Response({"message": "Proof ID and type are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 1. Figure out which app the proof belongs to dynamically
+    app_label = 'equational_reasoning_api' if proof_type == 'equationalproof' else 'induction_api'
+    content_type = ContentType.objects.get(app_label=app_label, model=proof_type)
+    ProofModel = content_type.model_class()
+
+    # 2. Check if the student already cloned this
+    existing_mapping = StudentProofMapping.objects.filter(
+        assignment=assignment,
+        student=request.user,
+        template_proof_id=template_proof_id,
+        content_type=content_type
+    ).first()
+
+    if existing_mapping:
+        return Response({
+            "success": True, 
+            "new_proof_id": existing_mapping.object_id,
+            "type": proof_type
+        }, status=status.HTTP_200_OK)
+
+    # 3. DEEP CLONE THE PROOF
+    try:
+        # A. Grab the untouched original to read lines from
+        orig_proof = ProofModel.objects.get(id=template_proof_id)
+        
+        # B. Grab a fresh instance to mutate into the clone
+        cloned_proof = ProofModel.objects.get(id=template_proof_id)
+        
+        # Clone the Proof Header
+        cloned_proof.pk = None
+        cloned_proof.id = None
+        cloned_proof.user = request.user  # The student now owns this copy
+        cloned_proof.name = f"{getattr(cloned_proof, 'name', 'Untitled')} (Assignment Copy)"
+        cloned_proof.save()
+
+        # C. Clone the Proof Lines dynamically
+        # This relies on both EquationalProofLine and InductionProofLine using related_name='proof_lines'
+        for line in orig_proof.proof_lines.all():
+            line.pk = None
+            line.id = None
+            line.proof = cloned_proof  # Link the line to the new student clone
+            line.save()
+            
+    except ProofModel.DoesNotExist:
+        return Response({"message": "Template proof not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    # 4. Save the mapping linking the assignment, student, and the new clone
+    StudentProofMapping.objects.create(
+        assignment=assignment,
+        student=request.user,
+        template_proof_id=template_proof_id,
+        content_type=content_type,
+        object_id=cloned_proof.id
+    )
+
+    return Response({
+        "success": True, 
+        "new_proof_id": cloned_proof.id,
+        "type": proof_type
+    }, status=status.HTTP_201_CREATED)

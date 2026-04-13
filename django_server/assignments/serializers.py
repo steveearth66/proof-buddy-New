@@ -6,7 +6,7 @@ from django.utils import timezone
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from .models import Assignment, AssignmentSubmission, Course, AssignmentProof
+from .models import Assignment, StudentProofMapping, Course, AssignmentProof
 from accounts.serializers import UserSerializer
 from equational_reasoning_api.models import EquationalProof, EquationalProofLine
 from induction_api.models import InductionProof, InductionProofLine
@@ -84,13 +84,11 @@ class CreateCourseSerializer(serializers.ModelSerializer):
         return response_data
 
 class AssignmentSerializer(serializers.ModelSerializer):
-    submissions = serializers.SerializerMethodField()
-    submission = serializers.SerializerMethodField()
     created_by = serializers.SerializerMethodField()
     proofs = serializers.SerializerMethodField()
     class Meta:
         model = Assignment
-        fields = ['id', 'title', 'description', 'due_date', 'course', 'submissions', 'submission', 'created_by', 'proofs']
+        fields = ['id', 'title', 'description', 'due_date', 'course', 'created_by', 'proofs']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -101,34 +99,54 @@ class AssignmentSerializer(serializers.ModelSerializer):
             self.fields.pop('submissions', None)
         if not (user and not getattr(user, 'is_instructor', True)):
             self.fields.pop('submission', None)
-
-    def get_submissions(self, obj):
-        submissions = AssignmentSubmission.objects.filter(assignment=obj)
-        return AssignmentSubmissionSerializer(submissions, many=True).data
-    
-    def get_submission(self, obj):
-        user = self.context.get('request').user
-        submission = AssignmentSubmission.objects.filter(assignment=obj, student=user).first()
-        return AssignmentSubmissionSerializer(submission).data if submission else None
     
     def get_created_by(self, obj):
         return UserSerializer(obj.created_by).data
     
     def get_proofs(self, obj):
-        proof_mappings = obj.proof_items.all()
-        proofs_list = []
+        request = self.context.get('request')
+        user = request.user if request else None
+        
+        proof_data = []
+        # Get the instructor's template proofs mapped to this assignment
+        assignment_proofs = AssignmentProof.objects.filter(assignment=obj)
 
-        for mapping in proof_mappings:
-            proof = mapping.proof_object
-            if proof:
-                proof_title = getattr(proof, 'name', None) or f"Untitled {mapping.content_type.model}"
-                
-                proofs_list.append({
-                    'id': proof.id,
-                    'type': mapping.content_type.model, # 'equationalproof' or 'inductionproof'
-                    'title': proof_title
-                })
-        return proofs_list
+        for ap in assignment_proofs:
+            template_proof = ap.proof_object
+            if not template_proof:
+                continue
+
+            proof_info = {
+                "id": template_proof.id, # Template ID
+                "title": getattr(template_proof, 'name', 'Untitled Proof'),
+                "type": ap.content_type.model,
+                "status": "Not Started",
+                "student_proof_id": None
+            }
+
+            # If the user is a student, check if they have started it
+            if user and not user.is_superuser and getattr(user, 'is_instructor', False) == False:
+                mapping = StudentProofMapping.objects.filter(
+                    assignment=obj,
+                    student=user,
+                    template_proof_id=template_proof.id,
+                    content_type=ap.content_type
+                ).first()
+
+                if mapping:
+                    student_proof = mapping.student_proof
+                    proof_info["student_proof_id"] = mapping.object_id
+                    
+                    is_completed = getattr(student_proof, 'is_complete', False) 
+                    
+                    if is_completed:
+                        proof_info["status"] = "Completed"
+                    else:
+                        proof_info["status"] = "In Progress"
+
+            proof_data.append(proof_info)
+
+        return proof_data
     
 class CreateAssignmentSerializer(serializers.ModelSerializer):
     # Expects a payload like: [{"type": "equationalproof", "id": 5}, {"type": "inductionproof", "id": 12}]
@@ -154,18 +172,22 @@ class CreateAssignmentSerializer(serializers.ModelSerializer):
             
             if p_type == 'equationalproof':
                 try:
+                    # 1. Grab the untouched original to read from
                     orig_proof = EquationalProof.objects.get(id=p_id)
-                    orig_lines = orig_proof.proof_lines.all()
+                    
+                    # 2. Grab a FRESH instance to mutate into the clone
+                    cloned_proof = EquationalProof.objects.get(id=p_id)
                     
                     # Clone the Proof Header
-                    orig_proof.pk = None
-                    orig_proof.user = None # Orphan it from the instructor
-                    orig_proof.save()
-                    cloned_proof = orig_proof # Now has a new ID
+                    cloned_proof.pk = None
+                    cloned_proof.id = None
+                    cloned_proof.user = None # Orphan it from the instructor
+                    cloned_proof.save()
                     
-                    # Clone the Proof Lines
-                    for line in orig_lines:
+                    # Clone the Proof Lines using the UNTOUCHED original_proof
+                    for line in orig_proof.proof_lines.all():
                         line.pk = None
+                        line.id = None
                         line.proof = cloned_proof
                         line.save()
                         
@@ -178,18 +200,22 @@ class CreateAssignmentSerializer(serializers.ModelSerializer):
 
             elif p_type == 'inductionproof':
                 try:
+                    # 1. Grab the untouched original to read from
                     orig_proof = InductionProof.objects.get(id=p_id)
-                    orig_lines = orig_proof.proof_lines.all()
+                    
+                    # 2. Grab a FRESH instance to mutate into the clone
+                    cloned_proof = InductionProof.objects.get(id=p_id)
                     
                     # Clone the Proof Header
-                    orig_proof.pk = None
-                    orig_proof.user = None # Orphan it
-                    orig_proof.save()
-                    cloned_proof = orig_proof 
+                    cloned_proof.pk = None
+                    cloned_proof.id = None
+                    cloned_proof.user = None # Orphan it
+                    cloned_proof.save()
                     
-                    # Clone the Proof Lines
-                    for line in orig_lines:
+                    # Clone the Proof Lines using the UNTOUCHED original_proof
+                    for line in orig_proof.proof_lines.all():
                         line.pk = None
+                        line.id = None
                         line.proof = cloned_proof
                         line.save()
                         
@@ -201,12 +227,3 @@ class CreateAssignmentSerializer(serializers.ModelSerializer):
                     continue
 
         return assignment
-
-class AssignmentSubmissionSerializer(serializers.ModelSerializer):
-    student = serializers.SerializerMethodField()
-    class Meta:
-        model = AssignmentSubmission
-        fields = ['id', 'student', 'submission_date', 'proofs', 'grade']
-
-    def get_student(self, obj):
-        return UserSerializer(obj.student).data

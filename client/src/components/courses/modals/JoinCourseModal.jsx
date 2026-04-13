@@ -36,7 +36,7 @@ return (
                   <Form.Label className="fw-semibold">Course Join Code</Form.Label>
                   <Form.Control 
                     type="text" 
-                    placeholder="e.g., MATHROCKS" 
+                    placeholder="e.g.: ABC12345" 
                     autoFocus 
                     value={joinCode} 
                     onChange={(e) => {

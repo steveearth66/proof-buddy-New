@@ -180,6 +180,20 @@ const leaveCourse = async (courseId) => {
     }
 };
 
-const courseService = { getCourses, createCourse, leaveCourse, checkUser, updateCourseDescription, updateCourseTerm, getAssignments, getCourse, createAssignment, removeStudent, addStudent, regenerateJoinCode, toggleCourseStatus, getInstructorLibrary, deleteAssignment, joinCourse };
+const startAssignmentProof = async (assignmentId, proofId, proofType) => {
+    try {
+        const response = await axiosInstance.post(`${API_GATEWAY}/assignments/${assignmentId}/start-assignment-proof`, {
+            proof_id: proofId,
+            proof_type: proofType
+        });
+        return response.data; // Expecting { success: true, new_proof_id: 123, type: 'equationalproof' }
+    } catch (error) {
+        console.error("Error starting proof:", error);
+        alert(error.response?.data?.message || "Failed to start assignment.");
+        return null;
+    }
+};
+
+const courseService = { getCourses, createCourse, leaveCourse, checkUser, updateCourseDescription, updateCourseTerm, startAssignmentProof, getAssignments, getCourse, createAssignment, removeStudent, addStudent, regenerateJoinCode, toggleCourseStatus, getInstructorLibrary, deleteAssignment, joinCourse };
 
 export default courseService;

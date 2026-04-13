@@ -234,7 +234,6 @@ The auth token is stored in a cookie (via `js-cookie`) on login. The `AuthProvid
 | `InductionProofLine` | `induction_api_inductionproofline` | Same as equational but with an added `case` field (base/leap) |
 | `Course` | `assignments_course` | A course section: instructor, students |
 | `Assignment` | `assignments_assignment` | A problem set owned by a term with a due date |
-| `AssignmentSubmission` | `assignments_assignmentsubmission` | A student's submission referencing their proof records and a grade |
 
 ### Why there is a cache AND a database
 

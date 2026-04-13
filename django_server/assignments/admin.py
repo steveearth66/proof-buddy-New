@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Assignment, AssignmentSubmission, Course, AssignmentProof
+from .models import Assignment, Course, AssignmentProof
 import csv
 from django.http import HttpResponse
 
@@ -93,25 +93,6 @@ class AssignmentAdmin(admin.ModelAdmin):
     course_instructor.short_description = "Instructor"
     course_instructor.admin_order_field = "course__instructor"
 
-class AssignmentSubmissionAdmin(admin.ModelAdmin):
-    list_display = ('assignment', 'student', 'submission_date', 'grade')
-    search_fields = ('assignment', 'student')
-    readonly_fields = ('submission_date',)
-    actions = [export_to_csv]
-
-    filter_horizontal = ()
-    list_filter = ()
-    fieldsets = (
-        (None, {'fields': ('assignment', 'student', 'proofs', 'grade')}),
-    )
-    add_fieldsets = (
-        (None, {
-            'classes': ('wide',),
-            'fields': ('assignment', 'student', 'proofs', 'grade')
-        }),
-    )
-    ordering = ('assignment',)
-
 class CourseAdmin(admin.ModelAdmin):
     list_display = ('name', 'instructor', 'is_active', 'created_by', 'created_at', 'updated_at')
     search_fields = ("name", "instructor")
@@ -136,5 +117,4 @@ class CourseAdmin(admin.ModelAdmin):
     ordering = ('name',)
 
 admin.site.register(Assignment, AssignmentAdmin)
-admin.site.register(AssignmentSubmission, AssignmentSubmissionAdmin)
 admin.site.register(Course, CourseAdmin)

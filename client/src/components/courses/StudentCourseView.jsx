@@ -1,12 +1,17 @@
 import React, { useState, useMemo } from 'react';
-import { Table, Button } from "react-bootstrap";
+import { Table, Button, Spinner } from "react-bootstrap";
 import NumberedPagination from '../Pagination';
 import useSortableTable from '../../hooks/useSortableTable';
+import { useNavigate } from 'react-router-dom';
+import courseService from '../../services/courseServices';
 
 export default function StudentCourseView({ course, assignments, onBack }) {
   const [assignmentPage, setAssignmentPage] = useState(1);
   const [expandedAssignments, setExpandedAssignments] = useState([]);
   const itemsPerPage = 10;
+
+  const navigate = useNavigate();
+  const [startingProofId, setStartingProofId] = useState(null);
 
   // 2. Filter assignments for THIS course, memoized for performance
   const currentAssignments = useMemo(() => {
@@ -38,11 +43,33 @@ export default function StudentCourseView({ course, assignments, onBack }) {
     return { variant: 'success', icon: 'fa-solid fa-play', text: 'Start Assignment' };
   };
 
-  const handleProofAction = (proof) => {
-    if (proof.status === 'Completed') {
-      console.log(`Viewing submission for ${proof.title}`);
-    } else {
-      console.log(`Starting/Continuing proof for ${proof.title}`);
+  const handleProofAction = async (assignmentId, proof) => {
+    // 1. If they already started it, route directly to their existing clone
+    if (proof.status === 'Completed' || proof.status === 'In Progress') {
+        const targetId = proof.student_proof_id;
+        
+        if (proof.type === 'equationalproof') {
+            navigate(`/equational-reasoning-new`, { state: { id: targetId } });
+        } else {
+            navigate(`/induction-racket`, { state: { id: targetId } });
+        }
+        return;
+    }
+
+    // 2. If it is "Not Started", start the loading spinner and clone it
+    setStartingProofId(proof.id);
+    
+    const result = await courseService.startAssignmentProof(assignmentId, proof.id, proof.type);
+    
+    setStartingProofId(null); // Stop spinner
+
+    if (result && result.success) {
+        // 3. Route them to their shiny new cloned proof
+        if (result.type === 'equationalproof') {
+            navigate(`/equational-reasoning-new`, { state: { id: result.new_proof_id } });
+        } else {
+            navigate(`/induction-racket`, { state: { id: result.new_proof_id } });
+        }
     }
   };
 
@@ -74,7 +101,6 @@ export default function StudentCourseView({ course, assignments, onBack }) {
               Due Date <i className={`ms-1 ${getSortIcon('due_date')}`}></i>
             </th>
             <th style={{ width: '20%' }}>Status</th>
-            <th className="text-center" style={{ width: '1%', whiteSpace: 'nowrap' }}>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -99,9 +125,8 @@ export default function StudentCourseView({ course, assignments, onBack }) {
                       })}
                     </td>
                     <td>
-                      {isFullyComplete ? <span className="text-success fw-semibold"><i className="fa-solid fa-check me-2"></i>Completed</span> : <span className="text-muted">{completedProofs} / {totalProofs} Proofs</span>}
+                      {isFullyComplete ? <span className="text-success fw-semibold"><i className="fa-solid fa-check me-2"></i>Completed</span> : <span className="text-muted">{completedProofs} / {totalProofs} Proofs Completed</span>}
                     </td>
-                    <td className="text-center"></td>
                   </tr>
 
                   {isExpanded && (
@@ -132,7 +157,14 @@ export default function StudentCourseView({ course, assignments, onBack }) {
                                       </div>
                                     </td>
                                     <td className="text-center" style={{ width: '200px' }}>
-                                      <Button variant={btnInfo.variant} size="sm" className="w-100" style={{ whiteSpace: 'nowrap' }} onClick={() => handleProofAction(proof)}>
+                                      <Button 
+                                        variant={btnInfo.variant}
+                                        size="sm" 
+                                        className="w-100" 
+                                        style={{ whiteSpace: 'nowrap' }} 
+                                        onClick={() => handleProofAction(assignment.id, proof)}
+                                        disabled={startingProofId === proof.id}
+                                      >
                                         <i className={`${btnInfo.icon} me-2`}></i>{btnInfo.text}
                                       </Button>
                                     </td>

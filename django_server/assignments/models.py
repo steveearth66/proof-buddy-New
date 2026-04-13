@@ -103,18 +103,25 @@ class AssignmentProof(models.Model):
     class Meta:
         unique_together = ('assignment', 'content_type', 'object_id')
 
-class AssignmentSubmission(models.Model):
+class StudentProofMapping(models.Model):
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE)
     student = models.ForeignKey('accounts.Account', on_delete=models.CASCADE, limit_choices_to={"is_instructor": False})
-    submission_date = models.DateTimeField(auto_now_add=True)
-    proofs = models.ManyToManyField('proofs.Proof', related_name='proofs')
-    grade = models.FloatField(default=0)
+    template_proof_id = models.PositiveIntegerField()
+    content_type = models.ForeignKey(
+        ContentType, 
+        on_delete=models.CASCADE,
+        limit_choices_to=models.Q(app_label='equational_reasoning_api', model='equationalproof') | 
+                         models.Q(app_label='induction_api', model='inductionproof')
+    )
+    object_id = models.PositiveIntegerField()
+    student_proof = GenericForeignKey('content_type', 'object_id')
 
     class Meta:
-        unique_together = ('assignment', 'student')
+        # A student can only have ONE clone of a specific template per assignment
+        unique_together = ('assignment', 'student', 'template_proof_id', 'content_type')
 
     def __str__(self):
-        return f"{self.assignment.title} - {self.student.username}"
+        return f"{self.student.username} - Clone of Proof {self.template_proof_id}"
 
 
 # Sends emails for assignments and submissions, leave commented out for now to prevent issues when deployed
@@ -135,7 +142,7 @@ class AssignmentSubmission(models.Model):
 #         msg.send()
 
 
-# @receiver(post_save, sender=AssignmentSubmission)
+# @receiver(post_save, sender=StudentProofMapping)
 # def send_submission_email(sender, instance, created, **kwargs):
 #     if created:
 #         subject, from_email, to = 'Submission Received!', os.getenv('EMAIL_HOST_USER'), instance.student.email

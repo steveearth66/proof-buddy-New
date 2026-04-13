@@ -172,7 +172,7 @@ Provides the backend for the legacy `ERRacket.js` frontend. Contains proof valid
 
 | File | Purpose |
 |---|---|
-| `models.py` | `Course` (course section), `Assignment` (problem set with due date), `AssignmentSubmission` (student work linked to proofs with a grade float). `Course` has an instructor and a set of student `Account` references. |
+| `models.py` | `Course` (course section), `Assignment` (problem set with due date), `Course` has an instructor and a set of student `Account` references. |
 | `views.py` | Instructor CRUD for terms and assignments; student submission endpoints. |
 
 ---
