@@ -2015,7 +2015,6 @@ const InductionRacket = () => {
                                   >
                                     Check Current Proof
                                   </Dropdown.Item>
-                                  <Dropdown.Divider />
                                   <Dropdown.Item 
                                     onClick={handleNewProof} 
                                     href="#" 
@@ -2362,7 +2361,6 @@ const InductionRacket = () => {
                         >
                           Check Current Proof
                         </Dropdown.Item>
-                        <Dropdown.Divider />
                         <Dropdown.Item onClick={handleNewProof} disabled={!proofStarted} style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}>
                           New Proof
                         </Dropdown.Item>
