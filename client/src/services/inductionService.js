@@ -216,6 +216,16 @@ const deleteInductionProof = async (proof_id) => {
   }
 };
 
+const setParameters = async (params) => {
+  try {
+    const response = await axiosInstance.patch(`${API_GATEWAY}/set-parameters`, params);
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error setting proof parameters:");
+    throw error;
+  }
+};
+
 const inductionService = {
   startInductionProof,
   clearInduction,
@@ -233,7 +243,8 @@ const inductionService = {
   getInductionProof,
   setSessionById,
   deleteInductionProof,
-  checkNameConflict
+  checkNameConflict,
+  setParameters
 };
 
 export default inductionService;

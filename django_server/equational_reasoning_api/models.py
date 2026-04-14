@@ -33,6 +33,14 @@ class EquationalProof(models.Model):
     is_complete = models.BooleanField(default=False)
     definition = models.JSONField(default=list)
     
+    # Support parameters (instructor-configurable, all default to True = high support)
+    support_errors = models.BooleanField(default=True)
+    support_current_lhs_rhs = models.BooleanField(default=True)
+    support_ih = models.BooleanField(default=True)
+    support_premise = models.BooleanField(default=True)
+    support_rule_set = models.BooleanField(default=True)
+    support_value_mapping = models.BooleanField(default=True)
+
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -26,6 +26,7 @@ import { useParenHighlight } from "../hooks/useParenHighlight";
 import {
   Definitions
 } from "../components";
+import SetParametersModal from "../components/SetParametersModal";
 import ClickableRowNumber from "../components/ClickableRowNumber";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import { useDynamicHeight } from "../hooks/useDynamicHeight";
@@ -323,6 +324,20 @@ const EquationalReasoningNew = () => {
               await equationalService.getRacketProof(saveResponse.proofId);
               sessionStorage.setItem('current_proof_id', saveResponse.proofId);
               sessionStorage.setItem('erProofActive', 'true');
+
+              // Persist any params the user pre-configured before starting the proof.
+              const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping'];
+              const hasCustomParams = PARAM_KEYS.some(k => proofParams[k] !== true);
+              if (hasCustomParams) {
+                try {
+                  await equationalService.setParameters(
+                    { ...Object.fromEntries(PARAM_KEYS.map(k => [k, proofParams[k]])), proof_id: saveResponse.proofId }
+                  );
+                } catch (e) {
+                  console.error('[SetParameters] Failed to persist pre-set params on proof start:', e);
+                }
+              }
+              setProofParams(prev => ({ ...prev, proof_id: saveResponse.proofId }));
           } else {
               throw new Error("Database save failed to return a Proof ID");
           }
@@ -373,6 +388,15 @@ const EquationalReasoningNew = () => {
     useDefinitionsWindow();
   const [showProofComplete, setShowProofComplete] = useState(false);
   const [proofComplete, setProofComplete] = useState(false);
+  const [showSetParams, setShowSetParams] = useState(false);
+  const [proofParams, setProofParams] = useState({
+    support_errors: true,
+    support_current_lhs_rhs: true,
+    support_ih: true,
+    support_premise: true,
+    support_rule_set: true,
+    support_value_mapping: true,
+  });
   
   // Separate premises for base and leap cases
   const [leftPremise, setLeftPremise] = useState(INITIAL_PREMISE_STATE);
@@ -528,6 +552,12 @@ const EquationalReasoningNew = () => {
           
           setCurrentLHS(findLast(proofData.LHS) || proofData.lhsAnchorGoal);
           setCurrentRHS(findLast(proofData.RHS) || proofData.rhsAnchorGoal);
+
+          // F. Restore support params
+          const INIT_PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping'];
+          const initExtracted = {};
+          INIT_PARAM_KEYS.forEach(k => { if (k in proofData) initExtracted[k] = proofData[k]; });
+          if (Object.keys(initExtracted).length > 0) setProofParams(prev => ({ ...prev, ...initExtracted }));
 
           setProofStarted(true);
 
@@ -773,11 +803,17 @@ const EquationalReasoningNew = () => {
         }));
       }
 
+      // Extract support params and proof_id
+      const PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping'];
+      const extracted = {};
+      PARAM_KEYS.forEach(k => { if (k in proofLines) extracted[k] = proofLines[k]; });
+      if (Object.keys(extracted).length > 0) setProofParams(prev => ({ ...prev, ...extracted }));
+
     } catch (error) {
       console.error('[loadProofLines] Error loading proof lines:', error);
       // Don't show error to user - this is a background operation
     }
-  }, [setRacketRuleFields, setLeftPremise, setRightPremise]);
+  }, [setRacketRuleFields, setLeftPremise, setRightPremise, setProofParams]);
 
   // Toggle sides - no database reload needed, state already has both sides
   const handleToggleSide = useCallback(() => {
@@ -1827,6 +1863,11 @@ const handleGenerateAndCheck = async () => {
                         ]
                       }}
                     >
+                      {!currentUserType?.is_student && (
+                        <Dropdown.Item onClick={() => setShowSetParams(true)} href="#">
+                          Set Parameters
+                        </Dropdown.Item>
+                      )}
                       <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">
                         Definitions
                       </Dropdown.Item>
@@ -2421,6 +2462,21 @@ const handleGenerateAndCheck = async () => {
           </Button>
         </Modal.Footer>
       </Modal>
+      <SetParametersModal
+        show={showSetParams}
+        onHide={() => setShowSetParams(false)}
+        params={proofParams}
+        onSave={async (newParams) => {
+          setProofParams(prev => ({ ...prev, ...newParams }));
+          if (proofParams.proof_id) {
+            try {
+              await equationalService.setParameters({ ...newParams, proof_id: proofParams.proof_id });
+            } catch (e) {
+              console.error('[SetParameters] Save failed:', e);
+            }
+          }
+        }}
+      />
     </MainLayout>
   );
 };

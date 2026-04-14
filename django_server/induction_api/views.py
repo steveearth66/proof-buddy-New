@@ -1713,7 +1713,14 @@ def get_current_proof(request):
             "currentSide": proof.current_side,
             "isAnchorCase": proof.is_anchor_case,
             "proofName": proof.name or "",
-            "tag": proof.tag or ""
+            "tag": proof.tag or "",
+            "proof_id": proof.id,
+            "support_errors": proof.support_errors,
+            "support_current_lhs_rhs": proof.support_current_lhs_rhs,
+            "support_ih": proof.support_ih,
+            "support_premise": proof.support_premise,
+            "support_rule_set": proof.support_rule_set,
+            "support_value_mapping": proof.support_value_mapping,
         }, status=status.HTTP_200_OK)
     except InductionProof.DoesNotExist:
         return Response({"hasProof": False}, status=status.HTTP_200_OK)
@@ -1875,3 +1882,32 @@ def delete_proof(request):
         return Response(
             {"message": f"Error setting proof to inactive: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST
         )
+
+
+PARAM_FIELDS = [
+    'support_errors',
+    'support_current_lhs_rhs',
+    'support_ih',
+    'support_premise',
+    'support_rule_set',
+    'support_value_mapping',
+]
+
+
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def set_parameters(request):
+    """Instructor-only: update the 6 support param fields on an InductionProof."""
+    user = request.user
+    if not user.is_instructor:
+        return Response({"error": "Instructor access required"}, status=status.HTTP_403_FORBIDDEN)
+    proof_id = request.data.get('proof_id')
+    try:
+        proof = InductionProof.objects.get(id=proof_id, user=user)
+    except InductionProof.DoesNotExist:
+        return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
+    for field in PARAM_FIELDS:
+        if field in request.data:
+            setattr(proof, field, request.data[field])
+    proof.save()
+    return Response({f: getattr(proof, f) for f in PARAM_FIELDS}, status=status.HTTP_200_OK)

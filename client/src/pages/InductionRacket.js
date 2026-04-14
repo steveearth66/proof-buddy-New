@@ -33,6 +33,8 @@ import ClickableRowNumber from "../components/ClickableRowNumber";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import { useDynamicHeight } from "../hooks/useDynamicHeight";
 import inductionService from "../services/inductionService";
+import userService from "../services/userService";
+import SetParametersModal from "../components/SetParametersModal";
 import {
   ARROW_KEYS,
   EMPTY_INITIAL_FIELD,
@@ -146,6 +148,25 @@ const InductionRacket = () => {
   const [showOverwriteModal, setShowOverwriteModal] = useState(false);
   const [showStartConfirmModal, setShowStartConfirmModal] = useState(false);
   const [conflictType, setConflictType] = useState(null);
+  const [currentUserType, setCurrentUserType] = useState(null);
+  const [showSetParams, setShowSetParams] = useState(false);
+  const [proofParams, setProofParams] = useState({
+    proof_id: null,
+    support_errors: true,
+    support_current_lhs_rhs: true,
+    support_ih: true,
+    support_premise: true,
+    support_rule_set: true,
+    support_value_mapping: true,
+  });
+
+  useEffect(() => {
+    async function loadUser() {
+      const profile = await userService.getUserProfile();
+      setCurrentUserType(profile);
+    }
+    loadUser();
+  }, []);
 
   // Parenthesis highlighting hooks
   const { 
@@ -510,7 +531,20 @@ const InductionRacket = () => {
     } catch (error) {
       console.error('[loadProofLines] Error loading proof lines:', error);
     }
-  }, [setBaseRacketFields, setLeapRacketFields, setBasePremises, setLeapPremises]);
+
+    // Load support params from getCurrentProof
+    try {
+      const proofMeta = await inductionService.getCurrentProof();
+      if (proofMeta?.hasProof) {
+        const PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping'];
+        const extracted = {};
+        PARAM_KEYS.forEach(k => { if (k in proofMeta) extracted[k] = proofMeta[k]; });
+        if (Object.keys(extracted).length > 0) setProofParams(prev => ({ ...prev, ...extracted }));
+      }
+    } catch (e) {
+      // non-critical — params will remain at defaults
+    }
+  }, [setBaseRacketFields, setLeapRacketFields, setBasePremises, setLeapPremises, setProofParams]);
 
   // Toggle sides - no database reload needed, state already has both sides
   const handleToggleSide = useCallback(() => {
@@ -1520,7 +1554,22 @@ const InductionRacket = () => {
               
               // Mark this as an active proof session for restoration on page refresh
               sessionStorage.setItem('inductionProofActive', 'true');
-              
+
+              // Persist any params the user pre-configured before starting the proof.
+              // Must be done BEFORE loadProofLinesFromDatabase reads them back from DB.
+              const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping'];
+              const hasCustomParams = PARAM_KEYS.some(k => proofParams[k] !== true);
+              if (hasCustomParams) {
+                try {
+                  await inductionService.setParameters(
+                    { ...Object.fromEntries(PARAM_KEYS.map(k => [k, proofParams[k]])), proof_id: proofId }
+                  );
+                } catch (e) {
+                  console.error('[SetParameters] Failed to persist pre-set params on proof start:', e);
+                }
+              }
+              setProofParams(prev => ({ ...prev, proof_id: proofId }));
+
               // Load any existing proof lines from database to restore highlighting
               setTimeout(() => {
                 loadProofLinesFromDatabase();
@@ -2001,6 +2050,11 @@ const InductionRacket = () => {
                                   ]
                                 }}
                               >
+                                  {!currentUserType?.is_student && (
+                                    <Dropdown.Item onClick={() => setShowSetParams(true)} href="#">
+                                      Set Parameters
+                                    </Dropdown.Item>
+                                  )}
                                   <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">
                                     Definitions
                                   </Dropdown.Item>
@@ -2352,6 +2406,11 @@ const InductionRacket = () => {
                           ]
                         }}
                       >
+                        {!currentUserType?.is_student && (
+                          <Dropdown.Item onClick={() => setShowSetParams(true)} href="#">
+                            Set Parameters
+                          </Dropdown.Item>
+                        )}
                         <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">Definitions</Dropdown.Item>
                         <Dropdown.Item onClick={toggleOffcanvas} href="#">View Rule Set</Dropdown.Item>
                         <Dropdown.Item 
@@ -2793,6 +2852,21 @@ const InductionRacket = () => {
           </Button>
         </Modal.Footer>
       </Modal>
+      <SetParametersModal
+        show={showSetParams}
+        onHide={() => setShowSetParams(false)}
+        params={proofParams}
+        onSave={async (newParams) => {
+          setProofParams(prev => ({ ...prev, ...newParams }));
+          if (proofParams.proof_id) {
+            try {
+              await inductionService.setParameters({ ...newParams, proof_id: proofParams.proof_id });
+            } catch (e) {
+              console.error('[SetParameters] Save failed:', e);
+            }
+          }
+        }}
+      />
     </MainLayout>
   );
 };

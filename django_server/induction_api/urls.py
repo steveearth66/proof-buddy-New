@@ -21,4 +21,5 @@ urlpatterns = [
     path("set-induction-session-by-id", views.set_induction_session_by_id, name="set_induction_session_by_id"),
     path("delete-proof", views.delete_proof, name="delete_proof"),
     path("check-name-conflict", views.check_name_conflict, name="check_name_conflict"),
+    path("set-parameters", views.set_parameters, name="set_parameters"),
 ]
