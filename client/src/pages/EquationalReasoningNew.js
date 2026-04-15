@@ -1117,7 +1117,7 @@ const handleGenerateAndCheck = async () => {
 
       } else {
         const message = (fullRacket && fullRacket.errors && fullRacket.errors[0]) || "Invalid rule";
-        toast.error(message);
+        toast.error(proofParams.support_errors ? message : "your latest command contains an error"); // support_errors suppression
       }
     } finally {
       isProcessingRef.current = false;
@@ -1333,7 +1333,7 @@ const handleGenerateAndCheck = async () => {
           const validationResult = await equationalService.validateHiddenField(validationPayload);
           
           if (validationResult.errors && validationResult.errors.length > 0) {
-            setSubErrors(validationResult.errors);
+            setSubErrors(proofParams.support_errors ? validationResult.errors : ["your latest command contains an error"]); // support_errors suppression
             return false;
           }
           
@@ -1359,7 +1359,7 @@ const handleGenerateAndCheck = async () => {
           return true;
           
         } catch (error) {
-          setSubErrors(["Error validating your answer"]);
+          setSubErrors(proofParams.support_errors ? ["Error validating your answer"] : ["your latest command contains an error"]); // support_errors suppression
           return false;
         }
       }
@@ -1454,10 +1454,10 @@ const handleGenerateAndCheck = async () => {
           return response;
         }
 
-        setSubErrors(response.errors || ["Substitution failed"]);
+        setSubErrors(proofParams.support_errors ? (response.errors || ["Substitution failed"]) : ["your latest command contains an error"]); // support_errors suppression
         return false;
       } catch (error) {
-        setSubErrors(["Failed to substitute rule"]);
+        setSubErrors(proofParams.support_errors ? ["Failed to substitute rule"] : ["your latest command contains an error"]); // support_errors suppression
         return false;
       }
     },
@@ -1467,6 +1467,7 @@ const handleGenerateAndCheck = async () => {
       formValues.rHSGoal,
       leftPremise,
       rightPremise,
+      proofParams,
       showSide,
       userRow.num,
       racketRuleFields,

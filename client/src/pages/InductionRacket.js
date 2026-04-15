@@ -849,7 +849,7 @@ const InductionRacket = () => {
       } else {
         // Show a toast on invalid rule
         const message = (fullRacket && fullRacket.errors && fullRacket.errors[0]) || "Invalid rule";
-        toast.error(message);
+        toast.error(proofParams.support_errors ? message : "your latest command contains an error"); // support_errors suppression
       }
     } finally {
       isProcessingRef.current = false;
@@ -1733,10 +1733,10 @@ const InductionRacket = () => {
           return response;
         }
 
-        setInductionSubErrors(response.errors || ["Substitution failed"]);
+        setInductionSubErrors(proofParams.support_errors ? (response.errors || ["Substitution failed"]) : ["your latest command contains an error"]); // support_errors suppression
         return false;
       } catch (error) {
-        setInductionSubErrors(["Failed to substitute rule"]);
+        setInductionSubErrors(proofParams.support_errors ? ["Failed to substitute rule"] : ["your latest command contains an error"]); // support_errors suppression
         return false;
       }
     },
@@ -1747,6 +1747,7 @@ const InductionRacket = () => {
       isAnchor,
       leftPremise,
       rightPremise,
+      proofParams,
       setJsonTreeRep,
       showSide,
       userRow.num,
