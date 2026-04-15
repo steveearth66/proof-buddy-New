@@ -1911,3 +1911,139 @@ def set_parameters(request):
             setattr(proof, field, request.data[field])
     proof.save()
     return Response({f: getattr(proof, f) for f in PARAM_FIELDS}, status=status.HTTP_200_OK)
+
+
+def _unique_proof_name(user, base_name):
+    """Return base_name if unused for this user, else append '(copy)', '(copy 2)', etc."""
+    from equational_reasoning_api.models import EquationalProof as _ERProof
+    candidate = base_name
+    suffix = 1
+    while True:
+        ind_taken = InductionProof.objects.filter(user=user, name=candidate, is_active=True).exists()
+        er_taken = _ERProof.objects.filter(user=user, name=candidate, is_active=True).exists()
+        if not er_taken and not ind_taken:
+            return candidate
+        candidate = f"{base_name} (copy)" if suffix == 1 else f"{base_name} (copy {suffix})"
+        suffix += 1
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def download_proof(request):
+    """Export the full induction proof as a JSON payload for browser download."""
+    user = request.user
+    proof_id = request.GET.get('proof_id')
+    if not proof_id:
+        return Response({"error": "proof_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        proof = InductionProof.objects.get(id=proof_id, user=user, is_active=True)
+    except InductionProof.DoesNotExist:
+        return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
+    from .models import InductionProofLine
+    def get_side_lines(case, side):
+        lines = InductionProofLine.objects.filter(proof=proof, case=case, side=side).order_by('line_number')
+        return [
+            {
+                'lineNumber': l.line_number,
+                'racket': l.racket,
+                'rule': l.rule,
+                'startPosition': l.start_position,
+                'selectedNode': l.selected_node,
+                'resultNode': l.result_node,
+                'substitution': l.substitution,
+                'jsonTree': l.json_tree,
+            }
+            for l in lines
+        ]
+    data = {
+        'proofType': 'induction',
+        'name': proof.name or '',
+        'tag': proof.tag or '',
+        'proofSubtype': proof.proof_type,
+        'inductionType': proof.induction_type,
+        'inductionVariable': proof.induction_variable,
+        'anchorValue': proof.anchor_value,
+        'leapVariable': proof.leap_variable,
+        'lhsAnchorGoal': proof.lhs_anchor_goal or '',
+        'rhsAnchorGoal': proof.rhs_anchor_goal or '',
+        'lhsLeapGoal': proof.lhs_leap_goal or '',
+        'rhsLeapGoal': proof.rhs_leap_goal or '',
+        'inductiveHypothesisLHS': proof.inductive_hypothesis_lhs or '',
+        'inductiveHypothesisRHS': proof.inductive_hypothesis_rhs or '',
+        'definition': proof.definition if proof.definition is not None else [],
+        'support_errors': proof.support_errors,
+        'support_current_lhs_rhs': proof.support_current_lhs_rhs,
+        'support_ih': proof.support_ih,
+        'support_premise': proof.support_premise,
+        'support_rule_set': proof.support_rule_set,
+        'support_value_mapping': proof.support_value_mapping,
+        'lines': {
+            'base': {
+                'LHS': get_side_lines('base', 'LHS'),
+                'RHS': get_side_lines('base', 'RHS'),
+            },
+            'leap': {
+                'LHS': get_side_lines('leap', 'LHS'),
+                'RHS': get_side_lines('leap', 'RHS'),
+            },
+        },
+    }
+    return Response(data, status=status.HTTP_200_OK)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def upload_proof(request):
+    """Import an induction proof from a JSON payload and create a new proof record."""
+    user = request.user
+    data = request.data
+    if data.get('proofType') != 'induction':
+        return Response({"error": "This file is not an induction proof."}, status=status.HTTP_400_BAD_REQUEST)
+    base_name = (data.get('name') or 'Untitled').strip() or 'Untitled'
+    name = _unique_proof_name(user, base_name)
+    try:
+        from .models import InductionProofLine
+        proof = InductionProof.objects.create(
+            user=user,
+            name=name,
+            tag=data.get('tag') or '',
+            proof_type=data.get('proofSubtype', 'induction_int'),
+            induction_type=data.get('inductionType', 'integers'),
+            induction_variable=data.get('inductionVariable', ''),
+            anchor_value=data.get('anchorValue', ''),
+            leap_variable=data.get('leapVariable', ''),
+            lhs_anchor_goal=data.get('lhsAnchorGoal', ''),
+            rhs_anchor_goal=data.get('rhsAnchorGoal', ''),
+            lhs_leap_goal=data.get('lhsLeapGoal', ''),
+            rhs_leap_goal=data.get('rhsLeapGoal', ''),
+            inductive_hypothesis_lhs=data.get('inductiveHypothesisLHS', ''),
+            inductive_hypothesis_rhs=data.get('inductiveHypothesisRHS', ''),
+            definition=data.get('definition', []),
+            support_errors=data.get('support_errors', True),
+            support_current_lhs_rhs=data.get('support_current_lhs_rhs', True),
+            support_ih=data.get('support_ih', True),
+            support_premise=data.get('support_premise', True),
+            support_rule_set=data.get('support_rule_set', True),
+            support_value_mapping=data.get('support_value_mapping', True),
+        )
+        lines_data = data.get('lines', {})
+        for case in ('base', 'leap'):
+            case_lines = lines_data.get(case, {})
+            for side in ('LHS', 'RHS'):
+                for line in case_lines.get(side, []):
+                    InductionProofLine.objects.create(
+                        proof=proof,
+                        case=case,
+                        side=side,
+                        line_number=int(line.get('lineNumber') or 0),
+                        racket=line.get('racket') or '',
+                        rule=line.get('rule') or '',
+                        start_position=int(line.get('startPosition') or 0),
+                        selected_node=int(line.get('selectedNode') or 0),
+                        result_node=int(line.get('resultNode') or 0),
+                        substitution=line.get('substitution') or '',
+                        json_tree=line.get('jsonTree') or {},
+                    )
+        return Response({'proofId': proof.id, 'proofName': name}, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

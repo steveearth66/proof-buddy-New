@@ -1403,3 +1403,108 @@ def set_parameters(request):
             setattr(proof, field, request.data[field])
     proof.save()
     return Response({f: getattr(proof, f) for f in PARAM_FIELDS}, status=status.HTTP_200_OK)
+
+
+def _unique_proof_name(user, base_name):
+    """Return base_name if unused for this user, else append '(copy)', '(copy 2)', etc."""
+    from induction_api.models import InductionProof as _IndProof
+    candidate = base_name
+    suffix = 1
+    while True:
+        er_taken = EquationalProof.objects.filter(user=user, name=candidate, is_active=True).exists()
+        ind_taken = _IndProof.objects.filter(user=user, name=candidate, is_active=True).exists()
+        if not er_taken and not ind_taken:
+            return candidate
+        candidate = f"{base_name} (copy)" if suffix == 1 else f"{base_name} (copy {suffix})"
+        suffix += 1
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def download_proof(request):
+    """Export the full equational proof as a JSON payload for browser download."""
+    user = request.user
+    proof_id = request.GET.get('proof_id')
+    if not proof_id:
+        return Response({"error": "proof_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        proof = EquationalProof.objects.get(id=proof_id, user=user, is_active=True)
+    except EquationalProof.DoesNotExist:
+        return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
+    lhs_lines = EquationalProofLine.objects.filter(proof=proof, side='LHS').order_by('line_number')
+    rhs_lines = EquationalProofLine.objects.filter(proof=proof, side='RHS').order_by('line_number')
+    def line_to_dict(line):
+        return {
+            'lineNumber': line.line_number,
+            'racket': line.racket,
+            'rule': line.rule,
+            'startPosition': line.start_position,
+            'selectedNode': line.selected_node,
+            'resultNode': line.result_node,
+            'substitution': line.substitution,
+            'jsonTree': line.json_tree,
+        }
+    data = {
+        'proofType': 'equational',
+        'name': proof.name or '',
+        'tag': proof.tag or '',
+        'lhsGoal': proof.lhs_goal,
+        'rhsGoal': proof.rhs_goal,
+        'definition': proof.definition if proof.definition is not None else [],
+        'support_errors': proof.support_errors,
+        'support_current_lhs_rhs': proof.support_current_lhs_rhs,
+        'support_ih': proof.support_ih,
+        'support_premise': proof.support_premise,
+        'support_rule_set': proof.support_rule_set,
+        'support_value_mapping': proof.support_value_mapping,
+        'lines': {
+            'LHS': [line_to_dict(l) for l in lhs_lines],
+            'RHS': [line_to_dict(l) for l in rhs_lines],
+        },
+    }
+    return Response(data, status=status.HTTP_200_OK)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def upload_proof(request):
+    """Import an equational proof from a JSON payload and create a new proof record."""
+    user = request.user
+    data = request.data
+    if data.get('proofType') != 'equational':
+        return Response({"error": "This file is not an equational reasoning proof."}, status=status.HTTP_400_BAD_REQUEST)
+    base_name = (data.get('name') or 'Untitled').strip() or 'Untitled'
+    name = _unique_proof_name(user, base_name)
+    try:
+        proof = EquationalProof.objects.create(
+            user=user,
+            name=name,
+            tag=data.get('tag') or '',
+            lhs_goal=data.get('lhsGoal', ''),
+            rhs_goal=data.get('rhsGoal', ''),
+            definition=data.get('definition', []),
+            support_errors=data.get('support_errors', True),
+            support_current_lhs_rhs=data.get('support_current_lhs_rhs', True),
+            support_ih=data.get('support_ih', True),
+            support_premise=data.get('support_premise', True),
+            support_rule_set=data.get('support_rule_set', True),
+            support_value_mapping=data.get('support_value_mapping', True),
+        )
+        lines_data = data.get('lines', {})
+        for side in ('LHS', 'RHS'):
+            for line in lines_data.get(side, []):
+                EquationalProofLine.objects.create(
+                    proof=proof,
+                    side=side,
+                    line_number=int(line.get('lineNumber') or 0),
+                    racket=line.get('racket') or '',
+                    rule=line.get('rule') or '',
+                    start_position=int(line.get('startPosition') or 0),
+                    selected_node=int(line.get('selectedNode') or 0),
+                    result_node=int(line.get('resultNode') or 0),
+                    substitution=line.get('substitution') or '',
+                    json_tree=line.get('jsonTree') or {},
+                )
+        return Response({'proofId': proof.id, 'proofName': name}, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

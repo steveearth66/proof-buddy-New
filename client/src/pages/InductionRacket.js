@@ -249,6 +249,7 @@ const InductionRacket = () => {
   const rhsPadRefs = useRef({});
   const footerPadRef = useRef(null);
   const isProcessingRef = useRef(false);
+  const uploadFileRef = useRef(null);
   const [userRow, setUserRow] = useState({ num: "" });
   const [isBound, setIsBound] = useState(false);
   const [footerRule, setFooterRule] = useState("");
@@ -686,6 +687,53 @@ const InductionRacket = () => {
     } catch (error) {
       console.error('Error clearing proof:', error);
       toast.error('Failed to clear proof');
+    }
+  };
+
+  const handleDownloadProof = async () => {
+    try {
+      const data = await inductionService.downloadProof(proofParams.proof_id);
+      const fileName = `${data.name || 'proof'}.json`;
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading proof:', error);
+      toast.error('Failed to download proof.');
+    }
+  };
+
+  const handleUploadProof = () => {
+    if (uploadFileRef.current) {
+      uploadFileRef.current.value = '';
+      uploadFileRef.current.click();
+    }
+  };
+
+  const handleUploadFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const proofData = JSON.parse(text);
+      if (proofData.proofType !== 'induction') {
+        toast.error('This file is not an induction proof.');
+        return;
+      }
+      const result = await inductionService.uploadProof(proofData);
+      // Pre-load the new proof into the backend cache so the page init can find it.
+      await inductionService.setSessionById(result.proofId);
+      sessionStorage.setItem('induction_current_proof_id', String(result.proofId));
+      sessionStorage.setItem('inductionProofActive', 'true');
+      toast.success(`Proof "${result.proofName}" uploaded successfully.`);
+      window.location.reload();
+    } catch (error) {
+      console.error('Error uploading proof:', error);
+      toast.error('Failed to upload proof. The file may be invalid or corrupted.');
     }
   };
 
@@ -2090,6 +2138,17 @@ const InductionRacket = () => {
                                   >
                                     Discard Proof
                                   </Dropdown.Item>
+                                  <Dropdown.Item
+                                    onClick={handleDownloadProof}
+                                    href="#"
+                                    disabled={!proofStarted}
+                                    style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}
+                                  >
+                                    Download Proof
+                                  </Dropdown.Item>
+                                  <Dropdown.Item onClick={handleUploadProof} href="#">
+                                    Upload Proof
+                                  </Dropdown.Item>
                                 </Dropdown.Menu>
                             </Dropdown>
                         </Col>
@@ -2427,8 +2486,26 @@ const InductionRacket = () => {
                         <Dropdown.Item onClick={handleClearProof} disabled={!proofStarted} style={{ color: proofStarted ? 'red' : '#999', opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}>
                           Discard Proof
                         </Dropdown.Item>
+                        <Dropdown.Item
+                          onClick={handleDownloadProof}
+                          href="#"
+                          disabled={!proofStarted}
+                          style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}
+                        >
+                          Download Proof
+                        </Dropdown.Item>
+                        <Dropdown.Item onClick={handleUploadProof} href="#">
+                          Upload Proof
+                        </Dropdown.Item>
                       </Dropdown.Menu>
                     </Dropdown>
+                    <input
+                      type="file"
+                      accept=".json"
+                      ref={uploadFileRef}
+                      onChange={handleUploadFileChange}
+                      style={{ display: 'none' }}
+                    />
                     {proofStarted && proofStatus[isAnchor ? 'base' : 'leap'] && (
                       <span
                         style={{
