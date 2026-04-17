@@ -84,6 +84,8 @@ const InductionRacket = () => {
   
   // Case state must be declared first since it's used in computed values below
   const [isAnchor, setIsAnchor] = useState(true);
+
+  const [viewIH, setViewIH] = useState(true);
   
   // List induction direction: 'up' or 'down' (only relevant when inductionType === 'lists')
   const [listDirection, setListDirection] = useState('up');
@@ -2285,7 +2287,7 @@ const InductionRacket = () => {
                             </div>
                           </Form.Group>
                       </Row>
-                      {(!proofStarted || !isAnchor) && (
+                      {viewIH && (!proofStarted || !isAnchor) && (
                         <Row className="g-5 mb-3">
                           <Form.Group as={Col} md="6" className="er-inductive-hypothesis-lhs">
                               <label htmlFor="eRInductiveHypothesisLHS" className="form-label small fw-bold mb-0">IH LHS</label>
@@ -2356,13 +2358,18 @@ const InductionRacket = () => {
                         <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">Definitions</Dropdown.Item>
                         <Dropdown.Item onClick={toggleOffcanvas} href="#">View Rule Set</Dropdown.Item>
                         <Dropdown.Item 
+                          onClick={() => setViewIH(prev => !prev)} 
+                          disabled={isAnchor} style={{ opacity: !isAnchor ? 1 : 0.4 }}
+                          >
+                            {viewIH ? "Hide IH" : "View IH"}
+                          </Dropdown.Item>
+                        <Dropdown.Item 
                           onClick={checkCurrentProofStatus} 
                           disabled={!proofStarted}
                           style={{ opacity: proofStarted ? 1 : 0.4 }}
                         >
                           Check Current Proof
                         </Dropdown.Item>
-                        <Dropdown.Divider />
                         <Dropdown.Item onClick={handleNewProof} disabled={!proofStarted} style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}>
                           New Proof
                         </Dropdown.Item>
