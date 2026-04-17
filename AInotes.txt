@@ -10,6 +10,20 @@ Focus on understanding PRINCIPLES and PATTERNS, not memorizing specific code cha
 
 ---
 
+*** PRIORITY RULE — WRITING TESTS SAFELY ***
+ALL new tests MUST be written as proper Django TestCase (or TransactionTestCase) classes inside an app directory (e.g. induction_api/, equational_reasoning_api/). This is non-negotiable. The rules are:
+
+1. NEVER write module-level database code in any test_*.py file. Module-level code runs during test discovery (before the test DB is created) and hits the real production database. This has already caused data loss once.
+2. ALL database calls (objects.create, objects.delete, objects.all, cache.clear, etc.) must live inside setUp(), tearDown(), or test_*() methods of a TestCase class — never at the top level of the file.
+3. Test files that do NOT use a TestCase class (i.e. plain scripts) must NOT be named test_*.py or they will be auto-discovered and their module-level code will run against the real DB.
+4. The two existing exec(open()) subprocess calls in proofs/tests.py (test_udf_in_udf.py and test_lemma_application.py) are a known structural risk. Do not add ORM calls to either of those files. If either file ever needs database access, convert it to a proper TestCase first.
+5. Before writing any new test file, ask: "Is every DB call inside a method on a TestCase class?" If the answer is no, restructure before proceeding.
+
+The production database contains saved student and instructor proofs that are difficult or impossible to recover if destroyed. Tests must never touch it.
+*** END PRIORITY RULE ***
+
+---
+
 You should take on the role of a paired programmer.  you may presume I am have expert level knowledge in math (especially proofs) and pedagogy and in python; however, i only have very rudimentary understanding of frontend (html, css, javascript, react, django, sql, database) so those aspects will have to be explained more fully.
 
 The ERracket mode works for the most part. So, it is critical that you not make any changes there, at least not without alerting me first to exactly what you are doing so we can make sure you don't break something which functions.
@@ -863,3 +877,42 @@ KEY LESSONS:
 - When a prop-seeding approach involves calling a state setter inside a useEffect, consider whether setting the initial state value directly is simpler and more reliable — it almost always is for one-time initialization.
 - Always verify which file the browser is actually executing before editing. The console stack trace (file name and line number) is the ground truth. In this codebase, there are parallel files for the same UI (EquationalReasoning.js vs EquationalReasoningNew.js); grep results alone don't tell you which one is active.
 - The "rewrite math" guard in handleGenerateAndCheck needed no additional state because footerRule was already being passed as initialRule at the Substitution render site. Calling updateShowSubstitution() was sufficient — the value was already wired.
+
+---
+
+SESSION 2026-04-14: Test Database Wipe Bug Fix and Data Recovery
+
+PROBLEM: Running `py manage.py test proofs` wiped all saved InductionProof rows from the real production database. This had happened before and was recovered via restore_state.sql. The goal this session was to identify and permanently fix the root cause.
+
+INITIAL HYPOTHESES (WRONG):
+1. First suspected the exec(open()) pattern in proofs/tests.py — some exec'd scripts call django.setup() which points at the real DB. Audited all exec'd scripts (test_udf_in_udf.py, test_lemma_application.py, test_integration.py, test_induction.py) for ORM calls. None had any.
+2. Suspected a subprocess race condition — parent and child manage.py test processes both creating/dropping the test_proofbuddy database. This was a plausible hypothesis but never confirmed since the real cause was found first.
+3. Suspected TransactionTestCase usage in induction_api tests — these flush the DB after each test, but only against test_proofbuddy (not real DB) since TEST: NAME is set in settings.py.
+
+WHY THESE WERE WRONG:
+- The exec'd scripts were pure engine tests with no ORM calls — they couldn't touch the DB.
+- The subprocess race condition was a theory based on the architecture, never confirmed.
+- TransactionTestCase always operates on the test DB, not the real one.
+
+ROOT CAUSE DISCOVERED:
+django_server/test_manual_persistence.py had module-level database calls at the top of the file:
+
+    InductionProof.objects.all().delete()
+
+Django's DiscoverRunner works in two phases: (1) it imports all test_*.py files it finds to discover TestCase classes, THEN (2) creates the test database. Module-level code fires during phase 1 — against the real production database — before the test DB even exists.
+
+The file lived at django_server/test_manual_persistence.py (project root, not inside any app), and started with test_, so DiscoverRunner found and imported it when running any manage.py test command.
+
+THE FIX:
+Rather than renaming or deleting the file (which would remove a test), converted the module-level script into a proper Django TestCase class. All database calls moved into setUp() and test methods that only run after the test DB is ready. No tests were removed — the same persistence checks now run safely against test_proofbuddy.
+
+Also wired the converted test into the proofs/tests.py runner so py manage.py test proofs includes it.
+
+DATA RECOVERY:
+restore_state.sql contained 10 InductionProof rows (IDs 384-394) from March 29, 2026. The file needed a small fix before restoring: some rows had is_complete = NULL but the column had since gained a NOT NULL constraint. Created a fixed copy with NULLs replaced by 0, piped it into MySQL using Get-Content | mysql.exe (since PowerShell's < redirect operator is not supported). All 10 rows confirmed restored.
+
+KEY LESSONS:
+1. Module-level code in test_*.py files runs against the real database during test discovery, before the test DB is created. Any ORM call at module level in a file named test_*.py anywhere on the discovery path is dangerous.
+2. The proper fix is always to move database calls into TestCase methods — not to rename files or skip tests. Renaming hides the problem; proper TestCase wrapping solves it.
+3. Django's TEST: NAME setting in settings.py is only effective for code running inside a TestCase. Module-level imports bypass it entirely.
+4. When a restore SQL fails with a NOT NULL constraint error, check whether the model gained new non-nullable fields since the backup was made. The fix is to substitute a default value for NULL in the restore file, not to change the schema.

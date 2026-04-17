@@ -8,7 +8,7 @@ export default function NumberedPagination({
     return (
         <Pagination>
             <Pagination.First onClick={() => onPageChange({ page: 1 })} />
-            <Pagination.Prev onClick={() => onPageChange({ page: currentPage - 1 })} />
+            <Pagination.Prev onClick={() => onPageChange({ page: Math.max(currentPage - 1, 1) })} />
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                 <Pagination.Item
                     key={page}
@@ -27,7 +27,7 @@ export default function NumberedPagination({
 export function SimplePagination({ currentPage, totalPages, onPageChange }) {
     return (
         <Pagination>
-            <Pagination.Prev onClick={() => onPageChange({ page: currentPage - 1 })} />
+            <Pagination.Prev onClick={() => onPageChange({ page: Math.max(currentPage - 1, 1) })} />
             <Pagination.Next onClick={() => onPageChange({ page: currentPage + 1 > totalPages ? totalPages : currentPage + 1 })} />
         </Pagination>
     );

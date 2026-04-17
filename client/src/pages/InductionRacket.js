@@ -33,6 +33,8 @@ import ClickableRowNumber from "../components/ClickableRowNumber";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import { useDynamicHeight } from "../hooks/useDynamicHeight";
 import inductionService from "../services/inductionService";
+import userService from "../services/userService";
+import SetParametersModal from "../components/SetParametersModal";
 import {
   ARROW_KEYS,
   EMPTY_INITIAL_FIELD,
@@ -148,6 +150,25 @@ const InductionRacket = () => {
   const [showOverwriteModal, setShowOverwriteModal] = useState(false);
   const [showStartConfirmModal, setShowStartConfirmModal] = useState(false);
   const [conflictType, setConflictType] = useState(null);
+  const [currentUserType, setCurrentUserType] = useState(null);
+  const [showSetParams, setShowSetParams] = useState(false);
+  const [proofParams, setProofParams] = useState({
+    proof_id: null,
+    support_errors: true,
+    support_current_lhs_rhs: true,
+    support_ih: true,
+    support_premise: true,
+    support_rule_set: true,
+    support_value_mapping: true,
+  });
+
+  useEffect(() => {
+    async function loadUser() {
+      const profile = await userService.getUserProfile();
+      setCurrentUserType(profile);
+    }
+    loadUser();
+  }, []);
 
   // Parenthesis highlighting hooks
   const { 
@@ -230,6 +251,7 @@ const InductionRacket = () => {
   const rhsPadRefs = useRef({});
   const footerPadRef = useRef(null);
   const isProcessingRef = useRef(false);
+  const uploadFileRef = useRef(null);
   const [userRow, setUserRow] = useState({ num: "" });
   const [isBound, setIsBound] = useState(false);
   const [footerRule, setFooterRule] = useState("");
@@ -512,7 +534,20 @@ const InductionRacket = () => {
     } catch (error) {
       console.error('[loadProofLines] Error loading proof lines:', error);
     }
-  }, [setBaseRacketFields, setLeapRacketFields, setBasePremises, setLeapPremises]);
+
+    // Load support params from getCurrentProof
+    try {
+      const proofMeta = await inductionService.getCurrentProof();
+      if (proofMeta?.hasProof) {
+        const PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping'];
+        const extracted = {};
+        PARAM_KEYS.forEach(k => { if (k in proofMeta) extracted[k] = proofMeta[k]; });
+        if (Object.keys(extracted).length > 0) setProofParams(prev => ({ ...prev, ...extracted }));
+      }
+    } catch (e) {
+      // non-critical — params will remain at defaults
+    }
+  }, [setBaseRacketFields, setLeapRacketFields, setBasePremises, setLeapPremises, setProofParams]);
 
   // Toggle sides - no database reload needed, state already has both sides
   const handleToggleSide = useCallback(() => {
@@ -654,6 +689,53 @@ const InductionRacket = () => {
     } catch (error) {
       console.error('Error clearing proof:', error);
       toast.error('Failed to clear proof');
+    }
+  };
+
+  const handleDownloadProof = async () => {
+    try {
+      const data = await inductionService.downloadProof(proofParams.proof_id);
+      const fileName = `${data.name || 'proof'}.json`;
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading proof:', error);
+      toast.error('Failed to download proof.');
+    }
+  };
+
+  const handleUploadProof = () => {
+    if (uploadFileRef.current) {
+      uploadFileRef.current.value = '';
+      uploadFileRef.current.click();
+    }
+  };
+
+  const handleUploadFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const proofData = JSON.parse(text);
+      if (proofData.proofType !== 'induction') {
+        toast.error('This file is not an induction proof.');
+        return;
+      }
+      const result = await inductionService.uploadProof(proofData);
+      // Pre-load the new proof into the backend cache so the page init can find it.
+      await inductionService.setSessionById(result.proofId);
+      sessionStorage.setItem('induction_current_proof_id', String(result.proofId));
+      sessionStorage.setItem('inductionProofActive', 'true');
+      toast.success(`Proof "${result.proofName}" uploaded successfully.`);
+      window.location.reload();
+    } catch (error) {
+      console.error('Error uploading proof:', error);
+      toast.error('Failed to upload proof. The file may be invalid or corrupted.');
     }
   };
 
@@ -817,7 +899,7 @@ const InductionRacket = () => {
       } else {
         // Show a toast on invalid rule
         const message = (fullRacket && fullRacket.errors && fullRacket.errors[0]) || "Invalid rule";
-        toast.error(message);
+        toast.error(proofParams.support_errors ? message : "your latest command contains an error"); // support_errors suppression
       }
     } finally {
       isProcessingRef.current = false;
@@ -1522,7 +1604,22 @@ const InductionRacket = () => {
               
               // Mark this as an active proof session for restoration on page refresh
               sessionStorage.setItem('inductionProofActive', 'true');
-              
+
+              // Persist any params the user pre-configured before starting the proof.
+              // Must be done BEFORE loadProofLinesFromDatabase reads them back from DB.
+              const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping'];
+              const hasCustomParams = PARAM_KEYS.some(k => proofParams[k] !== true);
+              if (hasCustomParams) {
+                try {
+                  await inductionService.setParameters(
+                    { ...Object.fromEntries(PARAM_KEYS.map(k => [k, proofParams[k]])), proof_id: proofId }
+                  );
+                } catch (e) {
+                  console.error('[SetParameters] Failed to persist pre-set params on proof start:', e);
+                }
+              }
+              setProofParams(prev => ({ ...prev, proof_id: proofId }));
+
               // Load any existing proof lines from database to restore highlighting
               setTimeout(() => {
                 loadProofLinesFromDatabase();
@@ -1686,10 +1783,10 @@ const InductionRacket = () => {
           return response;
         }
 
-        setInductionSubErrors(response.errors || ["Substitution failed"]);
+        setInductionSubErrors(proofParams.support_errors ? (response.errors || ["Substitution failed"]) : ["your latest command contains an error"]); // support_errors suppression
         return false;
       } catch (error) {
-        setInductionSubErrors(["Failed to substitute rule"]);
+        setInductionSubErrors(proofParams.support_errors ? ["Failed to substitute rule"] : ["your latest command contains an error"]); // support_errors suppression
         return false;
       }
     },
@@ -1700,6 +1797,7 @@ const InductionRacket = () => {
       isAnchor,
       leftPremise,
       rightPremise,
+      proofParams,
       setJsonTreeRep,
       showSide,
       userRow.num,
@@ -2003,6 +2101,11 @@ const InductionRacket = () => {
                                   ]
                                 }}
                               >
+                                  {!currentUserType?.is_student && (
+                                    <Dropdown.Item onClick={() => setShowSetParams(true)} href="#">
+                                      Set Parameters
+                                    </Dropdown.Item>
+                                  )}
                                   <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">
                                     Definitions
                                   </Dropdown.Item>
@@ -2017,7 +2120,6 @@ const InductionRacket = () => {
                                   >
                                     Check Current Proof
                                   </Dropdown.Item>
-                                  <Dropdown.Divider />
                                   <Dropdown.Item 
                                     onClick={handleNewProof} 
                                     href="#" 
@@ -2037,6 +2139,17 @@ const InductionRacket = () => {
                                     }}
                                   >
                                     Discard Proof
+                                  </Dropdown.Item>
+                                  <Dropdown.Item
+                                    onClick={handleDownloadProof}
+                                    href="#"
+                                    disabled={!proofStarted}
+                                    style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}
+                                  >
+                                    Download Proof
+                                  </Dropdown.Item>
+                                  <Dropdown.Item onClick={handleUploadProof} href="#">
+                                    Upload Proof
                                   </Dropdown.Item>
                                 </Dropdown.Menu>
                             </Dropdown>
@@ -2355,6 +2468,11 @@ const InductionRacket = () => {
                           ]
                         }}
                       >
+                        {!currentUserType?.is_student && (
+                          <Dropdown.Item onClick={() => setShowSetParams(true)} href="#">
+                            Set Parameters
+                          </Dropdown.Item>
+                        )}
                         <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">Definitions</Dropdown.Item>
                         <Dropdown.Item onClick={toggleOffcanvas} href="#">View Rule Set</Dropdown.Item>
                         <Dropdown.Item 
@@ -2376,8 +2494,26 @@ const InductionRacket = () => {
                         <Dropdown.Item onClick={handleClearProof} disabled={!proofStarted} style={{ color: proofStarted ? 'red' : '#999', opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}>
                           Discard Proof
                         </Dropdown.Item>
+                        <Dropdown.Item
+                          onClick={handleDownloadProof}
+                          href="#"
+                          disabled={!proofStarted}
+                          style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}
+                        >
+                          Download Proof
+                        </Dropdown.Item>
+                        <Dropdown.Item onClick={handleUploadProof} href="#">
+                          Upload Proof
+                        </Dropdown.Item>
                       </Dropdown.Menu>
                     </Dropdown>
+                    <input
+                      type="file"
+                      accept=".json"
+                      ref={uploadFileRef}
+                      onChange={handleUploadFileChange}
+                      style={{ display: 'none' }}
+                    />
                     {proofStarted && proofStatus[isAnchor ? 'base' : 'leap'] && (
                       <span
                         style={{
@@ -2802,6 +2938,21 @@ const InductionRacket = () => {
           </Button>
         </Modal.Footer>
       </Modal>
+      <SetParametersModal
+        show={showSetParams}
+        onHide={() => setShowSetParams(false)}
+        params={proofParams}
+        onSave={async (newParams) => {
+          setProofParams(prev => ({ ...prev, ...newParams }));
+          if (proofParams.proof_id) {
+            try {
+              await inductionService.setParameters({ ...newParams, proof_id: proofParams.proof_id });
+            } catch (e) {
+              console.error('[SetParameters] Save failed:', e);
+            }
+          }
+        }}
+      />
     </MainLayout>
   );
 };

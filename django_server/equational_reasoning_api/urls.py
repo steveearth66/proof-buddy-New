@@ -17,5 +17,8 @@ urlpatterns = [
     path("clear-proof", views.clear_proof, name="clear_proof"),
     path("discard-proof", views.discard_proof, name="discard_proof"),
     path("save-proof", views.save_proof, name="save_proof"),
-    path("delete-proof", views.delete_proof, name="delete_proof")
+    path("delete-proof", views.delete_proof, name="delete_proof"),
+    path("set-parameters", views.set_parameters, name="set_parameters"),
+    path("download-proof", views.download_proof, name="download_proof"),
+    path("upload-proof", views.upload_proof, name="upload_proof"),
 ]

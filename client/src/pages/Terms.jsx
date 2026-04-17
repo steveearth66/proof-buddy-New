@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import MainLayout from '../layouts/MainLayout';
 import Container from 'react-bootstrap/Container';
 import { useAuth } from '../context/AuthContext';
-import termService from '../services/termServices';
+import courseService from '../services/courseServices';
 import Button from 'react-bootstrap/esm/Button';
 import '../scss/_terms.scss';
 import InputGroup from 'react-bootstrap/InputGroup';
@@ -20,7 +20,7 @@ function Terms() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const terms = await termService.getTerms();
+        const terms = await courseService.getTerms();
         setTerms(terms);
       } catch (error) {
         console.error('Error fetching terms:', error);
@@ -92,7 +92,7 @@ function CreateTerm({ setTerms, toggleShowCreate }) {
       students
     };
     try {
-      const newTerm = await termService.createTerm(term);
+      const newTerm = await courseService.createTerm(term);
       setTerms((prev) => [...prev, newTerm]);
       toast.success('Term created');
       e.target.name.value = '';
@@ -126,7 +126,7 @@ function AddStudent({ students, setStudents }) {
   const [student, setStudent] = useState('');
 
   const addStudent = async () => {
-    const studentAdded = await termService.checkUser(student);
+    const studentAdded = await courseService.checkUser(student);
     if (studentAdded) {
       setStudents((prev) => [...prev, student]);
       setStudent('');

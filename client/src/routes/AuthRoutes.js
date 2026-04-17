@@ -7,6 +7,7 @@ import Logout from '../pages/Logout';
 import ForgotPassword from '../pages/ForgotPassword';
 import ResetPassword from '../pages/ResetPassword';
 import Proofs from "../pages/Proofs";
+import Courses from "../pages/Courses";
 import Terms from '../pages/Terms';
 import Term from '../pages/Term';
 import { RouteWithAuth, RouteWithNoAuth } from "../utils/routeAuthUtils";
@@ -39,6 +40,7 @@ const AuthRoutes = () => {
         element={<RouteWithNoAuth component={ResetPassword} />}
       />
       <Route path="/proofs" element={<RouteWithAuth component={Proofs} />} />
+      <Route path="/courses" element={<RouteWithAuth component={Courses} />} />
       <Route path="/terms" element={<RouteWithAuth component={Terms} />} />
       <Route path="/terms/:id" element={<RouteWithAuth component={Term} />} />
     </>
