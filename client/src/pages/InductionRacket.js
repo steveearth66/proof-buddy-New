@@ -157,7 +157,7 @@ const InductionRacket = () => {
     support_ih: true,
     support_premise: true,
     support_rule_set: true,
-    support_value_mapping: true,
+    support_value_mapping: true
   });
 
   useEffect(() => {

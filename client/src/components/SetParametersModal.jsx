@@ -9,7 +9,7 @@ const PARAM_ROWS = [
   { key: "support_ih",              label: "Induction Hypothesis" },
   { key: "support_premise",         label: "Premise" },
   { key: "support_rule_set",        label: "Rule Set" },
-  { key: "support_value_mapping",   label: "Value Mapping" },
+  { key: "support_value_mapping",   label: "Value Mapping" }
 ];
 
 const DEFAULT_PARAMS = {
@@ -18,7 +18,7 @@ const DEFAULT_PARAMS = {
   support_ih: true,
   support_premise: true,
   support_rule_set: true,
-  support_value_mapping: true,
+  support_value_mapping: true
 };
 
 export default function SetParametersModal({ show, onHide, params, onSave }) {
