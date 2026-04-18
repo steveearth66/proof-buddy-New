@@ -132,9 +132,10 @@ CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "https://proofbuddy.net",
+    "https://www.proofbuddy.net",
     "https://learn.dcollege.net"
 ]
-CSRF_TRUSTED_ORIGINS = [f"{os.getenv('BACKEND_URL')}"]
+CSRF_TRUSTED_ORIGINS = [f"{os.getenv('BACKEND_URL')}", "https://proofbuddy.net", "https://www.proofbuddy.net"]
 
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
