@@ -13,6 +13,8 @@ class EquationalProofSerializer(serializers.ModelSerializer):
             'id', 'user', 'name', 'tag',
             'lhs_goal', 'rhs_goal',
             'current_side', 'is_valid', 'is_complete', 'definition',
+            'support_errors', 'support_current_lhs_rhs', 'support_ih',
+            'support_premise', 'support_rule_set', 'support_value_mapping',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'user', 'created_at', 'updated_at']

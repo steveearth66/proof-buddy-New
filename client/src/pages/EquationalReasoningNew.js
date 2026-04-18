@@ -26,6 +26,7 @@ import { useParenHighlight } from "../hooks/useParenHighlight";
 import {
   Definitions
 } from "../components";
+import SetParametersModal from "../components/SetParametersModal";
 import ClickableRowNumber from "../components/ClickableRowNumber";
 import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import { useDynamicHeight } from "../hooks/useDynamicHeight";
@@ -323,6 +324,20 @@ const EquationalReasoningNew = () => {
               await equationalService.getRacketProof(saveResponse.proofId);
               sessionStorage.setItem('current_proof_id', saveResponse.proofId);
               sessionStorage.setItem('erProofActive', 'true');
+
+              // Persist any params the user pre-configured before starting the proof.
+              const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping'];
+              const hasCustomParams = PARAM_KEYS.some(k => proofParams[k] !== true);
+              if (hasCustomParams) {
+                try {
+                  await equationalService.setParameters(
+                    { ...Object.fromEntries(PARAM_KEYS.map(k => [k, proofParams[k]])), proof_id: saveResponse.proofId }
+                  );
+                } catch (e) {
+                  console.error('[SetParameters] Failed to persist pre-set params on proof start:', e);
+                }
+              }
+              setProofParams(prev => ({ ...prev, proof_id: saveResponse.proofId }));
           } else {
               throw new Error("Database save failed to return a Proof ID");
           }
@@ -373,6 +388,15 @@ const EquationalReasoningNew = () => {
     useDefinitionsWindow();
   const [showProofComplete, setShowProofComplete] = useState(false);
   const [proofComplete, setProofComplete] = useState(false);
+  const [showSetParams, setShowSetParams] = useState(false);
+  const [proofParams, setProofParams] = useState({
+    support_errors: true,
+    support_current_lhs_rhs: true,
+    support_ih: true,
+    support_premise: true,
+    support_rule_set: true,
+    support_value_mapping: true
+  });
   
   // Separate premises for base and leap cases
   const [leftPremise, setLeftPremise] = useState(INITIAL_PREMISE_STATE);
@@ -386,6 +410,7 @@ const EquationalReasoningNew = () => {
   const rhsPadRefs = useRef({});
   const footerPadRef = useRef(null);
   const isProcessingRef = useRef(false);
+  const uploadFileRef = useRef(null);
   const [userRow, setUserRow] = useState({ num: "" });
   const [isBound, setIsBound] = useState(false);
   const navigate = useNavigate();
@@ -528,6 +553,12 @@ const EquationalReasoningNew = () => {
           
           setCurrentLHS(findLast(proofData.LHS) || proofData.lhsAnchorGoal);
           setCurrentRHS(findLast(proofData.RHS) || proofData.rhsAnchorGoal);
+
+          // F. Restore support params
+          const INIT_PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping'];
+          const initExtracted = {};
+          INIT_PARAM_KEYS.forEach(k => { if (k in proofData) initExtracted[k] = proofData[k]; });
+          if (Object.keys(initExtracted).length > 0) setProofParams(prev => ({ ...prev, ...initExtracted }));
 
           setProofStarted(true);
 
@@ -773,11 +804,17 @@ const EquationalReasoningNew = () => {
         }));
       }
 
+      // Extract support params and proof_id
+      const PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping'];
+      const extracted = {};
+      PARAM_KEYS.forEach(k => { if (k in proofLines) extracted[k] = proofLines[k]; });
+      if (Object.keys(extracted).length > 0) setProofParams(prev => ({ ...prev, ...extracted }));
+
     } catch (error) {
       console.error('[loadProofLines] Error loading proof lines:', error);
       // Don't show error to user - this is a background operation
     }
-  }, [setRacketRuleFields, setLeftPremise, setRightPremise]);
+  }, [setRacketRuleFields, setLeftPremise, setRightPremise, setProofParams]);
 
   // Toggle sides - no database reload needed, state already has both sides
   const handleToggleSide = useCallback(() => {
@@ -883,6 +920,53 @@ const EquationalReasoningNew = () => {
     } catch (error) {
       console.error('Error clearing proof:', error);
       toast.error('Failed to clear proof');
+    }
+  };
+
+  const handleDownloadProof = async () => {
+    try {
+      const data = await equationalService.downloadProof(proofParams.proof_id);
+      const fileName = `${data.name || 'proof'}.json`;
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading proof:', error);
+      toast.error('Failed to download proof.');
+    }
+  };
+
+  const handleUploadProof = () => {
+    if (uploadFileRef.current) {
+      uploadFileRef.current.value = '';
+      uploadFileRef.current.click();
+    }
+  };
+
+  const handleUploadFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const proofData = JSON.parse(text);
+      if (proofData.proofType !== 'equational') {
+        toast.error('This file is not an equational reasoning proof.');
+        return;
+      }
+      const result = await equationalService.uploadProof(proofData);
+      // Pre-load the new proof into the backend cache so the page init can find it.
+      await equationalService.getRacketProof(result.proofId);
+      sessionStorage.setItem('current_proof_id', String(result.proofId));
+      sessionStorage.setItem('erProofActive', 'true');
+      toast.success(`Proof "${result.proofName}" uploaded successfully.`);
+      window.location.reload();
+    } catch (error) {
+      console.error('Error uploading proof:', error);
+      toast.error('Failed to upload proof. The file may be invalid or corrupted.');
     }
   };
 
@@ -1081,7 +1165,7 @@ const handleGenerateAndCheck = async () => {
 
       } else {
         const message = (fullRacket && fullRacket.errors && fullRacket.errors[0]) || "Invalid rule";
-        toast.error(message);
+        toast.error(proofParams.support_errors ? message : "your latest command contains an error"); // support_errors suppression
       }
     } finally {
       isProcessingRef.current = false;
@@ -1297,7 +1381,7 @@ const handleGenerateAndCheck = async () => {
           const validationResult = await equationalService.validateHiddenField(validationPayload);
           
           if (validationResult.errors && validationResult.errors.length > 0) {
-            setSubErrors(validationResult.errors);
+            setSubErrors(proofParams.support_errors ? validationResult.errors : ["your latest command contains an error"]); // support_errors suppression
             return false;
           }
           
@@ -1323,7 +1407,7 @@ const handleGenerateAndCheck = async () => {
           return true;
           
         } catch (error) {
-          setSubErrors(["Error validating your answer"]);
+          setSubErrors(proofParams.support_errors ? ["Error validating your answer"] : ["your latest command contains an error"]); // support_errors suppression
           return false;
         }
       }
@@ -1418,10 +1502,10 @@ const handleGenerateAndCheck = async () => {
           return response;
         }
 
-        setSubErrors(response.errors || ["Substitution failed"]);
+        setSubErrors(proofParams.support_errors ? (response.errors || ["Substitution failed"]) : ["your latest command contains an error"]); // support_errors suppression
         return false;
       } catch (error) {
-        setSubErrors(["Failed to substitute rule"]);
+        setSubErrors(proofParams.support_errors ? ["Failed to substitute rule"] : ["your latest command contains an error"]); // support_errors suppression
         return false;
       }
     },
@@ -1431,6 +1515,7 @@ const handleGenerateAndCheck = async () => {
       formValues.rHSGoal,
       leftPremise,
       rightPremise,
+      proofParams,
       showSide,
       userRow.num,
       racketRuleFields,
@@ -1827,6 +1912,11 @@ const handleGenerateAndCheck = async () => {
                         ]
                       }}
                     >
+                      {!currentUserType?.is_student && (
+                        <Dropdown.Item onClick={() => setShowSetParams(true)} href="#">
+                          Set Parameters
+                        </Dropdown.Item>
+                      )}
                       <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">
                         Definitions
                       </Dropdown.Item>
@@ -1841,7 +1931,6 @@ const handleGenerateAndCheck = async () => {
                       >
                         Check Current Proof
                       </Dropdown.Item>
-                      <Dropdown.Divider />
                       <Dropdown.Item
                         onClick={handleNewProof}
                         href="#"
@@ -1862,8 +1951,26 @@ const handleGenerateAndCheck = async () => {
                       >
                         Discard Proof
                       </Dropdown.Item>
+                      <Dropdown.Item
+                        onClick={handleDownloadProof}
+                        href="#"
+                        disabled={!proofStarted}
+                        style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}
+                      >
+                        Download Proof
+                      </Dropdown.Item>
+                      <Dropdown.Item onClick={handleUploadProof} href="#">
+                        Upload Proof
+                      </Dropdown.Item>
                     </Dropdown.Menu>
                   </Dropdown>
+                  <input
+                    type="file"
+                    accept=".json"
+                    ref={uploadFileRef}
+                    onChange={handleUploadFileChange}
+                    style={{ display: 'none' }}
+                  />
                   {proofStarted && proofStatus['base'] && (
                     <span style={{ 
                       fontWeight: "700", 
@@ -2422,6 +2529,21 @@ const handleGenerateAndCheck = async () => {
           </Button>
         </Modal.Footer>
       </Modal>
+      <SetParametersModal
+        show={showSetParams}
+        onHide={() => setShowSetParams(false)}
+        params={proofParams}
+        onSave={async (newParams) => {
+          setProofParams(prev => ({ ...prev, ...newParams }));
+          if (proofParams.proof_id) {
+            try {
+              await equationalService.setParameters({ ...newParams, proof_id: proofParams.proof_id });
+            } catch (e) {
+              console.error('[SetParameters] Save failed:', e);
+            }
+          }
+        }}
+      />
     </MainLayout>
   );
 };

@@ -232,9 +232,8 @@ The auth token is stored in a cookie (via `js-cookie`) on login. The `AuthProvid
 | `EquationalProofLine` | `equational_reasoning_api_equationalproofline` | One step in the proof: side (LHS/RHS), expression string, JSON tree, rule, start position, selected node, result node, errors, visibility flags |
 | `InductionProof` | `induction_api_inductionproof` | Metadata for an induction proof: includes `proof_type` (int/list), induction variable, anchor value, leap variable, IH strings |
 | `InductionProofLine` | `induction_api_inductionproofline` | Same as equational but with an added `case` field (base/leap) |
-| `Term` | `assignments_term` | A course section: instructor, students |
+| `Course` | `assignments_course` | A course section: instructor, students |
 | `Assignment` | `assignments_assignment` | A problem set owned by a term with a due date |
-| `AssignmentSubmission` | `assignments_assignmentsubmission` | A student's submission referencing their proof records and a grade |
 
 ### Why there is a cache AND a database
 

@@ -180,6 +180,36 @@ const deleteRacketProof = async (proof_id) => {
   }
 };
 
+const setParameters = async (params) => {
+  try {
+    const response = await axiosInstance.patch(`${API_GATEWAY}/set-parameters`, params);
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error setting proof parameters:");
+    throw error;
+  }
+};
+
+const downloadProof = async (proofId) => {
+  try {
+    const response = await axiosInstance.get(`${API_GATEWAY}/download-proof?proof_id=${proofId}`);
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error downloading proof:");
+    throw error;
+  }
+};
+
+const uploadProof = async (proofData) => {
+  try {
+    const response = await axiosInstance.post(`${API_GATEWAY}/upload-proof`, proofData);
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error uploading proof:");
+    throw error;
+  }
+};
+
 const equationalService = {
   setCurrentProof,
   applyRule,
@@ -194,7 +224,10 @@ const equationalService = {
   clearProof,
   discardProof,
   saveProof,
-  deleteRacketProof
+  deleteRacketProof,
+  setParameters,
+  downloadProof,
+  uploadProof
 };
 
 export default equationalService;

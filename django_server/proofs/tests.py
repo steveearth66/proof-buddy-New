@@ -17,6 +17,8 @@ Runs all test modules in sequence:
 - induction_api.tests_is_complete_persistence: is_complete persistence
 - induction_api.test_wrong_highlight: Wrong-highlight IndexError regression
 - induction_api.test_lemma_param_generics: Lemma param generics exclusion regression
+- induction_api.tests_proof_card_fields: Proof card goal fields (list endpoint)
+- test_manual_persistence: Manual proof line DB persistence
 - equational_reasoning_api.tests: EquationalProof model and serializer tests
 - equational_reasoning_api.test_integration: Equational reasoning API integration
 
@@ -233,6 +235,27 @@ proof_card_fields_failures = run_command(
     cwd=root_dir,
 )
 totalFails += (1 if proof_card_fields_failures else 0)
+
+manual_persistence_cmd = [
+    sys.executable,
+    "manage.py",
+    "test",
+    "test_manual_persistence",
+]
+manual_persistence_failures = run_command(
+    "Manual proof line persistence",
+    manual_persistence_cmd,
+    cwd=root_dir,
+)
+totalFails += (1 if manual_persistence_failures else 0)
+
+eq_set_params_cmd = [sys.executable, "manage.py", "test", "equational_reasoning_api.test_set_parameters"]
+eq_set_params_failures = run_command("ER set-parameters feature tests", eq_set_params_cmd, cwd=root_dir)
+totalFails += (1 if eq_set_params_failures else 0)
+
+ind_set_params_cmd = [sys.executable, "manage.py", "test", "induction_api.test_set_parameters"]
+ind_set_params_failures = run_command("Induction set-parameters feature tests", ind_set_params_cmd, cwd=root_dir)
+totalFails += (1 if ind_set_params_failures else 0)
 
 print()
 print("=" * 40)

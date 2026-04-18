@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Assignment, AssignmentSubmission, Term
+from .models import Assignment, Course, AssignmentProof
 import csv
 from django.http import HttpResponse
 
@@ -44,12 +44,16 @@ def export_to_csv(modeladmin, request, queryset):
 
 export_to_csv.short_description = "Export selected to CSV"
 
+class AssignmentProofInline(admin.TabularInline):
+    model = AssignmentProof
+    extra = 1
 
 class AssignmentAdmin(admin.ModelAdmin):
-    list_display = ('title', 'description', 'due_date', 'term_instructor', 'created_at', 'updated_at', 'created_by')
+    list_display = ('title', 'description', 'due_date', 'course_instructor', 'created_at', 'updated_at', 'created_by')
     search_fields = ('title', 'description')
     readonly_fields = ('created_at', 'updated_at')
     actions = [export_to_csv]
+    inlines = [AssignmentProofInline]
 
     filter_horizontal = ()
     list_filter = ()
@@ -61,7 +65,7 @@ class AssignmentAdmin(admin.ModelAdmin):
                     "title",
                     "description",
                     "due_date",
-                    "term",
+                    "course",
                     "created_by",
                 )
             },
@@ -76,7 +80,7 @@ class AssignmentAdmin(admin.ModelAdmin):
                     "title",
                     "description",
                     "due_date",
-                    "term",
+                    "course",
                     "created_by",
                 ),
             },
@@ -84,50 +88,33 @@ class AssignmentAdmin(admin.ModelAdmin):
     )
     ordering = ('title',)
 
-    def term_instructor(self, obj):
-        return obj.term.instructor if obj.term else None
-    term_instructor.short_description = "Instructor"
-    term_instructor.admin_order_field = "term__instructor"
+    def course_instructor(self, obj):
+        return obj.course.instructor if obj.course else None
+    course_instructor.short_description = "Instructor"
+    course_instructor.admin_order_field = "course__instructor"
 
-class AssignmentSubmissionAdmin(admin.ModelAdmin):
-    list_display = ('assignment', 'student', 'submission_date', 'grade')
-    search_fields = ('assignment', 'student')
-    readonly_fields = ('submission_date',)
-    actions = [export_to_csv]
-
-    filter_horizontal = ()
-    list_filter = ()
-    fieldsets = (
-        (None, {'fields': ('assignment', 'student', 'proofs', 'grade')}),
-    )
-    add_fieldsets = (
-        (None, {
-            'classes': ('wide',),
-            'fields': ('assignment', 'student', 'proofs', 'grade')
-        }),
-    )
-    ordering = ('assignment',)
-
-class TermAdmin(admin.ModelAdmin):
-    list_display = ('name', 'instructor', 'created_by', 'created_at', 'updated_at')
+class CourseAdmin(admin.ModelAdmin):
+    list_display = ('name', 'instructor', 'is_active', 'created_by', 'created_at', 'updated_at')
     search_fields = ("name", "instructor")
     readonly_fields = ('created_at', 'updated_at')
     actions = [export_to_csv]
 
     filter_horizontal = ()
-    list_filter = ()
-    fieldsets = ((None, {"fields": ("name", "instructor", "students", "created_by")}),)
+    list_filter = ('is_active',) 
+    
+    fieldsets = (
+        (None, {"fields": ("name", "is_active", "instructor", "students", "join_code_hash", "join_code_expires_at", "created_by")}),
+    )
     add_fieldsets = (
         (
             None,
             {
                 "classes": ("wide",),
-                "fields": ("name", "instructor", "students", "created_by"),
+                "fields": ("name", "is_active", "instructor", "students", "join_code_hash", "join_code_expires_at", "created_by"),
             },
         ),
     )
     ordering = ('name',)
 
 admin.site.register(Assignment, AssignmentAdmin)
-admin.site.register(AssignmentSubmission, AssignmentSubmissionAdmin)
-admin.site.register(Term, TermAdmin)
+admin.site.register(Course, CourseAdmin)

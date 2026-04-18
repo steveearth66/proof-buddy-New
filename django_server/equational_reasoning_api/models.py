@@ -17,7 +17,7 @@ class EquationalProof(models.Model):
         ('RHS', 'Right Hand Side'),
     ]
     
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='equational_proofs')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='equational_proofs', null=True, blank=True)
     name = models.CharField(max_length=255, blank=True, null=True)
     tag = models.CharField(max_length=100, blank=True, null=True)
     
@@ -33,6 +33,14 @@ class EquationalProof(models.Model):
     is_complete = models.BooleanField(default=False)
     definition = models.JSONField(default=list)
     
+    # Support parameters (instructor-configurable, all default to True = high support)
+    support_errors = models.BooleanField(default=True)
+    support_current_lhs_rhs = models.BooleanField(default=True)
+    support_ih = models.BooleanField(default=True)
+    support_premise = models.BooleanField(default=True)
+    support_rule_set = models.BooleanField(default=True)
+    support_value_mapping = models.BooleanField(default=True)
+
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -47,8 +55,13 @@ class EquationalProof(models.Model):
     
     def __str__(self):
         if self.name:
-            return f"{self.name} - Equational Reasoning"
-        return f"Equational Proof - {self.user.username}"
+            # Add a tag to make it obvious in the admin panel
+            suffix = "" if self.user else " [Template]" 
+            return f"{self.name}{suffix} - Equational Reasoning"
+            
+        # Safely handle the missing user
+        owner = self.user.username if self.user else "Assignment Template"
+        return f"Equational Proof - {owner}"
 
 
 class EquationalProofLine(models.Model):

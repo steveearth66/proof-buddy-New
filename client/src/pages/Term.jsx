@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import MainLayout from '../layouts/MainLayout';
 import Container from 'react-bootstrap/Container';
 import { useAuth } from '../context/AuthContext';
-import termService from '../services/termServices';
+import courseService from '../services/courseServices';
 import { useLocation } from 'react-router-dom';
 import { useParams } from 'react-router-dom';
 import '../scss/_terms.scss';
@@ -21,7 +21,7 @@ function Term() {
 
     const removeStudent = async (email) => {
         try {
-            await termService.removeStudent({ student: email, term: id });
+            await courseService.removeStudent({ student: email, term: id });
             setTerm((prev) => ({ ...prev, students: prev.students.filter((student) => student.email !== email) }));
             toast.success('Student removed successfully');
         } catch (error) {
@@ -32,12 +32,12 @@ function Term() {
 
     const addStudent = async (student) => {
         try {
-            const validStudent = await termService.checkUser(student);
+            const validStudent = await courseService.checkUser(student);
             if (!validStudent) {
                 toast.error('Student not found');
                 return;
             }
-            const term = await termService.addStudent({ student, term: id });
+            const term = await courseService.addStudent({ student, term: id });
             setTerm(term);
             toast.success('Student added successfully');
             return true;
@@ -50,8 +50,8 @@ function Term() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const assignments = await termService.getAssignments(id || term?.id);
-                const fetchedTerm = await termService.getTerm(id || term?.id);
+                const assignments = await courseService.getAssignments(id || term?.id);
+                const fetchedTerm = await courseService.getTerm(id || term?.id);
                 setAssignments(assignments);
                 setTerm(fetchedTerm);
             } catch (error) {
@@ -139,7 +139,7 @@ function CreateAssignment({ setAssignments, toggleShowCreate }) {
             term: id
         };
         try {
-            const createdAssignment = await termService.createAssignment(assignment);
+            const createdAssignment = await courseService.createAssignment(assignment);
             setAssignments((prev) => [...prev, createdAssignment]);
             toast.success('Assignment created successfully');
             toggleShowCreate((prev) => !prev);
