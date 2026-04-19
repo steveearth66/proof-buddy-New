@@ -246,6 +246,19 @@ const uploadProof = async (proofData) => {
   }
 };
 
+const validateHiddenField = async (data) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/validate-hidden-field`,
+      data
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, 'Error validating hidden field:');
+    throw error;
+  }
+};
+
 const inductionService = {
   startInductionProof,
   clearInduction,
@@ -266,7 +279,8 @@ const inductionService = {
   checkNameConflict,
   setParameters,
   downloadProof,
-  uploadProof
+  uploadProof,
+  validateHiddenField
 };
 
 export default inductionService;

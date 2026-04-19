@@ -383,6 +383,8 @@ const EquationalReasoningNew = () => {
 
   const [lhsValue, setLhsValue] = useState("");
   const [rhsValue, setRhsValue] = useState("");
+  const [lhsHidden, setLhsHidden] = useState(false);
+  const [rhsHidden, setRhsHidden] = useState(false);
   const [isOffcanvasActive, toggleOffcanvas] = useOffcanvas();
   const [showDefinitionsWindow, toggleDefinitionsWindow] =
     useDefinitionsWindow();
@@ -418,6 +420,7 @@ const EquationalReasoningNew = () => {
   const [loadedProof, setLoadedProof] = useState(null);
   const [footerRule, setFooterRule] = useState("");
   const [footerRuleError, setFooterRuleError] = useState("");
+  const [footerExpression, setfooterExpression] = useState("");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   
   // Hook for getting available height for scrollable proof area
@@ -586,7 +589,7 @@ const EquationalReasoningNew = () => {
 
   // Initialize jsonTreeRep as empty object for passing to renderPersistentPadRow
   // It gets populated by the backend when goals are checked
-//   const [jsonTreeRep, setJsonTreeRep] = useState({ LHS: {}, RHS: {} });
+  // const [jsonTreeRep, setJsonTreeRep] = useState({ LHS: {}, RHS: {} });
 
   const checkCurrentProofStatus = async () => {
     try {
@@ -982,12 +985,13 @@ const handleRuleKeyDown = (e) => {
     }
   };
 
-const handleGenerateAndCheck = async () => {
+  const handleGenerateAndCheck = async () => {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
 
     try {
       let ruleFromFooter = "";
+      let expressionFromFooter = "";
       let previousStartPosition = 0;
       let previousRacketValue = "";
       let currentIndex = undefined;
@@ -996,6 +1000,11 @@ const handleGenerateAndCheck = async () => {
       if (isBound) {
         const userIndex = getPadIndex(userRow.num);
         ruleFromFooter = userRow.num === "000" ? "Premise" : footerRule;
+
+        // --- FOOTER EXPRESSION REFERENCE ---
+        if (footerPadRef.current) {
+            expressionFromFooter = footerPadRef.current.getEquationValue() || "";
+        }
 
         if (userRow.num !== "000") {
           const previousRowIndex = userIndex - 1;
@@ -1013,13 +1022,14 @@ const handleGenerateAndCheck = async () => {
             const fromPad = padRefs.current[previousRowIndex]?.getStartPosition();
             previousStartPosition = fromField ?? fromPad ?? 0;
           }
-          studentSelectedNode = previousStartPosition; // Capture selection!
+          studentSelectedNode = previousStartPosition;
           currentIndex = userIndex;
         }
       }
 
       if (!ruleFromFooter || ruleFromFooter.trim() === '') {
         setFooterRuleError('Must enter a rule');
+        isProcessingRef.current = false;
         return;
       }
       setFooterRuleError('');
@@ -1027,6 +1037,7 @@ const handleGenerateAndCheck = async () => {
       // If user typed "rewrite math", open Substitution modal with rule pre-filled
       if (ruleFromFooter.trim().toLowerCase() === 'rewrite math') {
         updateShowSubstitution();
+        isProcessingRef.current = false;
         return;
       }
 
@@ -1040,6 +1051,7 @@ const handleGenerateAndCheck = async () => {
           side: showSide,
           lineNumber: currentIndex,
           studentRule: ruleFromFooter, // Sending the Rule
+          studentExpression: expressionFromFooter, // Sending the Expression
           studentSelectedNode: studentSelectedNode // Sending the Selection
         };
 
@@ -1048,13 +1060,12 @@ const handleGenerateAndCheck = async () => {
           
           if (validationResult.errors && validationResult.errors.length > 0) {
             validationResult.errors.forEach(error => toast.error(error));
+            isProcessingRef.current = false;
             return;
           }
           
           toast.success(validationResult.message || "Correct!");
           
-          // Update both flags based on backend response
-          // This handles cases where proving the rule unhides the expression too
           setRacketRuleFields(prev => {
             const updated = { ...prev };
             if (updated[showSide] && updated[showSide][currentIndex]) {
@@ -1068,17 +1079,20 @@ const handleGenerateAndCheck = async () => {
           });
           
           setFooterRule(boundField.rule);
+          unbindFooter();
           return;
           
         } catch (error) {
           toast.error('Error validating your answer.');
+          isProcessingRef.current = false;
           return;
         }
       }
 
-      // EXISTING CODE: No hidden fields, proceed with normal generation
+      // No hidden fields, proceed with normal generation
       if (!previousRacketValue || previousRacketValue.trim() === '') {
         toast.error('No source expression found. Make sure the previous line has content.');
+        isProcessingRef.current = false;
         return;
       }
 
@@ -1134,13 +1148,16 @@ const handleGenerateAndCheck = async () => {
           const isEditingMiddle = typeof currentIndex === 'number' && currentIndex >= 0 && currentIndex < sideArray.length - 1;
 
           if (isEditingMiddle) {
+            // Replace the targeted middle line
             sideArray[currentIndex] = newField;
+            // Ensure there's a trailing blank line
             const endLast = sideArray[sideArray.length - 1];
             const endIsEmpty = endLast && endLast.racket === "" && endLast.rule === "";
             if (!endIsEmpty) {
               sideArray.push(EMPTY_INITIAL_FIELD);
             }
           } else {
+            // Editing the end
             const lastField = sideArray[sideArray.length - 1];
             const lastIsEmpty = lastField && lastField.racket === "" && lastField.rule === "";
             
@@ -1159,13 +1176,14 @@ const handleGenerateAndCheck = async () => {
           };
         });
 
+        // Unbind the footer after successful generation to reset UI state
         if (isBound) {
           unbindFooter();
         }
 
       } else {
         const message = (fullRacket && fullRacket.errors && fullRacket.errors[0]) || "Invalid rule";
-        toast.error(proofParams.support_errors ? message : "your latest command contains an error"); // support_errors suppression
+        toast.error(proofParams.support_errors ? message : "your latest command contains an error");
       }
     } finally {
       isProcessingRef.current = false;
@@ -1259,9 +1277,11 @@ const handleGenerateAndCheck = async () => {
     
     const lastLhsLine = findLastNonEmptyLine(lhsLines);
     const lastRhsLine = findLastNonEmptyLine(rhsLines);
-    
     setLhsValue(lastLhsLine?.racket || leftPremise.racket || '');
+    setLhsHidden(lastLhsLine?.hide_expression || false);
     setRhsValue(lastRhsLine?.racket || rightPremise.racket || '');
+    setRhsHidden(lastRhsLine?.hide_expression || false);
+
   }, [proofStarted, racketRuleFields, leftPremise, rightPremise]);
 
   useEffect(() => {
@@ -1643,6 +1663,9 @@ const handleGenerateAndCheck = async () => {
       if (!equation) {
         return <div className="alert alert-warning">No equation available</div>;
       }
+      const field = racketRuleFields?.[showSide][padIndex];
+      const isExpressionHidden = field.hide_expression || false;
+      const displayEquation = isExpressionHidden ? "" : equation;
 
       return (
         <PersistentPad
@@ -1659,6 +1682,8 @@ const handleGenerateAndCheck = async () => {
           isRuleReadOnly={true}
           rulePlaceholder="Rule"
           isEditRow={true}
+          currentUserType={currentUserType}
+          hideExpression={isExpressionHidden}
         />
       );
     } else {
@@ -1668,11 +1693,11 @@ const handleGenerateAndCheck = async () => {
 
       const calculatedStartPosition = field.selectedNode || field.startPosition || 0;
       
-      // NEW: Check if fields are hidden
+      // Check if fields are hidden
       const isExpressionHidden = field.hide_expression || false;
       const isRuleHidden = field.hide_justification || false;
       
-      // NEW: If hidden, blank out the display value (but keep field readonly)
+      // If hidden, blank out the display value
       // The actual value stays in memory for validation
       const displayEquation = isExpressionHidden ? "" : field.racket;
       const displayJsonTree = isExpressionHidden ? {} : (field.jsonTree || jsonTreeRep[showSide]);
@@ -1683,7 +1708,7 @@ const handleGenerateAndCheck = async () => {
       return (
         <PersistentPad
           ref={footerPadRef}
-          equation={displayEquation}  // Blank if hidden, but still readonly
+          equation={displayEquation}  // Blank if hidden
           onHighlightChange={() => {}}
           side={showSide}
           jsonTree={displayJsonTree}  // Empty tree if hidden
@@ -1701,6 +1726,8 @@ const handleGenerateAndCheck = async () => {
           isRuleInvalid={!!footerRuleError}
           ruleValidationError={footerRuleError}
           isEditRow={true}
+          currentUserType={currentUserType}
+          hideExpression={isExpressionHidden}
         />
       );
     }
@@ -1790,7 +1817,9 @@ const handleGenerateAndCheck = async () => {
                         value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')}
                         readOnly
                         style={{ cursor: "not-allowed", border: 'none', height: '40px',
-                                  minWidth: `${Math.max((lhsValue?.length || 20), 20)}ch` }}
+                                  minWidth: `${Math.max((lhsValue?.length || 20), 20)}ch`,
+                                  WebkitTextSecurity: proofStarted && lhsHidden ? "disc" : "none" }}
+                        
                       />
                       <label>Current LHS</label>
                     </Form.Floating>
@@ -1809,7 +1838,8 @@ const handleGenerateAndCheck = async () => {
                         value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')}
                         readOnly
                         style={{ cursor: "not-allowed", border: 'none', height: '40px',
-                                  minWidth: `${Math.max((lhsValue?.length || 20), 20)}ch` }}
+                                  minWidth: `${Math.max((lhsValue?.length || 20), 20)}ch`,
+                                  WebkitTextSecurity: rhsHidden ? "disc" : "none" }}
                       />
                       <label>Current RHS</label>
                     </Form.Floating>
@@ -2100,7 +2130,12 @@ const handleGenerateAndCheck = async () => {
                             placeholder="Current LHS"
                             value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')}
                             readOnly
-                            style={{ cursor: "not-allowed", border: 'none', minWidth: `${Math.max(((lhsValue || currentLHS)?.length || 20), 20)}ch` }}
+                            style={{ 
+                              cursor: "not-allowed", 
+                              border: 'none', 
+                              minWidth: `${Math.max(((lhsValue || currentLHS)?.length || 20), 20)}ch`,
+                              WebkitTextSecurity: proofStarted && lhsHidden ? "disc" : "none"
+                           }}
                           />
                           <label htmlFor="eRProofCurrentLHS">Current LHS</label>
                         </Form.Floating>
@@ -2125,7 +2160,12 @@ const handleGenerateAndCheck = async () => {
                             placeholder="Current RHS"
                             value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')}
                             readOnly
-                            style={{ cursor: "not-allowed", border: 'none', minWidth: `${Math.max(((rhsValue || currentRHS)?.length || 20), 20)}ch` }}
+                            style={{ 
+                              cursor: "not-allowed", 
+                              border: 'none', 
+                              minWidth: `${Math.max(((rhsValue || currentRHS)?.length || 20), 20)}ch`,
+                              WebkitTextSecurity: proofStarted && rhsHidden ? "disc" : "none"
+                           }}
                           />
                           <label htmlFor="eRProofCurrentRHS">Current RHS</label>
                         </Form.Floating>

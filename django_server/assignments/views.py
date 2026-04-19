@@ -454,6 +454,7 @@ def start_assignment_proof(request, assignment_id):
         cloned_proof.id = None
         cloned_proof.user = request.user  # The student now owns this copy
         cloned_proof.name = f"{getattr(cloned_proof, 'name', 'Untitled')} (Assignment Copy)"
+        cloned_proof.is_complete = False # force student proof to be marked incomplete in case instructor version was marked complete
         cloned_proof.save()
 
         # C. Clone the Proof Lines dynamically

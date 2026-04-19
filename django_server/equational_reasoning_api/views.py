@@ -623,7 +623,7 @@ def check_completion(request):
         
         # Check if there are any hidden fields remaining
         has_hidden_fields = False
-        if proof_id:
+        if not user.is_instructor and proof_id:
             has_hidden_fields = EquationalProofLine.objects.filter(
                 proof_id=proof_id
             ).filter(
@@ -778,7 +778,6 @@ def toggle_visibility(request):
         traceback.print_exc()
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-# views.py - Fixed validation endpoint
 def normalize_whitespace(text):
     """Remove all whitespace for comparison"""
     return re.sub(r'\s+', '', text.strip())
@@ -858,13 +857,15 @@ def validate_hidden_field(request):
         
         # 5. Logic: Expression Direct Match (Optional fallback)
         # Only runs if 'studentExpression' was explicitly sent (frontend usually doesn't for footer)
-        if student_expression is not None:
+        if student_expression is not None and student_expression != "":
             if compare_racket_exact(student_expression, line.racket):
                 line.hide_expression = False
                 changed = True
                 is_correct = True
-            elif not is_correct: # Don't add error if Rule check already succeeded
+            else:
                 errors.append("Expression does not match.")
+        else:
+            errors.append("You must provide an expression.")
 
         if changed:
             line.save()

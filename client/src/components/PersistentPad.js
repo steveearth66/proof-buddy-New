@@ -1,4 +1,4 @@
-// PersistentPad.jsx - Keep readonly, just control visibility
+// PersistentPad.jsx
 
 import "../scss/_persistent-pad.scss";
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -31,6 +31,7 @@ const PersistentPad = forwardRef(function PersistentPad(
     currentUserType,
     hideExpression = false,
     hideJustification = false,
+    onExpressionChange,
     ...props
   },
   ref
@@ -39,6 +40,7 @@ const PersistentPad = forwardRef(function PersistentPad(
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
   const [selected, setSelected] = useState(startPosition ?? 0);
   const [rule, setRule] = useState(ruleValue);
+  const [localEquation, setLocalEquation] = useState(equation);
   
   // Local UI-only toggles (instructors can override database values temporarily)
   const [showRule, setShowRule] = useState(!hideJustification);
@@ -53,6 +55,10 @@ const PersistentPad = forwardRef(function PersistentPad(
   useEffect(() => { 
     setRule(ruleValue); 
   }, [ruleValue]);
+
+  useEffect(() => {
+    setLocalEquation(equation);
+  }, [equation]);
 
   // Update local visibility state when props change (from database)
   useEffect(() => {
@@ -129,8 +135,13 @@ const PersistentPad = forwardRef(function PersistentPad(
     getRuleValue: () => rule,
     setRuleValue: setRule,
     getStartPosition: () => selected,
-    setStartPosition: setSelected
+    setStartPosition: setSelected,
+    getEquationValue: () => localEquation
   }));
+
+  const handleEquationChange = (e) => {
+    setLocalEquation(e.target.value);
+  };
 
   const handleRuleChange = (e) => {
     let transformedValue = e.target.value;
@@ -161,8 +172,7 @@ const PersistentPad = forwardRef(function PersistentPad(
   // 2. Non-student (instructor/admin): Use local toggles (can temporarily override)
   const isStudent = currentUserType?.is_student === true;
   const shouldHideRule = isStudent ? hideJustification : !showRule;
-  const shouldHideExpression = isStudent ? hideExpression : !showBox;
-
+  const shouldHideExpression = isStudent ? hideExpression && !isEditRow : !showBox;
   return (
     <Row className="persistent-pad-row" style={{ alignItems: "flex-start" }}>
       <Col md={{ span: 11, offset: 1 }}>
@@ -196,7 +206,7 @@ const PersistentPad = forwardRef(function PersistentPad(
           <label>{rulePlaceholder}</label>
           
           {/* Only show eye button for non-students */}
-          {showEyeButtons && !isStudent && (
+          {showEyeButtons && !isStudent && (rule !== '') && (
             <Button
               variant="outline-secondary"
               onClick={() => setShowRule(!showRule)}
@@ -233,40 +243,56 @@ const PersistentPad = forwardRef(function PersistentPad(
             marginBottom: '0.5rem'
           }}
         >
-          {/* Expression is ALWAYS readonly - just control visibility */}
-          <div
-            id={`persistent-pad-${lineNumRef.current}`}
-            ref={padDivRef}
-            tabIndex={0}
-            style={{ 
-              wordWrap: 'break-word', 
-              overflowWrap: 'break-word', 
-              whiteSpace: 'normal',
-              minHeight: '40px',
-              border: '1px solid #ced4da',
-              borderRadius: '4px',
-              padding: '8px',
-              paddingRight: '2.5rem',
-              // Use shouldHideExpression for masking
-              WebkitTextSecurity: shouldHideExpression ? 'disc' : 'none'
-            }}
-            {...props}
-          >
-            {jsonTree && jsonTree[0] ? (
-              <DivMakerComponent
-                expr={jsonTree}
-                selected={selected}
-                resultNode={resultNode}
-                origTree={jsonTree}
-                lineNumber={lineNumRef.current}
-              />
-            ) : (
-              <div>{equation || '\u00A0'}</div>
-            )}
-          </div>
+          {isEditRow && hideExpression && isStudent ? (
+            /* RENDER EDITABLE INPUT WHEN HIDDEN & EDITING */
+            <Form.Control
+              as="textarea"
+              value={localEquation}
+              onChange={handleEquationChange}
+              rows={1}
+              style={{
+                wordWrap: 'break-word',
+                minHeight: '40px',
+                paddingRight: '2.5rem',
+                resize: 'none'
+              }}
+              placeholder="Enter expression..."
+            />
+          ) : (
+            /* RENDER STANDARD READONLY VIEW */
+            <div
+              id={`persistent-pad-${lineNumRef.current}`}
+              ref={padDivRef}
+              tabIndex={0}
+              style={{ 
+                wordWrap: 'break-word', 
+                overflowWrap: 'break-word', 
+                whiteSpace: 'normal',
+                minHeight: '40px',
+                border: '1px solid #ced4da',
+                borderRadius: '4px',
+                padding: '8px',
+                paddingRight: '2.5rem',
+                WebkitTextSecurity: shouldHideExpression ? 'disc' : 'none'
+              }}
+              {...props}
+            >
+              {jsonTree && jsonTree[0] ? (
+                <DivMakerComponent
+                  expr={jsonTree}
+                  selected={selected}
+                  resultNode={resultNode}
+                  origTree={jsonTree}
+                  lineNumber={lineNumRef.current}
+                />
+              ) : (
+                <div>{equation || '\u00A0'}</div>
+              )}
+            </div>
+          )}
           
           {/* Only show eye button for non-students */}
-          {showEyeButtons && !isStudent && (
+          {showEyeButtons && !isStudent && equation !== '' && (
             <Button
               variant="outline-secondary"
               onClick={() => setShowBox(!showBox)}

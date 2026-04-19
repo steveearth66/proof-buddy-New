@@ -8,6 +8,8 @@ from django.core.cache import cache
 from .models import InductionProof
 from .serializers import InductionProofSerializer, InductionProofCreateSerializer
 import re
+import traceback
+from django.db import models
 
 # ER Engine imports for induction proof wiring
 from expression_tree.IndProofs import IndProof
@@ -17,6 +19,8 @@ from expression_tree.ERRuleset import recursiveReplaceNodes, IH
 from expression_tree.LemmaApplicator import build_lemma_rule
 from expression_tree.default_udfs import DEFAULT_UDFS
 from proofs.views import use_uploaded_generic
+from .models import InductionProofLine
+
 
 
 User = get_user_model()
@@ -617,9 +621,7 @@ def _ensure_udfs_hydrated(proof, proof_id):
 
 
 def reload_proof_lines_from_db(proof, proof_id):
-    """Reload all proof lines from database into the IndProof object"""
-    from .models import InductionProofLine
-    
+    """Reload all proof lines from database into the IndProof object"""    
     if proof_id is None:
         return
     
@@ -1579,9 +1581,21 @@ def check_completion(request):
         # Check overall completion and update indProof.isComplete
         overall_complete = proof.checkComplete()
 
+        # Check if there are any hidden fields remaining
+        has_hidden_fields = False
+        if not user.is_instructor and proof_id:
+            has_hidden_fields = InductionProofLine.objects.filter(
+                proof_id=proof_id, case=case
+            ).filter(
+                models.Q(hide_expression=True) | models.Q(hide_justification=True)
+            ).exists()
+        
+        # Proof is only complete if mathematically correct AND no hidden fields
+        is_complete = overall_complete and not has_hidden_fields
+
         # Persist overall completion status to database
         if proof_id:
-            InductionProof.objects.filter(id=proof_id).update(is_complete=overall_complete)
+            InductionProof.objects.filter(id=proof_id).update(is_complete=is_complete)
 
         # Save updated completion status to cache
         save_induction_obj_to_cache(user, proof, proof_id)
@@ -1674,7 +1688,9 @@ def get_proof_lines(request):
                 'lineNumber': line.line_number,
                 'substitution': line.substitution,
                 'jsonTree': json_tree,
-                'errors': line.errors
+                'errors': line.errors,
+                'hide_expression': line.hide_expression,
+                'hide_justification': line.hide_justification
             }
             result[line.case][line.side].append(line_data)
         
@@ -2047,3 +2063,111 @@ def upload_proof(request):
         return Response({'proofId': proof.id, 'proofName': name}, status=status.HTTP_201_CREATED)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+def normalize_whitespace(text):
+    """Remove all whitespace for comparison"""
+    return re.sub(r'\s+', '', text.strip())
+
+def compare_racket_exact(student_input, actual_value):
+    """
+    Compare two racket expressions for exact match (whitespace-agnostic).
+    Order matters: (+ 2 1) != (+ 1 2)
+    """
+    return normalize_whitespace(student_input) == normalize_whitespace(actual_value)
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def validate_hidden_field(request):
+    """
+    Validate student input against hidden field value.
+    Validates Rule + Selection OR Expression.
+    """    
+    # 1. Validate User Context
+    user = request.user
+    cached = cache.get(f"induction_obj_{user.username}")
+    
+    if cached is None:
+        return Response({"error": "No active proof session found. Please reload."}, status=status.HTTP_400_BAD_REQUEST)
+    
+    proof_id = cached.get('proof_id')
+    if not proof_id:
+        return Response({"error": "Proof ID missing from session."}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        # 2. Extract Data
+        side = request.data.get('side')
+        case = request.data.get('case')
+        line_number = request.data.get('lineNumber')
+        student_expression = request.data.get('studentExpression')
+        student_rule = request.data.get('studentRule')
+        student_selected = request.data.get('studentSelectedNode') 
+        
+        if not side or line_number is None:
+            return Response({"error": f"Missing parameters."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 3. Get Database Line
+        try:
+            line = InductionProofLine.objects.get(
+                proof_id=proof_id, side=side.upper(), line_number=line_number, case=case.lower()
+            )
+        except InductionProofLine.DoesNotExist:
+            return Response({"error": "Line not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        errors = []
+        changed = False
+        is_correct = False
+        
+        # 4. Logic: Master Key Validation (Rule + Selection)
+        # If the student provides the correct Rule AND Selection, they have "derived" the line.
+        # This grants permission to see BOTH the Expression and the Justification.
+        if student_rule is not None:
+            rule_text_match = compare_racket_exact(student_rule, line.rule)
+            
+            selection_match = True
+            if line.selected_node is not None and student_selected is not None:
+                 if int(student_selected) != int(line.selected_node):
+                     selection_match = False
+                     errors.append(f"Incorrect selection.")
+
+            if rule_text_match and selection_match:
+                # Correct derivation! Reveal everything hidden on this line.
+                if line.hide_justification:
+                    line.hide_justification = False
+                    changed = True
+                if line.hide_expression:
+                    line.hide_expression = False
+                    changed = True
+                is_correct = True
+            elif not rule_text_match:
+                errors.append("Rule does not match.")
+
+        # 5. Logic: Expression Direct Match
+        # Only runs if 'studentExpression' was explicitly sent
+        if student_expression is not None and student_expression != "":
+            if compare_racket_exact(student_expression, line.racket):
+                line.hide_expression = False
+                changed = True
+                is_correct = True
+            else:
+                errors.append("Expression does not match.")
+        else:
+            errors.append("You must provide an expression.")
+
+        if changed:
+            line.save()
+        
+        # Determine success message
+        message = "Correct!" if is_correct and not errors else None
+        
+        return Response({
+            "isValid": is_correct,
+            "errors": errors,
+            # Return current state of flags (so frontend updates correctly)
+            "hide_expression": line.hide_expression,
+            "hide_justification": line.hide_justification,
+            "message": message
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        traceback.print_exc()
+        return Response({"error": f"Server Error: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
