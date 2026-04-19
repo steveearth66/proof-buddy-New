@@ -31,7 +31,8 @@ const PersistentPad = forwardRef(function PersistentPad(
     currentUserType,
     hideExpression = false,
     hideJustification = false,
-    onExpressionChange,
+    onRuleHiddenToggle,
+    onExpressionHiddenToggle,
     ...props
   },
   ref
@@ -44,7 +45,7 @@ const PersistentPad = forwardRef(function PersistentPad(
   
   // Local UI-only toggles (instructors can override database values temporarily)
   const [showRule, setShowRule] = useState(!hideJustification);
-  const [showBox, setShowBox] = useState(!hideExpression);
+  const [showExpression, setShowExpression] = useState(!hideExpression);
   
   const padDivRef = useRef(null);
   const lineNumRef = useRef(lineNum);
@@ -60,11 +61,13 @@ const PersistentPad = forwardRef(function PersistentPad(
     setLocalEquation(equation);
   }, [equation]);
 
-  // Update local visibility state when props change (from database)
   useEffect(() => {
-    setShowRule(!hideJustification);
-    setShowBox(!hideExpression);
-  }, [hideExpression, hideJustification]);
+    setShowRule(hideJustification !== true);
+  }, [hideJustification]);
+
+  useEffect(() => {
+    setShowExpression(hideExpression !== true);
+  }, [hideExpression]);
 
   useEffect(() => {
     if (startPosition === 0 && lineNum > 0 && jsonTree && jsonTree[0]) {
@@ -172,7 +175,36 @@ const PersistentPad = forwardRef(function PersistentPad(
   // 2. Non-student (instructor/admin): Use local toggles (can temporarily override)
   const isStudent = currentUserType?.is_student === true;
   const shouldHideRule = isStudent ? hideJustification : !showRule;
-  const shouldHideExpression = isStudent ? hideExpression && !isEditRow : !showBox;
+  const shouldHideExpression = isStudent ? hideExpression && !isEditRow : !showExpression;
+
+  const handleRuleVisibilityToggle = async () => {
+    if (onRuleHiddenToggle) {
+      try {
+        const isNowHidden = await onRuleHiddenToggle();
+        
+        if (isNowHidden !== undefined) {
+          setShowRule(!isNowHidden);
+        }
+      } catch (error) {
+        console.warn("Toggle failed, maintaining current UI state.");
+      }
+    }
+  }
+
+  const handleExpressionVisibilityToggle = async () => {
+    if (onExpressionHiddenToggle) {
+      try {
+        const isNowHidden = await onExpressionHiddenToggle();
+        
+        if (isNowHidden !== undefined) {
+          setShowExpression(!isNowHidden);
+        }
+      } catch (error) {
+        console.warn("Toggle failed, maintaining current UI state.");
+      }
+    }
+  }
+  
   return (
     <Row className="persistent-pad-row" style={{ alignItems: "flex-start" }}>
       <Col md={{ span: 11, offset: 1 }}>
@@ -209,7 +241,7 @@ const PersistentPad = forwardRef(function PersistentPad(
           {showEyeButtons && !isStudent && (rule !== '') && (
             <Button
               variant="outline-secondary"
-              onClick={() => setShowRule(!showRule)}
+              onClick={handleRuleVisibilityToggle}
               style={{
                 position: 'absolute',
                 top: '50%',
@@ -295,7 +327,7 @@ const PersistentPad = forwardRef(function PersistentPad(
           {showEyeButtons && !isStudent && equation !== '' && (
             <Button
               variant="outline-secondary"
-              onClick={() => setShowBox(!showBox)}
+              onClick={handleExpressionVisibilityToggle}
               style={{ 
                 position: 'absolute',
                 top: '50%',
@@ -308,7 +340,7 @@ const PersistentPad = forwardRef(function PersistentPad(
               }}
               tabIndex={-1}
             >
-              {showBox ? <EyeSlash /> : <Eye />}
+              {showExpression ? <EyeSlash /> : <Eye />}
             </Button>
           )}
         </div>

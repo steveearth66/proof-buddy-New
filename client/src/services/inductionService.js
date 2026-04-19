@@ -259,6 +259,19 @@ const validateHiddenField = async (data) => {
   }
 };
 
+const toggleVisibility = async (data) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/toggle-visibility`,
+      data
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error toggling visibility:");
+    throw error;
+  }
+};
+
 const inductionService = {
   startInductionProof,
   clearInduction,
@@ -280,7 +293,8 @@ const inductionService = {
   setParameters,
   downloadProof,
   uploadProof,
-  validateHiddenField
+  validateHiddenField,
+  toggleVisibility
 };
 
 export default inductionService;

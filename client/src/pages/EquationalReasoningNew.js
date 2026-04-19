@@ -1609,8 +1609,8 @@ const handleRuleKeyDown = (e) => {
     const resultNodeValue = isPremise ? undefined : (field && field.resultNode);
     
     // NEW: Get visibility flags from field
-    const hideExpression = isPremise ? false : (field?.hide_expression || false);
-    const hideJustification = isPremise ? false : (field?.hide_justification || false);
+    const hideExpression = (field?.hide_expression || false);
+    const hideJustification = (field?.hide_justification || false);
 
     return (
       <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? `premise-${caseType}-${side}` : `${side}-field-${padIndex}`}>
@@ -1642,8 +1642,10 @@ const handleRuleKeyDown = (e) => {
             isEditRow={false}
             showEyeButtons={true}
             currentUserType={currentUserType}
-            hideExpression={hideExpression}           // NEW: Pass visibility flag
-            hideJustification={hideJustification}     // NEW: Pass visibility flag
+            hideExpression={hideExpression}
+            hideJustification={hideJustification}
+            onRuleHiddenToggle={() => handleRuleHiddenToggle(side, index)}
+            onExpressionHiddenToggle={() => handleExpressionHiddenToggle(side, index)}
           />
         </Col>
       </Row>
@@ -1694,8 +1696,8 @@ const handleRuleKeyDown = (e) => {
       const calculatedStartPosition = field.selectedNode || field.startPosition || 0;
       
       // Check if fields are hidden
-      const isExpressionHidden = field.hide_expression || false;
-      const isRuleHidden = field.hide_justification || false;
+      const isExpressionHidden = field?.hide_expression || false;
+      const isRuleHidden = field?.hide_justification || false;
       
       // If hidden, blank out the display value
       // The actual value stays in memory for validation
@@ -1704,7 +1706,6 @@ const handleRuleKeyDown = (e) => {
       
       // For the editable rule field: show blank if hidden, otherwise show current value
       const displayRule = isRuleHidden ? "" : footerRule;
-
       return (
         <PersistentPad
           ref={footerPadRef}
@@ -1759,6 +1760,56 @@ const handleRuleKeyDown = (e) => {
     } else {
       const menu = document.getElementById(menuId);
       if (menu) menu.classList.remove('is-positioned');
+    }
+  };
+
+  const handleRuleHiddenToggle = async (side, index) => {
+    try {
+      const result = await equationalService.toggleVisibility({
+        side: side,
+        lineNumber: index,
+        field: 'justification'
+      });
+
+      const actualStatus = result.new_value; 
+
+      setRacketRuleFields(prev => ({
+        ...prev,
+        [side]: prev[side].map((field, idx) => 
+          idx === index ? { ...field, hide_justification: actualStatus } : field
+        )
+      }));
+
+      return actualStatus; 
+
+    } catch (error) {
+      toast.error("Database update failed.");
+      throw error;
+    }
+  };
+
+  const handleExpressionHiddenToggle = async (side, index) => {
+    try {
+      const response = await equationalService.toggleVisibility({
+        side: side,
+        lineNumber: index,
+        field: 'expression'
+      });
+
+      const actualValue = response.new_value;
+
+      setRacketRuleFields(prev => ({
+        ...prev,
+        [side]: prev[side].map((field, idx) => 
+          idx === index ? { ...field, hide_expression: actualValue } : field
+        )
+      }));
+
+      return actualValue;
+
+    } catch (error) {
+      toast.error("Failed to update expression visibility");
+      throw error;
     }
   };
     

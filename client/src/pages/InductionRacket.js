@@ -1952,8 +1952,8 @@ const InductionRacket = () => {
 
     // Extract resultNode from current line (shows what changed in this line's transformation)
     const resultNodeValue = isPremise ? undefined : (field && field.resultNode);
-    const hideExpression = isPremise ? false : (field?.hide_expression || false);
-    const hideJustification = isPremise ? false : (field?.hide_justification || false);
+    const hideExpression = field?.hide_expression || false;
+    const hideJustification = field?.hide_justification || false;
 
     return (
       <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? `premise-${caseType}-${side}` : `${side}-field-${padIndex}`}>
@@ -1986,7 +1986,9 @@ const InductionRacket = () => {
             showEyeButtons={true}
             currentUserType={currentUserType}
             hideExpression={hideExpression}
-            hideJustification={hideJustification} 
+            hideJustification={hideJustification}
+            onRuleHiddenToggle={() => handleRuleHiddenToggle(side, index)}
+            onExpressionHiddenToggle={() => handleExpressionHiddenToggle(side, index)} 
           />
         </Col>
       </Row>
@@ -2093,6 +2095,58 @@ const InductionRacket = () => {
     } else {
       const menu = document.getElementById(menuId);
       if (menu) menu.classList.remove('is-positioned');
+    }
+  };
+
+  const handleRuleHiddenToggle = async (side, index) => {
+    try {
+      const result = await inductionService.toggleVisibility({
+        side: side,
+        case: isAnchor ? 'base' : 'leap',
+        lineNumber: index,
+        field: 'justification'
+      });
+
+      const actualStatus = result.new_value; 
+
+      setRacketRuleFields(prev => ({
+        ...prev,
+        [side]: prev[side].map((field, idx) => 
+          idx === index ? { ...field, hide_justification: actualStatus } : field
+        )
+      }));
+
+      return actualStatus; 
+
+    } catch (error) {
+      toast.error("Database update failed.");
+      throw error;
+    }
+  };
+
+  const handleExpressionHiddenToggle = async (side, index) => {
+    try {
+      const result = await inductionService.toggleVisibility({
+        side: side,
+        case: isAnchor ? 'base' : 'leap',
+        lineNumber: index,
+        field: 'expression'
+      });
+
+      const actualStatus = result.new_value;
+
+      setRacketRuleFields(prev => ({
+        ...prev,
+        [side]: prev[side].map((field, idx) => 
+          idx === index ? { ...field, hide_expression: actualStatus } : field
+        )
+      }));
+
+      return actualStatus;
+
+    } catch (error) {
+      toast.error("Failed to update expression visibility");
+      throw error;
     }
   };
 

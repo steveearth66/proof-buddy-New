@@ -110,6 +110,8 @@ def reload_proof_lines_from_db(proof_obj, proof_id):
                 proof_line.appliedRuleNodeId = line.selected_node
                 proof_line.resultNodeId = line.result_node
                 target.proofLines.append(proof_line)
+                proof_line.hide_expression = line.hide_expression
+                proof_line.hide_justification = line.hide_justification
     except Exception as e:
         print(f"Error reloading proof lines: {e}")
 
@@ -748,7 +750,7 @@ def toggle_visibility(request):
         current_val = getattr(line_obj, attr_name, False)
         new_val = not current_val
         setattr(line_obj, attr_name, new_val)
-        
+
         # Save updated object to Cache
         save_equational_obj_to_cache(user, proof_obj, proof_id)
         
