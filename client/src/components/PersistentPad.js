@@ -2,10 +2,7 @@
 
 import "../scss/_persistent-pad.scss";
 import { useState, useEffect, useRef, useCallback } from "react";
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-import Form from "react-bootstrap/Form";
-import Button from "react-bootstrap/Button";
+import { Row, Col, Form, Button, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { Eye, EyeSlash } from "react-bootstrap-icons";
 import DivMakerComponent from "./divMaker";
 import React, { useImperativeHandle, forwardRef } from "react";
@@ -43,7 +40,6 @@ const PersistentPad = forwardRef(function PersistentPad(
   const [rule, setRule] = useState(ruleValue);
   const [localEquation, setLocalEquation] = useState(equation);
   
-  // Local UI-only toggles (instructors can override database values temporarily)
   const [showRule, setShowRule] = useState(!hideJustification);
   const [showExpression, setShowExpression] = useState(!hideExpression);
   
@@ -181,10 +177,6 @@ const PersistentPad = forwardRef(function PersistentPad(
     if (onRuleHiddenToggle) {
       try {
         const isNowHidden = await onRuleHiddenToggle();
-        
-        if (isNowHidden !== undefined) {
-          setShowRule(!isNowHidden);
-        }
       } catch (error) {
         console.warn("Toggle failed, maintaining current UI state.");
       }
@@ -195,10 +187,6 @@ const PersistentPad = forwardRef(function PersistentPad(
     if (onExpressionHiddenToggle) {
       try {
         const isNowHidden = await onExpressionHiddenToggle();
-        
-        if (isNowHidden !== undefined) {
-          setShowExpression(!isNowHidden);
-        }
       } catch (error) {
         console.warn("Toggle failed, maintaining current UI state.");
       }
@@ -230,32 +218,42 @@ const PersistentPad = forwardRef(function PersistentPad(
               whiteSpace: 'pre-wrap',
               wordWrap: 'break-word',
               paddingRight: '2.5rem',
-              // Use shouldHideRule for masking
-              WebkitTextSecurity: shouldHideRule ? "disc" : "none"
+              borderColor: !isStudent && shouldHideRule ? '#ff9090' : '',
+              WebkitTextSecurity: isStudent && shouldHideRule ? "disc" : "none"
             }}
             rows={1}
           />
           <label>{rulePlaceholder}</label>
           
           {/* Only show eye button for non-students */}
-          {showEyeButtons && !isStudent && (rule !== '') && (
-            <Button
-              variant="outline-secondary"
-              onClick={handleRuleVisibilityToggle}
-              style={{
-                position: 'absolute',
-                top: '50%',
-                right: '0.25rem',
-                transform: 'translateY(-50%)',
-                height: 'calc(100% - 0.5rem)',
-                padding: '0 0.5rem',
-                borderRadius: '0.25rem',
-                zIndex: 2
-              }}
-              tabIndex={-1}
+          {lineNum !== 0 && showEyeButtons && !isStudent && (rule !== '') && (
+            <OverlayTrigger
+              popperConfig={{ strategy: 'fixed' }}
+              overlay={
+                <Tooltip id={`tooltip-hide-row-${lineNum}`}>
+                {showRule ? "Hide" : "Unhide"} Rule
+                </Tooltip>
+              }
             >
-              {showRule ? <EyeSlash /> : <Eye />}
-            </Button>
+              <Button
+                variant="outline-secondary"
+                onClick={handleRuleVisibilityToggle}
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  right: '0.25rem',
+                  transform: 'translateY(-50%)',
+                  height: 'calc(100% - 0.5rem)',
+                  padding: '0 0.5rem',
+                  borderRadius: '0.25rem',
+                  zIndex: 2
+                }}
+                tabIndex={-1}
+              >
+                {showRule ? <EyeSlash /> : <Eye />}
+              </Button>
+            </OverlayTrigger>
+            
           )}
 
           {isRuleInvalid && (
@@ -301,11 +299,12 @@ const PersistentPad = forwardRef(function PersistentPad(
                 overflowWrap: 'break-word', 
                 whiteSpace: 'normal',
                 minHeight: '40px',
-                border: '1px solid #ced4da',
+                border: '1px solid',
+                borderColor: !isStudent && shouldHideExpression ? '#ff9090' : '#ced4da',
                 borderRadius: '4px',
                 padding: '8px',
                 paddingRight: '2.5rem',
-                WebkitTextSecurity: shouldHideExpression ? 'disc' : 'none'
+                WebkitTextSecurity: isStudent && shouldHideExpression ? "disc" : "none"
               }}
               {...props}
             >
@@ -325,23 +324,32 @@ const PersistentPad = forwardRef(function PersistentPad(
           
           {/* Only show eye button for non-students */}
           {showEyeButtons && !isStudent && equation !== '' && (
-            <Button
-              variant="outline-secondary"
-              onClick={handleExpressionVisibilityToggle}
-              style={{ 
-                position: 'absolute',
-                top: '50%',
-                right: '0.25rem',
-                transform: 'translateY(-50%)',
-                height: 'calc(100% - 0.5rem)',
-                padding: '0 0.75rem',
-                borderRadius: '0.25rem',
-                zIndex: 2
-              }}
-              tabIndex={-1}
+            <OverlayTrigger
+              popperConfig={{ strategy: 'fixed' }}
+              overlay={
+                <Tooltip id={`tooltip-hide-row-${lineNum}`}>
+                {showExpression ? "Hide" : "Unhide"} Expression
+                </Tooltip>
+              }
             >
-              {showExpression ? <EyeSlash /> : <Eye />}
-            </Button>
+              <Button
+                variant="outline-secondary"
+                onClick={handleExpressionVisibilityToggle}
+                style={{ 
+                  position: 'absolute',
+                  top: '50%',
+                  right: '0.25rem',
+                  transform: 'translateY(-50%)',
+                  height: 'calc(100% - 0.5rem)',
+                  padding: '0 0.75rem',
+                  borderRadius: '0.25rem',
+                  zIndex: 2
+                }}
+                tabIndex={-1}
+              >
+                {showExpression ? <EyeSlash /> : <Eye />}
+              </Button>
+            </OverlayTrigger>
           )}
         </div>
       </Col>

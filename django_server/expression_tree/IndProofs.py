@@ -228,14 +228,14 @@ class IndProof:
 
         return "\n".join(lines)
     
-    def checkComplete(self):
+    def checkComplete(self, is_student):
         """
         Check if the induction proof is complete:
         - Both base case and leap step must be complete
         Updates self.isComplete and returns the status
         """
-        base_complete = self.baseCase.checkComplete() if self.baseCase else False
-        leap_complete = self.leapStep.checkComplete() if self.leapStep else False
+        base_complete = self.baseCase.checkComplete(is_student) if self.baseCase else False
+        leap_complete = self.leapStep.checkComplete(is_student) if self.leapStep else False
         self.isComplete = base_complete and leap_complete
         return self.isComplete
     
