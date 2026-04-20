@@ -236,7 +236,7 @@ const PersistentPad = forwardRef(function PersistentPad(
               }
             >
               <Button
-                variant="outline-secondary"
+                variant={showRule ? "outline-secondary" : "outline-danger"}
                 onClick={handleRuleVisibilityToggle}
                 style={{
                   position: 'absolute',
@@ -333,7 +333,7 @@ const PersistentPad = forwardRef(function PersistentPad(
               }
             >
               <Button
-                variant="outline-secondary"
+                variant={showExpression ? "outline-secondary" : "outline-danger"}
                 onClick={handleExpressionVisibilityToggle}
                 style={{ 
                   position: 'absolute',
