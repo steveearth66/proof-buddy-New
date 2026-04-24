@@ -1629,7 +1629,6 @@ const handleGenerateAndCheck = async () => {
             hideJustification={hideJustification}     // NEW: Pass visibility flag
           />
             {!isPremise && (
-                            {/* Comments Feature: inline collapsible comment panel per proof line */}
           <ProofLineComment
             lineKey={side + "-" + padIndex}
             instructorComment={field.instructor_comment || ""}
