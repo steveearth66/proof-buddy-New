@@ -18,34 +18,34 @@ load_dotenv()
 
 class AccountManager(BaseUserManager):
     def create_user(self, email, username, password=None, **other_fields):
-    if not email:
-        raise ValueError("Users must have an email address")
-    if not username:
-        raise ValueError("Users must have a username")
+        if not email:
+            raise ValueError("Users must have an email address")
+        if not username:
+            raise ValueError("Users must have a username")
 
-    user = self.model(
-        email=self.normalize_email(email),
-        username=username,
-        **other_fields,
-    )
+        user = self.model(
+            email=self.normalize_email(email),
+            username=username,
+            **other_fields,
+        )
 
-    user.is_active = True # NOTE: remove after permanent email verification solution is found
-    user.set_password(password)
-    user.save(using=self._db)
-    return user
+        user.is_active = True # NOTE: remove after permanent email verification solution is found
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
 
     def create_superuser(self, email, username, password):
-    user = self.create_user(
-        email=self.normalize_email(email),
-        password=password,
-        username=username,
-    )
-    user.is_admin = True
-    user.is_staff = True
-    user.is_superuser = True
-    user.is_active = True
-    user.save(using=self._db)
-    return user
+        user = self.create_user(
+            email=self.normalize_email(email),
+            password=password,
+            username=username,
+        )
+        user.is_admin = True
+        user.is_staff = True
+        user.is_superuser = True
+        user.is_active = True
+        user.save(using=self._db)
+        return user
 
 
 class Account(AbstractBaseUser, PermissionsMixin):
@@ -67,7 +67,7 @@ class Account(AbstractBaseUser, PermissionsMixin):
     objects = AccountManager()
 
     def __str__(self):
-    return self.username
+        return self.username
 
 
 def generate_key():
@@ -81,7 +81,7 @@ class ActivateAccount(models.Model):
     created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-    return self.user.username
+        return self.user.username
 
 
 class ResetPassword(models.Model):
@@ -90,7 +90,7 @@ class ResetPassword(models.Model):
     created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-    return self.user.username
+        return self.user.username
 
 # NOTE: uncomment after permanent email verification solution is found
 """ @receiver(post_save, sender=Account)
