@@ -1,3 +1,6 @@
+# models.py - InductionProof and InductionProofLine models
+# Added: instructor_comment, student_comment, comment_correct fields
+
 from django.db import models
 from django.contrib.auth import get_user_model
 
@@ -5,51 +8,45 @@ User = get_user_model()
 
 
 class InductionProof(models.Model):
-    
-    PROOF_TYPES = [
-        ('induction_int', 'Integer Induction'),
-        ('induction_lists', 'List Induction'),
-    ]
-    
+
+        PROOF_TYPES = [
+                    ('induction_int', 'Integer Induction'),
+                    ('induction_lists', 'List Induction'),
+        ]
+
     INDUCTION_TYPES = [
-        ('integers', 'Integers'),
-        ('lists', 'Lists'),
+                ('integers', 'Integers'),
+                ('lists', 'Lists'),
     ]
-    
+
     SIDES = [
-        ('LHS', 'Left Hand Side'),
-        ('RHS', 'Right Hand Side'),
+                ('LHS', 'Left Hand Side'),
+                ('RHS', 'Right Hand Side'),
     ]
-    
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='induction_proofs')
     name = models.CharField(max_length=255, blank=True, null=True)
     tag = models.CharField(max_length=100, blank=True, null=True)
     proof_type = models.CharField(max_length=50, choices=PROOF_TYPES, default='induction_int')
     induction_type = models.CharField(max_length=20, choices=INDUCTION_TYPES, default='integers')
-    
-    # Proof parameters
-    induction_variable = models.CharField(max_length=100)
-    anchor_value = models.CharField(max_length=100)  # Can be integer ('0', '1') or list ('null', "'()")
-    leap_variable = models.CharField(max_length=100)
-    
-    lhs_leap_goal = models.TextField(blank=True, null=True)
-    rhs_leap_goal = models.TextField(blank=True, null=True)
-    lhs_anchor_goal = models.TextField(blank=True, null=True)
-    rhs_anchor_goal = models.TextField(blank=True, null=True)
-    inductive_hypothesis_lhs = models.TextField(blank=True, default='')
-    inductive_hypothesis_rhs = models.TextField(blank=True, default='')
 
-    # Current state
+    induction_variable = models.CharField(max_length=100)
+    anchor_value = models.CharField(max_length=100)
+    leap_variable = models.CharField(max_length=100, blank=True, null=True)
+
+    base_lhs_goal = models.TextField()
+    base_rhs_goal = models.TextField()
+    leap_lhs_goal = models.TextField(blank=True, default='')
+    leap_rhs_goal = models.TextField(blank=True, default='')
+
+    ih_racket = models.TextField(blank=True, default='')
+    ih_json_tree = models.JSONField(default=dict, blank=True)
+
     current_side = models.CharField(max_length=3, choices=SIDES, default='LHS')
-    current_goal = models.TextField(blank=True, null=True)
-    is_anchor_case = models.BooleanField(default=False)
-    
-    # Validation
-    is_valid = models.BooleanField(default=True)
+    current_case = models.CharField(max_length=10, default='base')
     is_complete = models.BooleanField(default=False)
     definition = models.JSONField(default=list)
-    
-    # Support parameters (instructor-configurable, all default to True = high support)
+
     support_errors = models.BooleanField(default=True)
     support_current_lhs_rhs = models.BooleanField(default=True)
     support_ih = models.BooleanField(default=True)
@@ -57,77 +54,70 @@ class InductionProof(models.Model):
     support_rule_set = models.BooleanField(default=True)
     support_value_mapping = models.BooleanField(default=True)
 
-    # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    is_active = models.BooleanField(default=True)  # Soft delete: False = archived
-    
+    is_active = models.BooleanField(default=True)
+
     class Meta:
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['user', '-created_at']),
-            models.Index(fields=['proof_type']),
-            models.Index(fields=['induction_type']),
-            models.Index(fields=['user', 'name', 'tag', 'is_active']),  # Index for faster queries
-        ]
-        # Note: MySQL doesn't support conditional constraints, so we enforce uniqueness in code
-        # Only one active proof per user+name+tag is allowed (checked in views)
-    
+                ordering = ['-created_at']
+                indexes = [
+                    models.Index(fields=['user', '-created_at']),
+                    models.Index(fields=['proof_type']),
+                    models.Index(fields=['induction_type']),
+                    models.Index(fields=['user', 'name', 'tag', 'is_active']),
+                ]
+
     def __str__(self):
-        if self.name:
-            return f"{self.name} - {self.proof_type}"
-        return f"{self.proof_type} - {self.user.username} - {self.induction_variable}"
+                return f'{self.name} - Induction ({self.proof_type})'
 
 
 class InductionProofLine(models.Model):
-    """
-    Stores individual proof lines for induction proofs.
-    Each line represents a step in either the base case or leap case, on either LHS or RHS.
-    """
-    
-    CASE_CHOICES = [
-        ('base', 'Base Case'),
-        ('leap', 'Leap Case'),
-    ]
-    
+
+        CASE_CHOICES = [
+                    ('base', 'Base Case'),
+                    ('leap', 'Leap Step'),
+        ]
+
     SIDE_CHOICES = [
-        ('LHS', 'Left Hand Side'),
-        ('RHS', 'Right Hand Side'),
+                ('LHS', 'Left Hand Side'),
+                ('RHS', 'Right Hand Side'),
     ]
-    
+
     proof = models.ForeignKey(
-        InductionProof, 
-        related_name='proof_lines', 
-        on_delete=models.CASCADE
+                InductionProof,
+                related_name='proof_lines',
+                on_delete=models.CASCADE
     )
     case = models.CharField(max_length=10, choices=CASE_CHOICES)
     side = models.CharField(max_length=3, choices=SIDE_CHOICES)
-    racket = models.TextField()  # The expression in racket notation
-    json_tree = models.JSONField(default=dict, blank=True)  # Parsed expression tree for frontend rendering
-    rule = models.CharField(max_length=255, blank=True, default='')  # The rule that was applied
-    substitution = models.TextField(blank=True, default='')  # Substitution payload if any
-    start_position = models.IntegerField(default=0)  # Position where rule was applied
-    selected_node = models.IntegerField(default=0)  # Node ID selected by user for rule application (for highlighting preservation)
-    result_node = models.IntegerField(default=0)  # Node ID of the changed portion in the result expression (for dual highlighting)
-    line_number = models.IntegerField(default=0)  # Order of line in the proof
+    racket = models.TextField()
+    json_tree = models.JSONField(default=dict, blank=True)
+    rule = models.CharField(max_length=255, blank=True, default='')
+    substitution = models.TextField(blank=True, default='')
+    start_position = models.IntegerField(default=0)
+    selected_node = models.IntegerField(default=0)
+    result_node = models.IntegerField(default=0)
+    line_number = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
-    errors = models.TextField(blank=True, default='') # Comma separated list of all errors that occured on the line
-    
-    # NEW: Visibility flags for hiding content from students
-    hide_expression = models.BooleanField(default=False)  # If True, hide the racket expression
-    hide_justification = models.BooleanField(default=False)  # If True, hide the rule/justification
-    
+    errors = models.TextField(blank=True, default='')
+    hide_expression = models.BooleanField(default=False)
+    hide_justification = models.BooleanField(default=False)
+    # --- Comments Feature ---
+    instructor_comment = models.TextField(blank=True, default='')
+    student_comment = models.TextField(blank=True, default='')
+    comment_correct = models.BooleanField(null=True, default=None)
+
     class Meta:
-        ordering = ['case', 'side', 'line_number']
-        indexes = [
-            models.Index(fields=['proof', 'case', 'side', 'line_number']),
-        ]
-        constraints = [
-            models.UniqueConstraint(
-                fields=['proof', 'case', 'side', 'line_number'],
-                name='unique_proof_line'
-            ),
-        ]
-    
+                ordering = ['case', 'side', 'line_number']
+                indexes = [
+                    models.Index(fields=['proof', 'case', 'side', 'line_number']),
+                ]
+                constraints = [
+                    models.UniqueConstraint(
+                        fields=['proof', 'case', 'side', 'line_number'],
+                        name='unique_proof_line'
+                    ),
+                ]
+
     def __str__(self):
-        return f"{self.case} {self.side} Line {self.line_number}: {self.racket[:50]}"
+                return f'{self.case} {self.side} Line {self.line_number}: {self.racket[:50]}'
