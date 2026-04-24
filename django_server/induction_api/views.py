@@ -1674,7 +1674,10 @@ def get_proof_lines(request):
                 'lineNumber': line.line_number,
                 'substitution': line.substitution,
                 'jsonTree': json_tree,
-                'errors': line.errors
+                'errors': line.errors,
+                'instructor_comment': line.instructor_comment,
+                'student_comment': line.student_comment,
+                'comment_correct': line.comment_correct
             }
             result[line.case][line.side].append(line_data)
         
