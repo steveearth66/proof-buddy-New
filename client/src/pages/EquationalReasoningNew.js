@@ -1,6 +1,6 @@
-
 import ProofLineComment from "../components/ProofLineComment";
-import { useAuth } from "../context/AuthProvider";import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useAuth } from "../context/AuthContext";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Dropdown from "react-bootstrap/Dropdown";
 import Button from "react-bootstrap/Button";
 import Container from "react-bootstrap/Container";
@@ -1628,7 +1628,8 @@ const handleGenerateAndCheck = async () => {
             hideExpression={hideExpression}           // NEW: Pass visibility flag
             hideJustification={hideJustification}     // NEW: Pass visibility flag
           />
-          {/* Comments Feature: inline collapsible comment panel per proof line */}
+            {!isPremise && (
+                            {/* Comments Feature: inline collapsible comment panel per proof line */}
           <ProofLineComment
             lineKey={side + "-" + padIndex}
             instructorComment={field.instructor_comment || ""}
@@ -1645,6 +1646,7 @@ const handleGenerateAndCheck = async () => {
               });
             }}
           />
+                          )}
         </Col>
       </Row>
     );
