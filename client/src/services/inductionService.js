@@ -246,6 +246,23 @@ const uploadProof = async (proofData) => {
   }
 };
 
+/**
+ * updateComment - Save instructor prompt or student response on an induction proof line.
+ * @param {Object} data - { case, side, lineNumber, instructorComment?, studentComment?, commentCorrect? }
+ */
+const updateComment = async (data) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/update-comment`,
+      data
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, 'Error updating induction proof line comment:');
+    throw error;
+  }
+};
+
 const inductionService = {
   startInductionProof,
   clearInduction,
@@ -266,7 +283,8 @@ const inductionService = {
   checkNameConflict,
   setParameters,
   downloadProof,
-  uploadProof
+  uploadProof,
+  updateComment
 };
 
 export default inductionService;
