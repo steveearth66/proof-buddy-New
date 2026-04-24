@@ -71,7 +71,7 @@ class Course(models.Model):
     )
 
     def __str__(self):
-    return self.name
+        return self.name
 
 
 class Assignment(models.Model):
@@ -84,7 +84,7 @@ class Assignment(models.Model):
     created_by = models.ForeignKey('accounts.Account', on_delete=models.CASCADE, limit_choices_to={"is_instructor": True})
 
     def __str__(self):
-    return self.title
+        return self.title
     
 class AssignmentProof(models.Model):
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE, related_name='proof_items')
@@ -101,7 +101,7 @@ class AssignmentProof(models.Model):
     proof_object = GenericForeignKey('content_type', 'object_id')
 
     class Meta:
-    unique_together = ('assignment', 'content_type', 'object_id')
+        unique_together = ('assignment', 'content_type', 'object_id')
 
 class StudentProofMapping(models.Model):
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE)
@@ -117,11 +117,11 @@ class StudentProofMapping(models.Model):
     student_proof = GenericForeignKey('content_type', 'object_id')
 
     class Meta:
-    # A student can only have ONE clone of a specific template per assignment
-    unique_together = ('assignment', 'student', 'template_proof_id', 'content_type')
+        # A student can only have ONE clone of a specific template per assignment
+        unique_together = ('assignment', 'student', 'template_proof_id', 'content_type')
 
     def __str__(self):
-    return f"{self.student.username} - Clone of Proof {self.template_proof_id}"
+        return f"{self.student.username} - Clone of Proof {self.template_proof_id}"
 
 
 # Sends emails for assignments and submissions, leave commented out for now to prevent issues when deployed
