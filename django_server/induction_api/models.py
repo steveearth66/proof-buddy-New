@@ -59,16 +59,16 @@ class InductionProof(models.Model):
     is_active = models.BooleanField(default=True)
 
     class Meta:
-    ordering = ['-created_at']
-    indexes = [
-    models.Index(fields=['user', '-created_at']),
-    models.Index(fields=['proof_type']),
-    models.Index(fields=['induction_type']),
-    models.Index(fields=['user', 'name', 'tag', 'is_active']),
-    ]
+        ordering = ['-created_at']
+        indexes = [
+        models.Index(fields=['user', '-created_at']),
+        models.Index(fields=['proof_type']),
+        models.Index(fields=['induction_type']),
+        models.Index(fields=['user', 'name', 'tag', 'is_active']),
+        ]
 
     def __str__(self):
-    return f'{self.name} - Induction ({self.proof_type})'
+        return f'{self.name} - Induction ({self.proof_type})'
 
 
 class InductionProofLine(models.Model):
@@ -108,16 +108,16 @@ class InductionProofLine(models.Model):
     comment_correct = models.BooleanField(null=True, default=None)
 
     class Meta:
-    ordering = ['case', 'side', 'line_number']
-    indexes = [
-    models.Index(fields=['proof', 'case', 'side', 'line_number']),
-    ]
-    constraints = [
-    models.UniqueConstraint(
-    fields=['proof', 'case', 'side', 'line_number'],
-    name='unique_proof_line'
-    ),
-    ]
+        ordering = ['case', 'side', 'line_number']
+        indexes = [
+        models.Index(fields=['proof', 'case', 'side', 'line_number']),
+        ]
+        constraints = [
+        models.UniqueConstraint(
+        fields=['proof', 'case', 'side', 'line_number'],
+        name='unique_proof_line'
+        ),
+        ]
 
     def __str__(self):
-    return f'{self.case} {self.side} Line {self.line_number}: {self.racket[:50]}'
+        return f'{self.case} {self.side} Line {self.line_number}: {self.racket[:50]}'
