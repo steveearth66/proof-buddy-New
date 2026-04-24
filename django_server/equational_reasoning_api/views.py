@@ -29,7 +29,7 @@ User = get_user_model()
 # ========================
 
 def _lookup_lemma(name: str, user):
-    """
+    """h
     Look up a completed proof by *name* for *user*.
     Returns ``(premise_str, conclusion_str, error_msg)``.
     Checks EquationalProof first; falls back to InductionProof.
@@ -685,7 +685,10 @@ def get_proof_lines(request):
                 'startPosition': line.start_position,  # camelCase!
                 'hide_expression': line.hide_expression,
                 'hide_justification': line.hide_justification,
-                'errors': line.errors
+                'errors': line.errors,
+                'instructor_comment': line.instructor_comment,
+                'student_comment': line.student_comment,
+                'comment_correct': line.comment_correct
             }
         
         return Response({
