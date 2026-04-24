@@ -53,13 +53,13 @@ class Course(models.Model):
     day = now.day
 
     if month in [1, 2, 3]:
-    season = "Winter"
+        season = "Winter"
     elif month in [4, 5, 6]:
-    season = "Spring"
+        season = "Spring"
     elif month in [7, 8] or (month == 9 and day < 19):
-    season = "Summer"
+        season = "Summer"
     else:
-    season = "Fall"
+        season = "Fall"
     
     default_term = f"{season} {year}"
 
