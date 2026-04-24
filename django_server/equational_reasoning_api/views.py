@@ -1508,3 +1508,88 @@ def upload_proof(request):
         return Response({'proofId': proof.id, 'proofName': name}, status=status.HTTP_201_CREATED)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ========================
+# Comments Feature
+# ========================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def update_comment(request):
+    """
+    Update the instructor or student comment on a specific proof line.
+    
+    Instructors can set instructor_comment and optionally comment_correct.
+    Students can set student_comment (their own response/annotation).
+    Both roles can read both fields.
+    
+    POST body: { side, lineNumber, instructorComment?, studentComment?, commentCorrect? }
+    """
+    user = request.user
+    _, proof_id = get_or_set_equational_obj(user)
+
+    if not proof_id:
+        return Response(
+            {"error": "No active proof session. Please open a proof first."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    side = request.data.get('side', '').upper()
+    line_number = request.data.get('lineNumber')
+    instructor_comment = request.data.get('instructorComment')
+    student_comment = request.data.get('studentComment')
+    comment_correct = request.data.get('commentCorrect')  # None | True | False
+
+    if side not in ('LHS', 'RHS') or line_number is None:
+        return Response(
+            {"error": "side and lineNumber are required."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        line = EquationalProofLine.objects.get(
+            proof_id=proof_id,
+            side=side,
+            line_number=int(line_number)
+        )
+    except EquationalProofLine.DoesNotExist:
+        return Response(
+            {"error": f"Proof line {side} {line_number} not found."},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    # Apply role-based access control
+    is_instructor = getattr(user, 'is_instructor', False)
+
+    if instructor_comment is not None:
+        if not is_instructor:
+            return Response(
+                {"error": "Only instructors can set instructor comments."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        line.instructor_comment = instructor_comment
+
+    if student_comment is not None:
+        line.student_comment = student_comment
+
+    if comment_correct is not None:
+        # Both instructors (manual review) can set this field
+        # Students cannot mark their own answers as correct
+        if not is_instructor:
+            return Response(
+                {"error": "Only instructors can mark comments as correct or incorrect."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        line.comment_correct = comment_correct
+
+    line.save()
+
+    return Response({
+        "success": True,
+        "lineNumber": line.line_number,
+        "side": line.side,
+        "instructorComment": line.instructor_comment,
+        "studentComment": line.student_comment,
+        "commentCorrect": line.comment_correct,
+    }, status=status.HTTP_200_OK)
