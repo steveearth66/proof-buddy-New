@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+
+import ProofLineComment from "../components/ProofLineComment";
+import { useAuth } from "../context/AuthProvider";import React, { useState, useEffect, useRef, useCallback } from "react";
 import Dropdown from "react-bootstrap/Dropdown";
 import Button from "react-bootstrap/Button";
 import Container from "react-bootstrap/Container";
@@ -57,6 +59,7 @@ import { useLocation, useNavigate } from "react-router-dom";
  */
 const EquationalReasoningNew = () => {
     const [showSide, toggleSide] = useToggleSide();
+    const { user: currentUser } = useAuth();
     const [formValues, handleChange, setFormValues] = useInputState(INITIAL_FORM_VALUES);
     const [currentUserType, setCurrentUserType] = useState(null);
     
@@ -1624,6 +1627,23 @@ const handleGenerateAndCheck = async () => {
             currentUserType={currentUserType}
             hideExpression={hideExpression}           // NEW: Pass visibility flag
             hideJustification={hideJustification}     // NEW: Pass visibility flag
+          />
+          {/* Comments Feature: inline collapsible comment panel per proof line */}
+          <ProofLineComment
+            lineKey={side + "-" + padIndex}
+            instructorComment={field.instructor_comment || ""}
+            studentComment={field.student_comment || ""}
+            commentCorrect={field.comment_correct}
+            isInstructor={currentUser && currentUser.is_instructor}
+            onSave={async (payload) => {
+              await equationalService.updateComment({
+                side,
+                lineNumber: padIndex,
+                ...(payload.instructorComment !== undefined && { instructorComment: payload.instructorComment }),
+                ...(payload.studentComment !== undefined && { studentComment: payload.studentComment }),
+                ...(payload.commentCorrect !== undefined && { commentCorrect: payload.commentCorrect }),
+              });
+            }}
           />
         </Col>
       </Row>
