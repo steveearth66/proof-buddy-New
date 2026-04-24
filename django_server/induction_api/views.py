@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
 from dill import dumps, loads
 from django.core.cache import cache
-from .models import InductionProof
+from .models import InductionProof, InductionProofLine
 from .serializers import InductionProofSerializer, InductionProofCreateSerializer
 import re
 
@@ -2051,6 +2051,179 @@ def upload_proof(request):
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+
+
+
+# ========================
+# Visibility & User Proofs - Induction
+# ========================
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def toggle_visibility(request):
+    """Toggle hide_expression or hide_justification on a specific induction proof line."""
+    user = request.user
+    proof_obj, proof_id = get_or_set_induction_obj(user)
+
+    if not proof_id:
+        return Response({"error": "Session expired or invalid proof ID"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        case = request.data.get('case')
+        side = request.data.get('side')
+        line_number = request.data.get('lineNumber')
+        field = request.data.get('field')
+
+        if not case or not side or line_number is None or field not in ['expression', 'justification']:
+            return Response({"error": "Invalid parameters"}, status=status.HTTP_400_BAD_REQUEST)
+
+        line_obj = InductionProofLine.objects.get(
+            proof_id=proof_id, case=case.lower(), side=side.upper(), line_number=line_number
+        )
+
+        if field == 'expression':
+            line_obj.hide_expression = not line_obj.hide_expression
+        else:
+            line_obj.hide_justification = not line_obj.hide_justification
+
+        line_obj.save()
+        return Response({
+            "success": True,
+            "hide_expression": line_obj.hide_expression,
+            "hide_justification": line_obj.hide_justification,
+        }, status=status.HTTP_200_OK)
+
+    except InductionProofLine.DoesNotExist:
+        return Response({"error": "Proof line not found"}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def validate_hidden_field(request):
+    """Validate a student's answer for a hidden field on an induction proof line."""
+    user = request.user
+    proof_obj, proof_id = get_or_set_induction_obj(user)
+
+    if not proof_id:
+        return Response({"error": "Session expired or invalid proof ID"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        case = request.data.get('case')
+        side = request.data.get('side')
+        line_number = request.data.get('lineNumber')
+        field = request.data.get('field')
+        student_answer = request.data.get('studentAnswer', '')
+
+        if not case or not side or line_number is None or field not in ['expression', 'justification']:
+            return Response({"error": "Invalid parameters"}, status=status.HTTP_400_BAD_REQUEST)
+
+        line_obj = InductionProofLine.objects.get(
+            proof_id=proof_id, case=case.lower(), side=side.upper(), line_number=line_number
+        )
+
+        if field == 'expression':
+            correct = student_answer.strip() == line_obj.racket.strip()
+        else:
+            correct = student_answer.strip().lower() == line_obj.rule.strip().lower()
+
+        return Response({"correct": correct}, status=status.HTTP_200_OK)
+
+    except InductionProofLine.DoesNotExist:
+        return Response({"error": "Proof line not found"}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_user_proofs(request):
+    """Return a list of the user's active induction proofs."""
+    user = request.user
+    try:
+        proofs = InductionProof.objects.filter(user=user, is_active=True).order_by('-created_at')
+        data = [
+            {
+                "id": p.id,
+                "name": p.name,
+                "tag": p.tag,
+                "proof_type": p.proof_type,
+                "is_complete": p.is_complete,
+                "created_at": p.created_at.isoformat(),
+            }
+            for p in proofs
+        ]
+        return Response({"proofs": data}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def get_user_proof(request):
+    """Load a specific induction proof by ID into the session."""
+    user = request.user
+    proof_id = request.data.get('proof_id')
+
+    if not proof_id:
+        return Response({"error": "Proof ID required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        proof = InductionProof.objects.get(id=proof_id, user=user)
+        save_induction_obj_to_cache(user, None, proof_id)
+        return Response({"success": True, "message": "Proof loaded"}, status=status.HTTP_200_OK)
+    except InductionProof.DoesNotExist:
+        return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def clear_proof(request):
+    """Clear the induction session cache so the user can start a new proof."""
+    user = request.user
+    clear_induction_proof(user)
+    return Response({"message": "Session cleared successfully"}, status=status.HTTP_200_OK)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def discard_proof(request):
+    """Archive the active induction proof and clear the session cache."""
+    user = request.user
+    try:
+        proof = InductionProof.objects.filter(user=user, is_active=True).order_by('-created_at').first()
+        if proof:
+            proof.is_active = False
+            proof.save()
+        clear_induction_proof(user)
+        return Response({"message": "Proof archived successfully"}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def save_proof(request):
+    """Save the current induction proof session to the database."""
+    user = request.user
+    proof_obj, proof_id = get_or_set_induction_obj(user)
+
+    if not proof_id:
+        return Response({"error": "No active proof to save"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        proof = InductionProof.objects.get(id=proof_id, user=user)
+        name = request.data.get('name', proof.name)
+        proof.name = name
+        proof.save()
+        return Response({"success": True, "proofId": proof.id, "proofName": proof.name}, status=status.HTTP_200_OK)
+    except InductionProof.DoesNotExist:
+        return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 # ========================
 # Comments Feature - Induction
