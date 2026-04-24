@@ -104,6 +104,23 @@ const validateHiddenField = async (data) => {
   }
 };
 
+/**
+ * updateComment - Save instructor prompt or student response on a proof line.
+ * @param {Object} data - { side, lineNumber, instructorComment?, studentComment?, commentCorrect? }
+ */
+const updateComment = async (data) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/update-comment`,
+      data
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, 'Error updating proof line comment:');
+    throw error;
+  }
+};
+
 const getRacketProofs = async ({ page = 1, query = "" }) => {
   try {
     const response = await axiosInstance.get(`${API_GATEWAY}/proofs?page=${page}&query=${query}`);
@@ -116,7 +133,6 @@ const getRacketProofs = async ({ page = 1, query = "" }) => {
 
 const getRacketProof = async (proofId) => {
   try {
-    // Send POST request to match the view
     const response = await axiosInstance.post(`${API_GATEWAY}/get-user-proof`, { 
       proof_id: proofId 
     });
@@ -169,8 +185,8 @@ const deleteRacketProof = async (proof_id) => {
   try {
     const response = await axiosInstance.post(
       `${API_GATEWAY}/delete-proof`, { 
-      proof_id: proof_id 
-    }
+        proof_id: proof_id 
+      }
     );
     return response.data;
   }
@@ -219,6 +235,7 @@ const equationalService = {
   getProofLines,
   toggleVisibility,
   validateHiddenField,
+  updateComment,
   getRacketProofs,
   getRacketProof,
   clearProof,
