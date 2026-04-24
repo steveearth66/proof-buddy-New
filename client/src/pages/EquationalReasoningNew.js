@@ -1641,7 +1641,7 @@ const handleGenerateAndCheck = async () => {
                 lineNumber: padIndex,
                 ...(payload.instructorComment !== undefined && { instructorComment: payload.instructorComment }),
                 ...(payload.studentComment !== undefined && { studentComment: payload.studentComment }),
-                ...(payload.commentCorrect !== undefined && { commentCorrect: payload.commentCorrect }),
+                ...(payload.commentCorrect !== undefined && { commentCorrect: payload.commentCorrect })
               });
             }}
           />
