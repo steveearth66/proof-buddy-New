@@ -26,7 +26,7 @@ const ProofLineComment = ({
   commentCorrect = null,
   isInstructor = false,
   onSave,
-  disabled = false,
+  disabled = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -41,7 +41,7 @@ const ProofLineComment = ({
 
   const initDraft = getSavedDraft() || {
     instructorText: instructorComment,
-    studentText: studentComment,
+    studentText: studentComment
   };
 
   const [instructorText, setInstructorText] = useState(initDraft.instructorText);
@@ -111,7 +111,7 @@ const ProofLineComment = ({
     color: hasContent ? '#0d6efd' : '#6c757d',
     marginLeft: '8px',
     verticalAlign: 'middle',
-    transition: 'all 0.15s',
+    transition: 'all 0.15s'
   };
 
   const panelStyle = {
@@ -122,7 +122,7 @@ const ProofLineComment = ({
     padding: '10px 14px',
     marginTop: '2px',
     marginBottom: '6px',
-    fontSize: '0.875rem',
+    fontSize: '0.875rem'
   };
 
   const labelStyle = {
@@ -132,7 +132,7 @@ const ProofLineComment = ({
     fontSize: '0.78rem',
     color: '#495057',
     textTransform: 'uppercase',
-    letterSpacing: '0.04em',
+    letterSpacing: '0.04em'
   };
 
   const textareaStyle = {
@@ -143,7 +143,7 @@ const ProofLineComment = ({
     fontSize: '0.85rem',
     resize: 'vertical',
     minHeight: '56px',
-    fontFamily: 'inherit',
+    fontFamily: 'inherit'
   };
 
   return (
@@ -184,7 +184,7 @@ const ProofLineComment = ({
               minHeight: '36px',
               color: instructorComment ? '#4a148c' : '#9e9e9e',
               fontStyle: instructorComment ? 'normal' : 'italic',
-              whiteSpace: 'pre-wrap',
+              whiteSpace: 'pre-wrap'
             }}>
               {instructorComment || 'No instructor comment for this step.'}
             </div>
@@ -290,7 +290,7 @@ ProofLineComment.propTypes = {
   commentCorrect: PropTypes.bool,
   isInstructor: PropTypes.bool,
   onSave: PropTypes.func,
-  disabled: PropTypes.bool,
+  disabled: PropTypes.bool
 };
 
 export default ProofLineComment;
