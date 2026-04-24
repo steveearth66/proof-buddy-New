@@ -18,13 +18,13 @@ class Definition(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-    unique_together = ('label', 'created_by')
+        unique_together = ('label', 'created_by')
 
     def get_tag(self):
-    return self.label
+        return self.label
 
     def __str__(self):
-    return self.label
+        return self.label
 
 class Generic(models.Model):
     label = models.CharField(max_length=100)
@@ -36,10 +36,10 @@ class Generic(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-    unique_together = ('label', 'created_by')
+        unique_together = ('label', 'created_by')
     
     def __str__(self):
-    return self.label
+        return self.label
 
 class Proof(models.Model):
     name = models.CharField(max_length=100)
@@ -60,7 +60,7 @@ class Proof(models.Model):
     )
 
     def __str__(self):
-    return self.name
+        return self.name
 
 
 class ProofLine(models.Model):
@@ -75,7 +75,7 @@ class ProofLine(models.Model):
     deleted = models.BooleanField(default=False)
 
     def __str__(self):
-    return self.racket
+        return self.racket
 
     def get_proof_tag(self):
-    return self.proof.tag
+        return self.proof.tag
