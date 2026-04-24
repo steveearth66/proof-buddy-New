@@ -56,7 +56,7 @@ const SignUpUser = ({ role }) => {
         setAccountCreated(true); // NOTE: remove after permanent email verification solution is found
       }
     } catch (error) {
-      setServerError(error.response.data.message);
+      setServerError(error?.response?.data?.message || "Sign up failed. Please try again.");
     }
   };
 
