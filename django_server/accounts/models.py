@@ -122,11 +122,11 @@ def send_activation_email(email, username, key):
 @receiver(post_save, sender=ResetPassword)
 def send_reset_password_email(sender, instance, created, **kwargs):
     if created:
-    print("sending email")
-    email = instance.user.email
-    username = instance.user.username
-    key = instance.reset_key
-    send_reset_email(email, username, key)
+        print("sending email")
+        email = instance.user.email
+        username = instance.user.username
+        key = instance.reset_key
+        send_reset_email(email, username, key)
 
 
 def send_reset_email(email, username, key):
