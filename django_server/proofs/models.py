@@ -14,17 +14,17 @@ class Definition(models.Model):
     expression = models.CharField(max_length=255, blank=True)
     notes = models.TextField(default="", blank=True)
     created_by = models.ForeignKey(
-        'accounts.Account', related_name='definitions', on_delete=models.CASCADE)
+    'accounts.Account', related_name='definitions', on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('label', 'created_by')
+    unique_together = ('label', 'created_by')
 
     def get_tag(self):
-        return self.label
+    return self.label
 
     def __str__(self):
-        return self.label
+    return self.label
 
 class Generic(models.Model):
     label = models.CharField(max_length=100)
@@ -32,14 +32,14 @@ class Generic(models.Model):
     restrictions = models.CharField(default='None', max_length=127)
     notes = models.TextField(default="", blank=True)
     created_by = models.ForeignKey(
-        'accounts.Account', related_name='generics', on_delete=models.CASCADE)
+    'accounts.Account', related_name='generics', on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('label', 'created_by')
+    unique_together = ('label', 'created_by')
     
     def __str__(self):
-        return self.label
+    return self.label
 
 class Proof(models.Model):
     name = models.CharField(max_length=100)
@@ -47,25 +47,25 @@ class Proof(models.Model):
     lhs = models.CharField(max_length=100, blank=True)
     rhs = models.CharField(max_length=100, blank=True)
     created_by = models.ForeignKey(
-        'accounts.Account', related_name='proofs', on_delete=models.CASCADE, null=True)
+    'accounts.Account', related_name='proofs', on_delete=models.CASCADE, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     isComplete = models.BooleanField(default=False)
     template = models.CharField(
-        max_length=3, choices=TEMPLATE_CHOICES, default='ER')
+    max_length=3, choices=TEMPLATE_CHOICES, default='ER')
     definitions = models.ManyToManyField(
-        Definition, related_name="proof_definitions", blank=True
+    Definition, related_name="proof_definitions", blank=True
     )
     generics = models.ManyToManyField(
-        Generic, related_name='proofs', blank=True
+    Generic, related_name='proofs', blank=True
     )
 
     def __str__(self):
-        return self.name
+    return self.name
 
 
 class ProofLine(models.Model):
     proof = models.ForeignKey(
-        Proof, related_name='proof_lines', on_delete=models.CASCADE)
+    Proof, related_name='proof_lines', on_delete=models.CASCADE)
     left_side = models.BooleanField(default=True)
     racket = models.CharField(max_length=255)
     rule = models.CharField(max_length=100)
@@ -75,7 +75,7 @@ class ProofLine(models.Model):
     deleted = models.BooleanField(default=False)
 
     def __str__(self):
-        return self.racket
+    return self.racket
 
     def get_proof_tag(self):
-        return self.proof.tag
+    return self.proof.tag
