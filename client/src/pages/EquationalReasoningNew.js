@@ -420,7 +420,6 @@ const EquationalReasoningNew = () => {
   const [loadedProof, setLoadedProof] = useState(null);
   const [footerRule, setFooterRule] = useState("");
   const [footerRuleError, setFooterRuleError] = useState("");
-  const [footerExpression, setfooterExpression] = useState("");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   
   // Hook for getting available height for scrollable proof area
