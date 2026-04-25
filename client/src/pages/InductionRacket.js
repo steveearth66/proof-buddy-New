@@ -1188,9 +1188,9 @@ const InductionRacket = () => {
     const lastLhsLine = findLastNonEmptyLine(lhsLines);
     const lastRhsLine = findLastNonEmptyLine(rhsLines);
     setLhsValue(lastLhsLine?.racket || targetPremises.LHS?.racket || '');
-    setLhsHidden(lastLhsLine?.hide_expression || false);
+    setLhsHidden((currentUserType.is_student && lastLhsLine?.hide_expression) || false);
     setRhsValue(lastRhsLine?.racket || targetPremises.RHS?.racket || '');
-    setRhsHidden(lastRhsLine?.hide_expression || false);
+    setRhsHidden((currentUserType.is_student && lastRhsLine?.hide_expression) || false);
 
   }, [proofStarted, isAnchor, baseRacketFields, leapRacketFields, basePremises, leapPremises]);
 
