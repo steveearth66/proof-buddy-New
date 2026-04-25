@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import OffCanvas from "react-bootstrap/Offcanvas";
 import Table from "react-bootstrap/Table";
 import ruleSet from "./RuleSet";
@@ -13,6 +13,47 @@ const OffcanvasRuleSet = ({ isActive, toggleFunction }) => {
   const [filteredRules, setFilteredRules] = useState(ruleSet());
   const [evalRules, applyRules] = filteredRules;
   /* Present list of Rules for View Rule Set Offcanvas */
+
+  const [height, setHeight] = useState(window.innerHeight * 0.3);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const startResizing = useCallback((e) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  const stopResizing = useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  const resize = useCallback(
+    (e) => {
+      if (isResizing) {
+        // Calculate height: Viewport height minus the current mouse Y position
+        const newHeight = window.innerHeight - e.clientY;
+        
+        // Constraints: Min 150px, Max 90% of screen (do not increase to 100% or user will be unable to close)
+        if (newHeight > 150 && newHeight < window.innerHeight * 0.9) {
+          setHeight(newHeight);
+        }
+      }
+    },
+    [isResizing]
+  );
+
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener("mousemove", resize);
+      window.addEventListener("mouseup", stopResizing);
+    } else {
+      window.removeEventListener("mousemove", resize);
+      window.removeEventListener("mouseup", stopResizing);
+    }
+    return () => {
+      window.removeEventListener("mousemove", resize);
+      window.removeEventListener("mouseup", stopResizing);
+    };
+  }, [isResizing, resize, stopResizing]);
 
   const onSearch = (e) => {
     const searchValue = e.target.value.toLowerCase();
@@ -44,7 +85,24 @@ const OffcanvasRuleSet = ({ isActive, toggleFunction }) => {
       onHide={toggleFunction}
       scroll="true"
       placement="bottom"
+      style={{ 
+        height: `${height}px`, 
+        transition: isResizing ? "none" : "transform 0.3s ease-in-out" 
+      }}
     >
+      <div
+        onMouseDown={startResizing}
+        style={{
+          height: "10px",
+          cursor: "ns-resize",
+          width: "100%",
+          position: "absolute",
+          top: 0,
+          left: 0,
+          zIndex: 1051,
+          backgroundColor: isResizing ? "rgba(0,123,255,0.2)" : "transparent"
+        }}
+      />
       <OffCanvas.Body>
         <Form.Control
           type="text"

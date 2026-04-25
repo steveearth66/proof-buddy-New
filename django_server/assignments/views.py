@@ -333,6 +333,7 @@ class InstructorLibraryView(APIView):
                 'id': proof.id,
                 'title': proof.name or "Untitled Equational Proof",
                 'type': 'equationalproof',
+                'displayType': 'Equational Reasoning',
                 'category': proof.tag or 'General'
             })
             
@@ -341,6 +342,7 @@ class InstructorLibraryView(APIView):
                 'id': proof.id,
                 'title': proof.name or "Untitled Induction Proof",
                 'type': 'inductionproof',
+                'displayType': 'Induction',
                 'category': proof.tag or 'General'
             })
             

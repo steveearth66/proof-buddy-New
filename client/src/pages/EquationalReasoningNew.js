@@ -1277,9 +1277,9 @@ const handleRuleKeyDown = (e) => {
     const lastLhsLine = findLastNonEmptyLine(lhsLines);
     const lastRhsLine = findLastNonEmptyLine(rhsLines);
     setLhsValue(lastLhsLine?.racket || leftPremise.racket || '');
-    setLhsHidden(lastLhsLine?.hide_expression || false);
+    setLhsHidden((currentUserType.is_student && lastLhsLine?.hide_expression) || false);
     setRhsValue(lastRhsLine?.racket || rightPremise.racket || '');
-    setRhsHidden(lastRhsLine?.hide_expression || false);
+    setRhsHidden((currentUserType.is_student && lastRhsLine?.hide_expression) || false);
 
   }, [proofStarted, racketRuleFields, leftPremise, rightPremise]);
 
