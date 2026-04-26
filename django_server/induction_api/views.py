@@ -1013,14 +1013,14 @@ def _get_case_side(proof: IndProof, case: str, side: str) -> ERProof:
     return ts.LHS if side_key == "LHS" else ts.RHS
 
 
-def _apply_line(target: ERProof, currentRacket: str, rule: str | None, startPosition: int | None, substitution: str | None):
+def _apply_line(target: ERProof, currentRacket: str, rule: str | None, startPosition: int | None, substitution: str | None, auto_infer: bool = False):
     if rule:
         # Apply rule directly - don't duplicate first
         # The rule application will create a new line based on currentRacket
         if substitution is not None and substitution != "":
             target.addProofLine(currentRacket, rule, int(startPosition or 0), substitution)
         else:
-            target.addProofLine(currentRacket, rule, int(startPosition or 0))
+            target.addProofLine(currentRacket, rule, int(startPosition or 0), auto_infer=auto_infer)
     else:
         # goal/premise line only
         target.addProofLine(currentRacket)
@@ -1168,8 +1168,17 @@ def apply_rule(request):
                                     target.ruleSet['apply'][_lemma_name] = _lemma_rule
                                     _lemma_injected = True
 
+        # Read support_value_mapping from DB (HIGH support = auto-infer params)
+        _auto_infer = False
+        if proof_id:
+            try:
+                _db_ind_proof = InductionProof.objects.get(id=proof_id)
+                _auto_infer = bool(_db_ind_proof.support_value_mapping)
+            except InductionProof.DoesNotExist:
+                pass
+
         if not target.errLog:
-            _apply_line(target, currentRacket, rule, startPosition, substitution)
+            _apply_line(target, currentRacket, rule, startPosition, substitution, auto_infer=_auto_infer)
 
         # Remove temporarily injected lemma rule
         if _lemma_injected and _lemma_name and _lemma_name in target.ruleSet.get('apply', {}):
@@ -1606,7 +1615,7 @@ def check_completion(request):
         return Response({
             "isComplete": is_complete,
             "label": label,
-            "overallComplete": is_complete
+            "overallComplete": overall_complete
         }, status=status.HTTP_200_OK)
     except Exception as e:
         traceback.print_exc()

@@ -21,6 +21,8 @@ Runs all test modules in sequence:
 - test_manual_persistence: Manual proof line DB persistence
 - equational_reasoning_api.tests: EquationalProof model and serializer tests
 - equational_reasoning_api.test_integration: Equational reasoning API integration
+- equational_reasoning_api.test_set_parameters: ER set-parameters feature tests
+- equational_reasoning_api.test_value_mapping: Value Mapping (High support) engine and API tests
 
 Run with: python manage.py test proofs
 """
@@ -252,6 +254,10 @@ totalFails += (1 if manual_persistence_failures else 0)
 eq_set_params_cmd = [sys.executable, "manage.py", "test", "equational_reasoning_api.test_set_parameters"]
 eq_set_params_failures = run_command("ER set-parameters feature tests", eq_set_params_cmd, cwd=root_dir)
 totalFails += (1 if eq_set_params_failures else 0)
+
+eq_value_mapping_cmd = [sys.executable, "manage.py", "test", "equational_reasoning_api.test_value_mapping"]
+eq_value_mapping_failures = run_command("Value Mapping (High support) engine and API tests", eq_value_mapping_cmd, cwd=root_dir)
+totalFails += (1 if eq_value_mapping_failures else 0)
 
 ind_set_params_cmd = [sys.executable, "manage.py", "test", "induction_api.test_set_parameters"]
 ind_set_params_failures = run_command("Induction set-parameters feature tests", ind_set_params_cmd, cwd=root_dir)

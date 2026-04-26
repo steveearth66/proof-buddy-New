@@ -907,7 +907,7 @@ const InductionRacket = () => {
         const newField = {
           racket: fullRacket.racket || "",
           jsonTree: fullRacket.jsonTree || {},
-          rule: ruleFromFooter,
+          rule: fullRacket.rule || ruleFromFooter,
           startPosition: previousStartPosition,
           selectedNode: previousStartPosition,
           resultNode: fullRacket.resultNodeId ?? 0,
