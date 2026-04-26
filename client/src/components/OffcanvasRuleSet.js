@@ -1,21 +1,65 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import OffCanvas from "react-bootstrap/Offcanvas";
 import Table from "react-bootstrap/Table";
 import ruleSet from "./RuleSet";
 import Form from "react-bootstrap/Form";
 
 /**
- *  OffcanvasRuleSet component that displays at the bottom of the application in the "er-racket" page when the user presses the "View Rule Set" Button.
+ * OffcanvasRuleSet component that displays at the bottom of the application in the "er-racket" page when the user presses the "View Rule Set" Button.
  * It uses react-bootstrap's components.
  */
-
-const OffcanvasRuleSet = ({ isActive, toggleFunction }) => {
-  const [filteredRules, setFilteredRules] = useState(ruleSet());
-  const [evalRules, applyRules] = filteredRules;
-  /* Present list of Rules for View Rule Set Offcanvas */
-
+const OffcanvasRuleSet = ({ isActive, toggleFunction, visibleRules = {}, supportRuleSet = false }) => {
+  const [searchTerm, setSearchTerm] = useState("");
   const [height, setHeight] = useState(window.innerHeight * 0.3);
   const [isResizing, setIsResizing] = useState(false);
+
+  // Dynamically calculate the rules based on visibility parameters AND search terms
+  const [evalRules, applyRules] = useMemo(() => {
+    const [allEval, allRewrite] = ruleSet();
+
+    if (supportRuleSet === false) {
+      return [allEval, allRewrite];
+    }
+    
+    // 1. Check if the database value represents "empty / all selected"
+    let isEmpty = false;
+    if (!visibleRules) {
+      isEmpty = true;
+    } else if (Array.isArray(visibleRules)) {
+      isEmpty = visibleRules.length === 0;
+    } else if (typeof visibleRules === 'object') {
+      isEmpty = Object.keys(visibleRules).length === 0;
+    }
+
+    // 2. Filter by instructor visibility
+    let allowedEval = allEval;
+    let allowedRewrite = allRewrite;
+
+    if (!isEmpty) {
+      const evalKeys = visibleRules.eval || [];
+      const rewriteKeys = visibleRules.rewrite || [];
+      
+      allowedEval = allEval.filter(r => evalKeys.includes(r.procedure));
+      allowedRewrite = allRewrite.filter(r => rewriteKeys.includes(r.procedure));
+    }
+
+    // 3. Filter by user search term
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      const searchFilter = (rule) => {
+        return (
+          (rule.name ? rule.name.toLowerCase().includes(term) : false) ||
+          String(rule.procedure).toLowerCase().includes(term) ||
+          String(rule.highlight).toLowerCase().includes(term) ||
+          String(rule.result).toLowerCase().includes(term)
+        );
+      };
+      
+      return [allowedEval.filter(searchFilter), allowedRewrite.filter(searchFilter)];
+    }
+
+    return [allowedEval, allowedRewrite];
+  }, [visibleRules, searchTerm]);
 
   const startResizing = useCallback((e) => {
     e.preventDefault();
@@ -56,25 +100,7 @@ const OffcanvasRuleSet = ({ isActive, toggleFunction }) => {
   }, [isResizing, resize, stopResizing]);
 
   const onSearch = (e) => {
-    const searchValue = e.target.value.toLowerCase();
-    if (!searchValue) {
-      setFilteredRules(ruleSet());
-      return;
-    }
-
-    const rules = ruleSet();
-    const filteredRules = [];
-    rules.forEach(ruleSet => 
-      filteredRules.push(ruleSet.filter((rule) => {
-        return (
-          (rule.name ? rule.name.toLowerCase().includes(searchValue.toLowerCase()) : false) ||
-              String(rule.procedure).toLowerCase().includes(searchValue.toLowerCase()) ||
-              String(rule.highlight).toLowerCase().includes(searchValue.toLowerCase()) ||
-              String(rule.result).toLowerCase().includes(searchValue.toLowerCase())
-        );
-      }))
-    );
-    setFilteredRules(filteredRules);
+    setSearchTerm(e.target.value);
   };
 
   return (
@@ -117,44 +143,54 @@ const OffcanvasRuleSet = ({ isActive, toggleFunction }) => {
           <strong>Examples:</strong> "eval +", "rewrite first-cons", "apply F" (where F is a definition)
         </p>
         <p>Note: any rule can be done in “reverse” (i.e. selecting result to get the highlight) by using the “Substitution” button</p>
-        <h3>"Eval" Procedures:</h3>
-        <Table striped bordered hover>
-          <thead>
-            <tr>
-              <th>Name/Procedure</th>
-              <th>Highlight</th>
-              <th>Result</th>
-            </tr>
-          </thead>
-          <tbody>
-            {evalRules.map((rule, index) => (
-              <tr key={index}>
-                <td>{rule.procedure}</td>
-                <td>{rule.highlight}</td>
-                <td>{rule.result}</td>
+        {evalRules.length > 0 && (
+          <>
+          <h3>"Eval" Procedures:</h3>
+        
+          <Table striped bordered hover>
+            <thead>
+              <tr>
+                <th>Name/Procedure</th>
+                <th>Highlight</th>
+                <th>Result</th>
               </tr>
-            ))}
-          </tbody>
-        </Table>
-        <h3>Rewrite Rules:</h3>
-        <Table striped bordered hover>
-          <thead>
-            <tr>
-              <th style={{ width: "10%" }}>Rule Name</th>
-              <th>Highlight</th>
-              <th>Result</th>
-            </tr>
-          </thead>
-          <tbody>
-            {applyRules.map((rule, index) => (
-              <tr key={index}>
-                <td>{rule.procedure}</td>
-                <td>{rule.highlight}</td>
-                <td>{rule.result}</td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
+            </thead>
+            <tbody>
+              {evalRules.map((rule, index) => (
+                <tr key={index}>
+                  <td>{rule.procedure}</td>
+                  <td>{rule.highlight}</td>
+                  <td>{rule.result}</td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+          </>
+        )}
+        {applyRules.length > 0 && (
+          <>
+            <h3>Rewrite Rules:</h3>
+          
+            <Table striped bordered hover>
+              <thead>
+                <tr>
+                  <th style={{ width: "10%" }}>Rule Name</th>
+                  <th>Highlight</th>
+                  <th>Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                {applyRules.map((rule, index) => (
+                  <tr key={index}>
+                    <td>{rule.procedure}</td>
+                    <td>{rule.highlight}</td>
+                    <td>{rule.result}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </>
+        )}
       </OffCanvas.Body>
     </OffCanvas>
   );
