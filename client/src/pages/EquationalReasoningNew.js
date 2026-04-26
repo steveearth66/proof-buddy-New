@@ -2520,66 +2520,71 @@ const handleRuleKeyDown = (e) => {
           </Button>
           <Button variant="danger" onClick={async () => {
             setShowClearConfirm(false);
-            const caseKey = 'base';
             const lineNum = parseInt(userRow.num, 10);
             
-            // Reset proof status
-            setProofStatus(prev => ({ ...prev, [caseKey]: null }));
+            // Reset proof status since the proof has changed
+            setProofStatus(prev => ({ ...prev, base: null }));
             
             try {
-                // Call backend to clear line in database and reset completion flags
-                await equationalService.deleteLine('base', showSide, lineNum);
+                // 1. Call backend to clear line in database
+                await equationalService.deleteLine(showSide, lineNum);
                 
-                // Update local state to clear the line
-                const targetFields = racketRuleFields;
-                
-                const updatedFields = { ...targetFields };
-                updatedFields[showSide] = [...updatedFields[showSide]];
-                
-                // Clear the line at lineNum index
-                updatedFields[showSide][lineNum] = {
-                    racket: '',
-                    jsonTree: {},
-                    rule: '',
-                    startPosition: 0,
-                    selectedNode: 0,
-                    resultNode: 0,
-                    deleted: false
-                };
-                
-                // Clear result-highlight on next line if it exists
-                if (updatedFields[showSide][lineNum + 1]) {
-                    updatedFields[showSide][lineNum + 1] = {
-                    ...updatedFields[showSide][lineNum + 1],
-                    rule: '',
-                    resultNode: 0
+                // 2. Update local state using the functional setter to ensure we have latest state
+                setRacketRuleFields(prevFields => {
+                    const newSideArray = [...prevFields[showSide]];
+                    
+                    // Clear the specific line
+                    newSideArray[lineNum] = {
+                        ...EMPTY_INITIAL_FIELD,
+                        racket: '',
+                        jsonTree: {},
+                        rule: '',
+                        startPosition: 0,
+                        selectedNode: 0,
+                        resultNode: 0,
+                        deleted: false
                     };
-                }
-                
-                // Clear selectedNode on previous line if it exists and isn't premise
-                if (lineNum > 0 && updatedFields[showSide][lineNum - 1]) {
-                    updatedFields[showSide][lineNum - 1] = {
-                    ...updatedFields[showSide][lineNum - 1],
-                    selectedNode: 0
+                    
+                    // Clear result-highlight on NEXT line (since the rule producing it was deleted)
+                    if (newSideArray[lineNum + 1]) {
+                        newSideArray[lineNum + 1] = {
+                            ...newSideArray[lineNum + 1],
+                            resultNode: 0
+                        };
+                    }
+                    
+                    // Clear selectedNode on PREVIOUS line (since the rule it targeted was deleted)
+                    if (lineNum > 0 && newSideArray[lineNum - 1]) {
+                        newSideArray[lineNum - 1] = {
+                            ...newSideArray[lineNum - 1],
+                            selectedNode: 0
+                        };
+                    }
+
+                    return {
+                        ...prevFields,
+                        [showSide]: newSideArray
                     };
+                });
+
+                // 3. Handle premise-specific logic if clearing line 1
+                if (lineNum === 1) {
+                    if (showSide === "LHS") {
+                        setLeftPremise(prev => ({ ...prev, selectedNode: 0 }));
+                    } else {
+                        setRightPremise(prev => ({ ...prev, selectedNode: 0 }));
+                    }
                 }
-              
-                // Update the appropriate state
-                setLeftPremise(prev => ({
-                    ...prev,
-                    racket: formValues.lHSGoal
-                }));
-                setRightPremise(prev => ({
-                    ...prev,
-                    racket: formValues.rHSGoal
-                }));
+
+                toast.success(`Line ${lineNum} cleared`);
               
             } catch (e) {
-              toast.error('Failed to clear line');
+                console.error(e);
+                toast.error('Failed to clear line');
             }
-          }}>
+        }}>
             Yes
-          </Button>
+        </Button>
         </Modal.Footer>
       </Modal>
 
