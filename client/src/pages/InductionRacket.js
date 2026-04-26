@@ -127,6 +127,8 @@ const InductionRacket = () => {
   const [currentLHS, currentRHS] = useCurrentRacketValues(racketRuleFields, formValues, isGoalChecked);
   const [lhsValue, setLhsValue] = useState("");
   const [rhsValue, setRhsValue] = useState("");
+  const [lhsHidden, setLhsHidden] = useState(false);
+  const [rhsHidden, setRhsHidden] = useState(false);
   const [inductiveHypothesisLHS, setInductiveHypothesisLHS] = useState("");
   const [inductiveHypothesisRHS, setInductiveHypothesisRHS] = useState("");
   const [isOffcanvasActive, toggleOffcanvas] = useOffcanvas();
@@ -414,8 +416,14 @@ const InductionRacket = () => {
     // Set footer rule initially to what the field has
     if (paddedRowNum !== "000") {
       // Array index now equals line number, so use userIndex directly
-      const field = racketRuleFields[showSide]?.[userIndex];
-      setFooterRule(field?.rule || "");
+      const field = (racketRuleFields?.[showSide] || [])[userIndex];
+      
+      // Only set the rule if it's NOT hidden
+      if (field?.hide_justification) {
+        setFooterRule("");  // Keep it blank if hidden
+      } else {
+        setFooterRule(field?.rule || "");
+      }
     } else {
       setFooterRule("Premise");
     }
@@ -484,6 +492,8 @@ const InductionRacket = () => {
             substitution: line.substitution || '',
             jsonTree: line.jsonTree || {},
             resultNode: line.resultNode || 0,
+            hide_expression: line.hide_expression || false,
+            hide_justification: line.hide_justification || false,
             deleted: false
           };
         });
@@ -758,13 +768,20 @@ const InductionRacket = () => {
 
     try {
       let ruleFromFooter = "";
+      let expressionFromFooter = "";
       let previousStartPosition = 0;
       let previousRacketValue = "";
       let currentIndex = undefined;
+      let studentSelectedNode = 0;
 
       if (isBound) {
         const userIndex = getPadIndex(userRow.num);
         ruleFromFooter = userRow.num === "000" ? "Premise" : footerRule;
+
+        // --- FOOTER EXPRESSION REFERENCE ---
+        if (footerPadRef.current) {
+            expressionFromFooter = footerPadRef.current.getEquationValue() || "";
+        }
 
         if (userRow.num !== "000") {
           const previousRowIndex = userIndex - 1;
@@ -785,6 +802,7 @@ const InductionRacket = () => {
             const fromPad = padRefs.current[previousRowIndex]?.getStartPosition();
             previousStartPosition = fromField ?? fromPad ?? 0;
           }
+          studentSelectedNode = previousStartPosition;
           currentIndex = userIndex; // index in array now equals line number
         }
       }
@@ -792,6 +810,7 @@ const InductionRacket = () => {
       // Validate rule is entered
       if (!ruleFromFooter || ruleFromFooter.trim() === '') {
         setFooterRuleError('Must enter a rule');
+        isProcessingRef.current = false;
         return;
       }
 
@@ -803,6 +822,55 @@ const InductionRacket = () => {
         updateShowSubstitution();
         return;
       }
+
+       // --- VALIDATION BLOCK ---
+            const boundField = racketRuleFields?.[showSide][currentIndex];
+            const hasHiddenRule = boundField?.hide_justification || false;
+            const hasHiddenExpression = boundField?.hide_expression || false;
+      
+            if (hasHiddenRule || hasHiddenExpression) {
+              const validationPayload = {
+                side: showSide,
+                case: isAnchor ? "base" : "leap",
+                lineNumber: currentIndex,
+                studentRule: ruleFromFooter, // Sending the Rule
+                studentExpression: expressionFromFooter, // Sending the Expression
+                studentSelectedNode: studentSelectedNode // Sending the Selection
+              };
+      
+              try {
+                const validationResult = await inductionService.validateHiddenField(validationPayload);
+                
+                if (validationResult.errors && validationResult.errors.length > 0) {
+                  validationResult.errors.forEach(error => toast.error(error));
+                  isProcessingRef.current = false;
+                  return;
+                }
+                
+                toast.success(validationResult.message || "Correct!");
+                
+                setRacketRuleFields(prev => {
+                  const updated = { ...prev };
+                  if (updated[showSide] && updated[showSide][currentIndex]) {
+                    updated[showSide][currentIndex] = {
+                      ...updated[showSide][currentIndex],
+                      hide_justification: validationResult.hide_justification,
+                      hide_expression: validationResult.hide_expression
+                    };
+                  }
+                  return updated;
+                });
+                
+                setFooterRule(boundField.rule);
+                unbindFooter();
+                return;
+                
+              } catch (error) {
+                toast.error('Error validating your answer.');
+                isProcessingRef.current = false;
+                return;
+              }
+            }
 
       // Validate payload before sending
       if (!previousRacketValue || previousRacketValue.trim() === '') {
@@ -1119,9 +1187,11 @@ const InductionRacket = () => {
     
     const lastLhsLine = findLastNonEmptyLine(lhsLines);
     const lastRhsLine = findLastNonEmptyLine(rhsLines);
-    
     setLhsValue(lastLhsLine?.racket || targetPremises.LHS?.racket || '');
+    setLhsHidden((currentUserType.is_student && lastLhsLine?.hide_expression) || false);
     setRhsValue(lastRhsLine?.racket || targetPremises.RHS?.racket || '');
+    setRhsHidden((currentUserType.is_student && lastRhsLine?.hide_expression) || false);
+
   }, [proofStarted, isAnchor, baseRacketFields, leapRacketFields, basePremises, leapPremises]);
 
   useEffect(() => {
@@ -1824,7 +1894,8 @@ const InductionRacket = () => {
     handleRowNumberClick,
     leftPremise,
     rightPremise,
-    caseType
+    caseType,
+    currentUserType
   }) {
     const isLHS = side === "LHS";
     // Since array index now equals database line_number, use index directly as padIndex
@@ -1881,6 +1952,8 @@ const InductionRacket = () => {
 
     // Extract resultNode from current line (shows what changed in this line's transformation)
     const resultNodeValue = isPremise ? undefined : (field && field.resultNode);
+    const hideExpression = field?.hide_expression || false;
+    const hideJustification = field?.hide_justification || false;
 
     return (
       <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? `premise-${caseType}-${side}` : `${side}-field-${padIndex}`}>
@@ -1910,6 +1983,12 @@ const InductionRacket = () => {
             isRuleInvalid={isRuleInvalid}
             ruleValidationError={ruleValidationError}
             isEditRow={false}
+            showEyeButtons={true}
+            currentUserType={currentUserType}
+            hideExpression={hideExpression}
+            hideJustification={hideJustification}
+            onRuleHiddenToggle={() => handleRuleHiddenToggle(side, index)}
+            onExpressionHiddenToggle={() => handleExpressionHiddenToggle(side, index)} 
           />
         </Col>
       </Row>
@@ -1929,11 +2008,14 @@ const InductionRacket = () => {
       if (!equation) {
         return <div className="alert alert-warning">No equation available</div>;
       }
+      const field = racketRuleFields?.[showSide][padIndex];
+      const isExpressionHidden = field.hide_expression || false;
+      const displayEquation = isExpressionHidden ? "" : equation;
 
       return (
         <PersistentPad
           ref={footerPadRef}
-          equation={equation}
+          equation={displayEquation}
           onHighlightChange={() => {}}
           side={showSide}
           jsonTree={showSide === "LHS" ? leftPremise?.jsonTree : rightPremise?.jsonTree}
@@ -1945,6 +2027,8 @@ const InductionRacket = () => {
           isRuleReadOnly={true}
           rulePlaceholder="Rule"
           isEditRow={true}
+          currentUserType={currentUserType}
+          hideExpression={isExpressionHidden}
         />
       );
     } else {
@@ -1953,11 +2037,23 @@ const InductionRacket = () => {
       if (!field) return null;
 
       const calculatedStartPosition = field.selectedNode || field.startPosition || 0;
+      
+      // Check if fields are hidden
+      const isExpressionHidden = field.hide_expression || false;
+      const isRuleHidden = field.hide_justification || false;
+      
+      // If hidden, blank out the display value
+      // The actual value stays in memory for validation
+      const displayEquation = isExpressionHidden ? "" : field.racket;
+      const displayJsonTree = isExpressionHidden ? {} : (field.jsonTree || jsonTreeRep[showSide]);
+      
+      // For the editable rule field: show blank if hidden, otherwise show current value
+      const displayRule = isRuleHidden ? "" : footerRule;
 
       return (
         <PersistentPad
           ref={footerPadRef}
-          equation={field.racket}
+          equation={displayEquation}
           onHighlightChange={() => {}}
           side={showSide}
           jsonTree={field.jsonTree || jsonTreeRep[showSide]}
@@ -1975,6 +2071,8 @@ const InductionRacket = () => {
           isRuleInvalid={!!footerRuleError}
           ruleValidationError={footerRuleError}
           isEditRow={true}
+          currentUserType={currentUserType}
+          hideExpression={isExpressionHidden}
         />
       );
     }
@@ -1997,6 +2095,58 @@ const InductionRacket = () => {
     } else {
       const menu = document.getElementById(menuId);
       if (menu) menu.classList.remove('is-positioned');
+    }
+  };
+
+  const handleRuleHiddenToggle = async (side, index) => {
+    try {
+      const result = await inductionService.toggleVisibility({
+        side: side,
+        case: isAnchor ? 'base' : 'leap',
+        lineNumber: index,
+        field: 'justification'
+      });
+
+      const actualStatus = result.new_value; 
+
+      setRacketRuleFields(prev => ({
+        ...prev,
+        [side]: prev[side].map((field, idx) => 
+          idx === index ? { ...field, hide_justification: actualStatus } : field
+        )
+      }));
+
+      return actualStatus; 
+
+    } catch (error) {
+      toast.error("Database update failed.");
+      throw error;
+    }
+  };
+
+  const handleExpressionHiddenToggle = async (side, index) => {
+    try {
+      const result = await inductionService.toggleVisibility({
+        side: side,
+        case: isAnchor ? 'base' : 'leap',
+        lineNumber: index,
+        field: 'expression'
+      });
+
+      const actualStatus = result.new_value;
+
+      setRacketRuleFields(prev => ({
+        ...prev,
+        [side]: prev[side].map((field, idx) => 
+          idx === index ? { ...field, hide_expression: actualStatus } : field
+        )
+      }));
+
+      return actualStatus;
+
+    } catch (error) {
+      toast.error("Failed to update expression visibility");
+      throw error;
     }
   };
 
@@ -2636,7 +2786,8 @@ const InductionRacket = () => {
                       handleRowNumberClick,
                       leftPremise,
                       rightPremise,
-                      caseType: indCaseKey
+                      caseType: indCaseKey,
+                      currentUserType: currentUserType
                     });
                   })}
                   {showContinue(playState, indCaseKey, showSide, indLastReal) && (

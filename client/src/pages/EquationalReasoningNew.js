@@ -383,6 +383,8 @@ const EquationalReasoningNew = () => {
 
   const [lhsValue, setLhsValue] = useState("");
   const [rhsValue, setRhsValue] = useState("");
+  const [lhsHidden, setLhsHidden] = useState(false);
+  const [rhsHidden, setRhsHidden] = useState(false);
   const [isOffcanvasActive, toggleOffcanvas] = useOffcanvas();
   const [showDefinitionsWindow, toggleDefinitionsWindow] =
     useDefinitionsWindow();
@@ -479,6 +481,17 @@ const EquationalReasoningNew = () => {
 
         if (proofData.hasProof) {
           console.log("[Init] Proof found. Restoring UI...");
+          if (proofData.definitions && proofData.definitions.length > 0) {
+            const currentDefs = JSON.parse(sessionStorage.getItem('definitions')) || [];
+            
+            const tempDefinitions = (proofData.definitions || []).filter(
+              dbDef => !currentDefs.some(d => d.label === dbDef.label && d.id === dbDef.id)
+            );
+            sessionStorage.setItem('temp_definitions', JSON.stringify(tempDefinitions));
+          }
+          else {
+                  sessionStorage.removeItem('temp_definitions');
+          }
           
           // A. Restore Form Header
           setFormValues(prev => ({
@@ -586,7 +599,7 @@ const EquationalReasoningNew = () => {
 
   // Initialize jsonTreeRep as empty object for passing to renderPersistentPadRow
   // It gets populated by the backend when goals are checked
-//   const [jsonTreeRep, setJsonTreeRep] = useState({ LHS: {}, RHS: {} });
+  // const [jsonTreeRep, setJsonTreeRep] = useState({ LHS: {}, RHS: {} });
 
   const checkCurrentProofStatus = async () => {
     try {
@@ -896,6 +909,7 @@ const EquationalReasoningNew = () => {
       await equationalService.clearProof();
       sessionStorage.removeItem('erProofActive');
       sessionStorage.removeItem('current_proof_id');
+      sessionStorage.removeItem('temp_definitions');
       toast.success('Ready to start a new proof!');
       window.location.reload();
     } catch (error) {
@@ -982,12 +996,13 @@ const handleRuleKeyDown = (e) => {
     }
   };
 
-const handleGenerateAndCheck = async () => {
+  const handleGenerateAndCheck = async () => {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
 
     try {
       let ruleFromFooter = "";
+      let expressionFromFooter = "";
       let previousStartPosition = 0;
       let previousRacketValue = "";
       let currentIndex = undefined;
@@ -996,6 +1011,11 @@ const handleGenerateAndCheck = async () => {
       if (isBound) {
         const userIndex = getPadIndex(userRow.num);
         ruleFromFooter = userRow.num === "000" ? "Premise" : footerRule;
+
+        // --- FOOTER EXPRESSION REFERENCE ---
+        if (footerPadRef.current) {
+            expressionFromFooter = footerPadRef.current.getEquationValue() || "";
+        }
 
         if (userRow.num !== "000") {
           const previousRowIndex = userIndex - 1;
@@ -1013,13 +1033,14 @@ const handleGenerateAndCheck = async () => {
             const fromPad = padRefs.current[previousRowIndex]?.getStartPosition();
             previousStartPosition = fromField ?? fromPad ?? 0;
           }
-          studentSelectedNode = previousStartPosition; // Capture selection!
+          studentSelectedNode = previousStartPosition;
           currentIndex = userIndex;
         }
       }
 
       if (!ruleFromFooter || ruleFromFooter.trim() === '') {
         setFooterRuleError('Must enter a rule');
+        isProcessingRef.current = false;
         return;
       }
       setFooterRuleError('');
@@ -1027,6 +1048,7 @@ const handleGenerateAndCheck = async () => {
       // If user typed "rewrite math", open Substitution modal with rule pre-filled
       if (ruleFromFooter.trim().toLowerCase() === 'rewrite math') {
         updateShowSubstitution();
+        isProcessingRef.current = false;
         return;
       }
 
@@ -1040,6 +1062,7 @@ const handleGenerateAndCheck = async () => {
           side: showSide,
           lineNumber: currentIndex,
           studentRule: ruleFromFooter, // Sending the Rule
+          studentExpression: expressionFromFooter, // Sending the Expression
           studentSelectedNode: studentSelectedNode // Sending the Selection
         };
 
@@ -1048,13 +1071,12 @@ const handleGenerateAndCheck = async () => {
           
           if (validationResult.errors && validationResult.errors.length > 0) {
             validationResult.errors.forEach(error => toast.error(error));
+            isProcessingRef.current = false;
             return;
           }
           
           toast.success(validationResult.message || "Correct!");
           
-          // Update both flags based on backend response
-          // This handles cases where proving the rule unhides the expression too
           setRacketRuleFields(prev => {
             const updated = { ...prev };
             if (updated[showSide] && updated[showSide][currentIndex]) {
@@ -1068,17 +1090,20 @@ const handleGenerateAndCheck = async () => {
           });
           
           setFooterRule(boundField.rule);
+          unbindFooter();
           return;
           
         } catch (error) {
           toast.error('Error validating your answer.');
+          isProcessingRef.current = false;
           return;
         }
       }
 
-      // EXISTING CODE: No hidden fields, proceed with normal generation
+      // No hidden fields, proceed with normal generation
       if (!previousRacketValue || previousRacketValue.trim() === '') {
         toast.error('No source expression found. Make sure the previous line has content.');
+        isProcessingRef.current = false;
         return;
       }
 
@@ -1134,13 +1159,16 @@ const handleGenerateAndCheck = async () => {
           const isEditingMiddle = typeof currentIndex === 'number' && currentIndex >= 0 && currentIndex < sideArray.length - 1;
 
           if (isEditingMiddle) {
+            // Replace the targeted middle line
             sideArray[currentIndex] = newField;
+            // Ensure there's a trailing blank line
             const endLast = sideArray[sideArray.length - 1];
             const endIsEmpty = endLast && endLast.racket === "" && endLast.rule === "";
             if (!endIsEmpty) {
               sideArray.push(EMPTY_INITIAL_FIELD);
             }
           } else {
+            // Editing the end
             const lastField = sideArray[sideArray.length - 1];
             const lastIsEmpty = lastField && lastField.racket === "" && lastField.rule === "";
             
@@ -1159,13 +1187,14 @@ const handleGenerateAndCheck = async () => {
           };
         });
 
+        // Unbind the footer after successful generation to reset UI state
         if (isBound) {
           unbindFooter();
         }
 
       } else {
         const message = (fullRacket && fullRacket.errors && fullRacket.errors[0]) || "Invalid rule";
-        toast.error(proofParams.support_errors ? message : "your latest command contains an error"); // support_errors suppression
+        toast.error(proofParams.support_errors ? message : "your latest command contains an error");
       }
     } finally {
       isProcessingRef.current = false;
@@ -1259,9 +1288,11 @@ const handleGenerateAndCheck = async () => {
     
     const lastLhsLine = findLastNonEmptyLine(lhsLines);
     const lastRhsLine = findLastNonEmptyLine(rhsLines);
-    
     setLhsValue(lastLhsLine?.racket || leftPremise.racket || '');
+    setLhsHidden((currentUserType.is_student && lastLhsLine?.hide_expression) || false);
     setRhsValue(lastRhsLine?.racket || rightPremise.racket || '');
+    setRhsHidden((currentUserType.is_student && lastRhsLine?.hide_expression) || false);
+
   }, [proofStarted, racketRuleFields, leftPremise, rightPremise]);
 
   useEffect(() => {
@@ -1589,8 +1620,8 @@ const handleGenerateAndCheck = async () => {
     const resultNodeValue = isPremise ? undefined : (field && field.resultNode);
     
     // NEW: Get visibility flags from field
-    const hideExpression = isPremise ? false : (field?.hide_expression || false);
-    const hideJustification = isPremise ? false : (field?.hide_justification || false);
+    const hideExpression = (field?.hide_expression || false);
+    const hideJustification = (field?.hide_justification || false);
 
     return (
       <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? `premise-${caseType}-${side}` : `${side}-field-${padIndex}`}>
@@ -1622,8 +1653,10 @@ const handleGenerateAndCheck = async () => {
             isEditRow={false}
             showEyeButtons={true}
             currentUserType={currentUserType}
-            hideExpression={hideExpression}           // NEW: Pass visibility flag
-            hideJustification={hideJustification}     // NEW: Pass visibility flag
+            hideExpression={hideExpression}
+            hideJustification={hideJustification}
+            onRuleHiddenToggle={() => handleRuleHiddenToggle(side, index)}
+            onExpressionHiddenToggle={() => handleExpressionHiddenToggle(side, index)}
           />
         </Col>
       </Row>
@@ -1643,6 +1676,9 @@ const handleGenerateAndCheck = async () => {
       if (!equation) {
         return <div className="alert alert-warning">No equation available</div>;
       }
+      const field = racketRuleFields?.[showSide][padIndex];
+      const isExpressionHidden = field.hide_expression || false;
+      const displayEquation = isExpressionHidden ? "" : equation;
 
       return (
         <PersistentPad
@@ -1659,6 +1695,8 @@ const handleGenerateAndCheck = async () => {
           isRuleReadOnly={true}
           rulePlaceholder="Rule"
           isEditRow={true}
+          currentUserType={currentUserType}
+          hideExpression={isExpressionHidden}
         />
       );
     } else {
@@ -1668,22 +1706,21 @@ const handleGenerateAndCheck = async () => {
 
       const calculatedStartPosition = field.selectedNode || field.startPosition || 0;
       
-      // NEW: Check if fields are hidden
-      const isExpressionHidden = field.hide_expression || false;
-      const isRuleHidden = field.hide_justification || false;
+      // Check if fields are hidden
+      const isExpressionHidden = field?.hide_expression || false;
+      const isRuleHidden = field?.hide_justification || false;
       
-      // NEW: If hidden, blank out the display value (but keep field readonly)
+      // If hidden, blank out the display value
       // The actual value stays in memory for validation
       const displayEquation = isExpressionHidden ? "" : field.racket;
       const displayJsonTree = isExpressionHidden ? {} : (field.jsonTree || jsonTreeRep[showSide]);
       
       // For the editable rule field: show blank if hidden, otherwise show current value
       const displayRule = isRuleHidden ? "" : footerRule;
-
       return (
         <PersistentPad
           ref={footerPadRef}
-          equation={displayEquation}  // Blank if hidden, but still readonly
+          equation={displayEquation}  // Blank if hidden
           onHighlightChange={() => {}}
           side={showSide}
           jsonTree={displayJsonTree}  // Empty tree if hidden
@@ -1701,6 +1738,8 @@ const handleGenerateAndCheck = async () => {
           isRuleInvalid={!!footerRuleError}
           ruleValidationError={footerRuleError}
           isEditRow={true}
+          currentUserType={currentUserType}
+          hideExpression={isExpressionHidden}
         />
       );
     }
@@ -1732,6 +1771,56 @@ const handleGenerateAndCheck = async () => {
     } else {
       const menu = document.getElementById(menuId);
       if (menu) menu.classList.remove('is-positioned');
+    }
+  };
+
+  const handleRuleHiddenToggle = async (side, index) => {
+    try {
+      const result = await equationalService.toggleVisibility({
+        side: side,
+        lineNumber: index,
+        field: 'justification'
+      });
+
+      const actualStatus = result.new_value; 
+
+      setRacketRuleFields(prev => ({
+        ...prev,
+        [side]: prev[side].map((field, idx) => 
+          idx === index ? { ...field, hide_justification: actualStatus } : field
+        )
+      }));
+
+      return actualStatus; 
+
+    } catch (error) {
+      toast.error("Database update failed.");
+      throw error;
+    }
+  };
+
+  const handleExpressionHiddenToggle = async (side, index) => {
+    try {
+      const response = await equationalService.toggleVisibility({
+        side: side,
+        lineNumber: index,
+        field: 'expression'
+      });
+
+      const actualValue = response.new_value;
+
+      setRacketRuleFields(prev => ({
+        ...prev,
+        [side]: prev[side].map((field, idx) => 
+          idx === index ? { ...field, hide_expression: actualValue } : field
+        )
+      }));
+
+      return actualValue;
+
+    } catch (error) {
+      toast.error("Failed to update expression visibility");
+      throw error;
     }
   };
     
@@ -1790,7 +1879,9 @@ const handleGenerateAndCheck = async () => {
                         value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')}
                         readOnly
                         style={{ cursor: "not-allowed", border: 'none', height: '40px',
-                                  minWidth: `${Math.max((lhsValue?.length || 20), 20)}ch` }}
+                                  minWidth: `${Math.max((lhsValue?.length || 20), 20)}ch`,
+                                  WebkitTextSecurity: proofStarted && lhsHidden ? "disc" : "none" }}
+                        
                       />
                       <label>Current LHS</label>
                     </Form.Floating>
@@ -1809,7 +1900,8 @@ const handleGenerateAndCheck = async () => {
                         value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')}
                         readOnly
                         style={{ cursor: "not-allowed", border: 'none', height: '40px',
-                                  minWidth: `${Math.max((lhsValue?.length || 20), 20)}ch` }}
+                                  minWidth: `${Math.max((lhsValue?.length || 20), 20)}ch`,
+                                  WebkitTextSecurity: rhsHidden ? "disc" : "none" }}
                       />
                       <label>Current RHS</label>
                     </Form.Floating>
@@ -2100,7 +2192,12 @@ const handleGenerateAndCheck = async () => {
                             placeholder="Current LHS"
                             value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')}
                             readOnly
-                            style={{ cursor: "not-allowed", border: 'none', minWidth: `${Math.max(((lhsValue || currentLHS)?.length || 20), 20)}ch` }}
+                            style={{ 
+                              cursor: "not-allowed", 
+                              border: 'none', 
+                              minWidth: `${Math.max(((lhsValue || currentLHS)?.length || 20), 20)}ch`,
+                              WebkitTextSecurity: proofStarted && lhsHidden ? "disc" : "none"
+                           }}
                           />
                           <label htmlFor="eRProofCurrentLHS">Current LHS</label>
                         </Form.Floating>
@@ -2125,7 +2222,12 @@ const handleGenerateAndCheck = async () => {
                             placeholder="Current RHS"
                             value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')}
                             readOnly
-                            style={{ cursor: "not-allowed", border: 'none', minWidth: `${Math.max(((rhsValue || currentRHS)?.length || 20), 20)}ch` }}
+                            style={{ 
+                              cursor: "not-allowed", 
+                              border: 'none', 
+                              minWidth: `${Math.max(((rhsValue || currentRHS)?.length || 20), 20)}ch`,
+                              WebkitTextSecurity: proofStarted && rhsHidden ? "disc" : "none"
+                           }}
                           />
                           <label htmlFor="eRProofCurrentRHS">Current RHS</label>
                         </Form.Floating>

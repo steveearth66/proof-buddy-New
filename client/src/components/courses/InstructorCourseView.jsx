@@ -40,13 +40,16 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
     
     setIsAddingStudent(false);
 
-    if (result.success) {
+    if (result.status === 204) {
+      setStudentFeedback({ type: 'warning', message: 'Student is already in the course.' });
+    }
+    else if (result.success) {
         onUpdateCourse(result.data);
         setNewStudentEmail("");
         setStudentFeedback({ type: 'success', message: 'Student added successfully!' });
         setTimeout(() => setStudentFeedback(null), 3000);
     } else if (result.requires_disambiguation) {
-        // Catch the duplicates and show the UI!
+        // Catch the duplicates
         setStudentFeedback({ type: 'warning', message: result.message });
         setCandidateList(result.candidates);
     } else {

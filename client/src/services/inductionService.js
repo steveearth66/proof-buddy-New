@@ -246,6 +246,32 @@ const uploadProof = async (proofData) => {
   }
 };
 
+const validateHiddenField = async (data) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/validate-hidden-field`,
+      data
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, 'Error validating hidden field:');
+    throw error;
+  }
+};
+
+const toggleVisibility = async (data) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/toggle-visibility`,
+      data
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error toggling visibility:");
+    throw error;
+  }
+};
+
 const inductionService = {
   startInductionProof,
   clearInduction,
@@ -266,7 +292,9 @@ const inductionService = {
   checkNameConflict,
   setParameters,
   downloadProof,
-  uploadProof
+  uploadProof,
+  validateHiddenField,
+  toggleVisibility
 };
 
 export default inductionService;
