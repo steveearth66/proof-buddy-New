@@ -295,6 +295,15 @@ def apply_rule(request):
         # Reload proof lines from database
         reload_proof_lines_from_db(proof_obj, proof_id)
 
+        # Read support_value_mapping from DB (HIGH support = auto-infer params)
+        _auto_infer = False
+        if proof_id:
+            try:
+                _db_proof = EquationalProof.objects.get(id=proof_id)
+                _auto_infer = bool(_db_proof.support_value_mapping)
+            except EquationalProof.DoesNotExist:
+                pass
+
         side = data.get("side", "LHS")
         current_racket = data.get("currentRacket", "")
         rule = data.get("rule")
@@ -356,7 +365,7 @@ def apply_rule(request):
             if substitution is not None and substitution != "":
                 target.addProofLine(current_racket, rule, int(start_position or 0), substitution)
             else:
-                target.addProofLine(current_racket, rule, int(start_position or 0))
+                target.addProofLine(current_racket, rule, int(start_position or 0), auto_infer=_auto_infer)
 
         # Remove temporarily injected lemma rule
         if _lemma_injected and _lemma_name and _lemma_name in target.ruleSet.get('apply', {}):
