@@ -136,7 +136,7 @@ class TwoSidedProof(ProofComponent):
             raise ValueError("Invalid side literal: side must be either 'LHS' or 'RHS'")
         self.currentSide = self.LHS if side == 'LHS' else self.RHS
     
-    def checkComplete(self):
+    def checkComplete(self, is_student):
         """
         Check if proof is complete:
         - Last non-empty lines of LHS and RHS must be the same
@@ -146,7 +146,6 @@ class TwoSidedProof(ProofComponent):
         """
         lhs_lines = self.LHS.proofLines
         rhs_lines = self.RHS.proofLines
-        
         # Helper to check if a line is blank
         def is_blank(line):
             expr_blank = not line.exprTree or not str(line.exprTree).strip()
@@ -203,17 +202,15 @@ class TwoSidedProof(ProofComponent):
                 self.isComplete = False
                 return False
 
-        # --- NEW CHECK: Fail if ANY non-blank line is hidden ---
         for line in lhs_lines:
-            if not is_blank(line) and is_hidden(line):
+            if not is_blank(line) and (is_student and is_hidden(line)):
                 self.isComplete = False
                 return False
 
         for line in rhs_lines:
-            if not is_blank(line) and is_hidden(line):
+            if not is_blank(line) and (is_student and is_hidden(line)):
                 self.isComplete = False
                 return False
-        # -------------------------------------------------------
 
         self.isComplete = True
         return True

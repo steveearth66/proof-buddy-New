@@ -345,6 +345,9 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
   });
   const [definitionToEdit, setDefinitionToEdit] = useState({});
   const [edit, setEdit] = useState(false);
+  
+  const [tempDefinitions] = useState(JSON.parse(sessionStorage.getItem('temp_definitions')) || []);
+  const [tempGenerics] = useState(JSON.parse(sessionStorage.getItem('temp_generics')) || []);
 
   // Re-sync with sessionStorage whenever component becomes visible
   // (in case generics were updated while panel was closed)
@@ -630,6 +633,20 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
             />
           ))}
         </div>
+        {(tempDefinitions.length > 0) && (
+          <>
+            <p className="title">Proof definitions</p>
+            <div className="definitions">
+              {tempDefinitions.map((def, i) => (
+                <Definition 
+                  key={`temp-def-${def.id || i}`} 
+                  definition={{ ...def, applied: true }} 
+                  isLocked={true}
+                />
+              ))}
+            </div>
+          </>
+        )}
         <p className="title">Generics</p>
         <div className="generics">
           {generics.map((gen, index) => (
@@ -643,6 +660,20 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
             />
           ))}
         </div>
+        {tempGenerics.length > 0 && (
+          <>
+            <p className="title">Proof Generics</p>
+            <div className="generics">
+              {tempGenerics.map((gen, i) => (
+                <Generic 
+                  key={`temp-gen-${gen.id || i}`} 
+                  generic={{ ...gen, enabled: true }} 
+                  isLocked={true} 
+                />
+              ))}
+            </div>
+          </>
+        )}
         <div className="def-button-row">
           <Button variant="danger" onClick={toggleDefinitionsWindow}>
             Close Definitions Window

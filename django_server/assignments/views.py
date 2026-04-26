@@ -277,14 +277,17 @@ def add_student(request):
             status=status.HTTP_403_FORBIDDEN,
         )
 
+    students = None
     if "@" in student_identifier:
-        students = User.objects.filter(email=student_identifier, is_instructor=False)
-    else:
-        students = User.objects.filter(username=student_identifier, is_instructor=False)
+        students = User.objects.filter(email=student_identifier, is_instructor=False, is_superuser=False)
+        print(type(students))
+    # handle case where username may have '@' in it
+    if students is None or students.count() == 0:
+        students = User.objects.filter(username=student_identifier, is_instructor=False, is_superuser=False)
 
     if students.count() == 0:
         # Check if the user exists but is an instructor
-        if User.objects.filter(email=student_identifier).exists() or User.objects.filter(username=student_identifier).exists():
+        if User.objects.filter(email=student_identifier, is_superuser=False).exists() or User.objects.filter(username=student_identifier, is_superuser=False).exists():
              return Response({"message": "Instructors cannot be added as students."}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response({"message": "Student not found. Check the spelling and try again."}, status=status.HTTP_404_NOT_FOUND)
@@ -306,7 +309,13 @@ def add_student(request):
 
     # 4. Success: Only one student found
     student = students.first()
+
+    # do nothing if student already exists
+    if course.students.filter(pk=student.pk).exists():
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
     course.students.add(student)
+
     data = CourseSerializer(course).data
     return Response(data, status=status.HTTP_200_OK)
 
@@ -324,6 +333,7 @@ class InstructorLibraryView(APIView):
                 'id': proof.id,
                 'title': proof.name or "Untitled Equational Proof",
                 'type': 'equationalproof',
+                'displayType': 'Equational Reasoning',
                 'category': proof.tag or 'General'
             })
             
@@ -332,6 +342,7 @@ class InstructorLibraryView(APIView):
                 'id': proof.id,
                 'title': proof.name or "Untitled Induction Proof",
                 'type': 'inductionproof',
+                'displayType': 'Induction',
                 'category': proof.tag or 'General'
             })
             
@@ -454,6 +465,7 @@ def start_assignment_proof(request, assignment_id):
         cloned_proof.id = None
         cloned_proof.user = request.user  # The student now owns this copy
         cloned_proof.name = f"{getattr(cloned_proof, 'name', 'Untitled')} (Assignment Copy)"
+        cloned_proof.is_complete = False # force student proof to be marked incomplete in case instructor version was marked complete
         cloned_proof.save()
 
         # C. Clone the Proof Lines dynamically

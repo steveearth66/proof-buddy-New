@@ -110,6 +110,8 @@ def reload_proof_lines_from_db(proof_obj, proof_id):
                 proof_line.appliedRuleNodeId = line.selected_node
                 proof_line.resultNodeId = line.result_node
                 target.proofLines.append(proof_line)
+                proof_line.hide_expression = line.hide_expression
+                proof_line.hide_justification = line.hide_justification
     except Exception as e:
         print(f"Error reloading proof lines: {e}")
 
@@ -615,15 +617,17 @@ def check_completion(request):
     proof_obj, proof_id = get_or_set_equational_obj(user)
     
     try:
+        is_student = not user.is_instructor
+
         # Reload proof lines from database
         reload_proof_lines_from_db(proof_obj, proof_id)
         
         # Check if proof is mathematically complete (LHS = RHS)
-        is_mathematically_complete = proof_obj.checkComplete()
+        is_mathematically_complete = proof_obj.checkComplete(is_student)
         
         # Check if there are any hidden fields remaining
         has_hidden_fields = False
-        if proof_id:
+        if not user.is_instructor and proof_id:
             has_hidden_fields = EquationalProofLine.objects.filter(
                 proof_id=proof_id
             ).filter(
@@ -688,6 +692,19 @@ def get_proof_lines(request):
                 'errors': line.errors
             }
         
+        definitions_and_generics = proof.definition if proof.definition else []
+        definitions_data = []
+        generics_data = []
+        
+        for item in definitions_and_generics:
+            if item.get('is_generic'):
+                generics_data.append(item)
+            else:
+                item['applied'] = True
+                if 'def_type' in item and 'type' not in item:
+                    item['type'] = item.pop('def_type')
+                definitions_data.append(item)
+        
         return Response({
             "hasProof": True,
             "lhsAnchorGoal": proof.lhs_goal,
@@ -702,7 +719,9 @@ def get_proof_lines(request):
             "support_rule_set": proof.support_rule_set,
             "support_value_mapping": proof.support_value_mapping,
             "LHS": [format_line(line) for line in lhs_lines],
-            "RHS": [format_line(line) for line in rhs_lines]
+            "RHS": [format_line(line) for line in rhs_lines],
+            "definitions": definitions_data,
+            "generics": generics_data
         }, status=status.HTTP_200_OK)
         
     except EquationalProof.DoesNotExist:
@@ -748,7 +767,7 @@ def toggle_visibility(request):
         current_val = getattr(line_obj, attr_name, False)
         new_val = not current_val
         setattr(line_obj, attr_name, new_val)
-        
+
         # Save updated object to Cache
         save_equational_obj_to_cache(user, proof_obj, proof_id)
         
@@ -778,12 +797,11 @@ def toggle_visibility(request):
         traceback.print_exc()
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-# views.py - Fixed validation endpoint
 def normalize_whitespace(text):
     """Remove all whitespace for comparison"""
-    return re.sub(r'\s+', '', text.strip())
+    return re.sub(r'\s+', ' ', text.strip())
 
-def compare_racket_exact(student_input, actual_value):
+def compare_exact(student_input, actual_value):
     """
     Compare two racket expressions for exact match (whitespace-agnostic).
     Order matters: (+ 2 1) != (+ 1 2)
@@ -796,18 +814,14 @@ def compare_racket_exact(student_input, actual_value):
 def validate_hidden_field(request):
     """
     Validate student input against hidden field value.
-    Validates Rule + Selection OR Expression.
+    Validates Rule + Selection OR Expression via normalized AST JSON tree comparison.
     """    
-    # 1. Validate User Context
+    # 1. Validate User Context & Fetch Active Engine
     user = request.user
-    cached = cache.get(f"equational_obj_{user.username}")
+    proof_obj, proof_id = get_or_set_equational_obj(user)
     
-    if cached is None:
-        return Response({"error": "No active proof session found. Please reload."}, status=status.HTTP_400_BAD_REQUEST)
-    
-    proof_id = cached.get('proof_id')
     if not proof_id:
-        return Response({"error": "Proof ID missing from session."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "No active proof session found. Please reload."}, status=status.HTTP_400_BAD_REQUEST)
     
     try:
         # 2. Extract Data
@@ -818,7 +832,9 @@ def validate_hidden_field(request):
         student_selected = request.data.get('studentSelectedNode') 
         
         if not side or line_number is None:
-            return Response({"error": f"Missing parameters."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Missing parameters."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        target = proof_obj.LHS if side.upper() == 'LHS' else proof_obj.RHS
         
         # 3. Get Database Line
         try:
@@ -833,16 +849,14 @@ def validate_hidden_field(request):
         is_correct = False
         
         # 4. Logic: Master Key Validation (Rule + Selection)
-        # If the student provides the correct Rule AND Selection, they have "derived" the line.
-        # This grants permission to see BOTH the Expression and the Justification.
         if student_rule is not None:
-            rule_text_match = compare_racket_exact(student_rule, line.rule)
+            rule_text_match = compare_exact(student_rule, line.rule)
             
             selection_match = True
             if line.selected_node is not None and student_selected is not None:
                  if int(student_selected) != int(line.selected_node):
                      selection_match = False
-                     errors.append(f"Incorrect selection.")
+                     errors.append("Incorrect selection.")
 
             if rule_text_match and selection_match:
                 # Correct derivation! Reveal everything hidden on this line.
@@ -856,15 +870,35 @@ def validate_hidden_field(request):
             elif not rule_text_match:
                 errors.append("Rule does not match.")
         
-        # 5. Logic: Expression Direct Match (Optional fallback)
-        # Only runs if 'studentExpression' was explicitly sent (frontend usually doesn't for footer)
-        if student_expression is not None:
-            if compare_racket_exact(student_expression, line.racket):
-                line.hide_expression = False
-                changed = True
-                is_correct = True
-            elif not is_correct: # Don't add error if Rule check already succeeded
-                errors.append("Expression does not match.")
+        # 5. Logic: Expression Tree Match
+        if student_expression is not None and student_expression.strip() != "":
+            try:
+                # Use the target's actual ruleSet and generics so UDFs are parsed correctly
+                temp_line = ERProofLine(
+                    student_expression, 
+                    target.debug, 
+                    target.ruleSet, 
+                    generics=target.generics
+                )
+                
+                if not temp_line.errLog:
+                    raw_student_tree = makeJson(temp_line.exprTree)
+                    
+                    student_tree = json.loads(json.dumps(raw_student_tree))
+                    
+                    # 3. Deep compare
+                    if student_tree == line.json_tree:
+                        line.hide_expression = False
+                        changed = True
+                        is_correct = True
+                    else:
+                        errors.append("Expression does not match.")
+                else:
+                    errors.append("Syntax error in expression.")
+            except Exception as e:
+                errors.append(f"Error parsing expression: {str(e)}")
+        else:
+            errors.append("You must provide an expression.")
 
         if changed:
             line.save()
@@ -875,7 +909,6 @@ def validate_hidden_field(request):
         return Response({
             "isValid": is_correct,
             "errors": errors,
-            # Return current state of flags (so frontend updates correctly)
             "hide_expression": line.hide_expression,
             "hide_justification": line.hide_justification,
             "message": message

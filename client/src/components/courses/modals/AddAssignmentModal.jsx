@@ -124,7 +124,7 @@ export default function AddAssignmentModal({ show, onHide, courseId, onCreateAss
               <th style={{ width: '0%' }} className="text-center">Select</th>
               <th>Proof Name</th>
               <th>Category</th>
-              <th>Difficulty</th>
+              <th>Type</th>
             </tr>
           </thead>
           <tbody>
@@ -140,7 +140,7 @@ export default function AddAssignmentModal({ show, onHide, courseId, onCreateAss
                 </td>
                 <td className="fw-semibold">{proof.title}</td>
                 <td>{proof.category}</td>
-                <td>{proof.difficulty}</td>
+                <td>{proof.displayType}</td>
               </tr>
             ))}
           </tbody>
@@ -178,7 +178,7 @@ export default function AddAssignmentModal({ show, onHide, courseId, onCreateAss
               <th style={{ width: '0%' }}></th> 
               <th>Proof Name</th>
               <th>Category</th>
-              <th>Difficulty</th>
+              <th>Type</th>
               <th style={{ width: '0%' }} className="text-center">Action</th>
             </tr>
           </thead>
@@ -197,7 +197,7 @@ export default function AddAssignmentModal({ show, onHide, courseId, onCreateAss
                   <td className="text-center text-muted"><i className="fa-solid fa-grip-vertical"></i></td>
                   <td className="fw-semibold">{proof.title}</td>
                   <td>{proof.category}</td>
-                  <td>{proof.difficulty}</td>
+                  <td>{proof.displayType}</td>
                   <td className="text-center">
                     <OverlayTrigger placement="left" overlay={<Tooltip id={`tooltip-remove-${proof.id}`}>Remove From Assignment</Tooltip>}>
                       <Button variant="outline-danger" size="sm" onClick={() => handleRemoveProof(proof.id)}>

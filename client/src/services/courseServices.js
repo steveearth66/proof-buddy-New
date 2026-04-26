@@ -80,7 +80,7 @@ const addStudent = async ({ student, course }) => {
     try {
         const data = { student, course };
         const response = await axiosInstance.post(`${API_GATEWAY}/add-student`, data);
-        return { success: true, data: response.data }; 
+        return { success: true, data: response.data, status: response.status }; 
     } catch (error) {
         // Catch the duplicate email scenario
         if (error.response?.status === 409) {
