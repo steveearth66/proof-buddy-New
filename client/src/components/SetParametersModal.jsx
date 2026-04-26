@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Modal from "react-bootstrap/Modal";
 import Button from "react-bootstrap/Button";
-import ButtonGroup from "react-bootstrap/ButtonGroup";
+import ruleSet from "./RuleSet";
+import Form from "react-bootstrap/Form";
 
 const PARAM_ROWS = [
   { key: "support_errors",          label: "Error Messages" },
@@ -18,24 +19,94 @@ const DEFAULT_PARAMS = {
   support_ih: true,
   support_premise: true,
   support_rule_set: true,
-  support_value_mapping: true
+  support_value_mapping: true,
+  visible_rules: {} // Changed to an empty object
 };
 
-export default function SetParametersModal({ show, onHide, params, onSave }) {
+export default function SetParametersModal({ show, onHide, params, onSave, rulesInProof=[] }) {
   const [local, setLocal] = useState(DEFAULT_PARAMS);
+  const [view, setView] = useState("main"); 
+  const [evalRules, rewriteRules] = ruleSet();
 
-  // Sync local state whenever modal opens or params change
+  const getUniqueRules = (rules) => {
+    const uniqueMap = new Map();
+    rules.forEach(rule => {
+      if (!uniqueMap.has(rule.procedure)) {
+        uniqueMap.set(rule.procedure, rule);
+      }
+    });
+    return Array.from(uniqueMap.values());
+  };
+
+  const uniqueEval = useMemo(() => getUniqueRules(evalRules), [evalRules]);
+  const uniqueRewrite = useMemo(() => getUniqueRules(rewriteRules), [rewriteRules]);
+
+  const isRuleLocked = (ruleName, categoryKeyword) => {
+    const parts = ruleName.split(',').map(p => p.trim());
+
+    return rulesInProof.some(proofItem => {
+      const words = proofItem.trim().split(/\s+/);
+      
+      if (words.length === 1) {
+        return parts.includes(words[0]);
+      }
+
+      const itemKeyword = words[0];
+      const itemRulePart = words[1];
+
+      if (itemKeyword.toLowerCase() === categoryKeyword.toLowerCase()) {
+        return parts.includes(itemRulePart);
+      }
+      
+      return false;
+    });
+  };
+
   useEffect(() => {
-    if (show) {
-      setLocal({ ...DEFAULT_PARAMS, ...params });
+    if (!show) return;
+
+    const mergedParams = { ...DEFAULT_PARAMS, ...params };
+    let initialVisible = mergedParams.visible_rules;
+    
+    // Determine if the database value represents "empty / all selected"
+    // Handles both old arrays [] and new objects {}
+    let isEmpty = false;
+    if (!initialVisible) {
+      isEmpty = true;
+    } else if (Array.isArray(initialVisible)) {
+      isEmpty = initialVisible.length === 0;
+    } else if (typeof initialVisible === 'object') {
+      isEmpty = Object.keys(initialVisible).length === 0;
     }
-  }, [show, params]);
+
+    const allEvalNames = uniqueEval.map(r => r.procedure);
+    const allRewriteNames = uniqueRewrite.map(r => r.procedure);
+
+    // If empty, default to all. Otherwise, grab the specific arrays.
+    let evalVisible = isEmpty ? allEvalNames : (initialVisible.eval || []);
+    let rewriteVisible = isEmpty ? allRewriteNames : (initialVisible.rewrite || []);
+
+    // Ensure locked items are forced visible
+    const lockedEval = uniqueEval.filter(r => isRuleLocked(r.procedure, 'eval')).map(r => r.procedure);
+    const lockedRewrite = uniqueRewrite.filter(r => isRuleLocked(r.procedure, 'rewrite')).map(r => r.procedure);
+
+    setLocal({ 
+      ...mergedParams, 
+      visible_rules: {
+        eval: [...new Set([...evalVisible, ...lockedEval])],
+        rewrite: [...new Set([...rewriteVisible, ...lockedRewrite])]
+      }
+    });
+    setView("main");
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [show, params]); // Maintained strict dependencies
 
   const allHigh = PARAM_ROWS.every(r => local[r.key] === true);
   const allLow  = PARAM_ROWS.every(r => local[r.key] === false);
 
   const setAll = (value) => {
-    const next = {};
+    const next = { ...local };
     PARAM_ROWS.forEach(r => { next[r.key] = value; });
     setLocal(next);
   };
@@ -45,12 +116,146 @@ export default function SetParametersModal({ show, onHide, params, onSave }) {
   };
 
   const handleSave = () => {
-    onSave(local);
+    const evalCount = uniqueEval.length;
+    const rewriteCount = uniqueRewrite.length;
+
+    // Re-verify locks to ensure they are present before saving
+    const lockedEval = uniqueEval.filter(r => isRuleLocked(r.procedure, 'eval')).map(r => r.procedure);
+    const lockedRewrite = uniqueRewrite.filter(r => isRuleLocked(r.procedure, 'rewrite')).map(r => r.procedure);
+
+    const finalEval = [...new Set([...(local.visible_rules.eval || []), ...lockedEval])];
+    const finalRewrite = [...new Set([...(local.visible_rules.rewrite || []), ...lockedRewrite])];
+
+    // Check if ALL possible rules are selected across both categories
+    const isAllSelected = 
+      (evalCount > 0 || rewriteCount > 0) && 
+      finalEval.length === evalCount && 
+      finalRewrite.length === rewriteCount;
+
+    // If all are selected, save an empty object. Otherwise, save the dictionary.
+    const payloadVisibleRules = isAllSelected ? {} : { eval: finalEval, rewrite: finalRewrite };
+
+    onSave({ ...local, visible_rules: payloadVisibleRules });
     onHide();
   };
 
-  return (
-    <Modal show={show} onHide={onHide} centered>
+  const toggleRule = (ruleName, category) => {
+    if (isRuleLocked(ruleName, category)) return;
+
+    const currentCat = local.visible_rules[category] || [];
+    const nextCat = currentCat.includes(ruleName)
+      ? currentCat.filter(r => r !== ruleName)
+      : [...currentCat, ruleName];
+    
+    setLocal({ 
+      ...local, 
+      visible_rules: { 
+        ...local.visible_rules, 
+        [category]: nextCat 
+      } 
+    });
+  };
+
+  const handleToggleAllCategory = (rules, category) => {
+    const currentCat = local.visible_rules[category] || [];
+    const ruleNames = rules.map(r => r.procedure);
+    
+    const allSelected = ruleNames.every(name => currentCat.includes(name));
+
+    const lockedNames = rules.filter(r => isRuleLocked(r.procedure, category)).map(r => r.procedure);
+    
+    const nextCat = allSelected ? [...lockedNames] : [...ruleNames];
+    
+    setLocal({ 
+      ...local, 
+      visible_rules: { 
+        ...local.visible_rules, 
+        [category]: nextCat 
+      } 
+    });
+  };
+
+  const renderRuleSetSelection = () => {
+    return (
+      <>
+        <Modal.Header closeButton>
+          <Modal.Title>Configure Visible Rules</Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+          <p className="text-muted small">
+            Select rule names to include. (Duplicates for different variations are hidden).
+          </p>
+          
+          <div className="mb-4">
+            <div className="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+              <h5 className="mb-0">Eval Rules</h5>
+              <Button size="sm" variant="link" onClick={() => handleToggleAllCategory(uniqueEval, 'eval')}>
+                Toggle All
+              </Button>
+            </div>
+            {uniqueEval.map((rule) => {
+              const isLocked = isRuleLocked(rule.procedure, 'eval');
+              return (
+                <Form.Check 
+                  key={`eval-${rule.procedure}`}
+                  type="checkbox"
+                  id={`check-eval-${rule.procedure}`}
+                  label={
+                    <span>
+                      {rule.procedure}
+                      {isLocked && <small className="ms-2 text-primary">(Used in Proof)</small>}
+                    </span>
+                  }
+                  // Direct dictionary lookup
+                  checked={(local.visible_rules.eval || []).includes(rule.procedure)}
+                  disabled={isLocked}
+                  onChange={() => toggleRule(rule.procedure, 'eval')}
+                  className="mb-1"
+                />
+              );
+            })}
+          </div>
+
+          <div>
+            <div className="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+              <h5 className="mb-0">Rewrite Rules</h5>
+              <Button size="sm" variant="link" onClick={() => handleToggleAllCategory(uniqueRewrite, 'rewrite')}>
+                Toggle All
+              </Button>
+            </div>
+            {uniqueRewrite.map((rule) => {
+              const isLocked = isRuleLocked(rule.procedure, 'rewrite');
+              return (
+                <Form.Check 
+                  key={`rewrite-${rule.procedure}`}
+                  type="checkbox"
+                  id={`check-rewrite-${rule.procedure}`}
+                  label={
+                    <span>
+                      {rule.procedure}
+                      {isLocked && <small className="ms-2 text-primary">(Used in Proof)</small>}
+                    </span>
+                  }
+                  // Direct dictionary lookup
+                  checked={(local.visible_rules.rewrite || []).includes(rule.procedure)}
+                  disabled={isLocked}
+                  onChange={() => toggleRule(rule.procedure, 'rewrite')}
+                  className="mb-1"
+                />
+              );
+            })}
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="outline-primary" onClick={() => setView("main")}>Back</Button>
+          <Button variant="primary" onClick={() => { onSave(local); setView("main"); }}>Save All</Button>
+        </Modal.Footer>
+      </>
+    );
+  };
+
+  const renderMainView = () => (
+    <>
       <Modal.Header closeButton>
         <Modal.Title>Set Parameters</Modal.Title>
       </Modal.Header>
@@ -91,7 +296,18 @@ export default function SetParametersModal({ show, onHide, params, onSave }) {
             {/* Individual rows */}
             {PARAM_ROWS.map(({ key, label }) => (
               <tr key={key}>
-                <td style={{ paddingTop: "4px" }}>{label}</td>
+                <td style={{ paddingTop: "4px" }}>
+                  {label}
+                  {key === "support_rule_set" && local[key] && (
+                    <span 
+                      style={{ cursor: 'pointer', marginLeft: '8px' }} 
+                      className="badge bg-info text-dark"
+                      onClick={() => setView("rule-set")}
+                    >
+                      <i className="fa fa-pen"></i>
+                    </span>
+                  )}
+                </td>
                 <td style={{ textAlign: "center", paddingTop: "4px" }}>
                   <Button
                     size="sm"
@@ -120,6 +336,12 @@ export default function SetParametersModal({ show, onHide, params, onSave }) {
         <Button variant="secondary" onClick={onHide}>Cancel</Button>
         <Button variant="primary" onClick={handleSave}>Save</Button>
       </Modal.Footer>
+    </>
+  );
+
+  return (
+    <Modal show={show} onHide={onHide} centered>
+      {view === "main" ? renderMainView() : renderRuleSetSelection()}
     </Modal>
   );
 }

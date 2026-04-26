@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Dropdown from "react-bootstrap/Dropdown";
 import Button from "react-bootstrap/Button";
 import Container from "react-bootstrap/Container";
@@ -326,7 +326,7 @@ const EquationalReasoningNew = () => {
               sessionStorage.setItem('erProofActive', 'true');
 
               // Persist any params the user pre-configured before starting the proof.
-              const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping'];
+              const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules'];
               const hasCustomParams = PARAM_KEYS.some(k => proofParams[k] !== true);
               if (hasCustomParams) {
                 try {
@@ -397,7 +397,8 @@ const EquationalReasoningNew = () => {
     support_ih: true,
     support_premise: true,
     support_rule_set: true,
-    support_value_mapping: true
+    support_value_mapping: true,
+    visible_rules: {}
   });
   
   // Separate premises for base and leap cases
@@ -421,6 +422,27 @@ const EquationalReasoningNew = () => {
   const [footerRule, setFooterRule] = useState("");
   const [footerRuleError, setFooterRuleError] = useState("");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  const rulesInProof = useMemo(() => {
+    if (!proofStarted) return [];
+
+    const extractRules = (sideArray) => {
+      return (sideArray || [])
+        .filter(field => 
+          field && 
+          !field.deleted && 
+          field.rule && 
+          field.rule.trim() !== "" && 
+          field.rule !== "Premise"
+        )
+        .map(field => field.rule.trim());
+    };
+
+    const lhsRules = extractRules(racketRuleFields?.LHS);
+    const rhsRules = extractRules(racketRuleFields?.RHS);
+
+    return [...new Set([...lhsRules, ...rhsRules])];
+  }, [racketRuleFields, proofStarted]);
   
   // Hook for getting available height for scrollable proof area
   const availableHeight = useDynamicHeight();
@@ -568,11 +590,10 @@ const EquationalReasoningNew = () => {
           setCurrentRHS(findLast(proofData.RHS) || proofData.rhsAnchorGoal);
 
           // F. Restore support params
-          const INIT_PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping'];
+          const INIT_PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules'];
           const initExtracted = {};
           INIT_PARAM_KEYS.forEach(k => { if (k in proofData) initExtracted[k] = proofData[k]; });
           if (Object.keys(initExtracted).length > 0) setProofParams(prev => ({ ...prev, ...initExtracted }));
-
           setProofStarted(true);
 
           // Activate play mode if the user clicked "Run Proof"
@@ -818,7 +839,7 @@ const EquationalReasoningNew = () => {
       }
 
       // Extract support params and proof_id
-      const PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping'];
+      const PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules'];
       const extracted = {};
       PARAM_KEYS.forEach(k => { if (k in proofLines) extracted[k] = proofLines[k]; });
       if (Object.keys(extracted).length > 0) setProofParams(prev => ({ ...prev, ...extracted }));
@@ -1830,6 +1851,8 @@ const handleRuleKeyDown = (e) => {
         <OffcanvasRuleSet
           isActive={isOffcanvasActive}
           toggleFunction={toggleOffcanvas}
+          visibleRules={proofParams.visible_rules}
+          supportRuleSet={proofParams.support_rule_set}
         ></OffcanvasRuleSet>
         {showDefinitionsWindow && (
           <Definitions 
@@ -2640,6 +2663,7 @@ const handleRuleKeyDown = (e) => {
         show={showSetParams}
         onHide={() => setShowSetParams(false)}
         params={proofParams}
+        rulesInProof={rulesInProof}
         onSave={async (newParams) => {
           setProofParams(prev => ({ ...prev, ...newParams }));
           if (proofParams.proof_id) {
