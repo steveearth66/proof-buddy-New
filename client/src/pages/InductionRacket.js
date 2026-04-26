@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Dropdown from "react-bootstrap/Dropdown";
 import Button from "react-bootstrap/Button";
 import Container from "react-bootstrap/Container";
@@ -159,7 +159,8 @@ const InductionRacket = () => {
     support_ih: true,
     support_premise: true,
     support_rule_set: true,
-    support_value_mapping: true
+    support_value_mapping: true,
+    visible_rules: {}
   });
 
   useEffect(() => {
@@ -169,6 +170,29 @@ const InductionRacket = () => {
     }
     loadUser();
   }, []);
+
+  const rulesInProof = useMemo(() => {
+    if (!proofStarted) return [];
+
+    const extractRules = (sideArray) => {
+      return (sideArray || [])
+        .filter(field => 
+          field && 
+          !field.deleted && 
+          field.rule && 
+          field.rule.trim() !== "" && 
+          field.rule !== "Premise"
+        )
+        .map(field => field.rule.trim());
+    };
+
+    const baseLHS = extractRules(baseRacketFields?.LHS);
+    const baseRHS = extractRules(baseRacketFields?.RHS);
+    const leapLHS = extractRules(leapRacketFields?.LHS);
+    const leapRHS = extractRules(leapRacketFields?.RHS);
+
+    return [...new Set([...baseLHS, ...baseRHS, ...leapLHS, ...leapRHS])];
+  }, [baseRacketFields, leapRacketFields, proofStarted]);
 
   // Parenthesis highlighting hooks
   const { 
@@ -547,7 +571,7 @@ const InductionRacket = () => {
     try {
       const proofMeta = await inductionService.getCurrentProof();
       if (proofMeta?.hasProof) {
-        const PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping'];
+        const PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping', 'visible_rules'];
         const extracted = {};
         PARAM_KEYS.forEach(k => { if (k in proofMeta) extracted[k] = proofMeta[k]; });
         if (Object.keys(extracted).length > 0) setProofParams(prev => ({ ...prev, ...extracted }));
@@ -1675,7 +1699,7 @@ const InductionRacket = () => {
 
               // Persist any params the user pre-configured before starting the proof.
               // Must be done BEFORE loadProofLinesFromDatabase reads them back from DB.
-              const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping'];
+              const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping', 'visible_rules'];
               const hasCustomParams = PARAM_KEYS.some(k => proofParams[k] !== true);
               if (hasCustomParams) {
                 try {
@@ -2155,7 +2179,9 @@ const InductionRacket = () => {
       <Container className="er-racket-container">
         <OffcanvasRuleSet
           isActive={isOffcanvasActive}
-          toggleFunction={toggleOffcanvas}
+          toggleFunction={toggleOffcanvas}            
+          visibleRules={proofParams.visible_rules}
+          supportRuleSet={proofParams.support_rule_set}
         ></OffcanvasRuleSet>
         {showDefinitionsWindow && (
           <Definitions 
@@ -3085,6 +3111,7 @@ const InductionRacket = () => {
         show={showSetParams}
         onHide={() => setShowSetParams(false)}
         params={proofParams}
+        rulesInProof={rulesInProof}
         onSave={async (newParams) => {
           setProofParams(prev => ({ ...prev, ...newParams }));
           if (proofParams.proof_id) {

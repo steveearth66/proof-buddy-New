@@ -1740,6 +1740,7 @@ def get_current_proof(request):
             "support_ih": proof.support_ih,
             "support_premise": proof.support_premise,
             "support_rule_set": proof.support_rule_set,
+            "visible_rules": parse_visible_rules(proof.visible_rules),
             "support_value_mapping": proof.support_value_mapping,
         }, status=status.HTTP_200_OK)
     except InductionProof.DoesNotExist:
@@ -1903,6 +1904,16 @@ def delete_proof(request):
             {"message": f"Error setting proof to inactive: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST
         )
 
+def parse_visible_rules(raw_val):
+    """Safely parse the TextField string back into a dictionary for the frontend."""
+    if isinstance(raw_val, str) and raw_val.strip():
+        try:
+            return json.loads(raw_val)
+        except json.JSONDecodeError:
+            return {}
+    elif isinstance(raw_val, dict):
+        return raw_val
+    return {}
 
 PARAM_FIELDS = [
     'support_errors',
@@ -1911,6 +1922,7 @@ PARAM_FIELDS = [
     'support_premise',
     'support_rule_set',
     'support_value_mapping',
+    'visible_rules'
 ]
 
 
@@ -1928,7 +1940,10 @@ def set_parameters(request):
         return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
     for field in PARAM_FIELDS:
         if field in request.data:
-            setattr(proof, field, request.data[field])
+            val = request.data[field]
+            if field == 'visible_rules' and isinstance(val, dict):
+                val = json.dumps(val)
+            setattr(proof, field, val)
     proof.save()
     return Response({f: getattr(proof, f) for f in PARAM_FIELDS}, status=status.HTTP_200_OK)
 
@@ -1996,6 +2011,7 @@ def download_proof(request):
         'support_ih': proof.support_ih,
         'support_premise': proof.support_premise,
         'support_rule_set': proof.support_rule_set,
+        'visible_rules': parse_visible_rules(proof.visible_rules),
         'support_value_mapping': proof.support_value_mapping,
         'lines': {
             'base': {
@@ -2044,6 +2060,7 @@ def upload_proof(request):
             support_ih=data.get('support_ih', True),
             support_premise=data.get('support_premise', True),
             support_rule_set=data.get('support_rule_set', True),
+            visible_rules=data.get('visible_rules', {}),
             support_value_mapping=data.get('support_value_mapping', True),
         )
         lines_data = data.get('lines', {})
