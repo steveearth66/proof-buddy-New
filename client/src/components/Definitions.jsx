@@ -639,7 +639,8 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
             <div className="definitions">
               {tempDefinitions.map((def, i) => (
                 <Definition 
-                  key={`temp-def-${def.id || i}`} 
+                  key={`temp-def-${def.id || i}`}
+                  eventKey={`temp-def-${def.id || i}`}
                   definition={{ ...def, applied: true }} 
                   isLocked={true}
                 />
@@ -667,6 +668,7 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
               {tempGenerics.map((gen, i) => (
                 <Generic 
                   key={`temp-gen-${gen.id || i}`} 
+                  eventKey={`temp-gen-${gen.id || i}`}
                   generic={{ ...gen, enabled: true }} 
                   isLocked={true} 
                 />
