@@ -481,6 +481,17 @@ const EquationalReasoningNew = () => {
 
         if (proofData.hasProof) {
           console.log("[Init] Proof found. Restoring UI...");
+          if (proofData.definitions && proofData.definitions.length > 0) {
+            const currentDefs = JSON.parse(sessionStorage.getItem('definitions')) || [];
+            
+            const tempDefinitions = (proofData.definitions || []).filter(
+              dbDef => !currentDefs.some(d => d.label === dbDef.label && d.id === dbDef.id)
+            );
+            sessionStorage.setItem('temp_definitions', JSON.stringify(tempDefinitions));
+          }
+          else {
+                  sessionStorage.removeItem('temp_definitions');
+          }
           
           // A. Restore Form Header
           setFormValues(prev => ({
@@ -898,6 +909,7 @@ const EquationalReasoningNew = () => {
       await equationalService.clearProof();
       sessionStorage.removeItem('erProofActive');
       sessionStorage.removeItem('current_proof_id');
+      sessionStorage.removeItem('temp_definitions');
       toast.success('Ready to start a new proof!');
       window.location.reload();
     } catch (error) {

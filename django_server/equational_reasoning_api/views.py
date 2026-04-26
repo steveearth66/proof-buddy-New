@@ -692,6 +692,19 @@ def get_proof_lines(request):
                 'errors': line.errors
             }
         
+        definitions_and_generics = proof.definition if proof.definition else []
+        definitions_data = []
+        generics_data = []
+        
+        for item in definitions_and_generics:
+            if item.get('is_generic'):
+                generics_data.append(item)
+            else:
+                item['applied'] = True
+                if 'def_type' in item and 'type' not in item:
+                    item['type'] = item.pop('def_type')
+                definitions_data.append(item)
+        
         return Response({
             "hasProof": True,
             "lhsAnchorGoal": proof.lhs_goal,
@@ -706,7 +719,9 @@ def get_proof_lines(request):
             "support_rule_set": proof.support_rule_set,
             "support_value_mapping": proof.support_value_mapping,
             "LHS": [format_line(line) for line in lhs_lines],
-            "RHS": [format_line(line) for line in rhs_lines]
+            "RHS": [format_line(line) for line in rhs_lines],
+            "definitions": definitions_data,
+            "generics": generics_data
         }, status=status.HTTP_200_OK)
         
     except EquationalProof.DoesNotExist:
