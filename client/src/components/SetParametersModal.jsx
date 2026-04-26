@@ -45,14 +45,14 @@ export default function SetParametersModal({ show, onHide, params, onSave, rules
     const parts = ruleName.split(',').map(p => p.trim());
 
     return rulesInProof.some(proofItem => {
-      const firstSpaceIdx = proofItem.indexOf(' ');
+      const words = proofItem.trim().split(/\s+/);
       
-      if (firstSpaceIdx === -1) {
-        return parts.includes(proofItem.trim());
+      if (words.length === 1) {
+        return parts.includes(words[0]);
       }
 
-      const itemKeyword = proofItem.substring(0, firstSpaceIdx).trim();
-      const itemRulePart = proofItem.substring(firstSpaceIdx + 1).trim();
+      const itemKeyword = words[0];
+      const itemRulePart = words[1];
 
       if (itemKeyword.toLowerCase() === categoryKeyword.toLowerCase()) {
         return parts.includes(itemRulePart);
