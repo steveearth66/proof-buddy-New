@@ -1102,39 +1102,31 @@ def load_proof(proof_data):
         except Exception as e:
             print(f"Error loading generic {generic.get('label')}: {e}")
 
-    # 3. Replay Lines into Engine
+    # 3. Restore Lines into Engine
+    # Lines are loaded directly WITHOUT replaying rules. Replaying rules on the
+    # already-computed result expression causes IndexError when the saved
+    # startPosition (from the source tree) no longer exists in the result tree.
+    # Every subsequent operation (apply_rule, check_completion, etc.) calls
+    # reload_proof_lines_from_db() before acting, so the engine state is always
+    # fresh -- rule replay here would be redundant AND unsafe.
     proof_lines = proof_data["proofLines"]
-    
-    # Sort lines by line number to ensure correct order
     sorted_lines = sorted(proof_lines, key=lambda x: x['lineNumber'])
 
     for line_data in sorted_lines:
         is_lhs = line_data['side'] == "LHS"
         target = proof.LHS if is_lhs else proof.RHS
-        # Determine if this is the premise (Line 0) or a derivation step
-        if len(target.proofLines) == 0:
-            target.addProofLine(line_data["racket"])
-            if target.proofLines:
-                target.proofLines[-1].appliedRule = "Premise"
-        else:
-            subValue = line_data["substitution"] if line_data["substitution"] != "" else None
-
-            # It's a derivation step
-            target.addProofLine(
-                line_data["racket"],
-                line_data["rule"],
-                int(line_data["startPosition"] or 0),
-                subValue
-            )
-            
-        # Restore Metadata (Visibility & Highlight IDs) onto the engine object
-        if target.proofLines:
-            current_line_obj = target.proofLines[-1]
-            current_line_obj.hide_expression = line_data.get("hide_expression", False)
-            current_line_obj.hide_justification = line_data.get("hide_justification", False)
-            current_line_obj.resultNodeId = line_data.get("resultNode", 0)
-            current_line_obj.appliedRuleNodeId = line_data.get("selectedNode", 0)
-            current_line_obj.errors = line_data.get("errors", 0)
+        racket = line_data.get("racket", "")
+        if not racket and line_data.get("rule", "") == "":
+            continue  # skip blank trailing UI placeholder lines
+        proof_line = ERProofLine(racket, target.debug, target.ruleSet, generics=target.generics)
+        if proof_line.errLog == []:
+            proof_line.appliedRule = line_data.get("rule", "")
+            proof_line.appliedRuleNodeId = line_data.get("selectedNode", 0)
+            proof_line.resultNodeId = line_data.get("resultNode", 0)
+            proof_line.hide_expression = line_data.get("hide_expression", False)
+            proof_line.hide_justification = line_data.get("hide_justification", False)
+            proof_line.errors = line_data.get("errors", "")
+            target.proofLines.append(proof_line)
 
     return proof
 
