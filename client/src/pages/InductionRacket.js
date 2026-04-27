@@ -89,7 +89,7 @@ const InductionRacket = () => {
   
   // List induction direction: 'up' or 'down' (only relevant when inductionType === 'lists')
   const [listDirection, setListDirection] = useState('up');
-  
+
   // Separate proof lines for base and leap cases
   const [baseRacketFields, setBaseRacketFields] = useState({
     LHS: [EMPTY_INITIAL_FIELD],
@@ -2610,10 +2610,16 @@ const InductionRacket = () => {
                           </Form.Group>
                         </Row>
                       )}
-                      <Row className="justify-content-center er-current-state g-2 mb-0">
-                          <Form.Group as={Col} sm="6" className={showSide === "LHS" ? "active" : ""}><Form.Floating style={{ border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}><Form.Control type="text" value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')} readOnly style={{ border: 'none' }} /><label>Current LHS</label></Form.Floating></Form.Group>
-                          <Form.Group as={Col} sm="6" className={showSide === "RHS" ? "active" : ""}><Form.Floating style={{ border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}><Form.Control type="text" value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')} readOnly style={{ border: 'none' }} /><label>Current RHS</label></Form.Floating></Form.Group>
-                      </Row>
+                      {(proofParams.support_current_lhs_rhs && (
+                        <>
+                          <Row className="justify-content-center er-current-state g-2 mb-0">
+                            <Form.Group as={Col} sm="6" className={showSide === "LHS" ? "active" : ""}><Form.Floating style={{ border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}><Form.Control type="text" value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')} readOnly style={{ border: 'none' }} /><label>Current LHS</label></Form.Floating></Form.Group>
+                            <Form.Group as={Col} sm="6" className={showSide === "RHS" ? "active" : ""}><Form.Floating style={{ border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}><Form.Control type="text" value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')} readOnly style={{ border: 'none' }} /><label>Current RHS</label></Form.Floating></Form.Group>
+                          </Row>
+                        </>
+                      )
+
+                      )}
                   </Col>
 
                   {/* COLUMN 3: CASE SWITCH (Wraps and stays horizontally aligned) */}

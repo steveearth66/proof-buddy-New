@@ -2194,68 +2194,71 @@ const handleRuleKeyDown = (e) => {
                         </div>
                       </Form.Group>
                     </Row>
+                      {proofParams.support_current_lhs_rhs && (
+                        <>
+                          <Row className="justify-content-center er-current-state flex-wrap" style={{ alignItems: 'center', position: 'relative', paddingRight: '40px' }}>
+                            <Form.Group
+                              as={Col}
+                              md="4"
+                              className={`er-proof-current-lhs ${showSide === "LHS" ? "active" : ""}`}
+                            >
+                              <Form.Floating 
+                                className="mb-3"
+                                style={{ 
+                                  border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da',
+                                  borderRadius: '0.375rem'
+                                }}
+                              >
+                                <Form.Control
+                                  id="eRProofCurrentLHS"
+                                  name="proofCurrentLHS"
+                                  type="text"
+                                  placeholder="Current LHS"
+                                  value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')}
+                                  readOnly
+                                  style={{ 
+                                    cursor: "not-allowed", 
+                                    border: 'none', 
+                                    minWidth: `${Math.max(((lhsValue || currentLHS)?.length || 20), 20)}ch`,
+                                    WebkitTextSecurity: proofStarted && lhsHidden ? "disc" : "none"
+                                }}
+                                />
+                                <label htmlFor="eRProofCurrentLHS">Current LHS</label>
+                              </Form.Floating>
+                            </Form.Group>
 
-                    <Row className="justify-content-center er-current-state flex-wrap" style={{ alignItems: 'center', position: 'relative', paddingRight: '40px' }}>
-                      <Form.Group
-                        as={Col}
-                        md="4"
-                        className={`er-proof-current-lhs ${showSide === "LHS" ? "active" : ""}`}
-                      >
-                        <Form.Floating 
-                          className="mb-3"
-                          style={{ 
-                            border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da',
-                            borderRadius: '0.375rem'
-                          }}
-                        >
-                          <Form.Control
-                            id="eRProofCurrentLHS"
-                            name="proofCurrentLHS"
-                            type="text"
-                            placeholder="Current LHS"
-                            value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')}
-                            readOnly
-                            style={{ 
-                              cursor: "not-allowed", 
-                              border: 'none', 
-                              minWidth: `${Math.max(((lhsValue || currentLHS)?.length || 20), 20)}ch`,
-                              WebkitTextSecurity: proofStarted && lhsHidden ? "disc" : "none"
-                           }}
-                          />
-                          <label htmlFor="eRProofCurrentLHS">Current LHS</label>
-                        </Form.Floating>
-                      </Form.Group>
-
-                      <Form.Group
-                        as={Col}
-                        md="4"
-                        className={`er-proof-current-rhs ${showSide === "RHS" ? "active" : ""}`}
-                      >
-                        <Form.Floating 
-                          className="mb-3"
-                          style={{ 
-                            border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da',
-                            borderRadius: '0.375rem'
-                          }}
-                        >
-                          <Form.Control
-                            id="eRProofCurrentRHS"
-                            name="proofCurrentRHS"
-                            type="text"
-                            placeholder="Current RHS"
-                            value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')}
-                            readOnly
-                            style={{ 
-                              cursor: "not-allowed", 
-                              border: 'none', 
-                              minWidth: `${Math.max(((rhsValue || currentRHS)?.length || 20), 20)}ch`,
-                              WebkitTextSecurity: proofStarted && rhsHidden ? "disc" : "none"
-                           }}
-                          />
-                          <label htmlFor="eRProofCurrentRHS">Current RHS</label>
-                        </Form.Floating>
-                      </Form.Group>
-                    </Row>
+                            <Form.Group
+                              as={Col}
+                              md="4"
+                              className={`er-proof-current-rhs ${showSide === "RHS" ? "active" : ""}`}
+                            >
+                              <Form.Floating 
+                                className="mb-3"
+                                style={{ 
+                                  border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da',
+                                  borderRadius: '0.375rem'
+                                }}
+                              >
+                                <Form.Control
+                                  id="eRProofCurrentRHS"
+                                  name="proofCurrentRHS"
+                                  type="text"
+                                  placeholder="Current RHS"
+                                  value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')}
+                                  readOnly
+                                  style={{ 
+                                    cursor: "not-allowed", 
+                                    border: 'none', 
+                                    minWidth: `${Math.max(((rhsValue || currentRHS)?.length || 20), 20)}ch`,
+                                    WebkitTextSecurity: proofStarted && rhsHidden ? "disc" : "none"
+                                }}
+                                />
+                                <label htmlFor="eRProofCurrentRHS">Current RHS</label>
+                              </Form.Floating>
+                            </Form.Group>
+                          </Row>
+                        </>
+                      )}
                   </div>
                 </div>
               </div>
