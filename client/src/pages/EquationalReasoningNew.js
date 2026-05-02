@@ -327,7 +327,7 @@ const EquationalReasoningNew = () => {
 
               // Persist any params the user pre-configured before starting the proof.
               const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules'];
-              const hasCustomParams = PARAM_KEYS.some(k => proofParams[k] !== true);
+              const hasCustomParams = PARAM_KEYS.some(k => proofParams[k] !== true && (typeof proofParams[k] === 'object' && proofParams[k].length > 0));
               if (hasCustomParams) {
                 try {
                   await equationalService.setParameters(
