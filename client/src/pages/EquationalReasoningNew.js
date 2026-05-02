@@ -49,7 +49,8 @@ import {
   cancelPlay,
   getLastRealIndex
 } from "../utils/playModeUtils";
-import userService from "../services/userService"
+import userService from "../services/userService";
+import erService from "../services/erService";
 import { useLocation, useNavigate } from "react-router-dom";
 
 /**
@@ -453,15 +454,15 @@ const EquationalReasoningNew = () => {
   useEffect(() => {
     if (initializedRef.current) return;
 
-    const initializeProofSession = async () => {
-      initializedRef.current = true;
-      console.log('[Init] Starting session initialization...');
-      
-      try {
-        // -------------------------------------------------------------
-        // STEP 1: HYDRATE BACKEND (If coming from "All Proofs" page)
-        // -------------------------------------------------------------
-        if (location.state && location.state.id) {
+  const initializeProofSession = async () => {
+    initializedRef.current = true;
+    console.log('[Init] Starting session initialization...');
+
+    try {
+      // -------------------------------------------------------------
+      // STEP 1: HYDRATE BACKEND (If coming from "All Proofs" page)
+      // -------------------------------------------------------------
+      if (location.state && location.state.id) {
           console.log("[Init] Loading specific Proof ID:", location.state.id);
           
           // AWAIT this. We cannot proceed until the backend cache is ready.
@@ -480,114 +481,120 @@ const EquationalReasoningNew = () => {
 
           // Store flag so we can activate play mode after lines load
           initializeProofSession._playMode = playModeRequested;
-        } 
-        
-        // -------------------------------------------------------------
-        // STEP 2: CHECK SESSION VALIDITY
-        // -------------------------------------------------------------
-        const isActiveSession = sessionStorage.getItem('erProofActive') === 'true';
-        
-        if (!isActiveSession) {
+      }
+
+      // -------------------------------------------------------------
+      // STEP 2: CHECK SESSION VALIDITY
+      // -------------------------------------------------------------
+      const isActiveSession = sessionStorage.getItem('erProofActive') === 'true';
+
+      if (!isActiveSession) {
           console.log("[Init] No active session found. Clearing.");
           await equationalService.clearProof();
           sessionStorage.removeItem('current_proof_id');
           sessionStorage.removeItem('erProofActive');
           return;
+      }
+
+      // -------------------------------------------------------------
+      // STEP 3: FETCH AND RENDER UI (Restore Logic)
+      // -------------------------------------------------------------
+      console.log("[Init] Fetching proof lines...");
+      const proofData = await equationalService.getProofLines();
+
+      if (proofData.hasProof) {
+        console.log("[Init] Proof found. Restoring UI...");
+        
+        // 1. Fetch User's permanent data from DB
+        const userDefs = await erService.getUserDefinitions();
+
+        // 2. Identify active IDs from the loaded proof
+        const activeProofDefKeys = new Set(
+            (proofData.definitions || []).map(d => `${d.label}|${d.expression}`)
+        );
+
+        // 3. Process Permanent Definitions: Toggle 'applied' based on proof contents
+        const updatedPermanentDefs = userDefs.map(def => ({
+            ...def,
+            applied: activeProofDefKeys.has(`${def.label}|${def.expression}`)
+        }));
+
+        // 4. Filter for Temporary items (those in proofData but NOT in user's DB)
+        const tempDefinitions = (proofData.definitions || []).filter(
+            dbDef => !userDefs.some(d => dbDef.label === d.label && dbDef.expression === d.expression)
+        );
+
+        // 5. Commit lists to Session Storage
+        sessionStorage.setItem('definitions', JSON.stringify(updatedPermanentDefs));
+        
+        if (tempDefinitions.length > 0) {
+            sessionStorage.setItem('temp_definitions', JSON.stringify(tempDefinitions));
+        } else {
+            sessionStorage.removeItem('temp_definitions');
         }
 
-        // -------------------------------------------------------------
-        // STEP 3: FETCH AND RENDER UI (Restore Logic)
-        // -------------------------------------------------------------
-        console.log("[Init] Fetching proof lines...");
-        const proofData = await equationalService.getProofLines();
-
-        if (proofData.hasProof) {
-          console.log("[Init] Proof found. Restoring UI...");
-          if (proofData.definitions && proofData.definitions.length > 0) {
-            const currentDefs = JSON.parse(sessionStorage.getItem('definitions')) || [];
-            
-            const tempDefinitions = (proofData.definitions || []).filter(
-              dbDef => !currentDefs.some(d => d.label === dbDef.label && d.id === dbDef.id)
-            );
-            sessionStorage.setItem('temp_definitions', JSON.stringify(tempDefinitions));
-          }
-          else {
-                  sessionStorage.removeItem('temp_definitions');
-          }
-          
-          // A. Restore Form Header
-          setFormValues(prev => ({
+        // A. Restore Form Header
+        setFormValues(prev => ({
             ...prev,
             lHSGoal: proofData.lhsAnchorGoal || '',
             rHSGoal: proofData.rhsAnchorGoal || '',
             proofName: proofData.proofName || '',
             proofTag: proofData.tag || ''
-          }));
-          
-          // B. Restore Premises State
-          setLeftPremise(prev => ({
-             ...prev,
-             racket: proofData.lhsAnchorGoal || '',
-             rule: 'Premise',
-             startPosition: 0,
-             selectedNode: 0,
-             jsonTree: (proofData.LHS && proofData.LHS[0]) ? proofData.LHS[0].jsonTree : {} 
-          }));
+        }));
 
-          setRightPremise(prev => ({
-             ...prev,
-             racket: proofData.rhsAnchorGoal || '',
-             rule: 'Premise',
-             startPosition: 0,
-             selectedNode: 0,
-             jsonTree: (proofData.RHS && proofData.RHS[0]) ? proofData.RHS[0].jsonTree : {} 
-          }));
+        // B. Restore Premises State
+        setLeftPremise(prev => ({
+            ...prev,
+            racket: proofData.lhsAnchorGoal || '',
+            rule: 'Premise',
+            startPosition: 0,
+            selectedNode: 0,
+            jsonTree: (proofData.LHS && proofData.LHS[0]) ? proofData.LHS[0].jsonTree : {}
+        }));
 
-          // C. Helper to Map Database Lines to UI Fields
-          const mapLinesToFields = (dbLines) => {
-            if (!dbLines || dbLines.length === 0) return [EMPTY_INITIAL_FIELD];
-            
-            // Calculate array size based on max line number
-            const maxLine = Math.max(...dbLines.map(l => l.line_number || l.lineNumber || 0));
-            const fields = new Array(maxLine + 1).fill(null).map(() => ({ ...EMPTY_INITIAL_FIELD }));
+        setRightPremise(prev => ({
+            ...prev,
+            racket: proofData.rhsAnchorGoal || '',
+            rule: 'Premise',
+            startPosition: 0,
+            selectedNode: 0,
+            jsonTree: (proofData.RHS && proofData.RHS[0]) ? proofData.RHS[0].jsonTree : {}
+        }));
 
-            dbLines.forEach(line => {
-               const idx = line.line_number !== undefined ? line.line_number : line.lineNumber;
-               
-               // Sanitize empty strings to ensure UI renders cleanly
-               const racketVal = line.racket || '';
-               const ruleVal = line.rule || '';
-               
-               fields[idx] = {
-                 racket: racketVal,
-                 rule: ruleVal,
-                 jsonTree: line.json_tree || line.jsonTree || {},
-                 startPosition: line.start_position || line.startPosition || 0,
-                 selectedNode: line.selected_node || line.selectedNode || 0,
-                 resultNode: line.result_node || line.resultNode || 0,
-                 deleted: false,
-                 hide_expression: line.hide_expression || false,
-                 hide_justification: line.hide_justification || false
-               };
-            });
-            
-            // Ensure there is always a trailing empty line for new input
-            fields.push(EMPTY_INITIAL_FIELD);
-            return fields;
-          };
+        // C. Helper to Map Database Lines to UI Fields
+        const mapLinesToFields = (dbLines) => {
+          if (!dbLines || dbLines.length === 0) return [EMPTY_INITIAL_FIELD];
+          const maxLine = Math.max(...dbLines.map(l => l.line_number || l.lineNumber || 0));
+          const fields = new Array(maxLine + 1).fill(null).map(() => ({ ...EMPTY_INITIAL_FIELD }));
 
-          // D. Update Grid State
-          setRacketRuleFields({
+          dbLines.forEach(line => {
+              const idx = line.line_number !== undefined ? line.line_number : line.lineNumber;
+              fields[idx] = {
+                  racket: line.racket || '',
+                  rule: line.rule || '',
+                  jsonTree: line.json_tree || line.jsonTree || {},
+                  startPosition: line.start_position || line.startPosition || 0,
+                  selectedNode: line.selected_node || line.selectedNode || 0,
+                  resultNode: line.result_node || line.resultNode || 0,
+                  deleted: false,
+                  hide_expression: line.hide_expression || false,
+                  hide_justification: line.hide_justification || false
+              };
+          });
+          fields.push(EMPTY_INITIAL_FIELD);
+          return fields;
+        };
+
+        // D. Update Grid State
+        setRacketRuleFields({
             LHS: mapLinesToFields(proofData.LHS),
             RHS: mapLinesToFields(proofData.RHS)
-          });
+        });
 
-          // E. Set Current Racket Context (for the next rule application)
-          // Logic: Find last non-empty line or default to goal
-          const findLast = (arr) => arr.slice().reverse().find(x => x.racket && x.racket.trim() !== "")?.racket;
-          
-          setCurrentLHS(findLast(proofData.LHS) || proofData.lhsAnchorGoal);
-          setCurrentRHS(findLast(proofData.RHS) || proofData.rhsAnchorGoal);
+        // E. Set Current Racket Context
+        const findLast = (arr) => arr.slice().reverse().find(x => x.racket && x.racket.trim() !== "")?.racket;
+        setCurrentLHS(findLast(proofData.LHS) || proofData.lhsAnchorGoal);
+        setCurrentRHS(findLast(proofData.RHS) || proofData.rhsAnchorGoal);
 
           // F. Restore support params
           const INIT_PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules'];
@@ -596,24 +603,23 @@ const EquationalReasoningNew = () => {
           if (Object.keys(initExtracted).length > 0) setProofParams(prev => ({ ...prev, ...initExtracted }));
           setProofStarted(true);
 
-          // Activate play mode if the user clicked "Run Proof"
-          if (initializeProofSession._playMode) {
+        if (initializeProofSession._playMode) {
             setPlayState(initPlayState(['base'], ['LHS', 'RHS'], true));
-          }
-
-          toast.success("Proof loaded successfully!");
-          
-        } else {
-          console.warn("[Init] getProofLines returned false for hasProof.");
-          await equationalService.clearProof();
         }
 
-      } catch (error) {
+        toast.success("Proof loaded successfully!");
+
+      } else {
+          console.warn("[Init] getProofLines returned false for hasProof.");
+          await equationalService.clearProof();
+      }
+
+    } catch (error) {
         console.error("[Init] Error initializing session:", error);
         toast.error("Failed to load proof session.");
         initializedRef.current = false;
-      }
-    };
+    }
+};
 
     initializeProofSession();
   }, []);
