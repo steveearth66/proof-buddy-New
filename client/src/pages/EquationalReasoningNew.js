@@ -505,12 +505,65 @@ const EquationalReasoningNew = () => {
       if (proofData.hasProof) {
         console.log("[Init] Proof found. Restoring UI...");
         
-        // 1. Fetch User's permanent data from DB
+        const rawDefinitions = proofData.definitions || [];
+        
+        // Separate the raw data into generics and definitions
+        const rawGenerics = rawDefinitions.filter(d => d.body === '<generic>');
+        const rawDefs = rawDefinitions.filter(d => d.body !== '<generic>');
+        // --- Helper to generate a unique key for generics based on usable fields ---
+        const getGenericKey = (g) => `${g.label}|${g.type || ''}`;
+
+        // -------------------------------------------------------------------------
+        // GENERICS PROCESSING
+        // -------------------------------------------------------------------------
+        // 1. Fetch User's permanent generics 
+        const userGenerics = await erService.getUserGenerics(); 
+
+        // Sanitize proof generics
+        const proofGenerics = rawGenerics.map(g => ({
+            ...g,
+            label: g.label || g.name,
+            name: g.name || g.label,
+            restrictions: g.restrictions || { assumption: 'None', neverNull: false }
+        }));
+
+        // 2. Identify active IDs from the loaded proof
+        const activeProofGenericKeys = new Set(proofGenerics.map(getGenericKey));
+
+        // 3. Process Permanent Generics: Toggle 'applied' based on proof contents
+        const updatedPermanentGenerics = userGenerics.map(gen => ({
+            ...gen,
+            enabled: activeProofGenericKeys.has(getGenericKey(gen))
+        }));
+
+        // 4. Filter for Temporary items (those in proofData but NOT in user's DB)
+        const tempGenerics = proofGenerics.filter(
+            proofGen => !userGenerics.some(userGen => getGenericKey(proofGen) === getGenericKey(userGen))
+        );
+
+        // 5. Commit lists to Session Storage
+        sessionStorage.setItem('generics', JSON.stringify(updatedPermanentGenerics));
+
+        if (tempGenerics.length > 0) {
+            sessionStorage.setItem('temp_generics', JSON.stringify(tempGenerics));
+        } else {
+            sessionStorage.removeItem('temp_generics');
+        }
+
+        // Notify other components that generics are ready
+        window.dispatchEvent(new CustomEvent('genericsUpdated', { 
+            detail: { allGenerics: [...updatedPermanentGenerics] } 
+        }));
+
+        // -------------------------------------------------------------------------
+        // DEFINITIONS PROCESSING
+        // -------------------------------------------------------------------------
+        // 1. Fetch User's permanent definitions
         const userDefs = await erService.getUserDefinitions();
 
         // 2. Identify active IDs from the loaded proof
         const activeProofDefKeys = new Set(
-            (proofData.definitions || []).map(d => `${d.label}|${d.expression}`)
+            rawDefs.map(d => `${d.label}|${d.expression}`)
         );
 
         // 3. Process Permanent Definitions: Toggle 'applied' based on proof contents
@@ -520,13 +573,13 @@ const EquationalReasoningNew = () => {
         }));
 
         // 4. Filter for Temporary items (those in proofData but NOT in user's DB)
-        const tempDefinitions = (proofData.definitions || []).filter(
+        const tempDefinitions = rawDefs.filter(
             dbDef => !userDefs.some(d => dbDef.label === d.label && dbDef.expression === d.expression)
         );
 
         // 5. Commit lists to Session Storage
         sessionStorage.setItem('definitions', JSON.stringify(updatedPermanentDefs));
-        
+
         if (tempDefinitions.length > 0) {
             sessionStorage.setItem('temp_definitions', JSON.stringify(tempDefinitions));
         } else {

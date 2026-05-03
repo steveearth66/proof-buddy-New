@@ -34,6 +34,7 @@ import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import { useDynamicHeight } from "../hooks/useDynamicHeight";
 import inductionService from "../services/inductionService";
 import userService from "../services/userService";
+import erService from "../services/erService";
 import SetParametersModal from "../components/SetParametersModal";
 import {
   ARROW_KEYS,
@@ -695,6 +696,8 @@ const InductionRacket = () => {
       await inductionService.newProof();
       sessionStorage.removeItem('inductionProofActive');
       sessionStorage.removeItem('induction_current_proof_id');
+      sessionStorage.removeItem('temp_definitions');
+      sessionStorage.removeItem('temp_generics');
       toast.success('Ready to start a new proof!');
       window.location.reload();
     } catch (error) {
@@ -1039,46 +1042,86 @@ const InductionRacket = () => {
         if (navId) {
             const metaData = await inductionService.getInductionProof(navId);
             
-            // --- SANITIZE GENERICS (Prevents "reading 'assumption' of null" crash) ---
             const rawDefinitions = metaData.definition || [];
-            const dbGenerics = rawDefinitions
-              .filter(d => d.is_generic)
-              .map(g => ({
+
+            // Separate the raw data into generics and definitions
+            const rawGenerics = rawDefinitions.filter(d => d.body === '<generic>');
+            const rawDefs = rawDefinitions.filter(d => d.body !== '<generic>');
+            // --- Helper to generate a unique key for generics based on usable fields ---
+            const getGenericKey = (g) => `${g.label}|${g.type || ''}`;
+
+            // -------------------------------------------------------------------------
+            // GENERICS PROCESSING
+            // -------------------------------------------------------------------------
+            // 1. Fetch User's permanent generics 
+            const userGenerics = await erService.getUserGenerics(); 
+
+            // Sanitize proof generics
+            const proofGenerics = rawGenerics.map(g => ({
                 ...g,
-                // Normalize field names: DB has 'name', sessionStorage has 'label'
                 label: g.label || g.name,
                 name: g.name || g.label,
-                // Force restrictions to be a valid object if null in DB
                 restrictions: g.restrictions || { assumption: 'None', neverNull: false }
-              }));
-
-            // Merge with existing sessionStorage generics to preserve enabled state
-            const existingGenerics = JSON.parse(sessionStorage.getItem('generics') || '[]');
-            const mergedGenerics = dbGenerics.map(dbGen => {
-              const existing = existingGenerics.find(eg => eg.label === dbGen.label || eg.name === dbGen.name);
-              if (existing) {
-                // Preserve enabled state from sessionStorage
-                const resolved = existing.enabled ?? dbGen.enabled;
-                return { ...dbGen, enabled: resolved };
-              }
-              return dbGen;
-            });
-            
-            // Add any sessionStorage generics not in database yet
-            existingGenerics.forEach(eg => {
-              const isInDb = dbGenerics.some(dbGen => dbGen.label === eg.label || dbGen.name === eg.label);
-              if (!isInDb) {
-                mergedGenerics.push(eg);
-              }
-            });
-
-            sessionStorage.setItem('generics', JSON.stringify(mergedGenerics));
-            
-            // Notify other components (like sidebar) that generics are ready
-            window.dispatchEvent(new CustomEvent('genericsUpdated', { 
-                detail: { allGenerics: mergedGenerics } 
             }));
+
+            // 2. Identify active IDs from the loaded proof
+            const activeProofGenericKeys = new Set(proofGenerics.map(getGenericKey));
+
+            // 3. Process Permanent Generics: Toggle 'applied' based on proof contents
+            const updatedPermanentGenerics = userGenerics.map(gen => ({
+                ...gen,
+                enabled: activeProofGenericKeys.has(getGenericKey(gen))
+            }));
+
+            // 4. Filter for Temporary items (those in proofData but NOT in user's DB)
+            const tempGenerics = proofGenerics.filter(
+                proofGen => !userGenerics.some(userGen => getGenericKey(proofGen) === getGenericKey(userGen))
+            );
+
+            // 5. Commit lists to Session Storage
+            sessionStorage.setItem('generics', JSON.stringify(updatedPermanentGenerics));
+
+            if (tempGenerics.length > 0) {
+                sessionStorage.setItem('temp_generics', JSON.stringify(tempGenerics));
+            } else {
+                sessionStorage.removeItem('temp_generics');
+            }
+
+            // Notify other components that generics are ready
+            window.dispatchEvent(new CustomEvent('genericsUpdated', { 
+                detail: { allGenerics: [...updatedPermanentGenerics] } 
+            }));
+
             // -------------------------------------------------------------------------
+            // DEFINITIONS PROCESSING
+            // -------------------------------------------------------------------------
+            // 1. Fetch User's permanent definitions
+            const userDefs = await erService.getUserDefinitions();
+
+            // 2. Identify active IDs from the loaded proof
+            const activeProofDefKeys = new Set(
+                rawDefs.map(d => `${d.label}|${d.expression}`)
+            );
+
+            // 3. Process Permanent Definitions: Toggle 'applied' based on proof contents
+            const updatedPermanentDefs = userDefs.map(def => ({
+                ...def,
+                applied: activeProofDefKeys.has(`${def.label}|${def.expression}`)
+            }));
+
+            // 4. Filter for Temporary items (those in proofData but NOT in user's DB)
+            const tempDefinitions = rawDefs.filter(
+                dbDef => !userDefs.some(d => dbDef.label === d.label && dbDef.expression === d.expression)
+            );
+
+            // 5. Commit lists to Session Storage
+            sessionStorage.setItem('definitions', JSON.stringify(updatedPermanentDefs));
+
+            if (tempDefinitions.length > 0) {
+                sessionStorage.setItem('temp_definitions', JSON.stringify(tempDefinitions));
+            } else {
+                sessionStorage.removeItem('temp_definitions');
+            }
 
             // Hydrate the Top-Level Form Inputs
             setFormValues(prev => ({
