@@ -9,125 +9,125 @@
     display: flex;
     justify-content: center;
     align-items: center;
-}
 
-.card {
-    background-color: white;
-    padding: 20px 20px 0 20px; 
-    border-radius: 5px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    width: 950px;
-        height: auto;
-    min-height: 50vh;
-    max-height: 90vh;
-    display: flex;
-    flex-direction: column;
-}
+    .card {
+        background-color: white;
+        padding: 20px 20px 0 20px; 
+        border-radius: 5px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        width: 950px;
+            height: auto;
+        min-height: 50vh;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+    }
 
-.form {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    flex: 1;
-    justify-items: center;
-    justify-content: center;
-}
+    .form {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        flex: 1;
+        justify-items: center;
+        justify-content: center;
+    }
 
-.title {
-    font-size: 20px;
-    font-weight: 600;
-    margin-bottom: 0;
-}
+    .title {
+        font-size: 20px;
+        font-weight: 600;
+        margin-bottom: 0;
+    }
 
-.definitions-container {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
-}
+    .definitions-container {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+    }
 
-.definitions-container > div:first-child {
-    flex-grow: 1;
-    overflow-y: auto;
-}
+    .definitions-container > div:first-child {
+        flex-grow: 1;
+        overflow-y: auto;
+    }
 
-.definitions, .generics {
-    display: flex;
-    flex-direction: column;
-    flex: 4;
-    gap: 10px;
-    overflow-y: scroll;
-}
+    .definitions, .generics {
+        display: flex;
+        flex-direction: column;
+        flex: 4;
+        gap: 10px;
+        overflow-y: scroll;
+    }
 
-.definition-label, .generic-label {
-    font-size: 15px;
-    font-weight: 500;
-}
+    .definition-label, .generic-label {
+        font-size: 15px;
+        font-weight: 500;
+    }
 
-.def-button-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    margin-top: auto; 
-    padding-top: 15px;
-    padding-bottom: 20px; 
-    border-top: 1px solid #dee2e6;
-    background-color: white;
-    z-index: 10;
-    flex-shrink: 0;
-}
+    .def-button-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: auto; 
+        padding-top: 15px;
+        padding-bottom: 20px; 
+        border-top: 1px solid #dee2e6;
+        background-color: white;
+        z-index: 10;
+        flex-shrink: 0;
+    }
 
-.create-definition {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-}
+    .create-definition {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
 
-.def-buttons {
-    display: flex;
-    gap: 15px;
-}
+    .def-buttons {
+        display: flex;
+        gap: 15px;
+    }
 
-.accordion-button:not(.collapsed) {
-    background-color: transparent !important; 
-    color: inherit !important;                
-    box-shadow: none !important; 
-    border-bottom: 1px solid #dee2e6 !important;           
-}
+    .accordion-button:not(.collapsed) {
+        background-color: transparent !important; 
+        color: inherit !important;                
+        box-shadow: none !important; 
+        border-bottom: 1px solid #dee2e6 !important;           
+    }
 
-.accordion-button:focus {
-    box-shadow: none !important;
-    border-color: rgba(0, 0, 0, 0.125) !important;
-    background-color: transparent !important;
-}
+    .accordion-button:focus {
+        box-shadow: none !important;
+        border-color: rgba(0, 0, 0, 0.125) !important;
+        background-color: transparent !important;
+    }
 
-.btn:focus, .btn:active:focus, .btn:active {
-    box-shadow: none !important;
-    outline: none !important;
-}
+    .btn:focus, .btn:active:focus, .btn:active {
+        box-shadow: none !important;
+        outline: none !important;
+    }
 
-.accordion-header, .title, .definition-label, .generic-label, .accordion-button {
-    -webkit-user-select: none !important;
-    -moz-user-select: none !important;
-    -ms-user-select: none !important;
-    user-select: none !important;
-}
+    .accordion-header, .title, .definition-label, .generic-label, .accordion-button {
+        -webkit-user-select: none !important;
+        -moz-user-select: none !important;
+        -ms-user-select: none !important;
+        user-select: none !important;
+    }
 
-.definitions-container > div:first-child > .accordion > .accordion-item {
-    margin-bottom: 16px; 
-    border: 1px solid #dee2e6 !important;
-    border-radius: 6px !important;
-    overflow: hidden;
-}
+    .definitions-container > div:first-child > .accordion > .accordion-item {
+        margin-bottom: 16px; 
+        border: 1px solid #dee2e6 !important;
+        border-radius: 6px !important;
+        overflow: hidden;
+    }
 
-.definitions-container > div:first-child > .accordion > .accordion-item > .accordion-header .accordion-button {
-    background-color: #f8f9fa !important; 
-    font-size: 1.05rem;
-}
+    .definitions-container > div:first-child > .accordion > .accordion-item > .accordion-header .accordion-button {
+        background-color: #f8f9fa !important; 
+        font-size: 1.05rem;
+    }
 
-.definitions-container > div:first-child > .accordion > .accordion-item > .accordion-header .accordion-button:not(.collapsed) {
-    background-color: #e9ecef !important;
+    .definitions-container > div:first-child > .accordion > .accordion-item > .accordion-header .accordion-button:not(.collapsed) {
+        background-color: #e9ecef !important;
+    }
 }
