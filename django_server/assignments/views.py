@@ -493,3 +493,91 @@ def start_assignment_proof(request, assignment_id):
         "new_proof_id": cloned_proof.id,
         "type": proof_type
     }, status=status.HTTP_201_CREATED)
+
+class AssignmentProgressMatrixView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, assignment_id):
+        assignment = get_object_or_404(Assignment, id=assignment_id)
+        course = assignment.course
+
+        # 1. Instructor Authorization Check
+        if not (request.user.is_instructor and course.instructor == request.user) and not request.user.is_superuser:
+            return Response(
+                {"message": "You are not authorized to view progress for this assignment."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # 2. Fetch the Template Proofs
+        template_links = assignment.proof_items.all()
+        
+        proof_columns = []
+        for link in template_links:
+            # Access the actual generic proof via the GenericForeignKey 'proof_object'
+            proof = link.proof_object
+            proof_columns.append({
+                "id": link.object_id,
+                # Fallback to a generic name if the proof is missing or has no name
+                "title": getattr(proof, 'name', f"Proof {link.object_id}") if proof else f"Proof {link.object_id}",
+                "type": link.content_type.model
+            })
+
+        # 3. Fetch all Student Mappings
+        mappings = StudentProofMapping.objects.filter(assignment=assignment).prefetch_related('student_proof')
+        
+        # Structure: { student_id: { template_proof_id: { status_data } } }
+        mapping_dict = {}
+        for m in mappings:
+            student_id = m.student.id
+            cloned_proof = m.student_proof
+            
+            if not cloned_proof:
+                proof_status = "error" 
+            elif getattr(cloned_proof, 'is_complete', False):
+                proof_status = "complete"
+            else:
+                proof_status = "in progress"
+
+            if student_id not in mapping_dict:
+                mapping_dict[student_id] = {}
+
+            mapping_dict[student_id][str(m.template_proof_id)] = {
+                "status": proof_status,
+                "cloned_proof_id": m.object_id,
+                "proof_type": m.content_type.model
+            }
+
+        # 4. Build the Students Matrix
+        students_data = []
+        for student in course.students.all():
+            student_data = {
+                "id": student.id,
+                "username": student.username,
+                "email": student.email,
+                "firstName": student.first_name,
+                "lastName": student.last_name,
+                "statuses": {}
+            }
+
+            student_mappings = mapping_dict.get(student.id, {})
+            
+            # Guarantee every column has a corresponding cell for this student
+            for link in template_links:
+                tp_id = str(link.object_id)
+                
+                if tp_id in student_mappings:
+                    student_data["statuses"][tp_id] = student_mappings[tp_id]
+                else: # only started proofs have a database link to the student
+                    student_data["statuses"][tp_id] = {
+                        "status": "not started",
+                        "cloned_proof_id": None,
+                        "proof_type": None
+                    }
+                    
+            students_data.append(student_data)
+
+        return Response({
+            "columns": proof_columns,
+            "students": students_data
+        }, status=status.HTTP_200_OK)
+    
