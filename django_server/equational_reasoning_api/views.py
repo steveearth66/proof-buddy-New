@@ -83,6 +83,51 @@ def get_or_set_equational_obj(user):
     return loads(cached['proof_obj']), proof_id
 
 
+def _ensure_er_hydrated(proof_obj, proof_id):
+    """Re-register any UDFs and generics missing from the TwoSidedProof engine.
+    Safety net for cache-miss / server-restart scenarios where the proof object is
+    rebuilt fresh (no UDFs, no generics). Reads the stored definitions from the DB
+    EquationalProof.definition field and replays addUDF / addGeneric for anything
+    that isn't already present in the ruleSet."""
+    if not proof_id:
+        return
+    try:
+        _db_proof = EquationalProof.objects.get(id=proof_id)
+        all_defs = list(_db_proof.definition or [])
+    except EquationalProof.DoesNotExist:
+        return
+
+    sides = [proof_obj.LHS, proof_obj.RHS]
+    for _d in all_defs:
+        if _d.get('is_generic'):
+            _glabel = _d.get('label') or _d.get('name') or ''
+            _gtype = (_d.get('type') or 'int').lower()
+            _grestrictions = _d.get('restrictions') or {}
+            if not _glabel:
+                continue
+            for side in sides:
+                if _glabel not in side.generics:
+                    try:
+                        side.addGeneric(_glabel, _gtype, _grestrictions)
+                        side.errLog = []
+                    except Exception:
+                        pass
+        else:
+            _dlabel = _d.get('label') or _d.get('name') or ''
+            _udf_name = _dlabel.replace('(', ' ').replace(')', ' ').split()
+            if not _udf_name:
+                continue
+            _udf_name = _udf_name[0]
+            _dtype = _d.get('type') or _d.get('def_type')
+            _dbody = _d.get('expression') or _d.get('body')
+            if not _dtype or not _dbody:
+                continue
+            for side in sides:
+                if _udf_name not in side.ruleSet.get('apply', {}):
+                    side.addUDF(_dlabel, _dtype, _dbody)
+                    side.errLog = []
+
+
 def reload_proof_lines_from_db(proof_obj, proof_id):
     """Reload all proof lines from database into the TwoSidedProof object"""
     if proof_id is None:
@@ -290,6 +335,7 @@ def apply_rule(request):
     user = request.user
     data = request.data
     proof_obj, proof_id = get_or_set_equational_obj(user)
+    _ensure_er_hydrated(proof_obj, proof_id)
     
     try:
         # Reload proof lines from database
@@ -465,6 +511,7 @@ def substitution(request):
     user = request.user
     data = request.data
     proof_obj, proof_id = get_or_set_equational_obj(user)
+    _ensure_er_hydrated(proof_obj, proof_id)
     
     try:
         side = data.get("side", "LHS")
