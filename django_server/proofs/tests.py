@@ -32,6 +32,10 @@ import subprocess
 import sys
 import os
 
+_RED   = "\x1b[1;31m" if sys.stdout.isatty() else ""
+_RESET = "\x1b[0m"    if sys.stdout.isatty() else ""
+_failed_sections: list[str] = []
+
 print("=" * 40)
 print("PROOF BUDDY TEST SUITE")
 print("=" * 40)
@@ -64,10 +68,12 @@ def run_command(name: str, cmd: list[str], cwd: Path) -> int:
         if result.returncode == 0:
             print(f"PASS: {name}")
         else:
-            print(f"FAIL: {name} (exit {result.returncode})")
+            print(f"{_RED}FAIL: {name} (exit {result.returncode}){_RESET}")
+            _failed_sections.append(name)
         return result.returncode
     except FileNotFoundError as exc:
-        print(f"FAIL: {name} not run (missing binary): {exc}")
+        print(f"{_RED}FAIL: {name} not run (missing binary): {exc}{_RESET}")
+        _failed_sections.append(name)
         return 1
 
 
@@ -270,4 +276,9 @@ print("=" * 40)
 if totalFails == 0:
     print("\nAll tests passed!\n")
 else:
-    print(f"\nTotal failures: {totalFails}\n")
+    print(f"\n{_RED}Total failures: {totalFails}{_RESET}\n")
+    if _failed_sections:
+        print(f"{_RED}Failing sections:{_RESET}")
+        for _s in _failed_sections:
+            print(f"  {_RED}- {_s}{_RESET}")
+        print()

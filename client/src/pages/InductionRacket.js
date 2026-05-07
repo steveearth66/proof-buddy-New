@@ -731,7 +731,9 @@ const InductionRacket = () => {
     try {
       const data = await inductionService.downloadProof(proofParams.proof_id);
       const fileName = `${data.name || 'proof'}.json`;
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const jsonStr = JSON.stringify(data, null, 2)
+          .replace(/[^\x00-\x7F]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+      const blob = new Blob([jsonStr], { type: 'application/json; charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

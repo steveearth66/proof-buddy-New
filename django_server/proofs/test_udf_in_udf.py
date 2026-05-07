@@ -7,12 +7,16 @@ like 'append only takes 1 argument' when defining reverse.
 """
 
 from expression_tree.ERProofEngine import ERProof, ERProofLine, TwoSidedProof
+import sys
+
+_RED   = "\x1b[1;31m" if sys.stdout.isatty() else ""
+_RESET = "\x1b[0m"    if sys.stdout.isatty() else ""
 
 totalFails = 0
 
 def _fail(name, detail):
     global totalFails
-    print(f"  FAIL {name}: {detail}")
+    print(f"{_RED}  FAIL {name}: {detail}{_RESET}")
     totalFails += 1
 
 def _pass(name):
@@ -116,4 +120,4 @@ print()
 if totalFails == 0:
     print("All UDF-calls-UDF tests passed!")
 else:
-    print(f"UDF-calls-UDF test failures: {totalFails}")
+    print(f"{_RED}UDF-calls-UDF test failures: {totalFails}{_RESET}")
