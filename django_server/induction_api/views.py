@@ -605,6 +605,17 @@ def _ensure_udfs_hydrated(proof, proof_id):
             pass
     for _d in all_defs:
         if _d.get('is_generic'):
+            _glabel = _d.get('label') or _d.get('name') or ''
+            _gtype = _d.get('type', 'int')
+            _grestrictions = _d.get('restrictions') or {}
+            if _glabel:
+                for ts in two_sided:
+                    if _glabel not in ts.generics:
+                        try:
+                            ts.addGeneric(_glabel, _gtype, _grestrictions)
+                            ts.errLog = []
+                        except Exception:
+                            pass
             continue
         _dlabel = _d.get('label') or _d.get('name') or ''
         _dudf = _dlabel.replace('(', ' ').replace(')', ' ').split()
