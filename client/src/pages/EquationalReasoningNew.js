@@ -2135,9 +2135,6 @@ const handleRuleKeyDown = (e) => {
                       >
                         Download Proof
                       </Dropdown.Item>
-                      <Dropdown.Item onClick={handleUploadProof} href="#">
-                        Upload Proof
-                      </Dropdown.Item>
                     </Dropdown.Menu>
                   </Dropdown>
                   <input

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
 import erService from '../services/erService';
@@ -48,6 +48,7 @@ export default function Proofs() {
   const [proofObject, setProofObject] = useState({});
   const [query, setQuery] = useState('');
   const [deleteTargetId, setDeleteTargetId] = useState(null);
+  const uploadFileRef = useRef(null);
   const currentStrategy = PROOF_CONFIG[proofType];
   
   const queryProofs = useCallback(async ({ page = 1 } = {}) => {
@@ -64,6 +65,26 @@ export default function Proofs() {
   useEffect(() => {
     queryProofs();
   }, [queryProofs]);
+
+  const handleUploadFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const proofData = JSON.parse(text);
+      const expectedType = proofType === PROOF_TYPES.INDUCTION ? 'induction' : 'equational';
+      if (proofData.proofType !== expectedType) {
+        toast.error(`This file is not an ${expectedType} proof.`);
+        return;
+      }
+      const result = await currentStrategy.service.uploadProof(proofData);
+      toast.success(`Proof "${result.proofName}" uploaded successfully.`);
+      await queryProofs();
+    } catch (error) {
+      console.error('Error uploading proof:', error);
+      toast.error('Failed to upload proof. The file may be invalid or corrupted.');
+    }
+  };
 
   const handleDelete = async () => {
     if (!deleteTargetId) return;
@@ -92,6 +113,21 @@ export default function Proofs() {
       <Container>
         <Row className="align-items-center">
           <Col><h1>All {currentStrategy.label} Proofs</h1></Col>
+          <Col xs="auto">
+            <Button
+              className="blue-btn"
+              onClick={() => { uploadFileRef.current.value = ''; uploadFileRef.current.click(); }}
+            >
+              Upload Proof from a Saved File
+            </Button>
+            <input
+              type="file"
+              accept=".json"
+              ref={uploadFileRef}
+              onChange={handleUploadFileChange}
+              style={{ display: 'none' }}
+            />
+          </Col>
           <Col xs="auto">
             {/* Toggle between types */}
             <Form.Select 
