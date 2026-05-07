@@ -1213,6 +1213,7 @@ def apply_rule(request):
         # Save to cache
         save_induction_obj_to_cache(user, proof, proof_id)
         
+        rule_with_sub = None  # will hold appliedRule (with ↦ annotations) if a line was generated
         # Save to database if we have a valid proof line
         if len(target.proofLines) > 0:
             last_line = target.proofLines[-1]
@@ -1281,7 +1282,8 @@ def apply_rule(request):
             "errors": target.errLog,
             "jsonTree": jsonTree,
             "lineNum": max(0, len(target.proofLines) - 1),
-            "resultNodeId": result_node_id
+            "resultNodeId": result_node_id,
+            "rule": rule_with_sub
         }, status=status.HTTP_200_OK)
     except Exception as e:
         import traceback
