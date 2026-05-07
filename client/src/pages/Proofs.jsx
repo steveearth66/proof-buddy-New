@@ -115,10 +115,10 @@ export default function Proofs() {
           <Col><h1>All {currentStrategy.label} Proofs</h1></Col>
           <Col xs="auto">
             <Button
-              variant="outline-primary"
+              className="blue-btn"
               onClick={() => { uploadFileRef.current.value = ''; uploadFileRef.current.click(); }}
             >
-              upload proof from a saved file
+              Upload Proof from a Saved File
             </Button>
             <input
               type="file"
