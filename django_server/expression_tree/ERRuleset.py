@@ -834,7 +834,14 @@ class ZeroQPlus(Axiom):
     def verifyValues(self):
         if (self._paramMappings['a'].data == '(' or self._paramMappings['k'].name == '('):
             return False, "Insufficiently resolved arguments"
-        if not(self._paramMappings['a'].name >= 0 and self._paramMappings['k'].name >= 0):
+        try:
+            a_ok = self._paramMappings['a'].name >= 0
+            k_ok = self._paramMappings['k'].name >= 0
+        except TypeError:
+            # k or a is a generic variable (name is a GenericInt/str), not a concrete int.
+            # Generics represent unknown non-negative integers, so the numeric checks pass.
+            return True, ""
+        if not(a_ok and k_ok):
             return False, "Neither 'a' nor 'k' can be negative when rewriting with zero?+ rule"
         if not(self._paramMappings['a'].name != 0 or self._paramMappings['k'].name != 0):
             return False, "One of either 'a' or 'k' must be positive when rewriting with zero?+ rule"

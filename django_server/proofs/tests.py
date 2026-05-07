@@ -187,6 +187,32 @@ udf_in_udf_failures = run_command(
 )
 totalFails += (1 if udf_in_udf_failures else 0)
 
+udf_if_type_mismatch_cmd = [
+    sys.executable,
+    "manage.py",
+    "test",
+    "proofs.test_udf_if_type_mismatch",
+]
+udf_if_type_mismatch_failures = run_command(
+    "UDF if-branch type mismatch validation tests",
+    udf_if_type_mismatch_cmd,
+    cwd=root_dir,
+)
+totalFails += (1 if udf_if_type_mismatch_failures else 0)
+
+delete_def_cache_cmd = [
+    sys.executable,
+    "manage.py",
+    "test",
+    "racket_api.test_delete_definition_cache",
+]
+delete_def_cache_failures = run_command(
+    "delete_definition_api cache-cleanup tests",
+    delete_def_cache_cmd,
+    cwd=root_dir,
+)
+totalFails += (1 if delete_def_cache_failures else 0)
+
 lemma_app_cmd = [
     sys.executable,
     "-c",
