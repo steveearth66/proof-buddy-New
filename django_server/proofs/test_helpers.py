@@ -8,6 +8,10 @@ from expression_tree.ERCommon import Node, makeJson, findNode
 from expression_tree.ERRuleset import recursiveReplaceNodes, IH
 import sympy as sp  # type: ignore
 import json
+import sys
+
+_RED   = "\x1b[1;31m" if sys.stdout.isatty() else ""
+_RESET = "\x1b[0m"    if sys.stdout.isatty() else ""
 
 
 def show_node_ids(exprTree: Node, indent=0):
@@ -54,7 +58,7 @@ def do_single_test_case(rule: str, expr: str, expected, proof: ERProof = None) -
     proof.errLog.clear()
     if ans == expected:
         return 0
-    print(f"FAIL: expr={expr} rule='{rule}' expected {word}: {expected} but got: {ans}\n")
+    print(f"{_RED}FAIL: expr={expr} rule='{rule}' expected {word}: {expected} but got: {ans}{_RESET}\n")
     return 1
 
 

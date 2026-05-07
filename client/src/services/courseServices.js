@@ -194,6 +194,35 @@ const startAssignmentProof = async (assignmentId, proofId, proofType) => {
     }
 };
 
-const courseService = { getCourses, createCourse, leaveCourse, checkUser, updateCourseDescription, updateCourseTerm, startAssignmentProof, getAssignments, getCourse, createAssignment, removeStudent, addStudent, regenerateJoinCode, toggleCourseStatus, getInstructorLibrary, deleteAssignment, joinCourse };
+const getStudentAssignmentStatus = async (assignmentId) => {
+    try {
+        const response = await axiosInstance.get(`${API_GATEWAY}/assignments/${assignmentId}/progress`);
+        return response.data;
+    } catch (error) {
+        console.error("Error getting student proof status:", error);
+        return null;
+    }
+};
+
+const courseService = { 
+    getCourses, 
+    createCourse, 
+    leaveCourse, 
+    checkUser, 
+    updateCourseDescription, 
+    updateCourseTerm, 
+    startAssignmentProof, 
+    getAssignments, 
+    getCourse, 
+    createAssignment, 
+    removeStudent, 
+    addStudent, 
+    regenerateJoinCode, 
+    toggleCourseStatus, 
+    getInstructorLibrary, 
+    deleteAssignment, 
+    joinCourse,
+    getStudentAssignmentStatus 
+};
 
 export default courseService;

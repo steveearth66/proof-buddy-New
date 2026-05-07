@@ -4,7 +4,7 @@ and, or, implies, integer?, list?) and UDF (user-defined functions)
 """
 
 from expression_tree.ERProofEngine import ERProof
-from .test_helpers import test_axiom, do_single_test_case
+from .test_helpers import test_axiom, do_single_test_case, _RED, _RESET
 
 totalFails = 0
 
@@ -379,4 +379,4 @@ totalFails += do_single_test_case("apply i x='(0 1 2)", "(i '(0 1 2))", "(zero? 
 totalFails += do_single_test_case("eval +", "(+ a 1)", ["Insufficiently resolved arguments"], udfProof)
 totalFails += do_single_test_case("eval if", "(if q 1 2)", ["Insufficiently resolved condition argument"], udfProof)
 
-print("\nAxiom and UDF tests completed!\n" if totalFails == 0 else f"Axiom and UDF: {totalFails} failures\n")
+print("\nAxiom and UDF tests completed!\n" if totalFails == 0 else f"{_RED}Axiom and UDF: {totalFails} failures{_RESET}\n")

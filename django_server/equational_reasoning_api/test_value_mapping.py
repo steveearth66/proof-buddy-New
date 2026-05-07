@@ -144,6 +144,41 @@ class ValueMappingEngineTests(TestCase):
         self.assertEqual(result_inferred, result_explicit,
                          f"Inferred result '{result_inferred}' != explicit result '{result_explicit}'")
 
+    def test_zero_q_plus_high_mode_concrete_int_right(self):
+        """In HIGH mode, 'rewrite zero?+' on (zero? (+ k 1)) infers a=1, k=k and succeeds."""
+        p = TwoSidedProof()
+        p.LHS.addGeneric('k', 'int')
+        p.LHS.addProofLine("(zero? (+ k 1))")
+        p.LHS.addProofLine("(zero? (+ k 1))", "rewrite zero?+", 0, auto_infer=True)
+        self.assertEqual(p.LHS.errLog, [], p.LHS.errLog)
+        self.assertEqual(str(p.LHS.proofLines[-1].exprTree), '#f')
+
+    def test_zero_q_plus_high_mode_concrete_int_left(self):
+        """In HIGH mode, 'rewrite zero?+' on (zero? (+ 1 k)) infers a=1, k=k and succeeds."""
+        p = TwoSidedProof()
+        p.LHS.addGeneric('k', 'int')
+        p.LHS.addProofLine("(zero? (+ 1 k))")
+        p.LHS.addProofLine("(zero? (+ 1 k))", "rewrite zero?+", 0, auto_infer=True)
+        self.assertEqual(p.LHS.errLog, [], p.LHS.errLog)
+        self.assertEqual(str(p.LHS.proofLines[-1].exprTree), '#f')
+
+    def test_zero_q_plus_high_mode_inferred_matches_explicit(self):
+        """In HIGH mode the inferred zero?+ result matches the explicit a=1, k=k result."""
+        p1 = TwoSidedProof()
+        p1.LHS.addGeneric('k', 'int')
+        p1.LHS.addProofLine("(zero? (+ k 1))")
+        p1.LHS.addProofLine("(zero? (+ k 1))", "rewrite zero?+", 0, auto_infer=True)
+        self.assertEqual(p1.LHS.errLog, [], p1.LHS.errLog)
+        result_inferred = str(p1.LHS.proofLines[-1].exprTree)
+        p2 = TwoSidedProof()
+        p2.LHS.addGeneric('k', 'int')
+        p2.LHS.addProofLine("(zero? (+ k 1))")
+        p2.LHS.addProofLine("(zero? (+ k 1))", "rewrite zero?+ a=1, k=k", 0, auto_infer=False)
+        self.assertEqual(p2.LHS.errLog, [], p2.LHS.errLog)
+        result_explicit = str(p2.LHS.proofLines[-1].exprTree)
+        self.assertEqual(result_inferred, result_explicit,
+                         f"Inferred result '{result_inferred}' != explicit result '{result_explicit}'")
+
 
 class ValueMappingAPITests(TestCase):
     """
