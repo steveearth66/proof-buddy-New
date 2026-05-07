@@ -2367,9 +2367,6 @@ const InductionRacket = () => {
                                   >
                                     Download Proof
                                   </Dropdown.Item>
-                                  <Dropdown.Item onClick={handleUploadProof} href="#">
-                                    Upload Proof
-                                  </Dropdown.Item>
                                 </Dropdown.Menu>
                             </Dropdown>
                         </Col>
@@ -2720,9 +2717,6 @@ const InductionRacket = () => {
                           style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}
                         >
                           Download Proof
-                        </Dropdown.Item>
-                        <Dropdown.Item onClick={handleUploadProof} href="#">
-                          Upload Proof
                         </Dropdown.Item>
                       </Dropdown.Menu>
                     </Dropdown>
