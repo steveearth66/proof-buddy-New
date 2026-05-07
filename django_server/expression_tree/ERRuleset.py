@@ -799,10 +799,29 @@ class NullQCons(Axiom):
 
 class ZeroQPlus(Axiom):
     def __init__(self):
-        # Return a tuple containing ONE element which is a tuple of alternatives
-        # The outer tuple is for the for-loop iteration, the inner tuple provides position alternatives
-        aFinder: Axiom.ParamFinder = lambda node: ((node.children[1].children[1], node.children[1].children[2]),)
-        kFinder: Axiom.ParamFinder = lambda node: ((node.children[1].children[1], node.children[1].children[2]),)
+        # 'a' is the concrete integer in (+ a k); 'k' is the other term.
+        # The finders pick deterministically when one child is a concrete integer leaf,
+        # so that auto-infer (HIGH support) assigns 'a' and 'k' correctly.
+        # If neither child is a concrete integer, both alternatives are offered for
+        # manual entry so the user can still provide explicit assignments.
+        def aFinder(node: Node):
+            left = node.children[1].children[1]
+            right = node.children[1].children[2]
+            # For auto-infer: concrete integer is primary for 'a'; secondary allows explicit override.
+            if not left.children and isinstance(left.name, int):
+                return ((left, right),)
+            if not right.children and isinstance(right.name, int):
+                return ((right, left),)
+            return ((left, right),)
+        def kFinder(node: Node):
+            left = node.children[1].children[1]
+            right = node.children[1].children[2]
+            # For auto-infer: non-concrete term is primary for 'k'; secondary allows explicit override.
+            if not left.children and isinstance(left.name, int):
+                return ((right, left),)
+            if not right.children and isinstance(right.name, int):
+                return ((left, right),)
+            return ((left, right),)
         super().__init__("zero?+", {'a': aFinder, 'k': kFinder})
 
     def verifyStructure(self, ruleNode: Node) -> tuple[bool, str]:
