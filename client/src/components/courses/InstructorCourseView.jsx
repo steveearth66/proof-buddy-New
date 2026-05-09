@@ -6,9 +6,10 @@ import courseService from '../../services/courseServices';
 import ViewAssignmentProgressModal from './modals/ViewAssignmentProgressModal';
 import { Eye } from "react-bootstrap-icons";
 
-export default function InstructorCourseView({ course, assignments, onBack, onToggleStatus, onRegenerateJoinCode, onUpdateCourse, onCreateAssignment, onDeleteAssignment }) {
+export default function InstructorCourseView({ course, assignments, onBack, onToggleStatus, onRegenerateJoinCode, onUpdateCourse, onSaveAssignment, onDeleteAssignment }) {
   const [assignmentPage, setAssignmentPage] = useState(1);
   const [showAddAssignmentModal, setShowAddAssignmentModal] = useState(false);
+  const [editAssignment, setEditAssignment] = useState(null);
   const [showAssignmentProgressModal, setShowAssignmentProgressModal] = useState(false);
   const [viewAssignment, setViewAssignment] = useState(null);
   const [newStudentEmail, setNewStudentEmail] = useState("");
@@ -23,6 +24,20 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
   const [expiresAt, setExpiresAt] = useState(course.join_code_expires_at);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [studentFeedback, setStudentFeedback] = useState(null);
+
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Define your dynamic width
+  const dueDateWidth = 
+    windowWidth < 768  ? '20%' : 
+    windowWidth < 992  ? '15%' : 
+    windowWidth < 1200 ? '12%' : '10%';
 
   const handleAddStudent = async (e, specificUsername = null) => {
     if (e) e.preventDefault();
@@ -144,7 +159,12 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
     setShowAssignmentProgressModal(true);
   };
 
-  const [isEditingTerm, setIsEditingTerm] = useState(false); // NEW
+  const handleEditAssignment = async (assignment) => {
+    setEditAssignment(assignment);
+    setShowAddAssignmentModal(true);
+  };
+
+  const [isEditingTerm, setIsEditingTerm] = useState(false);
 
   // --- Description State ---
   const [editDescription, setEditDescription] = useState(course?.description || "");
@@ -368,7 +388,7 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
               Assignment <i className={`ms-1 ${getSortIcon('title')}`}></i>
             </th>
             <th
-              style={{ cursor: 'pointer', width: '10%', whiteSpace: 'nowrap' }}
+              style={{ cursor: 'pointer', width: dueDateWidth, whiteSpace: 'nowrap' }}
               onClick={() => handleSort('dueDate')}
               onMouseDown={handleMouseDown}
             >
@@ -394,7 +414,7 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
                   </td>
                   <td>
                     {new Date(assignment.due_date).toLocaleDateString([], { 
-                        month: 'short', day: 'numeric', year: 'numeric' 
+                        month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true 
                     })}
                   </td>
                   <td>
@@ -407,7 +427,9 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
                     </Badge>
                   </td>
                   <td className="text-center" style={{ whiteSpace: 'nowrap' }}>
-                    {/* edit button for future development: <Button variant="outline-secondary" size="sm" className="me-2"><i className="fa-solid fa-pen"></i></Button> */}
+                    <OverlayTrigger placement="left" overlay={<Tooltip id={`tooltip-view-${assignment.id}`}>Edit Assignment</Tooltip>}>
+                      <Button variant="outline-secondary" size="sm" className="me-1" onClick={(e) => {e.currentTarget.blur(); handleEditAssignment(assignment);}}><i className="fa-solid fa-pen"></i></Button>
+                    </OverlayTrigger>
                     <OverlayTrigger placement="left" overlay={<Tooltip id={`tooltip-view-${assignment.id}`}>View Student Progress</Tooltip>}>
                       <Button variant="outline-secondary" size="sm" className="me-1" onClick={(e) => {e.currentTarget.blur(); handleViewStudentProgress(assignment);}}><Eye></Eye></Button>
                     </OverlayTrigger>
@@ -517,8 +539,10 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
       <AddAssignmentModal 
         show={showAddAssignmentModal} 
         onHide={() => setShowAddAssignmentModal(false)}
+        onExited={() => setEditAssignment(null)}        
         courseId={course.id} 
-        onCreateAssignment={onCreateAssignment}
+        onSaveAssignment={onSaveAssignment}
+        assignment={editAssignment}
       />
 
       <ViewAssignmentProgressModal

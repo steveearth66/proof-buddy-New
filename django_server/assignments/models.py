@@ -88,6 +88,7 @@ class Assignment(models.Model):
     
 class AssignmentProof(models.Model):
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE, related_name='proof_items')
+    order = models.PositiveIntegerField(default=0)
     
     content_type = models.ForeignKey(
         ContentType, 
@@ -102,6 +103,7 @@ class AssignmentProof(models.Model):
 
     class Meta:
         unique_together = ('assignment', 'content_type', 'object_id')
+        ordering = ['order']
 
 class StudentProofMapping(models.Model):
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE)
