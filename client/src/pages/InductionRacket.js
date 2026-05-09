@@ -846,8 +846,8 @@ const InductionRacket = () => {
       // Clear validation error if rule is valid
       setFooterRuleError('');
 
-      // If user typed "rewrite math", open Substitution modal with rule pre-filled
-      if (ruleFromFooter.trim().toLowerCase() === 'rewrite math') {
+      // If user typed "rewrite math" or "rewrite logic", open Substitution modal with rule pre-filled
+      if (ruleFromFooter.trim().toLowerCase() === 'rewrite math' || ruleFromFooter.trim().toLowerCase() === 'rewrite logic') {
         updateShowSubstitution();
         return;
       }
@@ -1046,9 +1046,9 @@ const InductionRacket = () => {
             
             const rawDefinitions = metaData.definition || [];
 
-            // Separate the raw data into generics and definitions
-            const rawGenerics = rawDefinitions.filter(d => d.body === '<generic>');
-            const rawDefs = rawDefinitions.filter(d => d.body !== '<generic>');
+            // Separate the raw data into generics and definitions (generics have is_generic: true)
+            const rawGenerics = rawDefinitions.filter(d => d.is_generic);
+            const rawDefs = rawDefinitions.filter(d => !d.is_generic);
             // --- Helper to generate a unique key for generics based on usable fields ---
             const getGenericKey = (g) => `${g.label}|${g.type || ''}`;
 

@@ -88,7 +88,7 @@ implies_tests = [
 totalFails += test_racket_function('implies', implies_tests, hasAxiom=True)
 
 # Check that logic is no longer a valid rule
-totalFails += do_single_test_case('eval logic', '(and #t #t)', ["Could not find rule associated with 'logic'"])
+totalFails += do_single_test_case('eval logic', '(and #t #t)', ["Cannot evaluate propositional logic rule"])
 totalFails += do_single_test_case("logic", '(and #t #t)', ["Rule must start with 'eval', 'apply', or 'rewrite'"])
 
 print("\nLogic operations tests completed!\n" if totalFails == 0 else f"{_RED}Logic operations: {totalFails} failures{_RESET}\n")

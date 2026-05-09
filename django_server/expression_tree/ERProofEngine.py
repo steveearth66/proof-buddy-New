@@ -517,6 +517,8 @@ class ERProofLine(ProofComponent):
                 return
         if selected._ruleType == RuleType.MATH:
             ok, err = selected.isApplicable(targetNode, subNode)
+        elif selected._ruleType == RuleType.LOGIC:
+            ok, err = selected.isApplicable(targetNode, subNode)
         elif ruleCategory == 'eval':
             ok, err = selected.isApplicable(targetNode)
         else:
@@ -528,7 +530,7 @@ class ERProofLine(ProofComponent):
 
         newNode = (
             selected.insertSubstitution(targetNode, subNode)
-            if selected.ruleType == RuleType.MATH
+            if selected.ruleType in (RuleType.MATH, RuleType.LOGIC)
             else selected.insertSubstitution(targetNode)
         )
         targetNode.replaceWith(newNode)
