@@ -506,10 +506,9 @@ const EquationalReasoningNew = () => {
         console.log("[Init] Proof found. Restoring UI...");
         
         const rawDefinitions = proofData.definitions || [];
-        
-        // Separate the raw data into generics and definitions
-        const rawGenerics = rawDefinitions.filter(d => d.body === '<generic>');
-        const rawDefs = rawDefinitions.filter(d => d.body !== '<generic>');
+        const rawGenerics = proofData.generics || [];
+        // rawDefs are definitions only (backend already separates generics into proofData.generics)
+        const rawDefs = rawDefinitions;
         // --- Helper to generate a unique key for generics based on usable fields ---
         const getGenericKey = (g) => `${g.label}|${g.type || ''}`;
 
@@ -1127,8 +1126,8 @@ const handleRuleKeyDown = (e) => {
       }
       setFooterRuleError('');
 
-      // If user typed "rewrite math", open Substitution modal with rule pre-filled
-      if (ruleFromFooter.trim().toLowerCase() === 'rewrite math') {
+      // If user typed "rewrite math" or "rewrite logic", open Substitution modal with rule pre-filled
+      if (ruleFromFooter.trim().toLowerCase() === 'rewrite math' || ruleFromFooter.trim().toLowerCase() === 'rewrite logic') {
         updateShowSubstitution();
         isProcessingRef.current = false;
         return;
