@@ -51,6 +51,7 @@ import {
 } from "../utils/playModeUtils";
 import userService from "../services/userService"
 import { useLocation, useNavigate } from "react-router-dom";
+import CommentsModal from "../components/CommentsModal";
 
 /**
  * Equational Reasoning component facilitates the Equational Reasoning Racket.
@@ -395,8 +396,14 @@ const EquationalReasoningNew = () => {
     support_ih: true,
     support_premise: true,
     support_rule_set: true,
-    support_value_mapping: true,
+    support_value_mapping: true
   });
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [comments, setComments] = useState({});
+  const [activePadIndex, setActivePadIndex] = useState(null);
+  const [activeSide, setActiveSide] = useState(null);
+  const [studentComment, setStudentComment] = useState("");
+  const [instructorComment, setInstructorComment] = useState("");
   
   // Separate premises for base and leap cases
   const [leftPremise, setLeftPremise] = useState(INITIAL_PREMISE_STATE);
@@ -1626,6 +1633,24 @@ const handleGenerateAndCheck = async () => {
             hideJustification={hideJustification}     // NEW: Pass visibility flag
           />
         </Col>
+        <Col xs="auto" className="d-flex align-items-center">
+          <Button   
+          variant="secondary"
+          onClick={() => {
+            setActivePadIndex(padIndex);
+            setActiveSide(side);
+            const existing = comments?.[side]?.[padIndex] || {
+              student: "",
+              instructor: ""
+            };
+            setStudentComment(existing.student);
+            setInstructorComment(existing.instructor);
+            setShowCommentsModal(true);
+          }}
+          >
+            <i className="fa-regular fa-message"></i>
+          </Button>
+        </Col>
       </Row>
     );
   }
@@ -2544,6 +2569,28 @@ const handleGenerateAndCheck = async () => {
           }
         }}
       />
+      <CommentsModal
+              show={showCommentsModal}
+              onHide={() => setShowCommentsModal(false)}
+              studentComment={studentComment}
+              instructorComment={instructorComment}
+              onStudentCommentChange={setStudentComment}
+              OnInstructorCommentChange={setInstructorComment}
+              isStudent={currentUserType?.is_student}
+              onSave={() => {
+                setComments(prev => ({
+                  ...prev,
+                  [activeSide]: {
+                    ...prev[activeSide],
+                    [activePadIndex]: {
+                      student: studentComment,
+                      instructor: instructorComment
+                    }
+                  }
+                }))
+                setShowCommentsModal(false);
+              }}
+            />
     </MainLayout>
   );
 };

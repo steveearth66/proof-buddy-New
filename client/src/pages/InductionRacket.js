@@ -51,6 +51,7 @@ import {
   getLastRealIndex
 } from "../utils/playModeUtils";
 import { useLocation } from "react-router-dom";
+import CommentsModal from "../components/CommentsModal";
 
 /**
  * InductionRacket component facilitates the Equational Reasoning Racket.
@@ -86,8 +87,6 @@ const InductionRacket = () => {
   
   // Case state must be declared first since it's used in computed values below
   const [isAnchor, setIsAnchor] = useState(true);
-
-  const [viewIH, setViewIH] = useState(true);
   
   // List induction direction: 'up' or 'down' (only relevant when inductionType === 'lists')
   const [listDirection, setListDirection] = useState('up');
@@ -159,8 +158,15 @@ const InductionRacket = () => {
     support_ih: true,
     support_premise: true,
     support_rule_set: true,
-    support_value_mapping: true,
+    support_value_mapping: true
   });
+  const [showIHModal, setShowIHModal] = useState(false);
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [comments, setComments] = useState({});
+  const [activePadIndex, setActivePadIndex] = useState(null);
+  const [activeSide, setActiveSide] = useState(null);
+  const [studentComment, setStudentComment] = useState("");
+  const [instructorComment, setInstructorComment] = useState("");
 
   useEffect(() => {
     async function loadUser() {
@@ -1313,7 +1319,7 @@ const InductionRacket = () => {
       return;
     }
 
-    if (!inductiveHypothesisLHS || inductiveHypothesisLHS.trim() === "") {
+    if ((!inductiveHypothesisLHS || inductiveHypothesisLHS.trim() === "") && !proofParams?.support_ih) {
       toast.error("Inductive hypothesis for LHS must be provided.");
       return;
     }
@@ -1914,6 +1920,24 @@ const InductionRacket = () => {
             isEditRow={false}
           />
         </Col>
+        <Col xs="auto" className="d-flex align-items-center">
+          <Button   
+          variant="secondary"
+          onClick={() => {
+            setActivePadIndex(padIndex);
+            setActiveSide(side);
+            const existing = comments?.[side]?.[padIndex] || {
+              student: "",
+              instructor: ""
+            };
+            setStudentComment(existing.student);
+            setInstructorComment(existing.instructor);
+            setShowCommentsModal(true);
+          }}
+          >
+            <i className="fa-regular fa-message"></i>
+          </Button>
+        </Col>
       </Row>
     );
   }
@@ -2400,7 +2424,7 @@ const InductionRacket = () => {
                             </div>
                           </Form.Group>
                       </Row>
-                      {viewIH && (!proofStarted || !isAnchor) && (
+                      {(proofParams?.support_ih || !proofStarted) && (!proofStarted || !isAnchor) && (
                         <Row className="g-5 mb-3">
                           <Form.Group as={Col} md="6" className="er-inductive-hypothesis-lhs">
                               <label htmlFor="eRInductiveHypothesisLHS" className="form-label small fw-bold mb-0">IH LHS</label>
@@ -2475,12 +2499,15 @@ const InductionRacket = () => {
                         )}
                         <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">Definitions</Dropdown.Item>
                         <Dropdown.Item onClick={toggleOffcanvas} href="#">View Rule Set</Dropdown.Item>
-                        <Dropdown.Item 
-                          onClick={() => setViewIH(prev => !prev)} 
-                          disabled={isAnchor} style={{ opacity: !isAnchor ? 1 : 0.4 }}
+                        {!isAnchor && !proofParams?.support_ih && proofStarted && (
+                          <Dropdown.Item 
+                          onClick={() => setShowIHModal(true)}
+                          /* disabled={isAnchor || proofParams?.support_ih} style={{ opacity: !isAnchor && !proofParams.support_ih ? 1 : 0.4 }} */
                           >
-                            {viewIH ? "Hide IH" : "View IH"}
+                            Show IH
                           </Dropdown.Item>
+                        )}
+                        
                         <Dropdown.Item 
                           onClick={checkCurrentProofStatus} 
                           disabled={!proofStarted}
@@ -2951,6 +2978,46 @@ const InductionRacket = () => {
               console.error('[SetParameters] Save failed:', e);
             }
           }
+        }}
+      />
+
+      {/* Show IH Modal */}
+      <Modal show={showIHModal} onHide={() => setShowIHModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Induction Hypothesis</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="mb-3">
+            <strong>IH LHS</strong>
+            <div>{inductiveHypothesisLHS || "-"}</div>
+          </div>
+          <div>
+            <strong>IH RHS</strong>
+            <div>{inductiveHypothesisRHS || "-"}</div>
+          </div>
+        </Modal.Body>
+      </Modal>
+
+      <CommentsModal
+        show={showCommentsModal}
+        onHide={() => setShowCommentsModal(false)}
+        studentComment={studentComment}
+        instructorComment={instructorComment}
+        onStudentCommentChange={setStudentComment}
+        OnInstructorCommentChange={setInstructorComment}
+        isStudent={currentUserType?.is_student}
+        onSave={() => {
+          setComments(prev => ({
+            ...prev,
+            [activeSide]: {
+              ...prev[activeSide],
+              [activePadIndex]: {
+                student: studentComment,
+                instructor: instructorComment
+              }
+            }
+          }))
+          setShowCommentsModal(false);
         }}
       />
     </MainLayout>
