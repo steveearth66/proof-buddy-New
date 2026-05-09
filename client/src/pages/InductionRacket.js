@@ -800,7 +800,7 @@ const InductionRacket = () => {
 
       if (isBound) {
         const userIndex = getPadIndex(userRow.num);
-        ruleFromFooter = userRow.num === "000" ? "Premise" : footerRule;
+        ruleFromFooter = userRow.num === "000" && !proofParams.support_premise ? "Premise" : footerRule;
 
         // --- FOOTER EXPRESSION REFERENCE ---
         if (footerPadRef.current) {
@@ -828,6 +828,33 @@ const InductionRacket = () => {
           }
           studentSelectedNode = previousStartPosition;
           currentIndex = userIndex; // index in array now equals line number
+        }
+
+        // Validation for premise line
+        if (userRow.num === "000" && proofParams.support_premise) {
+          const validationPayload = {
+            side: showSide,
+            case: isAnchor ? "base" : "leap",
+            lineNumber: 0,
+            studentRule: ruleFromFooter,
+            studentExpression: expressionFromFooter,
+            studentSelectedNode: 0
+          };
+          try {
+            const validationResult = await inductionService.validateHiddenField(validationPayload);
+            if (validationResult.errors && validationResult.errors.length > 0) {
+              validationResult.errors.forEach(error => toast.error(error));
+              isProcessingRef.current = false;
+              return;
+            }
+            toast.success(validationResult.message || "correct premise");
+            unbindFooter();
+            return;
+          } catch (error) {
+            toast.error('Not a legal starting rule');
+            isProcessingRef.current = false;
+            return;
+          }
         }
       }
 
@@ -1620,8 +1647,8 @@ const InductionRacket = () => {
                 ivar: inductionVariable,
                 aval: String(inductionValue),
                 lvar: leapVariable,
-                lhsPremise: formValues.lHSGoal,
-                rhsPremise: formValues.rHSGoal,
+                lhsPremise: proofParams.support_premise ? '' : formValues.lHSGoal,
+                rhsPremise: proofParams.support_premise ? '' : formValues.rHSGoal,
                 definitions: definitions.map(d => ({
                   label: d.label || d.name || '',
                   type: normalizeType(d.type),
@@ -1648,14 +1675,14 @@ const InductionRacket = () => {
                 setBasePremises({
                   LHS: {
                     racket: baseL.racket || formValues.lHSGoal,
-                    rule: 'Premise',
+                    rule: proofParams.support_premise ? '' : 'Premise',
                     startPosition: 0,
                     selectedNode: 0,
                     jsonTree: baseL.jsonTree || {}
                   },
                   RHS: {
                     racket: baseR.racket || formValues.rHSGoal,
-                    rule: 'Premise',
+                    rule: proofParams.support_premise ? '' : 'Premise',
                     startPosition: 0,
                     selectedNode: 0,
                     jsonTree: baseR.jsonTree || {}
@@ -1666,14 +1693,14 @@ const InductionRacket = () => {
                 setLeapPremises({
                   LHS: {
                     racket: leapL.racket || '',
-                    rule: 'Premise',
+                    rule: proofParams.support_premise ? '' : 'Premise',
                     startPosition: 0,
                     selectedNode: 0,
                     jsonTree: leapL.jsonTree || {}
                   },
                   RHS: {
                     racket: leapR.racket || '',
-                    rule: 'Premise',
+                    rule: proofParams.support_premise ? '' : 'Premise',
                     startPosition: 0,
                     selectedNode: 0,
                     jsonTree: leapR.jsonTree || {}
@@ -1929,16 +1956,22 @@ const InductionRacket = () => {
     let equation;
     if (isPremise) {
       if (isLHS) {
-        equation = leftPremise?.racket || formValues.lHSGoal;
+        equation = proofParams.support_premise 
+        ? ''
+        : leftPremise?.racket || formValues.lHSGoal;
       } else {
-        equation = rightPremise?.racket || formValues.rHSGoal;
+        equation = proofParams.support_premise 
+        ? ''
+        :rightPremise?.racket || formValues.rHSGoal;
       }
     } else {
       equation = field.racket;
     }
     
     const jsonTree = isPremise
-      ? (isLHS ? leftPremise?.jsonTree : rightPremise?.jsonTree)
+      ? (proofParams.support_premise 
+        ? null 
+        : (isLHS ? leftPremise?.jsonTree : rightPremise?.jsonTree))
       : (field.jsonTree || jsonTreeRep[side]);
     
     // Since array index now equals database line_number, use index directly
@@ -2027,9 +2060,15 @@ const InductionRacket = () => {
     }
 
     if (userRow.num === "000") {
-      const equation = showSide === "LHS" ? leftPremise?.racket : rightPremise?.racket;
+      const equation = (proofParams.support_premise)
+        ? ""
+        : (showSide === "LHS" ? leftPremise?.racket : rightPremise?.racket);
       
-      if (!equation) {
+      const jsonTree = proofParams.support_premise
+        ? null
+        : (showSide === "LHS" ? leftPremise?.jsonTree : rightPremise?.jsonTree);
+
+      if (!proofParams.support_premise && !equation) {
         return <div className="alert alert-warning">No equation available</div>;
       }
       const field = racketRuleFields?.[showSide][padIndex];
@@ -2042,13 +2081,14 @@ const InductionRacket = () => {
           equation={displayEquation}
           onHighlightChange={() => {}}
           side={showSide}
-          jsonTree={showSide === "LHS" ? leftPremise?.jsonTree : rightPremise?.jsonTree}
+          jsonTree={jsonTree}
           lineNum={padIndex}
           startPosition={0}
           tabIndex={0}
-          ruleValue="Premise"
-          onRuleChange={() => {}}
-          isRuleReadOnly={true}
+          ruleValue={proofParams.support_premise ? footerRule : "Premise"}
+          onRuleChange={proofParams.support_premise ? e => setFooterRule(e.target.value) : () => {}}
+          onRuleKeyDown={handleRuleKeyDown}
+          isRuleReadOnly={!proofParams.support_premise}
           rulePlaceholder="Rule"
           isEditRow={true}
           currentUserType={currentUserType}
