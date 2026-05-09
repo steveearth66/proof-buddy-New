@@ -277,14 +277,17 @@ def add_student(request):
             status=status.HTTP_403_FORBIDDEN,
         )
 
+    students = None
     if "@" in student_identifier:
-        students = User.objects.filter(email=student_identifier, is_instructor=False)
-    else:
-        students = User.objects.filter(username=student_identifier, is_instructor=False)
+        students = User.objects.filter(email=student_identifier, is_instructor=False, is_superuser=False)
+        print(type(students))
+    # handle case where username may have '@' in it
+    if students is None or students.count() == 0:
+        students = User.objects.filter(username=student_identifier, is_instructor=False, is_superuser=False)
 
     if students.count() == 0:
         # Check if the user exists but is an instructor
-        if User.objects.filter(email=student_identifier).exists() or User.objects.filter(username=student_identifier).exists():
+        if User.objects.filter(email=student_identifier, is_superuser=False).exists() or User.objects.filter(username=student_identifier, is_superuser=False).exists():
              return Response({"message": "Instructors cannot be added as students."}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response({"message": "Student not found. Check the spelling and try again."}, status=status.HTTP_404_NOT_FOUND)
@@ -306,7 +309,13 @@ def add_student(request):
 
     # 4. Success: Only one student found
     student = students.first()
+
+    # do nothing if student already exists
+    if course.students.filter(pk=student.pk).exists():
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
     course.students.add(student)
+
     data = CourseSerializer(course).data
     return Response(data, status=status.HTTP_200_OK)
 
@@ -324,6 +333,7 @@ class InstructorLibraryView(APIView):
                 'id': proof.id,
                 'title': proof.name or "Untitled Equational Proof",
                 'type': 'equationalproof',
+                'displayType': 'Equational Reasoning',
                 'category': proof.tag or 'General'
             })
             
@@ -332,6 +342,7 @@ class InstructorLibraryView(APIView):
                 'id': proof.id,
                 'title': proof.name or "Untitled Induction Proof",
                 'type': 'inductionproof',
+                'displayType': 'Induction',
                 'category': proof.tag or 'General'
             })
             
@@ -454,6 +465,7 @@ def start_assignment_proof(request, assignment_id):
         cloned_proof.id = None
         cloned_proof.user = request.user  # The student now owns this copy
         cloned_proof.name = f"{getattr(cloned_proof, 'name', 'Untitled')} (Assignment Copy)"
+        cloned_proof.is_complete = False # force student proof to be marked incomplete in case instructor version was marked complete
         cloned_proof.save()
 
         # C. Clone the Proof Lines dynamically
@@ -481,3 +493,91 @@ def start_assignment_proof(request, assignment_id):
         "new_proof_id": cloned_proof.id,
         "type": proof_type
     }, status=status.HTTP_201_CREATED)
+
+class AssignmentProgressMatrixView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, assignment_id):
+        assignment = get_object_or_404(Assignment, id=assignment_id)
+        course = assignment.course
+
+        # 1. Instructor Authorization Check
+        if not (request.user.is_instructor and course.instructor == request.user) and not request.user.is_superuser:
+            return Response(
+                {"message": "You are not authorized to view progress for this assignment."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # 2. Fetch the Template Proofs
+        template_links = assignment.proof_items.all()
+        
+        proof_columns = []
+        for link in template_links:
+            # Access the actual generic proof via the GenericForeignKey 'proof_object'
+            proof = link.proof_object
+            proof_columns.append({
+                "id": link.object_id,
+                # Fallback to a generic name if the proof is missing or has no name
+                "title": getattr(proof, 'name', f"Proof {link.object_id}") if proof else f"Proof {link.object_id}",
+                "type": link.content_type.model
+            })
+
+        # 3. Fetch all Student Mappings
+        mappings = StudentProofMapping.objects.filter(assignment=assignment).prefetch_related('student_proof')
+        
+        # Structure: { student_id: { template_proof_id: { status_data } } }
+        mapping_dict = {}
+        for m in mappings:
+            student_id = m.student.id
+            cloned_proof = m.student_proof
+            
+            if not cloned_proof:
+                proof_status = "error" 
+            elif getattr(cloned_proof, 'is_complete', False):
+                proof_status = "complete"
+            else:
+                proof_status = "in progress"
+
+            if student_id not in mapping_dict:
+                mapping_dict[student_id] = {}
+
+            mapping_dict[student_id][str(m.template_proof_id)] = {
+                "status": proof_status,
+                "cloned_proof_id": m.object_id,
+                "proof_type": m.content_type.model
+            }
+
+        # 4. Build the Students Matrix
+        students_data = []
+        for student in course.students.all():
+            student_data = {
+                "id": student.id,
+                "username": student.username,
+                "email": student.email,
+                "firstName": student.first_name,
+                "lastName": student.last_name,
+                "statuses": {}
+            }
+
+            student_mappings = mapping_dict.get(student.id, {})
+            
+            # Guarantee every column has a corresponding cell for this student
+            for link in template_links:
+                tp_id = str(link.object_id)
+                
+                if tp_id in student_mappings:
+                    student_data["statuses"][tp_id] = student_mappings[tp_id]
+                else: # only started proofs have a database link to the student
+                    student_data["statuses"][tp_id] = {
+                        "status": "not started",
+                        "cloned_proof_id": None,
+                        "proof_type": None
+                    }
+                    
+            students_data.append(student_data)
+
+        return Response({
+            "columns": proof_columns,
+            "students": students_data
+        }, status=status.HTTP_200_OK)
+    

@@ -69,13 +69,13 @@ class CreateCourseSerializer(serializers.ModelSerializer):
             else:
                 validated_data['join_code_expires_at'] = timezone.now() + timedelta(days=7)
 
-        term = super().save(**kwargs)
+        course = super().save(**kwargs)
 
         if student_identifiers:
             students = User.objects.filter(username__in=student_identifiers) | User.objects.filter(email__in=student_identifiers)
-            term.students.set(students)
+            course.students.set(students)
 
-        response_data = CourseSerializer(term).data
+        response_data = CourseSerializer(course).data
         
         # Only inject the raw code into the return payload if it was generated
         if raw_code:

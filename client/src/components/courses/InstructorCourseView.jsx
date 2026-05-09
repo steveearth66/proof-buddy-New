@@ -1,12 +1,16 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Table, Button, Form, Badge, Card, Row, Col, InputGroup, Spinner, Alert, ListGroup } from "react-bootstrap";
+import { Table, Button, Form, Badge, Card, Row, Col, InputGroup, Spinner, Alert, ListGroup, OverlayTrigger, Tooltip } from "react-bootstrap";
 import AddAssignmentModal from './modals/AddAssignmentModal';
 import useSortableTable from '../../hooks/useSortableTable';
 import courseService from '../../services/courseServices';
+import ViewAssignmentProgressModal from './modals/ViewAssignmentProgressModal';
+import { Eye } from "react-bootstrap-icons";
 
 export default function InstructorCourseView({ course, assignments, onBack, onToggleStatus, onRegenerateJoinCode, onUpdateCourse, onCreateAssignment, onDeleteAssignment }) {
   const [assignmentPage, setAssignmentPage] = useState(1);
   const [showAddAssignmentModal, setShowAddAssignmentModal] = useState(false);
+  const [showAssignmentProgressModal, setShowAssignmentProgressModal] = useState(false);
+  const [viewAssignment, setViewAssignment] = useState(null);
   const [newStudentEmail, setNewStudentEmail] = useState("");
   const itemsPerPage = 10;
 
@@ -40,13 +44,16 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
     
     setIsAddingStudent(false);
 
-    if (result.success) {
+    if (result.status === 204) {
+      setStudentFeedback({ type: 'warning', message: 'Student is already in the course.' });
+    }
+    else if (result.success) {
         onUpdateCourse(result.data);
         setNewStudentEmail("");
         setStudentFeedback({ type: 'success', message: 'Student added successfully!' });
         setTimeout(() => setStudentFeedback(null), 3000);
     } else if (result.requires_disambiguation) {
-        // Catch the duplicates and show the UI!
+        // Catch the duplicates
         setStudentFeedback({ type: 'warning', message: result.message });
         setCandidateList(result.candidates);
     } else {
@@ -130,6 +137,11 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
     if (window.confirm(`Are you sure you want to delete "${assignment.title}"? This cannot be undone.`)) {
       await onDeleteAssignment(assignment.id);
     }
+  };
+
+  const handleViewStudentProgress = async (assignment) => {
+    setViewAssignment(assignment);
+    setShowAssignmentProgressModal(true);
   };
 
   const [isEditingTerm, setIsEditingTerm] = useState(false); // NEW
@@ -396,7 +408,12 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
                   </td>
                   <td className="text-center" style={{ whiteSpace: 'nowrap' }}>
                     {/* edit button for future development: <Button variant="outline-secondary" size="sm" className="me-2"><i className="fa-solid fa-pen"></i></Button> */}
-                    <Button variant="outline-danger" size="sm" onClick={() => handleDeleteAssignmentClick(assignment)}><i className="fa-solid fa-trash"></i></Button>
+                    <OverlayTrigger placement="left" overlay={<Tooltip id={`tooltip-view-${assignment.id}`}>View Student Progress</Tooltip>}>
+                      <Button variant="outline-secondary" size="sm" className="me-1" onClick={(e) => {e.currentTarget.blur(); handleViewStudentProgress(assignment);}}><Eye></Eye></Button>
+                    </OverlayTrigger>
+                    <OverlayTrigger placement="left" overlay={<Tooltip id={`tooltip-delete-assignment-${assignment.id}`}>Delete Assignment</Tooltip>}>
+                      <Button variant="outline-danger" size="sm" onClick={(e) => {e.currentTarget.blur(); handleDeleteAssignmentClick(assignment);}}><i className="fa-solid fa-trash"></i></Button>
+                    </OverlayTrigger>
                   </td>
                 </tr>
               );
@@ -503,6 +520,15 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
         courseId={course.id} 
         onCreateAssignment={onCreateAssignment}
       />
+
+      <ViewAssignmentProgressModal
+        show={showAssignmentProgressModal}
+        onHide={() => setShowAssignmentProgressModal(false)}
+        assignment={viewAssignment}
+        students={course.students}
+        instructor={course.instructor}
+      />
+
     </div>
   );
 }

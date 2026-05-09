@@ -155,6 +155,11 @@ const ruleSet = () => {
         procedure: "math",
         highlight: "<mathematical expression>",
         result: "<equivalent mathematical expression>"
+      },
+      {
+        procedure: "logic",
+        highlight: "<logic expression>",
+        result: "<equivalent logic expression>"
       }
     ]
   ];

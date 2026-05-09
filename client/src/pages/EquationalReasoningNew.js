@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Dropdown from "react-bootstrap/Dropdown";
 import Button from "react-bootstrap/Button";
 import Container from "react-bootstrap/Container";
@@ -49,7 +49,8 @@ import {
   cancelPlay,
   getLastRealIndex
 } from "../utils/playModeUtils";
-import userService from "../services/userService"
+import userService from "../services/userService";
+import erService from "../services/erService";
 import { useLocation, useNavigate } from "react-router-dom";
 import CommentsModal from "../components/CommentsModal";
 
@@ -327,8 +328,8 @@ const EquationalReasoningNew = () => {
               sessionStorage.setItem('erProofActive', 'true');
 
               // Persist any params the user pre-configured before starting the proof.
-              const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping'];
-              const hasCustomParams = PARAM_KEYS.some(k => proofParams[k] !== true);
+              const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules'];
+              const hasCustomParams = PARAM_KEYS.some(k => proofParams[k] !== true && (typeof proofParams[k] === 'object' && proofParams[k].length > 0));
               if (hasCustomParams) {
                 try {
                   await equationalService.setParameters(
@@ -384,6 +385,8 @@ const EquationalReasoningNew = () => {
 
   const [lhsValue, setLhsValue] = useState("");
   const [rhsValue, setRhsValue] = useState("");
+  const [lhsHidden, setLhsHidden] = useState(false);
+  const [rhsHidden, setRhsHidden] = useState(false);
   const [isOffcanvasActive, toggleOffcanvas] = useOffcanvas();
   const [showDefinitionsWindow, toggleDefinitionsWindow] =
     useDefinitionsWindow();
@@ -396,7 +399,8 @@ const EquationalReasoningNew = () => {
     support_ih: true,
     support_premise: true,
     support_rule_set: true,
-    support_value_mapping: true
+    support_value_mapping: true,
+    visible_rules: {}
   });
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [comments, setComments] = useState({});
@@ -426,6 +430,27 @@ const EquationalReasoningNew = () => {
   const [footerRule, setFooterRule] = useState("");
   const [footerRuleError, setFooterRuleError] = useState("");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  const rulesInProof = useMemo(() => {
+    if (!proofStarted) return [];
+
+    const extractRules = (sideArray) => {
+      return (sideArray || [])
+        .filter(field => 
+          field && 
+          !field.deleted && 
+          field.rule && 
+          field.rule.trim() !== "" && 
+          field.rule !== "Premise"
+        )
+        .map(field => field.rule.trim());
+    };
+
+    const lhsRules = extractRules(racketRuleFields?.LHS);
+    const rhsRules = extractRules(racketRuleFields?.RHS);
+
+    return [...new Set([...lhsRules, ...rhsRules])];
+  }, [racketRuleFields, proofStarted]);
   
   // Hook for getting available height for scrollable proof area
   const availableHeight = useDynamicHeight();
@@ -436,15 +461,15 @@ const EquationalReasoningNew = () => {
   useEffect(() => {
     if (initializedRef.current) return;
 
-    const initializeProofSession = async () => {
-      initializedRef.current = true;
-      console.log('[Init] Starting session initialization...');
-      
-      try {
-        // -------------------------------------------------------------
-        // STEP 1: HYDRATE BACKEND (If coming from "All Proofs" page)
-        // -------------------------------------------------------------
-        if (location.state && location.state.id) {
+  const initializeProofSession = async () => {
+    initializedRef.current = true;
+    console.log('[Init] Starting session initialization...');
+
+    try {
+      // -------------------------------------------------------------
+      // STEP 1: HYDRATE BACKEND (If coming from "All Proofs" page)
+      // -------------------------------------------------------------
+      if (location.state && location.state.id) {
           console.log("[Init] Loading specific Proof ID:", location.state.id);
           
           // AWAIT this. We cannot proceed until the backend cache is ready.
@@ -463,137 +488,204 @@ const EquationalReasoningNew = () => {
 
           // Store flag so we can activate play mode after lines load
           initializeProofSession._playMode = playModeRequested;
-        } 
-        
-        // -------------------------------------------------------------
-        // STEP 2: CHECK SESSION VALIDITY
-        // -------------------------------------------------------------
-        const isActiveSession = sessionStorage.getItem('erProofActive') === 'true';
-        
-        if (!isActiveSession) {
+      }
+
+      // -------------------------------------------------------------
+      // STEP 2: CHECK SESSION VALIDITY
+      // -------------------------------------------------------------
+      const isActiveSession = sessionStorage.getItem('erProofActive') === 'true';
+
+      if (!isActiveSession) {
           console.log("[Init] No active session found. Clearing.");
           await equationalService.clearProof();
           sessionStorage.removeItem('current_proof_id');
           sessionStorage.removeItem('erProofActive');
           return;
+      }
+
+      // -------------------------------------------------------------
+      // STEP 3: FETCH AND RENDER UI (Restore Logic)
+      // -------------------------------------------------------------
+      console.log("[Init] Fetching proof lines...");
+      const proofData = await equationalService.getProofLines();
+
+      if (proofData.hasProof) {
+        console.log("[Init] Proof found. Restoring UI...");
+        
+        const rawDefinitions = proofData.definitions || [];
+        const rawGenerics = proofData.generics || [];
+        // rawDefs are definitions only (backend already separates generics into proofData.generics)
+        const rawDefs = rawDefinitions;
+        // --- Helper to generate a unique key for generics based on usable fields ---
+        const getGenericKey = (g) => `${g.label}|${g.type || ''}`;
+
+        // -------------------------------------------------------------------------
+        // GENERICS PROCESSING
+        // -------------------------------------------------------------------------
+        // 1. Fetch User's permanent generics 
+        const userGenerics = await erService.getUserGenerics(); 
+
+        // Sanitize proof generics
+        const proofGenerics = rawGenerics.map(g => ({
+            ...g,
+            label: g.label || g.name,
+            name: g.name || g.label,
+            restrictions: g.restrictions || { assumption: 'None', neverNull: false }
+        }));
+
+        // 2. Identify active IDs from the loaded proof
+        const activeProofGenericKeys = new Set(proofGenerics.map(getGenericKey));
+
+        // 3. Process Permanent Generics: Toggle 'applied' based on proof contents
+        const updatedPermanentGenerics = userGenerics.map(gen => ({
+            ...gen,
+            enabled: activeProofGenericKeys.has(getGenericKey(gen))
+        }));
+
+        // 4. Filter for Temporary items (those in proofData but NOT in user's DB)
+        const tempGenerics = proofGenerics.filter(
+            proofGen => !userGenerics.some(userGen => getGenericKey(proofGen) === getGenericKey(userGen))
+        );
+
+        // 5. Commit lists to Session Storage
+        sessionStorage.setItem('generics', JSON.stringify(updatedPermanentGenerics));
+
+        if (tempGenerics.length > 0) {
+            sessionStorage.setItem('temp_generics', JSON.stringify(tempGenerics));
+        } else {
+            sessionStorage.removeItem('temp_generics');
         }
 
-        // -------------------------------------------------------------
-        // STEP 3: FETCH AND RENDER UI (Restore Logic)
-        // -------------------------------------------------------------
-        console.log("[Init] Fetching proof lines...");
-        const proofData = await equationalService.getProofLines();
+        // Notify other components that generics are ready
+        window.dispatchEvent(new CustomEvent('genericsUpdated', { 
+            detail: { allGenerics: [...updatedPermanentGenerics] } 
+        }));
 
-        if (proofData.hasProof) {
-          console.log("[Init] Proof found. Restoring UI...");
-          
-          // A. Restore Form Header
-          setFormValues(prev => ({
+        // -------------------------------------------------------------------------
+        // DEFINITIONS PROCESSING
+        // -------------------------------------------------------------------------
+        // 1. Fetch User's permanent definitions
+        const userDefs = await erService.getUserDefinitions();
+
+        // 2. Identify active IDs from the loaded proof
+        const activeProofDefKeys = new Set(
+            rawDefs.map(d => `${d.label}|${d.expression}`)
+        );
+
+        // 3. Process Permanent Definitions: Toggle 'applied' based on proof contents
+        const updatedPermanentDefs = userDefs.map(def => ({
+            ...def,
+            applied: activeProofDefKeys.has(`${def.label}|${def.expression}`)
+        }));
+
+        // 4. Filter for Temporary items (those in proofData but NOT in user's DB)
+        const tempDefinitions = rawDefs.filter(
+            dbDef => !userDefs.some(d => dbDef.label === d.label && dbDef.expression === d.expression)
+        );
+
+        // 5. Commit lists to Session Storage
+        sessionStorage.setItem('definitions', JSON.stringify(updatedPermanentDefs));
+
+        if (tempDefinitions.length > 0) {
+            sessionStorage.setItem('temp_definitions', JSON.stringify(tempDefinitions));
+        } else {
+            sessionStorage.removeItem('temp_definitions');
+        }
+
+        // A. Restore Form Header
+        setFormValues(prev => ({
             ...prev,
             lHSGoal: proofData.lhsAnchorGoal || '',
             rHSGoal: proofData.rhsAnchorGoal || '',
             proofName: proofData.proofName || '',
             proofTag: proofData.tag || ''
-          }));
-          
-          // B. Restore Premises State
-          setLeftPremise(prev => ({
-             ...prev,
-             racket: proofData.lhsAnchorGoal || '',
-             rule: 'Premise',
-             startPosition: 0,
-             selectedNode: 0,
-             jsonTree: (proofData.LHS && proofData.LHS[0]) ? proofData.LHS[0].jsonTree : {} 
-          }));
+        }));
 
-          setRightPremise(prev => ({
-             ...prev,
-             racket: proofData.rhsAnchorGoal || '',
-             rule: 'Premise',
-             startPosition: 0,
-             selectedNode: 0,
-             jsonTree: (proofData.RHS && proofData.RHS[0]) ? proofData.RHS[0].jsonTree : {} 
-          }));
+        // B. Restore Premises State
+        setLeftPremise(prev => ({
+            ...prev,
+            racket: proofData.lhsAnchorGoal || '',
+            rule: 'Premise',
+            startPosition: 0,
+            selectedNode: 0,
+            jsonTree: (proofData.LHS && proofData.LHS[0]) ? proofData.LHS[0].jsonTree : {}
+        }));
 
-          // C. Helper to Map Database Lines to UI Fields
-          const mapLinesToFields = (dbLines) => {
-            if (!dbLines || dbLines.length === 0) return [EMPTY_INITIAL_FIELD];
-            
-            // Calculate array size based on max line number
-            const maxLine = Math.max(...dbLines.map(l => l.line_number || l.lineNumber || 0));
-            const fields = new Array(maxLine + 1).fill(null).map(() => ({ ...EMPTY_INITIAL_FIELD }));
+        setRightPremise(prev => ({
+            ...prev,
+            racket: proofData.rhsAnchorGoal || '',
+            rule: 'Premise',
+            startPosition: 0,
+            selectedNode: 0,
+            jsonTree: (proofData.RHS && proofData.RHS[0]) ? proofData.RHS[0].jsonTree : {}
+        }));
 
-            dbLines.forEach(line => {
-               const idx = line.line_number !== undefined ? line.line_number : line.lineNumber;
-               
-               // Sanitize empty strings to ensure UI renders cleanly
-               const racketVal = line.racket || '';
-               const ruleVal = line.rule || '';
-               
-               fields[idx] = {
-                 racket: racketVal,
-                 rule: ruleVal,
-                 jsonTree: line.json_tree || line.jsonTree || {},
-                 startPosition: line.start_position || line.startPosition || 0,
-                 selectedNode: line.selected_node || line.selectedNode || 0,
-                 resultNode: line.result_node || line.resultNode || 0,
-                 deleted: false,
-                 hide_expression: line.hide_expression || false,
-                 hide_justification: line.hide_justification || false
-               };
-            });
-            
-            // Ensure there is always a trailing empty line for new input
-            fields.push(EMPTY_INITIAL_FIELD);
-            return fields;
-          };
+        // C. Helper to Map Database Lines to UI Fields
+        const mapLinesToFields = (dbLines) => {
+          if (!dbLines || dbLines.length === 0) return [EMPTY_INITIAL_FIELD];
+          const maxLine = Math.max(...dbLines.map(l => l.line_number || l.lineNumber || 0));
+          const fields = new Array(maxLine + 1).fill(null).map(() => ({ ...EMPTY_INITIAL_FIELD }));
 
-          // D. Update Grid State
-          setRacketRuleFields({
+          dbLines.forEach(line => {
+              const idx = line.line_number !== undefined ? line.line_number : line.lineNumber;
+              fields[idx] = {
+                  racket: line.racket || '',
+                  rule: line.rule || '',
+                  jsonTree: line.json_tree || line.jsonTree || {},
+                  startPosition: line.start_position || line.startPosition || 0,
+                  selectedNode: line.selected_node || line.selectedNode || 0,
+                  resultNode: line.result_node || line.resultNode || 0,
+                  deleted: false,
+                  hide_expression: line.hide_expression || false,
+                  hide_justification: line.hide_justification || false
+              };
+          });
+          fields.push(EMPTY_INITIAL_FIELD);
+          return fields;
+        };
+
+        // D. Update Grid State
+        setRacketRuleFields({
             LHS: mapLinesToFields(proofData.LHS),
             RHS: mapLinesToFields(proofData.RHS)
-          });
+        });
 
-          // E. Set Current Racket Context (for the next rule application)
-          // Logic: Find last non-empty line or default to goal
-          const findLast = (arr) => arr.slice().reverse().find(x => x.racket && x.racket.trim() !== "")?.racket;
-          
-          setCurrentLHS(findLast(proofData.LHS) || proofData.lhsAnchorGoal);
-          setCurrentRHS(findLast(proofData.RHS) || proofData.rhsAnchorGoal);
+        // E. Set Current Racket Context
+        const findLast = (arr) => arr.slice().reverse().find(x => x.racket && x.racket.trim() !== "")?.racket;
+        setCurrentLHS(findLast(proofData.LHS) || proofData.lhsAnchorGoal);
+        setCurrentRHS(findLast(proofData.RHS) || proofData.rhsAnchorGoal);
 
           // F. Restore support params
-          const INIT_PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping'];
+          const INIT_PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules'];
           const initExtracted = {};
           INIT_PARAM_KEYS.forEach(k => { if (k in proofData) initExtracted[k] = proofData[k]; });
           if (Object.keys(initExtracted).length > 0) setProofParams(prev => ({ ...prev, ...initExtracted }));
-
           setProofStarted(true);
 
-          // Activate play mode if the user clicked "Run Proof"
-          if (initializeProofSession._playMode) {
+        if (initializeProofSession._playMode) {
             setPlayState(initPlayState(['base'], ['LHS', 'RHS'], true));
-          }
-
-          toast.success("Proof loaded successfully!");
-          
-        } else {
-          console.warn("[Init] getProofLines returned false for hasProof.");
-          await equationalService.clearProof();
         }
 
-      } catch (error) {
+        toast.success("Proof loaded successfully!");
+
+      } else {
+          console.warn("[Init] getProofLines returned false for hasProof.");
+          await equationalService.clearProof();
+      }
+
+    } catch (error) {
         console.error("[Init] Error initializing session:", error);
         toast.error("Failed to load proof session.");
         initializedRef.current = false;
-      }
-    };
+    }
+};
 
     initializeProofSession();
   }, []);
 
   // Initialize jsonTreeRep as empty object for passing to renderPersistentPadRow
   // It gets populated by the backend when goals are checked
-//   const [jsonTreeRep, setJsonTreeRep] = useState({ LHS: {}, RHS: {} });
+  // const [jsonTreeRep, setJsonTreeRep] = useState({ LHS: {}, RHS: {} });
 
   const checkCurrentProofStatus = async () => {
     try {
@@ -812,7 +904,7 @@ const EquationalReasoningNew = () => {
       }
 
       // Extract support params and proof_id
-      const PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping'];
+      const PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules'];
       const extracted = {};
       PARAM_KEYS.forEach(k => { if (k in proofLines) extracted[k] = proofLines[k]; });
       if (Object.keys(extracted).length > 0) setProofParams(prev => ({ ...prev, ...extracted }));
@@ -903,6 +995,7 @@ const EquationalReasoningNew = () => {
       await equationalService.clearProof();
       sessionStorage.removeItem('erProofActive');
       sessionStorage.removeItem('current_proof_id');
+      sessionStorage.removeItem('temp_definitions');
       toast.success('Ready to start a new proof!');
       window.location.reload();
     } catch (error) {
@@ -934,7 +1027,9 @@ const EquationalReasoningNew = () => {
     try {
       const data = await equationalService.downloadProof(proofParams.proof_id);
       const fileName = `${data.name || 'proof'}.json`;
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const jsonStr = JSON.stringify(data, null, 2)
+          .replace(/[\u0080-\uFFFF]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+      const blob = new Blob([jsonStr], { type: 'application/json; charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -989,12 +1084,13 @@ const handleRuleKeyDown = (e) => {
     }
   };
 
-const handleGenerateAndCheck = async () => {
+  const handleGenerateAndCheck = async () => {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
 
     try {
       let ruleFromFooter = "";
+      let expressionFromFooter = "";
       let previousStartPosition = 0;
       let previousRacketValue = "";
       let currentIndex = undefined;
@@ -1003,6 +1099,11 @@ const handleGenerateAndCheck = async () => {
       if (isBound) {
         const userIndex = getPadIndex(userRow.num);
         ruleFromFooter = userRow.num === "000" ? "Premise" : footerRule;
+
+        // --- FOOTER EXPRESSION REFERENCE ---
+        if (footerPadRef.current) {
+            expressionFromFooter = footerPadRef.current.getEquationValue() || "";
+        }
 
         if (userRow.num !== "000") {
           const previousRowIndex = userIndex - 1;
@@ -1020,20 +1121,22 @@ const handleGenerateAndCheck = async () => {
             const fromPad = padRefs.current[previousRowIndex]?.getStartPosition();
             previousStartPosition = fromField ?? fromPad ?? 0;
           }
-          studentSelectedNode = previousStartPosition; // Capture selection!
+          studentSelectedNode = previousStartPosition;
           currentIndex = userIndex;
         }
       }
 
       if (!ruleFromFooter || ruleFromFooter.trim() === '') {
         setFooterRuleError('Must enter a rule');
+        isProcessingRef.current = false;
         return;
       }
       setFooterRuleError('');
 
-      // If user typed "rewrite math", open Substitution modal with rule pre-filled
-      if (ruleFromFooter.trim().toLowerCase() === 'rewrite math') {
+      // If user typed "rewrite math" or "rewrite logic", open Substitution modal with rule pre-filled
+      if (ruleFromFooter.trim().toLowerCase() === 'rewrite math' || ruleFromFooter.trim().toLowerCase() === 'rewrite logic') {
         updateShowSubstitution();
+        isProcessingRef.current = false;
         return;
       }
 
@@ -1047,6 +1150,7 @@ const handleGenerateAndCheck = async () => {
           side: showSide,
           lineNumber: currentIndex,
           studentRule: ruleFromFooter, // Sending the Rule
+          studentExpression: expressionFromFooter, // Sending the Expression
           studentSelectedNode: studentSelectedNode // Sending the Selection
         };
 
@@ -1055,13 +1159,12 @@ const handleGenerateAndCheck = async () => {
           
           if (validationResult.errors && validationResult.errors.length > 0) {
             validationResult.errors.forEach(error => toast.error(error));
+            isProcessingRef.current = false;
             return;
           }
           
           toast.success(validationResult.message || "Correct!");
           
-          // Update both flags based on backend response
-          // This handles cases where proving the rule unhides the expression too
           setRacketRuleFields(prev => {
             const updated = { ...prev };
             if (updated[showSide] && updated[showSide][currentIndex]) {
@@ -1075,17 +1178,20 @@ const handleGenerateAndCheck = async () => {
           });
           
           setFooterRule(boundField.rule);
+          unbindFooter();
           return;
           
         } catch (error) {
           toast.error('Error validating your answer.');
+          isProcessingRef.current = false;
           return;
         }
       }
 
-      // EXISTING CODE: No hidden fields, proceed with normal generation
+      // No hidden fields, proceed with normal generation
       if (!previousRacketValue || previousRacketValue.trim() === '') {
         toast.error('No source expression found. Make sure the previous line has content.');
+        isProcessingRef.current = false;
         return;
       }
 
@@ -1117,7 +1223,7 @@ const handleGenerateAndCheck = async () => {
           const newField = {
             racket: fullRacket.racket || "",
             jsonTree: fullRacket.jsonTree || {},
-            rule: ruleFromFooter,
+            rule: fullRacket.rule || ruleFromFooter,
             startPosition: previousStartPosition,
             selectedNode: previousStartPosition,
             resultNode: fullRacket.resultNodeId ?? 0,
@@ -1141,13 +1247,16 @@ const handleGenerateAndCheck = async () => {
           const isEditingMiddle = typeof currentIndex === 'number' && currentIndex >= 0 && currentIndex < sideArray.length - 1;
 
           if (isEditingMiddle) {
+            // Replace the targeted middle line
             sideArray[currentIndex] = newField;
+            // Ensure there's a trailing blank line
             const endLast = sideArray[sideArray.length - 1];
             const endIsEmpty = endLast && endLast.racket === "" && endLast.rule === "";
             if (!endIsEmpty) {
               sideArray.push(EMPTY_INITIAL_FIELD);
             }
           } else {
+            // Editing the end
             const lastField = sideArray[sideArray.length - 1];
             const lastIsEmpty = lastField && lastField.racket === "" && lastField.rule === "";
             
@@ -1166,13 +1275,14 @@ const handleGenerateAndCheck = async () => {
           };
         });
 
+        // Unbind the footer after successful generation to reset UI state
         if (isBound) {
           unbindFooter();
         }
 
       } else {
         const message = (fullRacket && fullRacket.errors && fullRacket.errors[0]) || "Invalid rule";
-        toast.error(proofParams.support_errors ? message : "your latest command contains an error"); // support_errors suppression
+        toast.error(proofParams.support_errors ? message : "your latest command contains an error");
       }
     } finally {
       isProcessingRef.current = false;
@@ -1266,9 +1376,11 @@ const handleGenerateAndCheck = async () => {
     
     const lastLhsLine = findLastNonEmptyLine(lhsLines);
     const lastRhsLine = findLastNonEmptyLine(rhsLines);
-    
     setLhsValue(lastLhsLine?.racket || leftPremise.racket || '');
+    setLhsHidden((currentUserType.is_student && lastLhsLine?.hide_expression) || false);
     setRhsValue(lastRhsLine?.racket || rightPremise.racket || '');
+    setRhsHidden((currentUserType.is_student && lastRhsLine?.hide_expression) || false);
+
   }, [proofStarted, racketRuleFields, leftPremise, rightPremise]);
 
   useEffect(() => {
@@ -1596,8 +1708,8 @@ const handleGenerateAndCheck = async () => {
     const resultNodeValue = isPremise ? undefined : (field && field.resultNode);
     
     // NEW: Get visibility flags from field
-    const hideExpression = isPremise ? false : (field?.hide_expression || false);
-    const hideJustification = isPremise ? false : (field?.hide_justification || false);
+    const hideExpression = (field?.hide_expression || false);
+    const hideJustification = (field?.hide_justification || false);
 
     return (
       <Row className="racket-rule-row" id={`racket-row-${padIndex}`} key={isPremise ? `premise-${caseType}-${side}` : `${side}-field-${padIndex}`}>
@@ -1629,8 +1741,10 @@ const handleGenerateAndCheck = async () => {
             isEditRow={false}
             showEyeButtons={true}
             currentUserType={currentUserType}
-            hideExpression={hideExpression}           // NEW: Pass visibility flag
-            hideJustification={hideJustification}     // NEW: Pass visibility flag
+            hideExpression={hideExpression}
+            hideJustification={hideJustification}
+            onRuleHiddenToggle={() => handleRuleHiddenToggle(side, index)}
+            onExpressionHiddenToggle={() => handleExpressionHiddenToggle(side, index)}
           />
         </Col>
         <Col xs="auto" className="d-flex align-items-center">
@@ -1668,6 +1782,9 @@ const handleGenerateAndCheck = async () => {
       if (!equation) {
         return <div className="alert alert-warning">No equation available</div>;
       }
+      const field = racketRuleFields?.[showSide][padIndex];
+      const isExpressionHidden = field.hide_expression || false;
+      const displayEquation = isExpressionHidden ? "" : equation;
 
       return (
         <PersistentPad
@@ -1684,6 +1801,8 @@ const handleGenerateAndCheck = async () => {
           isRuleReadOnly={true}
           rulePlaceholder="Rule"
           isEditRow={true}
+          currentUserType={currentUserType}
+          hideExpression={isExpressionHidden}
         />
       );
     } else {
@@ -1693,22 +1812,21 @@ const handleGenerateAndCheck = async () => {
 
       const calculatedStartPosition = field.selectedNode || field.startPosition || 0;
       
-      // NEW: Check if fields are hidden
-      const isExpressionHidden = field.hide_expression || false;
-      const isRuleHidden = field.hide_justification || false;
+      // Check if fields are hidden
+      const isExpressionHidden = field?.hide_expression || false;
+      const isRuleHidden = field?.hide_justification || false;
       
-      // NEW: If hidden, blank out the display value (but keep field readonly)
+      // If hidden, blank out the display value
       // The actual value stays in memory for validation
       const displayEquation = isExpressionHidden ? "" : field.racket;
       const displayJsonTree = isExpressionHidden ? {} : (field.jsonTree || jsonTreeRep[showSide]);
       
       // For the editable rule field: show blank if hidden, otherwise show current value
       const displayRule = isRuleHidden ? "" : footerRule;
-
       return (
         <PersistentPad
           ref={footerPadRef}
-          equation={displayEquation}  // Blank if hidden, but still readonly
+          equation={displayEquation}  // Blank if hidden
           onHighlightChange={() => {}}
           side={showSide}
           jsonTree={displayJsonTree}  // Empty tree if hidden
@@ -1726,6 +1844,8 @@ const handleGenerateAndCheck = async () => {
           isRuleInvalid={!!footerRuleError}
           ruleValidationError={footerRuleError}
           isEditRow={true}
+          currentUserType={currentUserType}
+          hideExpression={isExpressionHidden}
         />
       );
     }
@@ -1759,6 +1879,56 @@ const handleGenerateAndCheck = async () => {
       if (menu) menu.classList.remove('is-positioned');
     }
   };
+
+  const handleRuleHiddenToggle = async (side, index) => {
+    try {
+      const result = await equationalService.toggleVisibility({
+        side: side,
+        lineNumber: index,
+        field: 'justification'
+      });
+
+      const actualStatus = result.new_value; 
+
+      setRacketRuleFields(prev => ({
+        ...prev,
+        [side]: prev[side].map((field, idx) => 
+          idx === index ? { ...field, hide_justification: actualStatus } : field
+        )
+      }));
+
+      return actualStatus; 
+
+    } catch (error) {
+      toast.error("Database update failed.");
+      throw error;
+    }
+  };
+
+  const handleExpressionHiddenToggle = async (side, index) => {
+    try {
+      const response = await equationalService.toggleVisibility({
+        side: side,
+        lineNumber: index,
+        field: 'expression'
+      });
+
+      const actualValue = response.new_value;
+
+      setRacketRuleFields(prev => ({
+        ...prev,
+        [side]: prev[side].map((field, idx) => 
+          idx === index ? { ...field, hide_expression: actualValue } : field
+        )
+      }));
+
+      return actualValue;
+
+    } catch (error) {
+      toast.error("Failed to update expression visibility");
+      throw error;
+    }
+  };
     
   return (
     <MainLayout>
@@ -1766,6 +1936,8 @@ const handleGenerateAndCheck = async () => {
         <OffcanvasRuleSet
           isActive={isOffcanvasActive}
           toggleFunction={toggleOffcanvas}
+          visibleRules={proofParams.visible_rules}
+          supportRuleSet={proofParams.support_rule_set}
         ></OffcanvasRuleSet>
         {showDefinitionsWindow && (
           <Definitions 
@@ -1815,7 +1987,9 @@ const handleGenerateAndCheck = async () => {
                         value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')}
                         readOnly
                         style={{ cursor: "not-allowed", border: 'none', height: '40px',
-                                  minWidth: `${Math.max((lhsValue?.length || 20), 20)}ch` }}
+                                  minWidth: `${Math.max((lhsValue?.length || 20), 20)}ch`,
+                                  WebkitTextSecurity: proofStarted && lhsHidden ? "disc" : "none" }}
+                        
                       />
                       <label>Current LHS</label>
                     </Form.Floating>
@@ -1834,7 +2008,8 @@ const handleGenerateAndCheck = async () => {
                         value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')}
                         readOnly
                         style={{ cursor: "not-allowed", border: 'none', height: '40px',
-                                  minWidth: `${Math.max((lhsValue?.length || 20), 20)}ch` }}
+                                  minWidth: `${Math.max((lhsValue?.length || 20), 20)}ch`,
+                                  WebkitTextSecurity: rhsHidden ? "disc" : "none" }}
                       />
                       <label>Current RHS</label>
                     </Form.Floating>
@@ -1984,9 +2159,6 @@ const handleGenerateAndCheck = async () => {
                       >
                         Download Proof
                       </Dropdown.Item>
-                      <Dropdown.Item onClick={handleUploadProof} href="#">
-                        Upload Proof
-                      </Dropdown.Item>
                     </Dropdown.Menu>
                   </Dropdown>
                   <input
@@ -2104,58 +2276,71 @@ const handleGenerateAndCheck = async () => {
                         </div>
                       </Form.Group>
                     </Row>
+                      {proofParams.support_current_lhs_rhs && (
+                        <>
+                          <Row className="justify-content-center er-current-state flex-wrap" style={{ alignItems: 'center', position: 'relative', paddingRight: '40px' }}>
+                            <Form.Group
+                              as={Col}
+                              md="4"
+                              className={`er-proof-current-lhs ${showSide === "LHS" ? "active" : ""}`}
+                            >
+                              <Form.Floating 
+                                className="mb-3"
+                                style={{ 
+                                  border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da',
+                                  borderRadius: '0.375rem'
+                                }}
+                              >
+                                <Form.Control
+                                  id="eRProofCurrentLHS"
+                                  name="proofCurrentLHS"
+                                  type="text"
+                                  placeholder="Current LHS"
+                                  value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')}
+                                  readOnly
+                                  style={{ 
+                                    cursor: "not-allowed", 
+                                    border: 'none', 
+                                    minWidth: `${Math.max(((lhsValue || currentLHS)?.length || 20), 20)}ch`,
+                                    WebkitTextSecurity: proofStarted && lhsHidden ? "disc" : "none"
+                                }}
+                                />
+                                <label htmlFor="eRProofCurrentLHS">Current LHS</label>
+                              </Form.Floating>
+                            </Form.Group>
 
-                    <Row className="justify-content-center er-current-state flex-wrap" style={{ alignItems: 'center', position: 'relative', paddingRight: '40px' }}>
-                      <Form.Group
-                        as={Col}
-                        md="4"
-                        className={`er-proof-current-lhs ${showSide === "LHS" ? "active" : ""}`}
-                      >
-                        <Form.Floating 
-                          className="mb-3"
-                          style={{ 
-                            border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da',
-                            borderRadius: '0.375rem'
-                          }}
-                        >
-                          <Form.Control
-                            id="eRProofCurrentLHS"
-                            name="proofCurrentLHS"
-                            type="text"
-                            placeholder="Current LHS"
-                            value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')}
-                            readOnly
-                            style={{ cursor: "not-allowed", border: 'none', minWidth: `${Math.max(((lhsValue || currentLHS)?.length || 20), 20)}ch` }}
-                          />
-                          <label htmlFor="eRProofCurrentLHS">Current LHS</label>
-                        </Form.Floating>
-                      </Form.Group>
-
-                      <Form.Group
-                        as={Col}
-                        md="4"
-                        className={`er-proof-current-rhs ${showSide === "RHS" ? "active" : ""}`}
-                      >
-                        <Form.Floating 
-                          className="mb-3"
-                          style={{ 
-                            border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da',
-                            borderRadius: '0.375rem'
-                          }}
-                        >
-                          <Form.Control
-                            id="eRProofCurrentRHS"
-                            name="proofCurrentRHS"
-                            type="text"
-                            placeholder="Current RHS"
-                            value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')}
-                            readOnly
-                            style={{ cursor: "not-allowed", border: 'none', minWidth: `${Math.max(((rhsValue || currentRHS)?.length || 20), 20)}ch` }}
-                          />
-                          <label htmlFor="eRProofCurrentRHS">Current RHS</label>
-                        </Form.Floating>
-                      </Form.Group>
-                    </Row>
+                            <Form.Group
+                              as={Col}
+                              md="4"
+                              className={`er-proof-current-rhs ${showSide === "RHS" ? "active" : ""}`}
+                            >
+                              <Form.Floating 
+                                className="mb-3"
+                                style={{ 
+                                  border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da',
+                                  borderRadius: '0.375rem'
+                                }}
+                              >
+                                <Form.Control
+                                  id="eRProofCurrentRHS"
+                                  name="proofCurrentRHS"
+                                  type="text"
+                                  placeholder="Current RHS"
+                                  value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')}
+                                  readOnly
+                                  style={{ 
+                                    cursor: "not-allowed", 
+                                    border: 'none', 
+                                    minWidth: `${Math.max(((rhsValue || currentRHS)?.length || 20), 20)}ch`,
+                                    WebkitTextSecurity: proofStarted && rhsHidden ? "disc" : "none"
+                                }}
+                                />
+                                <label htmlFor="eRProofCurrentRHS">Current RHS</label>
+                              </Form.Floating>
+                            </Form.Group>
+                          </Row>
+                        </>
+                      )}
                   </div>
                 </div>
               </div>
@@ -2443,66 +2628,71 @@ const handleGenerateAndCheck = async () => {
           </Button>
           <Button variant="danger" onClick={async () => {
             setShowClearConfirm(false);
-            const caseKey = 'base';
             const lineNum = parseInt(userRow.num, 10);
             
-            // Reset proof status
-            setProofStatus(prev => ({ ...prev, [caseKey]: null }));
+            // Reset proof status since the proof has changed
+            setProofStatus(prev => ({ ...prev, base: null }));
             
             try {
-                // Call backend to clear line in database and reset completion flags
-                await equationalService.deleteLine('base', showSide, lineNum);
+                // 1. Call backend to clear line in database
+                await equationalService.deleteLine(showSide, lineNum);
                 
-                // Update local state to clear the line
-                const targetFields = racketRuleFields;
-                
-                const updatedFields = { ...targetFields };
-                updatedFields[showSide] = [...updatedFields[showSide]];
-                
-                // Clear the line at lineNum index
-                updatedFields[showSide][lineNum] = {
-                    racket: '',
-                    jsonTree: {},
-                    rule: '',
-                    startPosition: 0,
-                    selectedNode: 0,
-                    resultNode: 0,
-                    deleted: false
-                };
-                
-                // Clear result-highlight on next line if it exists
-                if (updatedFields[showSide][lineNum + 1]) {
-                    updatedFields[showSide][lineNum + 1] = {
-                    ...updatedFields[showSide][lineNum + 1],
-                    rule: '',
-                    resultNode: 0
+                // 2. Update local state using the functional setter to ensure we have latest state
+                setRacketRuleFields(prevFields => {
+                    const newSideArray = [...prevFields[showSide]];
+                    
+                    // Clear the specific line
+                    newSideArray[lineNum] = {
+                        ...EMPTY_INITIAL_FIELD,
+                        racket: '',
+                        jsonTree: {},
+                        rule: '',
+                        startPosition: 0,
+                        selectedNode: 0,
+                        resultNode: 0,
+                        deleted: false
                     };
-                }
-                
-                // Clear selectedNode on previous line if it exists and isn't premise
-                if (lineNum > 0 && updatedFields[showSide][lineNum - 1]) {
-                    updatedFields[showSide][lineNum - 1] = {
-                    ...updatedFields[showSide][lineNum - 1],
-                    selectedNode: 0
+                    
+                    // Clear result-highlight on NEXT line (since the rule producing it was deleted)
+                    if (newSideArray[lineNum + 1]) {
+                        newSideArray[lineNum + 1] = {
+                            ...newSideArray[lineNum + 1],
+                            resultNode: 0
+                        };
+                    }
+                    
+                    // Clear selectedNode on PREVIOUS line (since the rule it targeted was deleted)
+                    if (lineNum > 0 && newSideArray[lineNum - 1]) {
+                        newSideArray[lineNum - 1] = {
+                            ...newSideArray[lineNum - 1],
+                            selectedNode: 0
+                        };
+                    }
+
+                    return {
+                        ...prevFields,
+                        [showSide]: newSideArray
                     };
+                });
+
+                // 3. Handle premise-specific logic if clearing line 1
+                if (lineNum === 1) {
+                    if (showSide === "LHS") {
+                        setLeftPremise(prev => ({ ...prev, selectedNode: 0 }));
+                    } else {
+                        setRightPremise(prev => ({ ...prev, selectedNode: 0 }));
+                    }
                 }
-              
-                // Update the appropriate state
-                setLeftPremise(prev => ({
-                    ...prev,
-                    racket: formValues.lHSGoal
-                }));
-                setRightPremise(prev => ({
-                    ...prev,
-                    racket: formValues.rHSGoal
-                }));
+
+                toast.success(`Line ${lineNum} cleared`);
               
             } catch (e) {
-              toast.error('Failed to clear line');
+                console.error(e);
+                toast.error('Failed to clear line');
             }
-          }}>
+        }}>
             Yes
-          </Button>
+        </Button>
         </Modal.Footer>
       </Modal>
 
@@ -2558,6 +2748,7 @@ const handleGenerateAndCheck = async () => {
         show={showSetParams}
         onHide={() => setShowSetParams(false)}
         params={proofParams}
+        rulesInProof={rulesInProof}
         onSave={async (newParams) => {
           setProofParams(prev => ({ ...prev, ...newParams }));
           if (proofParams.proof_id) {

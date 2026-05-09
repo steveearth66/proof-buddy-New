@@ -8,7 +8,7 @@ from expression_tree.ERProofEngine import ERProofLine
 from expression_tree.IndProofs import IndProof
 from expression_tree.ERCommon import findNode
 from expression_tree.ERRuleset import recursiveReplaceNodes, IH
-from .test_helpers import show_node_ids
+from .test_helpers import show_node_ids, _RED, _RESET
 import builtins
 
 SHOW_DETAILS = False  # flip to True locally to see full step logs
@@ -17,7 +17,10 @@ _real_print = builtins.print
 
 def print(*args, always=False, **kwargs):
     if SHOW_DETAILS or always:
-        _real_print(*args, **kwargs)
+        if args and isinstance(args[0], str) and (args[0].startswith('FAIL') or args[0].startswith('[FAIL]')):
+            _real_print(_RED + args[0] + _RESET, *args[1:], **kwargs)
+        else:
+            _real_print(*args, **kwargs)
 
 totalFails = 0
 

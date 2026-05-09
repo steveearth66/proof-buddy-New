@@ -35,6 +35,7 @@ const AuthProvider = ({ children }) => {
     await userService.logout();
     Cookies.remove("accessToken");
     setUser(null);
+    sessionStorage.clear();
   };
 
   useEffect(() => {

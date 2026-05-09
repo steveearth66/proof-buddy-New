@@ -21,7 +21,7 @@ class InductionProof(models.Model):
         ('RHS', 'Right Hand Side'),
     ]
     
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='induction_proofs')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='induction_proofs', null=True, blank=True)
     name = models.CharField(max_length=255, blank=True, null=True)
     tag = models.CharField(max_length=100, blank=True, null=True)
     proof_type = models.CharField(max_length=50, choices=PROOF_TYPES, default='induction_int')
@@ -55,6 +55,7 @@ class InductionProof(models.Model):
     support_ih = models.BooleanField(default=True)
     support_premise = models.BooleanField(default=True)
     support_rule_set = models.BooleanField(default=True)
+    visible_rules = models.TextField(default=dict, blank=True)
     support_value_mapping = models.BooleanField(default=True)
 
     # Metadata

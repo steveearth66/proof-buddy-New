@@ -83,6 +83,51 @@ def get_or_set_equational_obj(user):
     return loads(cached['proof_obj']), proof_id
 
 
+def _ensure_er_hydrated(proof_obj, proof_id):
+    """Re-register any UDFs and generics missing from the TwoSidedProof engine.
+    Safety net for cache-miss / server-restart scenarios where the proof object is
+    rebuilt fresh (no UDFs, no generics). Reads the stored definitions from the DB
+    EquationalProof.definition field and replays addUDF / addGeneric for anything
+    that isn't already present in the ruleSet."""
+    if not proof_id:
+        return
+    try:
+        _db_proof = EquationalProof.objects.get(id=proof_id)
+        all_defs = list(_db_proof.definition or [])
+    except EquationalProof.DoesNotExist:
+        return
+
+    sides = [proof_obj.LHS, proof_obj.RHS]
+    for _d in all_defs:
+        if _d.get('is_generic'):
+            _glabel = _d.get('label') or _d.get('name') or ''
+            _gtype = (_d.get('type') or 'int').lower()
+            _grestrictions = _d.get('restrictions') or {}
+            if not _glabel:
+                continue
+            for side in sides:
+                if _glabel not in side.generics:
+                    try:
+                        side.addGeneric(_glabel, _gtype, _grestrictions)
+                        side.errLog = []
+                    except Exception:
+                        pass
+        else:
+            _dlabel = _d.get('label') or _d.get('name') or ''
+            _udf_name = _dlabel.replace('(', ' ').replace(')', ' ').split()
+            if not _udf_name:
+                continue
+            _udf_name = _udf_name[0]
+            _dtype = _d.get('type') or _d.get('def_type')
+            _dbody = _d.get('expression') or _d.get('body')
+            if not _dtype or not _dbody:
+                continue
+            for side in sides:
+                if _udf_name not in side.ruleSet.get('apply', {}):
+                    side.addUDF(_dlabel, _dtype, _dbody)
+                    side.errLog = []
+
+
 def reload_proof_lines_from_db(proof_obj, proof_id):
     """Reload all proof lines from database into the TwoSidedProof object"""
     if proof_id is None:
@@ -110,19 +155,26 @@ def reload_proof_lines_from_db(proof_obj, proof_id):
                 proof_line.appliedRuleNodeId = line.selected_node
                 proof_line.resultNodeId = line.result_node
                 target.proofLines.append(proof_line)
+                proof_line.hide_expression = line.hide_expression
+                proof_line.hide_justification = line.hide_justification
     except Exception as e:
         print(f"Error reloading proof lines: {e}")
 
 
 def _check_rewrite_math_misuse(rule):
-    """Return an error message string if the user typed 'rewrite math' into the rule field
-    instead of using the Substitution button, or None if the rule is fine to proceed."""
+    """Return an error message string if the user typed 'rewrite math' or 'rewrite logic'
+    into the rule field instead of using the Substitution button, or None if the rule is fine."""
     rule_norm = (rule or '').strip().lower()
     if rule_norm == 'rewrite math':
         return ("The 'rewrite math' rule must be applied using the Substitution button, "
                 "not the rule field.")
     if rule_norm.startswith('rewrite math'):
         return "'rewrite math' does not require additional parameters to be applied."
+    if rule_norm == 'rewrite logic':
+        return ("The 'rewrite logic' rule must be applied using the Substitution button, "
+                "not the rule field.")
+    if rule_norm.startswith('rewrite logic'):
+        return "'rewrite logic' does not require additional parameters to be applied."
     return None
 
 
@@ -288,10 +340,20 @@ def apply_rule(request):
     user = request.user
     data = request.data
     proof_obj, proof_id = get_or_set_equational_obj(user)
+    _ensure_er_hydrated(proof_obj, proof_id)
     
     try:
         # Reload proof lines from database
         reload_proof_lines_from_db(proof_obj, proof_id)
+
+        # Read support_value_mapping from DB (HIGH support = auto-infer params)
+        _auto_infer = False
+        if proof_id:
+            try:
+                _db_proof = EquationalProof.objects.get(id=proof_id)
+                _auto_infer = bool(_db_proof.support_value_mapping)
+            except EquationalProof.DoesNotExist:
+                pass
 
         side = data.get("side", "LHS")
         current_racket = data.get("currentRacket", "")
@@ -354,7 +416,7 @@ def apply_rule(request):
             if substitution is not None and substitution != "":
                 target.addProofLine(current_racket, rule, int(start_position or 0), substitution)
             else:
-                target.addProofLine(current_racket, rule, int(start_position or 0))
+                target.addProofLine(current_racket, rule, int(start_position or 0), auto_infer=_auto_infer)
 
         # Remove temporarily injected lemma rule
         if _lemma_injected and _lemma_name and _lemma_name in target.ruleSet.get('apply', {}):
@@ -454,12 +516,15 @@ def substitution(request):
     user = request.user
     data = request.data
     proof_obj, proof_id = get_or_set_equational_obj(user)
+    _ensure_er_hydrated(proof_obj, proof_id)
     
     try:
         side = data.get("side", "LHS")
         rule = data.get("rule")
         if rule and rule.lower() == "math":
             rule = "rewrite math"
+        elif rule and rule.lower() == "logic":
+            rule = "rewrite logic"
         current_racket = data.get("currentRacket", "")
         start_position = data.get("startPosition", 0)
         selected_node = data.get("selectedNode")
@@ -615,15 +680,17 @@ def check_completion(request):
     proof_obj, proof_id = get_or_set_equational_obj(user)
     
     try:
+        is_student = not user.is_instructor
+
         # Reload proof lines from database
         reload_proof_lines_from_db(proof_obj, proof_id)
         
         # Check if proof is mathematically complete (LHS = RHS)
-        is_mathematically_complete = proof_obj.checkComplete()
+        is_mathematically_complete = proof_obj.checkComplete(is_student)
         
         # Check if there are any hidden fields remaining
         has_hidden_fields = False
-        if proof_id:
+        if not user.is_instructor and proof_id:
             has_hidden_fields = EquationalProofLine.objects.filter(
                 proof_id=proof_id
             ).filter(
@@ -688,6 +755,19 @@ def get_proof_lines(request):
                 'errors': line.errors
             }
         
+        definitions_and_generics = proof.definition if proof.definition else []
+        definitions_data = []
+        generics_data = []
+        
+        for item in definitions_and_generics:
+            if item.get('is_generic'):
+                generics_data.append(item)
+            else:
+                item['applied'] = True
+                if 'def_type' in item and 'type' not in item:
+                    item['type'] = item.pop('def_type')
+                definitions_data.append(item)
+        
         return Response({
             "hasProof": True,
             "lhsAnchorGoal": proof.lhs_goal,
@@ -700,9 +780,12 @@ def get_proof_lines(request):
             "support_ih": proof.support_ih,
             "support_premise": proof.support_premise,
             "support_rule_set": proof.support_rule_set,
+            "visible_rules": parse_visible_rules(proof.visible_rules),
             "support_value_mapping": proof.support_value_mapping,
             "LHS": [format_line(line) for line in lhs_lines],
-            "RHS": [format_line(line) for line in rhs_lines]
+            "RHS": [format_line(line) for line in rhs_lines],
+            "definitions": definitions_data,
+            "generics": generics_data
         }, status=status.HTTP_200_OK)
         
     except EquationalProof.DoesNotExist:
@@ -748,7 +831,7 @@ def toggle_visibility(request):
         current_val = getattr(line_obj, attr_name, False)
         new_val = not current_val
         setattr(line_obj, attr_name, new_val)
-        
+
         # Save updated object to Cache
         save_equational_obj_to_cache(user, proof_obj, proof_id)
         
@@ -778,12 +861,11 @@ def toggle_visibility(request):
         traceback.print_exc()
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-# views.py - Fixed validation endpoint
 def normalize_whitespace(text):
     """Remove all whitespace for comparison"""
-    return re.sub(r'\s+', '', text.strip())
+    return re.sub(r'\s+', ' ', text.strip())
 
-def compare_racket_exact(student_input, actual_value):
+def compare_exact(student_input, actual_value):
     """
     Compare two racket expressions for exact match (whitespace-agnostic).
     Order matters: (+ 2 1) != (+ 1 2)
@@ -796,18 +878,14 @@ def compare_racket_exact(student_input, actual_value):
 def validate_hidden_field(request):
     """
     Validate student input against hidden field value.
-    Validates Rule + Selection OR Expression.
+    Validates Rule + Selection OR Expression via normalized AST JSON tree comparison.
     """    
-    # 1. Validate User Context
+    # 1. Validate User Context & Fetch Active Engine
     user = request.user
-    cached = cache.get(f"equational_obj_{user.username}")
+    proof_obj, proof_id = get_or_set_equational_obj(user)
     
-    if cached is None:
-        return Response({"error": "No active proof session found. Please reload."}, status=status.HTTP_400_BAD_REQUEST)
-    
-    proof_id = cached.get('proof_id')
     if not proof_id:
-        return Response({"error": "Proof ID missing from session."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "No active proof session found. Please reload."}, status=status.HTTP_400_BAD_REQUEST)
     
     try:
         # 2. Extract Data
@@ -818,7 +896,9 @@ def validate_hidden_field(request):
         student_selected = request.data.get('studentSelectedNode') 
         
         if not side or line_number is None:
-            return Response({"error": f"Missing parameters."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Missing parameters."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        target = proof_obj.LHS if side.upper() == 'LHS' else proof_obj.RHS
         
         # 3. Get Database Line
         try:
@@ -833,16 +913,14 @@ def validate_hidden_field(request):
         is_correct = False
         
         # 4. Logic: Master Key Validation (Rule + Selection)
-        # If the student provides the correct Rule AND Selection, they have "derived" the line.
-        # This grants permission to see BOTH the Expression and the Justification.
         if student_rule is not None:
-            rule_text_match = compare_racket_exact(student_rule, line.rule)
+            rule_text_match = compare_exact(student_rule, line.rule)
             
             selection_match = True
             if line.selected_node is not None and student_selected is not None:
                  if int(student_selected) != int(line.selected_node):
                      selection_match = False
-                     errors.append(f"Incorrect selection.")
+                     errors.append("Incorrect selection.")
 
             if rule_text_match and selection_match:
                 # Correct derivation! Reveal everything hidden on this line.
@@ -856,15 +934,35 @@ def validate_hidden_field(request):
             elif not rule_text_match:
                 errors.append("Rule does not match.")
         
-        # 5. Logic: Expression Direct Match (Optional fallback)
-        # Only runs if 'studentExpression' was explicitly sent (frontend usually doesn't for footer)
-        if student_expression is not None:
-            if compare_racket_exact(student_expression, line.racket):
-                line.hide_expression = False
-                changed = True
-                is_correct = True
-            elif not is_correct: # Don't add error if Rule check already succeeded
-                errors.append("Expression does not match.")
+        # 5. Logic: Expression Tree Match
+        if student_expression is not None and student_expression.strip() != "":
+            try:
+                # Use the target's actual ruleSet and generics so UDFs are parsed correctly
+                temp_line = ERProofLine(
+                    student_expression, 
+                    target.debug, 
+                    target.ruleSet, 
+                    generics=target.generics
+                )
+                
+                if not temp_line.errLog:
+                    raw_student_tree = makeJson(temp_line.exprTree)
+                    
+                    student_tree = json.loads(json.dumps(raw_student_tree))
+                    
+                    # 3. Deep compare
+                    if student_tree == line.json_tree:
+                        line.hide_expression = False
+                        changed = True
+                        is_correct = True
+                    else:
+                        errors.append("Expression does not match.")
+                else:
+                    errors.append("Syntax error in expression.")
+            except Exception as e:
+                errors.append(f"Error parsing expression: {str(e)}")
+        else:
+            errors.append("You must provide an expression.")
 
         if changed:
             line.save()
@@ -875,7 +973,6 @@ def validate_hidden_field(request):
         return Response({
             "isValid": is_correct,
             "errors": errors,
-            # Return current state of flags (so frontend updates correctly)
             "hide_expression": line.hide_expression,
             "hide_justification": line.hide_justification,
             "message": message
@@ -1059,39 +1156,31 @@ def load_proof(proof_data):
         except Exception as e:
             print(f"Error loading generic {generic.get('label')}: {e}")
 
-    # 3. Replay Lines into Engine
+    # 3. Restore Lines into Engine
+    # Lines are loaded directly WITHOUT replaying rules. Replaying rules on the
+    # already-computed result expression causes IndexError when the saved
+    # startPosition (from the source tree) no longer exists in the result tree.
+    # Every subsequent operation (apply_rule, check_completion, etc.) calls
+    # reload_proof_lines_from_db() before acting, so the engine state is always
+    # fresh -- rule replay here would be redundant AND unsafe.
     proof_lines = proof_data["proofLines"]
-    
-    # Sort lines by line number to ensure correct order
     sorted_lines = sorted(proof_lines, key=lambda x: x['lineNumber'])
 
     for line_data in sorted_lines:
         is_lhs = line_data['side'] == "LHS"
         target = proof.LHS if is_lhs else proof.RHS
-        # Determine if this is the premise (Line 0) or a derivation step
-        if len(target.proofLines) == 0:
-            target.addProofLine(line_data["racket"])
-            if target.proofLines:
-                target.proofLines[-1].appliedRule = "Premise"
-        else:
-            subValue = line_data["substitution"] if line_data["substitution"] != "" else None
-
-            # It's a derivation step
-            target.addProofLine(
-                line_data["racket"],
-                line_data["rule"],
-                int(line_data["startPosition"] or 0),
-                subValue
-            )
-            
-        # Restore Metadata (Visibility & Highlight IDs) onto the engine object
-        if target.proofLines:
-            current_line_obj = target.proofLines[-1]
-            current_line_obj.hide_expression = line_data.get("hide_expression", False)
-            current_line_obj.hide_justification = line_data.get("hide_justification", False)
-            current_line_obj.resultNodeId = line_data.get("resultNode", 0)
-            current_line_obj.appliedRuleNodeId = line_data.get("selectedNode", 0)
-            current_line_obj.errors = line_data.get("errors", 0)
+        racket = line_data.get("racket", "")
+        if not racket and line_data.get("rule", "") == "":
+            continue  # skip blank trailing UI placeholder lines
+        proof_line = ERProofLine(racket, target.debug, target.ruleSet, generics=target.generics)
+        if proof_line.errLog == []:
+            proof_line.appliedRule = line_data.get("rule", "")
+            proof_line.appliedRuleNodeId = line_data.get("selectedNode", 0)
+            proof_line.resultNodeId = line_data.get("resultNode", 0)
+            proof_line.hide_expression = line_data.get("hide_expression", False)
+            proof_line.hide_justification = line_data.get("hide_justification", False)
+            proof_line.errors = line_data.get("errors", "")
+            target.proofLines.append(proof_line)
 
     return proof
 
@@ -1375,6 +1464,16 @@ def delete_proof(request):
             {"message": f"Error setting proof to inactive: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST
         )
 
+def parse_visible_rules(raw_val):
+    """Safely parse the TextField string back into a dictionary for the frontend."""
+    if isinstance(raw_val, str) and raw_val.strip():
+        try:
+            return json.loads(raw_val)
+        except json.JSONDecodeError:
+            return {}
+    elif isinstance(raw_val, dict):
+        return raw_val
+    return {}
 
 PARAM_FIELDS = [
     'support_errors',
@@ -1383,6 +1482,7 @@ PARAM_FIELDS = [
     'support_premise',
     'support_rule_set',
     'support_value_mapping',
+    'visible_rules'
 ]
 
 
@@ -1400,7 +1500,10 @@ def set_parameters(request):
         return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
     for field in PARAM_FIELDS:
         if field in request.data:
-            setattr(proof, field, request.data[field])
+            val = request.data[field]
+            if field == 'visible_rules' and isinstance(val, dict):
+                val = json.dumps(val)
+            setattr(proof, field, val)
     proof.save()
     return Response({f: getattr(proof, f) for f in PARAM_FIELDS}, status=status.HTTP_200_OK)
 
@@ -1456,6 +1559,7 @@ def download_proof(request):
         'support_ih': proof.support_ih,
         'support_premise': proof.support_premise,
         'support_rule_set': proof.support_rule_set,
+        "visible_rules": parse_visible_rules(proof.visible_rules),
         'support_value_mapping': proof.support_value_mapping,
         'lines': {
             'LHS': [line_to_dict(l) for l in lhs_lines],
@@ -1488,6 +1592,7 @@ def upload_proof(request):
             support_ih=data.get('support_ih', True),
             support_premise=data.get('support_premise', True),
             support_rule_set=data.get('support_rule_set', True),
+            visible_rules=data.get('visible_rules', {}),
             support_value_mapping=data.get('support_value_mapping', True),
         )
         lines_data = data.get('lines', {})

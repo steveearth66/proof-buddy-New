@@ -39,6 +39,7 @@ class EquationalProof(models.Model):
     support_ih = models.BooleanField(default=True)
     support_premise = models.BooleanField(default=True)
     support_rule_set = models.BooleanField(default=True)
+    visible_rules = models.TextField(default=dict, blank=True)
     support_value_mapping = models.BooleanField(default=True)
 
     # Metadata
