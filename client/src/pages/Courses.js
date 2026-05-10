@@ -113,18 +113,30 @@ export default function Courses() {
     setSelectedCourse(updatedCourse);
   };
 
-  const handleCreateAssignment = async (payload) => {
-    try {
-      const newAssignment = await courseService.createAssignment(payload);
+  const handleSaveAssignment = async (payload) => {
+  try {
+    let result;
+    
+    if (payload.id) {
+      result = await courseService.updateAssignment(payload.id, payload);
       
-      setAssignments(prev => [...prev, newAssignment]);
-      return true;
-    } catch (error) {
-      console.error("Failed to create assignment", error);
-      toast.error("Failed to create assignment. Please check your inputs.");
-      return false;
+      setAssignments(prev => prev.map(a => a.id === result.id ? result : a));
+      toast.success("Assignment updated successfully!");
+    } else {
+      result = await courseService.createAssignment(payload);
+      
+      setAssignments(prev => [...prev, result]);
+      toast.success("Assignment created successfully!");
     }
-  };
+    
+    return true;
+  } catch (error) {
+    const action = payload.id ? "update" : "create";
+    console.error(`Failed to ${action} assignment`, error);
+    toast.error(`Failed to ${action} assignment. Please check your inputs.`);
+    return false;
+  }
+};
 
   const handleDeleteAssignment = async (assignmentId) => {
       const result = await courseService.deleteAssignment(assignmentId);
@@ -195,7 +207,7 @@ export default function Courses() {
               onToggleStatus={handleToggleCourseStatus}
               onRegenerateJoinCode={handleRegenerateJoinCode}
               onUpdateCourse={handleUpdateCourse}
-              onCreateAssignment={handleCreateAssignment}
+              onSaveAssignment={handleSaveAssignment}
               onDeleteAssignment={handleDeleteAssignment}
             />
           )

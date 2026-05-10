@@ -369,6 +369,36 @@ class AssignmentDetailView(APIView):
         
         return Response(status=status.HTTP_204_NO_CONTENT)
     
+    def patch(self, request, assignment_id):
+        try:
+            assignment = Assignment.objects.get(id=assignment_id)
+        except Assignment.DoesNotExist:
+            return Response({"message": "Assignment not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Authorization check
+        if not request.user.is_superuser and assignment.course.instructor != request.user:
+            return Response(
+                {"message": "You are not authorized to edit this assignment."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = CreateAssignmentSerializer(
+            assignment, 
+            data=request.data, 
+            partial=True, 
+            context={"request": request}
+        )
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                AssignmentSerializer(assignment, context={"request": request}).data, 
+                status=status.HTTP_200_OK
+            )
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
 def join_course(request):

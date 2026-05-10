@@ -151,10 +151,22 @@ const getInstructorLibrary = async () => {
 const deleteAssignment = async (assignmentId) => {
     try {
         const response = await axiosInstance.delete(`${API_GATEWAY}/assignments/detail/${assignmentId}`);
-        return { success: true };
+        if (response.status == 204)
+            return { success: true };
+        else return { success: false, message: response.message };
     } catch (error) {
         handleServiceError(error, "Error deleting assignment:");
         return { success: false, message: error.response?.data?.message || "Failed to delete assignment." };
+    }
+};
+
+const updateAssignment = async (assignmentId, assignment) => {
+    try {
+        const response = await axiosInstance.patch(`${API_GATEWAY}/assignments/detail/${assignmentId}`, assignment);
+        return response.data;
+    } catch (error) {
+        handleServiceError(error, "Error updating assignment:");
+        throw error;
     }
 };
 
@@ -221,6 +233,7 @@ const courseService = {
     toggleCourseStatus, 
     getInstructorLibrary, 
     deleteAssignment, 
+    updateAssignment,
     joinCourse,
     getStudentAssignmentStatus 
 };
