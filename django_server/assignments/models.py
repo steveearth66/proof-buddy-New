@@ -125,6 +125,37 @@ class StudentProofMapping(models.Model):
     def __str__(self):
         return f"{self.student.username} - Clone of Proof {self.template_proof_id}"
 
+class CourseInvitation(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('rejected', 'Rejected'),
+    ]
+
+    course = models.ForeignKey(
+        Course, 
+        on_delete=models.CASCADE, 
+        related_name="invitations"
+    )
+    student = models.ForeignKey(
+        "accounts.Account", 
+        on_delete=models.CASCADE, 
+        related_name="course_invitations",
+        limit_choices_to={"is_instructor": False}
+    )
+    status = models.CharField(
+        max_length=10, 
+        choices=STATUS_CHOICES, 
+        default='pending'
+    )
+    sent_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('course', 'student')
+
+    def __str__(self):
+        return f"Invite: {self.course.name} -> {self.student.username} ({self.status})"
+
 
 # Sends emails for assignments and submissions, leave commented out for now to prevent issues when deployed
 # @receiver(post_save, sender=Assignment)

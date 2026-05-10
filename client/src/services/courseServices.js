@@ -212,7 +212,52 @@ const getStudentAssignmentStatus = async (assignmentId) => {
         return response.data;
     } catch (error) {
         console.error("Error getting student proof status:", error);
-        return null;
+        throw error;
+    }
+};
+
+const getCourseInvitations = async (courseId) => {
+    try {
+        const response = await axiosInstance.get(`${API_GATEWAY}/courses/${courseId}/invitations`);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching course invitations:", error);
+        throw error;
+    }
+};
+
+const cancelInvitation = async (courseId, invitationId) => {
+    try {
+        const response = await axiosInstance.delete(`${API_GATEWAY}/courses/${courseId}/invitations`, {
+            data: { invitation_id: invitationId }
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Error cancelling invitation:", error);
+        throw error;
+    }
+};
+
+const getMyInvitations = async () => {
+    try {
+        const response = await axiosInstance.get(`${API_GATEWAY}/invitations/me`);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching student invitations:", error);
+        return [];
+    }
+};
+
+const respondToInvitation = async (invitationId, action) => {
+    try {
+        const response = await axiosInstance.post(`${API_GATEWAY}/invitations/me`, {
+            invitation_id: invitationId,
+            action: action
+        });
+        return response.data;
+    } catch (error) {
+        console.error(`Error ${action}ing invitation:`, error);
+        throw error;
     }
 };
 
@@ -235,7 +280,11 @@ const courseService = {
     deleteAssignment, 
     updateAssignment,
     joinCourse,
-    getStudentAssignmentStatus 
+    getStudentAssignmentStatus,
+    getCourseInvitations,
+    cancelInvitation,
+    getMyInvitations,
+    respondToInvitation
 };
 
 export default courseService;
