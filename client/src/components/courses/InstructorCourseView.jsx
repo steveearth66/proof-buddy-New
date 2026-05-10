@@ -6,9 +6,10 @@ import courseService from '../../services/courseServices';
 import ViewAssignmentProgressModal from './modals/ViewAssignmentProgressModal';
 import { Eye } from "react-bootstrap-icons";
 
-export default function InstructorCourseView({ course, assignments, onBack, onToggleStatus, onRegenerateJoinCode, onUpdateCourse, onCreateAssignment, onDeleteAssignment }) {
+export default function InstructorCourseView({ course, assignments, onBack, onToggleStatus, onRegenerateJoinCode, onUpdateCourse, onSaveAssignment, onDeleteAssignment }) {
   const [assignmentPage, setAssignmentPage] = useState(1);
   const [showAddAssignmentModal, setShowAddAssignmentModal] = useState(false);
+  const [editAssignment, setEditAssignment] = useState(null);
   const [showAssignmentProgressModal, setShowAssignmentProgressModal] = useState(false);
   const [viewAssignment, setViewAssignment] = useState(null);
   const [newStudentEmail, setNewStudentEmail] = useState("");
@@ -24,40 +25,100 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [studentFeedback, setStudentFeedback] = useState(null);
 
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const [invitations, setInvitations] = useState([]);
+  useEffect(() => {
+    const fetchInvitations = async () => {
+        const data = await courseService.getCourseInvitations(course.id);
+        if (data) setInvitations(data);
+    };
+    fetchInvitations();
+  }, [course.id]);
+
+  // Define your dynamic width
+  const dueDateWidth = 
+    windowWidth < 768  ? '20%' : 
+    windowWidth < 992  ? '15%' : 
+    windowWidth < 1200 ? '12%' : '10%';
+
   const handleAddStudent = async (e, specificUsername = null) => {
     if (e) e.preventDefault();
-    
-    // Use the explicitly passed username if available, otherwise use the input box
+      
     const identifierToSubmit = specificUsername || newStudentEmail.trim();
     if (!identifierToSubmit) return;
 
     setIsAddingStudent(true);
     setStudentFeedback(null);
-    setCandidateList([]); // Clear any existing candidates
+    setCandidateList([]); 
 
     const payload = {
-        course: course.id,
-        student: identifierToSubmit
+      course: course.id,
+      student: identifierToSubmit
     };
 
     const result = await courseService.addStudent(payload);
     
     setIsAddingStudent(false);
 
-    if (result.status === 204) {
-      setStudentFeedback({ type: 'warning', message: 'Student is already in the course.' });
+    // 1Check for 204 (Already enrolled)
+    if (result && result.status === 204) {
+      setStudentFeedback({ 
+        type: 'warning', 
+        message: 'Student is already enrolled in this course.' 
+      });
     }
-    else if (result.success) {
-        onUpdateCourse(result.data);
+    // Handle Disambiguation (Multiple users found)
+    else if (result && result.requires_disambiguation) {
+      setStudentFeedback({ 
+        type: 'warning', 
+        message: result.message 
+      });
+      setCandidateList(result.candidates);
+    }
+    else if (result && result.status === 200) {
+        const updatedInvite = result.data.invitation;
+        setInvitations(prev => prev.map(inv => inv.id === updatedInvite.id ? updatedInvite : inv));
         setNewStudentEmail("");
-        setStudentFeedback({ type: 'success', message: 'Student added successfully!' });
-        setTimeout(() => setStudentFeedback(null), 3000);
-    } else if (result.requires_disambiguation) {
-        // Catch the duplicates
-        setStudentFeedback({ type: 'warning', message: result.message });
-        setCandidateList(result.candidates);
-    } else {
-        setStudentFeedback({ type: 'danger', message: result.message });
+        setStudentFeedback({ type: 'info', message: 'Existing invitation has been reset to pending.' });
+    }
+    // Handle 201 Created or 200 OK (Invitation object returned)
+    else if (result && result.data?.id) { 
+      setInvitations(prev => {
+          const filtered = prev.filter(inv => inv.student.id !== result.data.student.id);
+          return [result.data, ...filtered];
+      });
+
+      setNewStudentEmail("");
+      setStudentFeedback({ 
+          type: 'success', 
+          message: 'Invitation sent successfully! The student must now accept it.' 
+      });
+      
+      // Auto-clear success message
+      setTimeout(() => setStudentFeedback(null), 4000);
+    } 
+    // Handle Errors (404, 403, 400, etc.)
+    else {
+      setStudentFeedback({ 
+        type: 'danger', 
+        message: result?.data?.message || 'Failed to process request. Please try again.' 
+      });
+    }
+  };
+
+  const handleCancelInvitation = async (invitationId) => {
+    if (!window.confirm("Are you sure you want to cancel this invitation?")) return;
+
+    const success = await courseService.cancelInvitation(course.id, invitationId);
+    if (success !== null) {
+        setInvitations(prev => prev.filter(i => i.id !== invitationId));
     }
   };
 
@@ -144,7 +205,12 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
     setShowAssignmentProgressModal(true);
   };
 
-  const [isEditingTerm, setIsEditingTerm] = useState(false); // NEW
+  const handleEditAssignment = async (assignment) => {
+    setEditAssignment(assignment);
+    setShowAddAssignmentModal(true);
+  };
+
+  const [isEditingTerm, setIsEditingTerm] = useState(false);
 
   // --- Description State ---
   const [editDescription, setEditDescription] = useState(course?.description || "");
@@ -368,7 +434,7 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
               Assignment <i className={`ms-1 ${getSortIcon('title')}`}></i>
             </th>
             <th
-              style={{ cursor: 'pointer', width: '10%', whiteSpace: 'nowrap' }}
+              style={{ cursor: 'pointer', width: dueDateWidth, whiteSpace: 'nowrap' }}
               onClick={() => handleSort('dueDate')}
               onMouseDown={handleMouseDown}
             >
@@ -394,7 +460,7 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
                   </td>
                   <td>
                     {new Date(assignment.due_date).toLocaleDateString([], { 
-                        month: 'short', day: 'numeric', year: 'numeric' 
+                        month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true 
                     })}
                   </td>
                   <td>
@@ -407,7 +473,9 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
                     </Badge>
                   </td>
                   <td className="text-center" style={{ whiteSpace: 'nowrap' }}>
-                    {/* edit button for future development: <Button variant="outline-secondary" size="sm" className="me-2"><i className="fa-solid fa-pen"></i></Button> */}
+                    <OverlayTrigger placement="left" overlay={<Tooltip id={`tooltip-view-${assignment.id}`}>Edit Assignment</Tooltip>}>
+                      <Button variant="outline-secondary" size="sm" className="me-1" onClick={(e) => {e.currentTarget.blur(); handleEditAssignment(assignment);}}><i className="fa-solid fa-pen"></i></Button>
+                    </OverlayTrigger>
                     <OverlayTrigger placement="left" overlay={<Tooltip id={`tooltip-view-${assignment.id}`}>View Student Progress</Tooltip>}>
                       <Button variant="outline-secondary" size="sm" className="me-1" onClick={(e) => {e.currentTarget.blur(); handleViewStudentProgress(assignment);}}><Eye></Eye></Button>
                     </OverlayTrigger>
@@ -461,6 +529,80 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
         </tbody>
       </Table>
 
+      {invitations && invitations.length > 0 && (
+        <>
+          <h4 className="mb-3">Invited Students</h4>
+          <Table striped bordered hover responsive className="align-middle mb-4">
+            <thead className="table-light">
+              <tr>
+                <th style={{ width: '30%' }}>Student</th>
+                <th style={{ width: '5%' }}>Status</th>
+                <th style={{ width: '5%' }}>Sent On</th>
+                <th className="text-center" style={{ width: '1%' }}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invitations.length > 0 ? (
+                invitations.map((invite) => (
+                  <tr key={invite.id}>
+                    <td>
+                      <div className="fw-semibold text-muted">{invite.student.username}</div>
+                      <div className="small text-muted">{invite.student.email}</div>
+                    </td>
+                    <td style={{ verticalAlign: 'middle' }}>
+                      <div 
+                        className={`text-center text-uppercase fw-bold rounded-pill py-1 px-2`}
+                        style={{ 
+                          fontSize: '0.7rem',
+                          backgroundColor: invite.status === 'pending' ? '#fff3cd' : '#f8d7da',
+                          color: invite.status === 'pending' ? '#856404' : '#721c24',
+                          border: `1px solid ${invite.status === 'pending' ? '#ffeeba' : '#f5c6cb'}`
+                        }}
+                      >
+                        {invite.status}
+                      </div>
+                    </td>
+                    <td className="small text-muted">
+                      {new Date(invite.sent_at).toLocaleDateString()}
+                    </td>
+                    <td className="text-center">
+                      <div className="d-flex justify-content-center gap-2">
+                        {invite.status === 'rejected' && (
+                          <OverlayTrigger overlay={<Tooltip>Try sending this invitation again</Tooltip>}>
+                            <Button 
+                              variant="outline-primary" 
+                              size="sm" 
+                              onClick={() => handleAddStudent(null, invite.student.username)}
+                            >
+                              <i className="fa-solid fa-rotate-right me-1"></i> Resend
+                            </Button>
+                          </OverlayTrigger>
+                        )}
+                        
+                        <OverlayTrigger overlay={<Tooltip>Withdraw this invitation</Tooltip>}>
+                          <Button 
+                            variant="outline-danger" 
+                            size="sm" 
+                            onClick={() => handleCancelInvitation(invite.id)}
+                          >
+                            <i className="fa-solid fa-xmark me-1"></i> Cancel
+                          </Button>
+                        </OverlayTrigger>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="4" className="text-center py-4 text-muted">
+                    No pending or rejected invitations.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </Table>
+        </>
+      )}
       <div className="mt-3 p-3 bg-light rounded border">
         <h6 className="mb-3">Add Student Manually</h6>
         {studentFeedback && (
@@ -486,7 +628,6 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
           </Button>
         </Form>
 
-        {/* NEW: The Disambiguation List */}
         {candidateList.length > 0 && (
             <div className="mt-3" style={{ maxWidth: '400px' }}>
                 <span className="text-muted small fw-bold mb-2 d-block">Select the correct student:</span>
@@ -517,8 +658,10 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
       <AddAssignmentModal 
         show={showAddAssignmentModal} 
         onHide={() => setShowAddAssignmentModal(false)}
+        onExited={() => setEditAssignment(null)}        
         courseId={course.id} 
-        onCreateAssignment={onCreateAssignment}
+        onSaveAssignment={onSaveAssignment}
+        assignment={editAssignment}
       />
 
       <ViewAssignmentProgressModal
