@@ -63,7 +63,7 @@ class CourseViewSet(APIView):
             except Course.DoesNotExist:
                 return Response({"message": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
 
-            if not (user.is_instructor and course.instructor == user) and user not in course.students.all() and not user.is_superuser:
+            if not (user.is_instructor and course.instructor == user) and user not in course.students.all() and not user.is_superuser or (user in course.students.all() and course.is_active is False):
                 return Response({"message": "You are not authorized to view this course."}, status=status.HTTP_403_FORBIDDEN)
 
             serializer = CourseSerializer(course, context={"request": request})
