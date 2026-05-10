@@ -6,7 +6,7 @@ from django.utils import timezone
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from .models import Assignment, StudentProofMapping, Course, AssignmentProof
+from .models import Assignment, StudentProofMapping, Course, AssignmentProof, CourseInvitation
 from accounts.serializers import UserSerializer
 from equational_reasoning_api.models import EquationalProof, EquationalProofLine
 from induction_api.models import InductionProof, InductionProofLine
@@ -267,3 +267,13 @@ class CreateAssignmentSerializer(serializers.ModelSerializer):
                 return AssignmentProof.objects.create(assignment=assignment, content_type=ctype, object_id=cloned.id)
             except InductionProof.DoesNotExist: return None
         return None
+
+# serializers.py
+class CourseInvitationSerializer(serializers.ModelSerializer):
+    student = UserSerializer(read_only=True)
+    course_name = serializers.CharField(source='course.name', read_only=True)
+    instructor_name = serializers.CharField(source='course.instructor.name', read_only=True)
+
+    class Meta:
+        model = CourseInvitation
+        fields = ['id', 'course', 'course_name', 'instructor_name', 'student', 'status', 'sent_at']
