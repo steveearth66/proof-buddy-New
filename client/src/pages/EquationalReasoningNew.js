@@ -50,7 +50,7 @@ import {
   getLastRealIndex
 } from "../utils/playModeUtils";
 import userService from "../services/userService"
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useRouteError } from "react-router-dom";
 
 /**
  * Equational Reasoning component facilitates the Equational Reasoning Racket.
@@ -1022,6 +1022,31 @@ const handleRuleKeyDown = (e) => {
     isProcessingRef.current = true;
 
     try {
+      console.log("PROOF PARAMS:", proofParams);
+      console.log("PREMISE CHECK", { isBound, userRowNum: userRow.num, supportPremise: proofParams?.support_premise } );
+      if (isBound && userRow.num === "000" && proofParams.support_premise === false) {
+        console.log("PREMISE ENTERED", { isBound, userRowNum: userRow.num, supportPremise: proofParams?.support_premise } );
+        const premiseRule = footerRule;
+        const premiseExpression = footerPadRef.current?.getEquationValue() || "";
+
+        if (!premiseRule || premiseRule.trim() === '') {
+          setFooterRuleError('Must enter a rule');
+          isProcessingRef.current = false;
+          return;
+        }
+        if (!premiseExpression || premiseExpression.trim() === '') {
+          toast.error("You must enter an expression for the premise line.");
+          isProcessingRef.current = false;
+          return;
+        }
+
+        // TODO: premise validation endpoint here?
+        toast.success("Premise submitted");
+        unbindFooter();
+        isProcessingRef.current = false;
+        return;
+      }
+
       let ruleFromFooter = "";
       let expressionFromFooter = "";
       let previousStartPosition = 0;
@@ -1031,7 +1056,11 @@ const handleRuleKeyDown = (e) => {
 
       if (isBound) {
         const userIndex = getPadIndex(userRow.num);
-        ruleFromFooter = userRow.num === "000" ? "Premise" : footerRule;
+        //ruleFromFooter = userRow.num === "000" ? "Premise" : footerRule;
+        // student must input rule & expression for line 000 on low support
+        if (userRow.num === "000") {
+          ruleFromFooter = !proofParams.support_premise ? footerRule : "Premise";
+        }
 
         // --- FOOTER EXPRESSION REFERENCE ---
         if (footerPadRef.current) {
@@ -1065,6 +1094,15 @@ const handleRuleKeyDown = (e) => {
         return;
       }
       setFooterRuleError('');
+
+      // low support premise validation
+      if (!proofParams.support_premise && userRow.num === "000") {
+        if(!expressionFromFooter || expressionFromFooter.trim() === '') {
+          toast.error("premise line expression error");
+          isProcessingRef.current = false;
+          return;
+        }
+      }
 
       // If user typed "rewrite math", open Substitution modal with rule pre-filled
       if (ruleFromFooter.trim().toLowerCase() === 'rewrite math') {
@@ -1122,7 +1160,7 @@ const handleRuleKeyDown = (e) => {
       }
 
       // No hidden fields, proceed with normal generation
-      if (!previousRacketValue || previousRacketValue.trim() === '') {
+      if (userRow.num !== "000" && (!previousRacketValue || previousRacketValue.trim() === '')) {
         toast.error('No source expression found. Make sure the previous line has content.');
         isProcessingRef.current = false;
         return;
