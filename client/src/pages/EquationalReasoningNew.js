@@ -1022,15 +1022,12 @@ const handleRuleKeyDown = (e) => {
     isProcessingRef.current = true;
 
     try {
-      console.log("PROOF PARAMS:", proofParams);
-      console.log("PREMISE CHECK", { isBound, userRowNum: userRow.num, supportPremise: proofParams?.support_premise } );
       if (isBound && userRow.num === "000" && proofParams.support_premise === false) {
-        console.log("PREMISE ENTERED", { isBound, userRowNum: userRow.num, supportPremise: proofParams?.support_premise } );
         const premiseRule = footerRule;
         const premiseExpression = footerPadRef.current?.getEquationValue() || "";
 
         if (!premiseRule || premiseRule.trim() === '') {
-          setFooterRuleError('Must enter a rule');
+          setFooterRuleError('Not a legal starting rule.');
           isProcessingRef.current = false;
           return;
         }
@@ -1040,11 +1037,33 @@ const handleRuleKeyDown = (e) => {
           return;
         }
 
-        // TODO: premise validation endpoint here?
-        toast.success("Premise submitted");
-        unbindFooter();
-        isProcessingRef.current = false;
-        return;
+        try {
+          const validationResult = await equationalService.applyRule({
+            side: showSide,
+            rule: premiseRule,
+            currentRacket: premiseExpression,
+            startPosition: 0,
+            selectedNode: 0,
+            lineNumber: 0,
+            isPremiseValidation: true // flag for premise validation
+          });
+
+          if (validationResult.errors && validationResult.errors.length > 0) {
+            validationResult.errors?.forEach(error => toast.error(error));
+            isProcessingRef.current = false;
+            return;
+          }
+
+          toast.success("Correct!");
+          unbindFooter();
+          isProcessingRef.current = false;
+          return;
+
+        } catch (error) {
+          toast.error('Error validating your answer.');
+          isProcessingRef.current = false;
+          return;
+        }
       }
 
       let ruleFromFooter = "";
@@ -1738,24 +1757,29 @@ const handleRuleKeyDown = (e) => {
       const field = racketRuleFields?.[showSide][padIndex];
       const isExpressionHidden = field.hide_expression || false;
       const displayEquation = isExpressionHidden ? "" : equation;
+      const isPremiseLowSupport = proofParams.support_premise === false;
 
       return (
         <PersistentPad
           ref={footerPadRef}
-          equation={equation}
+          equation={isPremiseLowSupport ? "" : equation} // student input expression with low support
           onHighlightChange={() => {}}
           side={showSide}
           jsonTree={showSide === "LHS" ? leftPremise?.jsonTree : rightPremise?.jsonTree}
           lineNum={padIndex}
           startPosition={0}
           tabIndex={0}
-          ruleValue="Premise"
-          onRuleChange={() => {}}
-          isRuleReadOnly={true}
+          ruleValue={isPremiseLowSupport ? footerRule : "Premise"} // student input rule with low support
+          onRuleChange={isPremiseLowSupport ? e => {
+            setFooterRule(e.target.value.trim());
+            setFooterRuleError('');
+          } : () => {}}
+          onRuleKeyDown={isPremiseLowSupport ? handleRuleKeyDown : undefined}
+          isRuleReadOnly={!isPremiseLowSupport}
           rulePlaceholder="Rule"
           isEditRow={true}
           currentUserType={currentUserType}
-          hideExpression={isExpressionHidden}
+          hideExpression={isPremiseLowSupport ? true : isExpressionHidden}
         />
       );
     } else {

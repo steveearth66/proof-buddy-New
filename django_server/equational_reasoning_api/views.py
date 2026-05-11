@@ -312,6 +312,27 @@ def apply_rule(request):
         substitution = data.get("substitution")
         line_number = data.get("lineNumber")
 
+        # Check if premise validation is necessary
+        if_premise_validation = data.get("isPremiseValidation", False)
+        if if_premise_validation:
+            student_expression = data.get("currentRacket", "").strip()
+            student_rule = data.get("rule", "").strip().lower()
+
+            # correct answer from proof's premise
+            answer_racket = str(proof_obj.LHS.proofLines[0].exprTree) if side == "LHS" else str(proof_obj.RHS.proofLines[0].exprTree)
+            print("MATCH:", student_expression == answer_racket.strip())
+
+            errors = []
+            if student_rule != "premise":
+                errors.append("Not a legal starting rule.")
+            if student_expression != answer_racket.strip():
+                errors.append("Expression for premise line is incorrect")
+            print("ERRORS(after):", errors)
+            if errors:
+                return Response({"isValid": False, "errors": errors}, status=status.HTTP_200_OK)
+            
+            return Response({"isValid": True}, status=status.HTTP_200_OK)
+
         # Guard: "rewrite math" must use the Substitution button, not the rule field
         rewrite_math_error = _check_rewrite_math_misuse(rule)
         if rewrite_math_error:
