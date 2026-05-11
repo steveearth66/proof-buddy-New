@@ -13,5 +13,8 @@ urlpatterns = [
     path("assignments/detail/<int:assignment_id>", views.AssignmentDetailView.as_view()),
     path('join-course', views.join_course, name='join-course'),
     path('leave-course', views.leave_course, name='leave-course'),
-    path('assignments/<int:assignment_id>/start-assignment-proof', views.start_assignment_proof, name='start-assignment-proof')
+    path('assignments/<int:assignment_id>/start-assignment-proof', views.start_assignment_proof, name='start-assignment-proof'),
+    path('assignments/<int:assignment_id>/progress', views.AssignmentProgressMatrixView.as_view(), name='assignment-progress'),
+    path('courses/<int:course_id>/invitations', views.CourseInvitationView.as_view(), name='course-invitations'),
+    path('invitations/me', views.StudentInvitationView.as_view(), name='student-invitations')
 ]

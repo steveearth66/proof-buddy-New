@@ -31,9 +31,11 @@ class ProofComponent:
     
     def _validateNewLabel(self, label: str) -> bool:
         """Checks if label is not already in use"""
+        stripped = label[:-1] if label.endswith('?') else label
+        valid_chars = len(stripped) > 0 and stripped.isalpha()
         return False not in map(lambda iterable: label not in iterable, (
             reservedLabels, *self.ruleSet.values(), self.generics
-        )) and label.isalpha()
+        )) and valid_chars
     
     def addUDF(self, label, typeStr, body):
         errLog = Parser.preProcess(label,udf=True)[1] #added udf=True so that preprocessing will bypass empty string check
@@ -81,12 +83,18 @@ class ProofComponent:
             for j in range(len(paramsList)):
                 param2TypeDict[paramsList[j]] = RacType(racTypeObj.getDomain()[j]) #got rid of getDomain here and switched to value[0]
             filledBodyNode = fillBody(bodyNode.exprTree, udfLabel, racTypeObj, param2TypeDict)
+            # Post-fillBody: validate if-branch types now that PARAMs are resolved
+            post_errors = []
+            _validate_filled_if_branches(filledBodyNode, post_errors)
+            if post_errors:
+                self.errLog.extend(post_errors)
+                return
             self.ruleSet['apply'][udfLabel] = UDF(udfLabel, filledBodyNode, racTypeObj, paramsList)
            # print(f"Added UDF '{udfLabel}' with type '{str(racTypeObj)}' and body '{str(filledBodyNode)}'")
 
     def removeUDF(self, label):
         if len(label) != 1:
-            label = label.split()[0][1:]
+            label = label.split()[0].lstrip("(")
         if label in self.ruleSet['apply']:
             del self.ruleSet['apply'][label]
 
@@ -509,6 +517,8 @@ class ERProofLine(ProofComponent):
                 return
         if selected._ruleType == RuleType.MATH:
             ok, err = selected.isApplicable(targetNode, subNode)
+        elif selected._ruleType == RuleType.LOGIC:
+            ok, err = selected.isApplicable(targetNode, subNode)
         elif ruleCategory == 'eval':
             ok, err = selected.isApplicable(targetNode)
         else:
@@ -520,7 +530,7 @@ class ERProofLine(ProofComponent):
 
         newNode = (
             selected.insertSubstitution(targetNode, subNode)
-            if selected.ruleType == RuleType.MATH
+            if selected.ruleType in (RuleType.MATH, RuleType.LOGIC)
             else selected.insertSubstitution(targetNode)
         )
         targetNode.replaceWith(newNode)
@@ -658,6 +668,34 @@ def _infer_params_for_rule(selected_rule, target_node: Node, rule_category: str,
         new_full = f"{rule_category} {rule_name} {arrows}"
         return ruleParams, new_full
     return [], full_rule_string
+
+
+def _resolve_type(t):
+    """Unwrap nested RacType wrappers down to a plain Type enum.
+    getDomain() double-wraps each domain type in RacType, so we need to
+    loop until we reach a non-RacType value."""
+    while isinstance(t, RacType):
+        t = t.getType()
+    return t
+
+
+def _validate_filled_if_branches(node, errors):
+    """Post-fillBody: check if-expressions have matching branch types after parameter
+    types have been resolved from PARAM to their declared concrete types.
+    An if-node in the AST has data='(' with children[0].data=='if'."""
+    if (node.data == '(' and len(node.children) == 4
+            and node.children[0].data == 'if'):
+        t1 = _resolve_type(node.children[2].type)
+        t2 = _resolve_type(node.children[3].type)
+        if t1 is not None and t2 is not None and t1 != t2:
+            if t1 not in FLEX_TYPES and t2 not in FLEX_TYPES:
+                errors.append(
+                    f"Definition body type error: the two result branches of an if-expression "
+                    f"must have the same type, but found {t1} and {t2}. "
+                    f"Check your parameter types or use type 'any' if the types should be flexible."
+                )
+    for child in node.children:
+        _validate_filled_if_branches(child, errors)
 
 
 # fills in the types for the params

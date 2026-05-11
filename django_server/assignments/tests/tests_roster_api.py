@@ -7,8 +7,7 @@ from rest_framework import status
 from django.contrib.auth import get_user_model
 from parameterized import parameterized
 
-# Import your Course model (adjust the path if needed)
-from assignments.models import Course 
+from assignments.models import Course, CourseInvitation
 
 User = get_user_model()
 
@@ -92,6 +91,22 @@ class RosterAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertNotIn(self.not_enrolled_student, self.course.students.all())
 
+    def test_student_joining_via_code_cleans_up_invitations(self):
+        """Test that joining via code deletes existing invitations for that course."""
+        CourseInvitation.objects.create(course=self.course, student=self.not_enrolled_student)
+        
+        self.client.force_authenticate(user=self.not_enrolled_student)
+        response = self.client.post(self.join_url, {"code": self.raw_code})
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn(self.not_enrolled_student, self.course.students.all())
+        
+        invitation_exists = CourseInvitation.objects.filter(
+            course=self.course, 
+            student=self.not_enrolled_student
+        ).exists()
+        self.assertFalse(invitation_exists)
+
     def test_instructor_can_add_student_by_username(self):
         """Test adding a student using their exact username."""
         self.client.force_authenticate(user=self.instructor)
@@ -103,8 +118,12 @@ class RosterAPITests(APITestCase):
         
         response = self.client.post(self.add_url, payload)
         
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn(self.not_enrolled_student, self.course.students.all())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertNotIn(self.not_enrolled_student, self.course.students.all())
+
+        self.assertTrue(CourseInvitation.objects.filter(
+            course=self.course, student=self.not_enrolled_student, status='pending'
+        ).exists())
 
     def test_instructor_can_add_student_by_email(self):
         """Test adding a student using their email address."""
@@ -117,8 +136,12 @@ class RosterAPITests(APITestCase):
         
         response = self.client.post(self.add_url, payload)
         
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn(self.not_enrolled_student, self.course.students.all())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertNotIn(self.not_enrolled_student, self.course.students.all())
+
+        self.assertTrue(CourseInvitation.objects.filter(
+            course=self.course, student=self.not_enrolled_student, status='pending'
+        ).exists())
 
     def test_instructor_gets_conflict_if_more_than_one_student_has_email(self):
         """Test getting conflict message when adding a student using their 
@@ -149,6 +172,12 @@ class RosterAPITests(APITestCase):
         self.assertNotIn(self.not_enrolled_student, self.course.students.all())
         self.assertNotIn(student_copy, self.course.students.all())
 
+        self.assertFalse(CourseInvitation.objects.filter(
+            course=self.course, student=self.not_enrolled_student
+        ).exists())
+        self.assertFalse(CourseInvitation.objects.filter(
+            course=self.course, student=student_copy
+        ).exists())
 
     def test_student_cannot_add_another_student(self):
         """Test that a 403 Forbidden is returned if a student tries to use this endpoint."""
@@ -159,6 +188,9 @@ class RosterAPITests(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertNotIn(self.not_enrolled_student, self.course.students.all())
+        self.assertFalse(CourseInvitation.objects.filter(
+            course=self.course, student=self.not_enrolled_student
+        ).exists())
 
     def test_cannot_add_nonexistent_student(self):
         """Test that a 404 is returned for a bad username."""
@@ -168,6 +200,20 @@ class RosterAPITests(APITestCase):
         response = self.client.post(self.add_url, payload)
         
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_cannot_invite_already_enrolled_student(self):
+        """Verify we don't create invitations for students already in the course."""
+        self.client.force_authenticate(user=self.instructor)
+        
+        payload = {
+            "course": self.course.id,
+            "student": self.student.username
+        }
+        
+        response = self.client.post(self.add_url, payload)
+        
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(response.data['message'], "Student is already in the course.")
 
     def test_instructor_can_remove_student(self):
         """Test that an instructor can manually drop a student."""

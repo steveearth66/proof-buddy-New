@@ -34,7 +34,6 @@ import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import { useDynamicHeight } from "../hooks/useDynamicHeight";
 import inductionService from "../services/inductionService";
 import userService from "../services/userService";
-import erService from "../services/erService";
 import SetParametersModal from "../components/SetParametersModal";
 import {
   ARROW_KEYS,
@@ -874,8 +873,8 @@ const InductionRacket = () => {
         }
       }
 
-      // If user typed "rewrite math" or "rewrite logic", open Substitution modal with rule pre-filled
-      if (ruleFromFooter.trim().toLowerCase() === 'rewrite math' || ruleFromFooter.trim().toLowerCase() === 'rewrite logic') {
+      // If user typed "rewrite math" or "rewrite logic" or "rewrite logic", open Substitution modal with rule pre-filled
+      if (ruleFromFooter.trim().toLowerCase() === 'rewrite math' || ruleFromFooter.trim().toLowerCase() === 'rewrite logic' || ruleFromFooter.trim().toLowerCase() === 'rewrite logic') {
         updateShowSubstitution();
         return;
       }

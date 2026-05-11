@@ -15,6 +15,19 @@ from expression_tree.ERRuleset import LemmaRule, getDefaultRuleSet
 from expression_tree.LemmaApplicator import extract_free_vars, build_lemma_rule, validate_lemma_application
 from expression_tree.Parser import makeBasicAst
 from expression_tree.ERCommon import findNode
+import sys
+
+_RED   = "\x1b[1;31m" if sys.stdout.isatty() else ""
+_RESET = "\x1b[0m"    if sys.stdout.isatty() else ""
+
+import builtins as _bi
+_orig_print_la = _bi.print
+def _red_fail_print(*args, **kwargs):
+    if args and isinstance(args[0], str) and '  FAIL' in args[0]:
+        _orig_print_la(_RED + args[0] + _RESET, *args[1:], **kwargs)
+    else:
+        _orig_print_la(*args, **kwargs)
+_bi.print = _red_fail_print
 
 totalFails = 0
 
@@ -250,4 +263,4 @@ print()
 if totalFails == 0:
     print("All lemma application tests passed!")
 else:
-    print(f"Lemma application test failures: {totalFails}")
+    print(f"{_RED}Lemma application test failures: {totalFails}{_RESET}")

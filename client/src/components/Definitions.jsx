@@ -570,17 +570,7 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
       const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
       
       // Merge: prefer backend data but preserve 'enabled' state from sessionStorage
-      const merged = userGenerics.map(backendGen => {
-        const storedGen = storedGenerics.find(sg => sg.label === backendGen.label || sg.name === backendGen.name);
-        if (storedGen) {
-          // sessionStorage is source of truth for enabled state.
-          // If enabled is undefined in sessionStorage, default to true (any known generic should start enabled).
-          const resolvedEnabled = storedGen.enabled !== undefined ? storedGen.enabled : true;
-          return { ...backendGen, enabled: resolvedEnabled };
-        }
-        const resolvedEnabled = backendGen.enabled ?? true;
-        return { ...backendGen, enabled: resolvedEnabled };
-      });
+      const merged = userGenerics;
       
       // Add any sessionStorage generics that don't exist in backend yet
       storedGenerics.forEach(stored => {
@@ -618,67 +608,120 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
     );
   } else {
     return (
-      <div className="definitions-container">
-        <p className="title">User definitions</p>
-        <div className="definitions">
-          {definitions.map((def, index) => (
-            <Definition
-              key={index}
-              definition={def}
-              eventKey={index}
-              deleteDefinition={deleteDefinition}
-              updateEdit={updateEdit}
-              applyDefinition={applyDefinition}
-              isLocked={isLocked}
-            />
-          ))}
-        </div>
-        {(tempDefinitions.length > 0) && (
-          <>
-            <p className="title">Proof definitions</p>
-            <div className="definitions">
-              {tempDefinitions.map((def, i) => (
-                <Definition 
-                  key={`temp-def-${def.id || i}`} 
-                  definition={{ ...def, applied: true }} 
-                  isLocked={true}
+      <div className="definitions-container" style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '85vh' }}>
+        
+        <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '5px' }}>
+          <Accordion defaultActiveKey={['default-defs', 'user-defs', 'user-gens']} alwaysOpen>
+            
+            <Accordion.Item eventKey='default-defs'>
+              <Accordion.Header className="def-section"><p className="title mb-0">Default definitions</p></Accordion.Header>
+              <Accordion.Body>
+                <div className="definitions" style={{ maxHeight: '35vh', overflowY: 'auto', paddingRight: '10px' }}>
+                  {definitions.filter(d => d.is_default).map((def, index) => (
+                    <Definition
+                      key={index}
+                      definition={def}
+                      eventKey={index}
+                      deleteDefinition={deleteDefinition}
+                      updateEdit={updateEdit}
+                      applyDefinition={applyDefinition}
+                      isLocked={isLocked}
+                    />
+                  ))}
+                </div>
+              </Accordion.Body>
+            </Accordion.Item>
+
+            <Accordion.Item eventKey='user-defs'>
+              <Accordion.Header><p className="title mb-0">User definitions</p></Accordion.Header>
+              <Accordion.Body>
+                <div className="definitions" style={{ maxHeight: '35vh', overflowY: 'auto', paddingRight: '10px' }}>
+                  {definitions.filter(d => !d.is_default).map((def, index) => (
+                    <Definition
+                      key={index}
+                      definition={def}
+                      eventKey={index}
+                      deleteDefinition={deleteDefinition}
+                      updateEdit={updateEdit}
+                      applyDefinition={applyDefinition}
+                      isLocked={isLocked}
+                    />
+                  ))}
+                </div>
+              </Accordion.Body>
+            </Accordion.Item>
+
+          {(tempDefinitions.length > 0) && (
+            <Accordion.Item eventKey='proof-defs'>
+              <Accordion.Header><p className="title mb-0">Proof definitions</p></Accordion.Header>
+              <Accordion.Body>
+                <div className="definitions" style={{ maxHeight: '35vh', overflowY: 'auto', paddingRight: '10px' }}>
+                  {tempDefinitions.map((def, i) => (
+                    <Definition 
+                      key={`temp-def-${def.id || i}`}
+                      eventKey={`temp-def-${def.id || i}`}
+                      definition={{ ...def, applied: true }} 
+                      isLocked={true}
+                    />
+                  ))}
+                </div>
+              </Accordion.Body>
+            </Accordion.Item>
+          )}
+
+          <Accordion.Item eventKey='user-gens'>
+            <Accordion.Header><p className="title mb-0">User Generics</p></Accordion.Header>
+            <Accordion.Body>
+              <div className="generics" style={{ maxHeight: '35vh', overflowY: 'auto', paddingRight: '10px' }}>
+              {generics.map((gen, index) => (
+                <Generic
+                  key={index}
+                  generic={gen}
+                  eventKey={index}
+                  enableGeneric={enableGeneric}
+                  deleteGeneric={deleteGeneric}
+                  isLocked={isLocked}
                 />
               ))}
             </div>
-          </>
-        )}
-        <p className="title">Generics</p>
-        <div className="generics">
-          {generics.map((gen, index) => (
-            <Generic
-              key={index}
-              generic={gen}
-              eventKey={index}
-              enableGeneric={enableGeneric}
-              deleteGeneric={deleteGeneric}
-              isLocked={isLocked}
-            />
-          ))}
+            </Accordion.Body>
+          </Accordion.Item>
+
+          {tempGenerics.length > 0 && (
+            <Accordion.Item eventKey='proof-gens'>
+              <Accordion.Header><p className="title mb-0">Proof Generics</p></Accordion.Header>
+              <Accordion.Body>
+                <div className="generics" style={{ maxHeight: '35vh', overflowY: 'auto', paddingRight: '10px' }}>
+                  {tempGenerics.map((gen, i) => (
+                    <Generic 
+                      key={`temp-gen-${gen.id || i}`} 
+                      eventKey={`temp-gen-${gen.id || i}`}
+                      generic={{ ...gen, enabled: true }} 
+                      isLocked={true} 
+                    />
+                  ))}
+                </div>
+              </Accordion.Body>
+            </Accordion.Item>
+          )}
+          </Accordion>
         </div>
-        {tempGenerics.length > 0 && (
-          <>
-            <p className="title">Proof Generics</p>
-            <div className="generics">
-              {tempGenerics.map((gen, i) => (
-                <Generic 
-                  key={`temp-gen-${gen.id || i}`} 
-                  generic={{ ...gen, enabled: true }} 
-                  isLocked={true} 
-                />
-              ))}
-            </div>
-          </>
-        )}
-        <div className="def-button-row">
+
+        <div className="def-button-row" style={{
+            marginTop: 'auto', 
+            paddingTop: '15px',
+            borderTop: '1px solid #dee2e6',
+            display: 'flex',
+            justifyContent: 'space-between',
+            backgroundColor: 'white',
+            zIndex: 10
+        }}>
           <Button variant="danger" onClick={toggleDefinitionsWindow}>
             Close Definitions Window
           </Button>
-          <Button onClick={() => onUpdate(true)} disabled={isLocked}>Create New Definition</Button>
+          <Button onClick={() => onUpdate(true)} disabled={isLocked}>
+            Create New Definition
+          </Button>
         </div>
       </div>
     );

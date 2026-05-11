@@ -1,5 +1,5 @@
-from .models import Assignment, StudentProofMapping, Course
-from .serializers import AssignmentSerializer, CourseSerializer, CreateCourseSerializer, CreateAssignmentSerializer
+from .models import Assignment, StudentProofMapping, Course, CourseInvitation
+from .serializers import AssignmentSerializer, CourseSerializer, CreateCourseSerializer, CreateAssignmentSerializer, CourseInvitationSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -63,7 +63,7 @@ class CourseViewSet(APIView):
             except Course.DoesNotExist:
                 return Response({"message": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
 
-            if not (user.is_instructor and course.instructor == user) and user not in course.students.all() and not user.is_superuser:
+            if not (user.is_instructor and course.instructor == user) and user not in course.students.all() and not user.is_superuser or (user in course.students.all() and course.is_active is False):
                 return Response({"message": "You are not authorized to view this course."}, status=status.HTTP_403_FORBIDDEN)
 
             serializer = CourseSerializer(course, context={"request": request})
@@ -271,20 +271,23 @@ def add_student(request):
     except Course.DoesNotExist:
         return Response({"message": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
 
+    # 1. Authorization Check
     if not (request.user.is_instructor and course.instructor == request.user) and not request.user.is_superuser:
         return Response(
             {"message": "You are not authorized to add a student to this course."},
             status=status.HTTP_403_FORBIDDEN,
         )
 
+    # 2. Find Student Candidates
     students = None
     if "@" in student_identifier:
         students = User.objects.filter(email=student_identifier, is_instructor=False, is_superuser=False)
-        print(type(students))
-    # handle case where username may have '@' in it
+    
+    # If no results by email (or no @ in string), check by username
     if students is None or students.count() == 0:
         students = User.objects.filter(username=student_identifier, is_instructor=False, is_superuser=False)
 
+    # 3. Handle Empty Results
     if students.count() == 0:
         # Check if the user exists but is an instructor
         if User.objects.filter(email=student_identifier, is_superuser=False).exists() or User.objects.filter(username=student_identifier, is_superuser=False).exists():
@@ -292,8 +295,8 @@ def add_student(request):
         
         return Response({"message": "Student not found. Check the spelling and try again."}, status=status.HTTP_404_NOT_FOUND)
     
+    # 4. Handle Disambiguation (Multiple Results)
     elif students.count() > 1:
-        # 3. Handle duplicates
         candidates = [
             {
                 "username": s.username,
@@ -302,22 +305,33 @@ def add_student(request):
             } for s in students
         ]
         return Response({
-            "message": "Multiple students share this email. Please select the correct one below.",
+            "message": "Multiple students share this identifier. Please select the correct one.",
             "requires_disambiguation": True,
             "candidates": candidates
         }, status=status.HTTP_409_CONFLICT)
 
-    # 4. Success: Only one student found
+    # 5. Success: Single Student Targeted
     student = students.first()
 
-    # do nothing if student already exists
+    # check if student is ALREADY enrolled
     if course.students.filter(pk=student.pk).exists():
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response({"message": "Student is already in the course."}, status=status.HTTP_204_NO_CONTENT)
     
-    course.students.add(student)
-
-    data = CourseSerializer(course).data
-    return Response(data, status=status.HTTP_200_OK)
+    # NEW: Create or Update Invitation instead of adding directly to ManyToMany
+    invitation, created = CourseInvitation.objects.update_or_create(
+        course=course,
+        student=student,
+        defaults={'status': 'pending'}
+    )
+    serializer = CourseInvitationSerializer(invitation)
+    if created:
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    else:
+        # Invitation already existed (was either pending or rejected)
+        return Response(
+            {"message": "Existing invitation updated to pending.", "invitation": serializer.data}, 
+            status=status.HTTP_200_OK
+        )
 
 class InstructorLibraryView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -369,6 +383,36 @@ class AssignmentDetailView(APIView):
         
         return Response(status=status.HTTP_204_NO_CONTENT)
     
+    def patch(self, request, assignment_id):
+        try:
+            assignment = Assignment.objects.get(id=assignment_id)
+        except Assignment.DoesNotExist:
+            return Response({"message": "Assignment not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Authorization check
+        if not request.user.is_superuser and assignment.course.instructor != request.user:
+            return Response(
+                {"message": "You are not authorized to edit this assignment."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = CreateAssignmentSerializer(
+            assignment, 
+            data=request.data, 
+            partial=True, 
+            context={"request": request}
+        )
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                AssignmentSerializer(assignment, context={"request": request}).data, 
+                status=status.HTTP_200_OK
+            )
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
 def join_course(request):
@@ -396,6 +440,9 @@ def join_course(request):
 
             # 5. Enroll the student
             course.students.add(request.user)
+
+            # 6. Remove an invitation if it exists
+            CourseInvitation.objects.filter(course=course, student=request.user).delete()
             
             return Response({
                 "message": "Successfully joined the course!",
@@ -493,3 +540,149 @@ def start_assignment_proof(request, assignment_id):
         "new_proof_id": cloned_proof.id,
         "type": proof_type
     }, status=status.HTTP_201_CREATED)
+
+class AssignmentProgressMatrixView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, assignment_id):
+        assignment = get_object_or_404(Assignment, id=assignment_id)
+        course = assignment.course
+
+        # 1. Instructor Authorization Check
+        if not (request.user.is_instructor and course.instructor == request.user) and not request.user.is_superuser:
+            return Response(
+                {"message": "You are not authorized to view progress for this assignment."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # 2. Fetch the Template Proofs
+        template_links = assignment.proof_items.all()
+        
+        proof_columns = []
+        for link in template_links:
+            # Access the actual generic proof via the GenericForeignKey 'proof_object'
+            proof = link.proof_object
+            proof_columns.append({
+                "id": link.object_id,
+                # Fallback to a generic name if the proof is missing or has no name
+                "title": getattr(proof, 'name', f"Proof {link.object_id}") if proof else f"Proof {link.object_id}",
+                "type": link.content_type.model
+            })
+
+        # 3. Fetch all Student Mappings
+        mappings = StudentProofMapping.objects.filter(assignment=assignment).prefetch_related('student_proof')
+        
+        # Structure: { student_id: { template_proof_id: { status_data } } }
+        mapping_dict = {}
+        for m in mappings:
+            student_id = m.student.id
+            cloned_proof = m.student_proof
+            
+            if not cloned_proof:
+                proof_status = "error" 
+            elif getattr(cloned_proof, 'is_complete', False):
+                proof_status = "complete"
+            else:
+                proof_status = "in progress"
+
+            if student_id not in mapping_dict:
+                mapping_dict[student_id] = {}
+
+            mapping_dict[student_id][str(m.template_proof_id)] = {
+                "status": proof_status,
+                "cloned_proof_id": m.object_id,
+                "proof_type": m.content_type.model
+            }
+
+        # 4. Build the Students Matrix
+        students_data = []
+        for student in course.students.all():
+            student_data = {
+                "id": student.id,
+                "username": student.username,
+                "email": student.email,
+                "firstName": student.first_name,
+                "lastName": student.last_name,
+                "statuses": {}
+            }
+
+            student_mappings = mapping_dict.get(student.id, {})
+            
+            # Guarantee every column has a corresponding cell for this student
+            for link in template_links:
+                tp_id = str(link.object_id)
+                
+                if tp_id in student_mappings:
+                    student_data["statuses"][tp_id] = student_mappings[tp_id]
+                else: # only started proofs have a database link to the student
+                    student_data["statuses"][tp_id] = {
+                        "status": "not started",
+                        "cloned_proof_id": None,
+                        "proof_type": None
+                    }
+                    
+            students_data.append(student_data)
+
+        return Response({
+            "columns": proof_columns,
+            "students": students_data
+        }, status=status.HTTP_200_OK)
+
+class CourseInvitationView(APIView):
+    """
+    Instructor-facing view to manage course invitations.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, course_id):
+        # List all invitations for a specific course
+        invitations = CourseInvitation.objects.filter(
+            course_id=course_id, 
+            course__instructor=request.user
+        )
+        serializer = CourseInvitationSerializer(invitations, many=True)
+        return Response(serializer.data)
+
+    def delete(self, request, course_id):
+        # Cancel a specific invitation
+        invitation_id = request.data.get('invitation_id')
+        invitation = get_object_or_404(
+            CourseInvitation, 
+            id=invitation_id, 
+            course_id=course_id, 
+            course__instructor=request.user
+        )
+        invitation.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
+class StudentInvitationView(APIView):
+    """
+    Student-facing view to fetch and respond to invitations.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        # Students fetch only their PENDING invitations
+        invites = CourseInvitation.objects.filter(student=request.user, status='pending')
+        serializer = CourseInvitationSerializer(invites, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        # Accept or Reject an invitation
+        invitation_id = request.data.get('invitation_id')
+        action = request.data.get('action') # 'accept' or 'reject'
+        
+        # only search for invitations for requesting account
+        invitation = get_object_or_404(CourseInvitation, id=invitation_id, student=request.user)
+
+        if action == 'accept':
+            invitation.course.students.add(request.user)
+            invitation.delete()
+            return Response({"message": "Joined course."}, status=status.HTTP_200_OK)
+
+        elif action == 'reject':
+            invitation.status = 'rejected'
+            invitation.save()
+            return Response({"message": "Invitation declined."}, status=status.HTTP_200_OK)
+
+        return Response({"error": "Invalid action."}, status=status.HTTP_400_BAD_REQUEST)

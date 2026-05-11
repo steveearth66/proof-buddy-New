@@ -43,6 +43,7 @@ class CourseAPITests(APITestCase):
             join_code_hash=hashed_code,
             join_code_expires_at=timezone.now() + timedelta(days=1)
         )
+        self.course.students.add(self.student)
         
         # URLs for endpoints
         self.course_detail_url = f'/api/v1/assignments/courses/{self.course.id}' 
@@ -79,3 +80,29 @@ class CourseAPITests(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("term", response.data)
+
+    def test_instructor_list_view_returns_owned_courses(self):
+        self.client.force_authenticate(user=self.instructor)
+        response = self.client.get('/api/v1/assignments/courses')
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['name'], "Discrete Math 101")
+
+    def test_student_list_view_only_returns_active_enrolled_courses(self):
+        self.client.force_authenticate(user=self.student)
+        inactive_course = Course.objects.create(name="Logic 101", instructor=self.instructor, created_by=self.instructor, is_active=False)
+        inactive_course.students.add(self.student)
+        response = self.client.get('/api/v1/assignments/courses')
+
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['name'], "Discrete Math 101")
+
+    def test_regenerate_join_code_action(self):
+        self.client.force_authenticate(user=self.instructor)
+        old_hash = self.course.join_code_hash
+        response = self.client.patch(f'/api/v1/assignments/courses/{self.course.id}', {
+            "action": "regenerate_code"
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.course.refresh_from_db()
+        self.assertNotEqual(self.course.join_code_hash, old_hash)
+        self.assertIn('join_code', response.data)

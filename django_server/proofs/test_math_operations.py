@@ -3,7 +3,7 @@ Test cases for basic math operations (+, -, *, quotient, remainder, expt)
 and comparison operators (=, <, <=, >, >=)
 """
 
-from .test_helpers import test_racket_function, do_single_test_case
+from .test_helpers import test_racket_function, do_single_test_case, _RED, _RESET
 
 totalFails = 0
 
@@ -196,4 +196,4 @@ totalFails += do_single_test_case('eval math', '(+ 1 2)',
                                   ["Cannot evaluate algebraic math rule"])
 totalFails += do_single_test_case('math', '(+ 1 2)', ["Rule must start with 'eval', 'apply', or 'rewrite'"])
 
-print("\nMath operations tests completed!\n" if totalFails == 0 else f"Math operations: {totalFails} failures\n")
+print("\nMath operations tests completed!\n" if totalFails == 0 else f"{_RED}Math operations: {totalFails} failures{_RESET}\n")

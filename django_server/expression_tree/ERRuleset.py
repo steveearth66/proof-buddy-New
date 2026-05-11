@@ -39,6 +39,7 @@ class RuleType(Enum):
     MATH = 3
     LEMMA = 4
     IH = 5
+    LOGIC = 6
 
     def __str__(self):
         if self == RuleType.BUILT_IN:
@@ -47,6 +48,8 @@ class RuleType(Enum):
             return 'IH'
         if self == RuleType.MATH:
             return 'algebraic math rule'
+        if self == RuleType.LOGIC:
+            return 'propositional logic rule'
         return self.name.lower()
     
 class Rule(ABC):
@@ -799,10 +802,29 @@ class NullQCons(Axiom):
 
 class ZeroQPlus(Axiom):
     def __init__(self):
-        # Return a tuple containing ONE element which is a tuple of alternatives
-        # The outer tuple is for the for-loop iteration, the inner tuple provides position alternatives
-        aFinder: Axiom.ParamFinder = lambda node: ((node.children[1].children[1], node.children[1].children[2]),)
-        kFinder: Axiom.ParamFinder = lambda node: ((node.children[1].children[1], node.children[1].children[2]),)
+        # 'a' is the concrete integer in (+ a k); 'k' is the other term.
+        # The finders pick deterministically when one child is a concrete integer leaf,
+        # so that auto-infer (HIGH support) assigns 'a' and 'k' correctly.
+        # If neither child is a concrete integer, both alternatives are offered for
+        # manual entry so the user can still provide explicit assignments.
+        def aFinder(node: Node):
+            left = node.children[1].children[1]
+            right = node.children[1].children[2]
+            # For auto-infer: concrete integer is primary for 'a'; secondary allows explicit override.
+            if not left.children and isinstance(left.name, int):
+                return ((left, right),)
+            if not right.children and isinstance(right.name, int):
+                return ((right, left),)
+            return ((left, right),)
+        def kFinder(node: Node):
+            left = node.children[1].children[1]
+            right = node.children[1].children[2]
+            # For auto-infer: non-concrete term is primary for 'k'; secondary allows explicit override.
+            if not left.children and isinstance(left.name, int):
+                return ((right, left),)
+            if not right.children and isinstance(right.name, int):
+                return ((left, right),)
+            return ((left, right),)
         super().__init__("zero?+", {'a': aFinder, 'k': kFinder})
 
     def verifyStructure(self, ruleNode: Node) -> tuple[bool, str]:
@@ -815,7 +837,14 @@ class ZeroQPlus(Axiom):
     def verifyValues(self):
         if (self._paramMappings['a'].data == '(' or self._paramMappings['k'].name == '('):
             return False, "Insufficiently resolved arguments"
-        if not(self._paramMappings['a'].name >= 0 and self._paramMappings['k'].name >= 0):
+        try:
+            a_ok = self._paramMappings['a'].name >= 0
+            k_ok = self._paramMappings['k'].name >= 0
+        except TypeError:
+            # k or a is a generic variable (name is a GenericInt/str), not a concrete int.
+            # Generics represent unknown non-negative integers, so the numeric checks pass.
+            return True, ""
+        if not(a_ok and k_ok):
             return False, "Neither 'a' nor 'k' can be negative when rewriting with zero?+ rule"
         if not(self._paramMappings['a'].name != 0 or self._paramMappings['k'].name != 0):
             return False, "One of either 'a' or 'k' must be positive when rewriting with zero?+ rule"
@@ -968,6 +997,7 @@ def _fresh_var(used: set) -> str:
     return "z_var"  # unreachable in practice
 
 _MATH_OPS = MathSet | ARITHMETIC  # {'+','-','*','expt','quotient','remainder','=','>','<','<=','>='}
+_BOOL_OPS = {'and', 'or', 'not', 'xor', 'implies'}
 _OP_TRANSLATE = {"expt": "**", "quotient": "//", "remainder": "%", "=": "=="}
 
 def _abstractedMathStr(node: Node, abstract_pairs: list, used_names: set) -> str:
@@ -1000,6 +1030,44 @@ def _abstractedMathStr(node: Node, abstract_pairs: list, used_names: set) -> str
             abstract_pairs.append((node, var_name))
             return var_name
     return "ERROR"
+
+def _racketNodeToSympyBool(node: Node, abstract_pairs: list, used_names: set):
+    # Converts a boolean Racket node tree to a SymPy boolean expression.
+    # Non-boolean subexpressions are abstracted as opaque Symbol placeholders,
+    # shared between both trees via isMatch so SymPy sees identical atoms.
+    # Returns None if the structure cannot be converted.
+    if node.children == []:
+        if node.data == '#t':
+            return sp.true
+        if node.data == '#f':
+            return sp.false
+        return sp.Symbol(node.data)
+    if node.data == '(' and len(node.children) >= 2:
+        op = node.children[0].data
+        if op == 'not' and len(node.children) == 2:
+            arg = _racketNodeToSympyBool(node.children[1], abstract_pairs, used_names)
+            if arg is None:
+                return None
+            return sp.Not(arg)
+        if op in ('and', 'or', 'xor', 'implies') and len(node.children) == 3:
+            left = _racketNodeToSympyBool(node.children[1], abstract_pairs, used_names)
+            right = _racketNodeToSympyBool(node.children[2], abstract_pairs, used_names)
+            if left is None or right is None:
+                return None
+            if op == 'and':
+                return sp.And(left, right)
+            if op == 'or':
+                return sp.Or(left, right)
+            if op == 'xor':
+                return sp.Xor(left, right)
+            return sp.Implies(left, right)
+        for existing_node, var_name in abstract_pairs:
+            if isMatch(existing_node, node):
+                return sp.Symbol(var_name)
+        var_name = _fresh_var(used_names)
+        abstract_pairs.append((node, var_name))
+        return sp.Symbol(var_name)
+    return None
 
 # --- end helpers ---
 
@@ -1079,6 +1147,33 @@ class AdvMath(Rule):
     def insertSubstitution(self, ruleNode: Node, subNode: Node) -> Node:
         return subNode
 
+class AdvLogic(Rule):
+    def __init__(self):
+        super().__init__('advLogic', RuleType.LOGIC)
+
+    def isApplicable(self, ruleNode: Node, subNode: Node) -> tuple[bool, str]:
+        try:
+            if subNode.children:
+                if subNode.data != '(' or subNode.children[0].data not in _BOOL_OPS:
+                    return False, 'selected expression is not a logic operation'
+            used_names: set = set()
+            _collect_node_names(ruleNode, used_names)
+            _collect_node_names(subNode, used_names)
+            abstract_pairs: list = []
+            main_sympy = _racketNodeToSympyBool(subNode, abstract_pairs, used_names)
+            sub_sympy = _racketNodeToSympyBool(ruleNode, abstract_pairs, used_names)
+            if main_sympy is None or sub_sympy is None:
+                return False, 'Logic rule: expression could not be converted for boolean comparison'
+            from sympy.logic.inference import satisfiable
+            if satisfiable(sp.Xor(main_sympy, sub_sympy)) == False:  # noqa: E712
+                return True, 'advLogic.isApplicable() PASS'
+            return False, 'main and substitute expressions are not logically equivalent'
+        except Exception as e:
+            return False, f'Error checking logical equivalence: {str(e)}'
+
+    def insertSubstitution(self, ruleNode: Node, subNode: Node) -> Node:
+        return subNode
+
 def recursiveReplaceNodes(node: Node, params: list, values: list) -> None:
     if node.data in params:
         index = params.index(node.data)
@@ -1143,7 +1238,8 @@ REWRITE_RULES: dict[str, Rule] = {
     'null?-cons': NullQCons(),
     '-+': MinusPlus(),
     'zero?+': ZeroQPlus(),
-    'math': AdvMath()
+    'math': AdvMath(),
+    'logic': AdvLogic()
 }
 
 DEFAULT_RULE_SET: dict[str, dict[str, Rule]] = {

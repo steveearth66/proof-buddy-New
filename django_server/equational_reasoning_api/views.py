@@ -83,6 +83,51 @@ def get_or_set_equational_obj(user):
     return loads(cached['proof_obj']), proof_id
 
 
+def _ensure_er_hydrated(proof_obj, proof_id):
+    """Re-register any UDFs and generics missing from the TwoSidedProof engine.
+    Safety net for cache-miss / server-restart scenarios where the proof object is
+    rebuilt fresh (no UDFs, no generics). Reads the stored definitions from the DB
+    EquationalProof.definition field and replays addUDF / addGeneric for anything
+    that isn't already present in the ruleSet."""
+    if not proof_id:
+        return
+    try:
+        _db_proof = EquationalProof.objects.get(id=proof_id)
+        all_defs = list(_db_proof.definition or [])
+    except EquationalProof.DoesNotExist:
+        return
+
+    sides = [proof_obj.LHS, proof_obj.RHS]
+    for _d in all_defs:
+        if _d.get('is_generic'):
+            _glabel = _d.get('label') or _d.get('name') or ''
+            _gtype = (_d.get('type') or 'int').lower()
+            _grestrictions = _d.get('restrictions') or {}
+            if not _glabel:
+                continue
+            for side in sides:
+                if _glabel not in side.generics:
+                    try:
+                        side.addGeneric(_glabel, _gtype, _grestrictions)
+                        side.errLog = []
+                    except Exception:
+                        pass
+        else:
+            _dlabel = _d.get('label') or _d.get('name') or ''
+            _udf_name = _dlabel.replace('(', ' ').replace(')', ' ').split()
+            if not _udf_name:
+                continue
+            _udf_name = _udf_name[0]
+            _dtype = _d.get('type') or _d.get('def_type')
+            _dbody = _d.get('expression') or _d.get('body')
+            if not _dtype or not _dbody:
+                continue
+            for side in sides:
+                if _udf_name not in side.ruleSet.get('apply', {}):
+                    side.addUDF(_dlabel, _dtype, _dbody)
+                    side.errLog = []
+
+
 def reload_proof_lines_from_db(proof_obj, proof_id):
     """Reload all proof lines from database into the TwoSidedProof object"""
     if proof_id is None:
@@ -117,14 +162,19 @@ def reload_proof_lines_from_db(proof_obj, proof_id):
 
 
 def _check_rewrite_math_misuse(rule):
-    """Return an error message string if the user typed 'rewrite math' into the rule field
-    instead of using the Substitution button, or None if the rule is fine to proceed."""
+    """Return an error message string if the user typed 'rewrite math' or 'rewrite logic'
+    into the rule field instead of using the Substitution button, or None if the rule is fine."""
     rule_norm = (rule or '').strip().lower()
     if rule_norm == 'rewrite math':
         return ("The 'rewrite math' rule must be applied using the Substitution button, "
                 "not the rule field.")
     if rule_norm.startswith('rewrite math'):
         return "'rewrite math' does not require additional parameters to be applied."
+    if rule_norm == 'rewrite logic':
+        return ("The 'rewrite logic' rule must be applied using the Substitution button, "
+                "not the rule field.")
+    if rule_norm.startswith('rewrite logic'):
+        return "'rewrite logic' does not require additional parameters to be applied."
     return None
 
 
@@ -290,6 +340,7 @@ def apply_rule(request):
     user = request.user
     data = request.data
     proof_obj, proof_id = get_or_set_equational_obj(user)
+    _ensure_er_hydrated(proof_obj, proof_id)
     
     try:
         # Reload proof lines from database
@@ -486,12 +537,15 @@ def substitution(request):
     user = request.user
     data = request.data
     proof_obj, proof_id = get_or_set_equational_obj(user)
+    _ensure_er_hydrated(proof_obj, proof_id)
     
     try:
         side = data.get("side", "LHS")
         rule = data.get("rule")
         if rule and rule.lower() == "math":
             rule = "rewrite math"
+        elif rule and rule.lower() == "logic":
+            rule = "rewrite logic"
         current_racket = data.get("currentRacket", "")
         start_position = data.get("startPosition", 0)
         selected_node = data.get("selectedNode")

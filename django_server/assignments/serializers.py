@@ -6,7 +6,7 @@ from django.utils import timezone
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from .models import Assignment, StudentProofMapping, Course, AssignmentProof
+from .models import Assignment, StudentProofMapping, Course, AssignmentProof, CourseInvitation
 from accounts.serializers import UserSerializer
 from equational_reasoning_api.models import EquationalProof, EquationalProofLine
 from induction_api.models import InductionProof, InductionProofLine
@@ -109,7 +109,7 @@ class AssignmentSerializer(serializers.ModelSerializer):
         
         proof_data = []
         # Get the instructor's template proofs mapped to this assignment
-        assignment_proofs = AssignmentProof.objects.filter(assignment=obj)
+        assignment_proofs = AssignmentProof.objects.filter(assignment=obj).order_by('order', 'id')
 
         for ap in assignment_proofs:
             template_proof = ap.proof_object
@@ -121,7 +121,12 @@ class AssignmentSerializer(serializers.ModelSerializer):
                 "title": getattr(template_proof, 'name', 'Untitled Proof'),
                 "type": ap.content_type.model,
                 "status": "Not Started",
-                "student_proof_id": None
+                "student_proof_id": None,
+                "is_locked": StudentProofMapping.objects.filter(
+                    assignment=obj, 
+                    template_proof_id=template_proof.id,
+                    content_type=ap.content_type
+                ).exists()
             }
 
             # If the user is a student, check if they have started it
@@ -170,60 +175,105 @@ class CreateAssignmentSerializer(serializers.ModelSerializer):
             p_type = proof.get('type')
             p_id = proof.get('id')
             
-            if p_type == 'equationalproof':
-                try:
-                    # 1. Grab the untouched original to read from
-                    orig_proof = EquationalProof.objects.get(id=p_id)
-                    
-                    # 2. Grab a FRESH instance to mutate into the clone
-                    cloned_proof = EquationalProof.objects.get(id=p_id)
-                    
-                    # Clone the Proof Header
-                    cloned_proof.pk = None
-                    cloned_proof.id = None
-                    cloned_proof.user = None # Orphan it from the instructor
-                    cloned_proof.save()
-                    
-                    # Clone the Proof Lines using the UNTOUCHED original_proof
-                    for line in orig_proof.proof_lines.all():
-                        line.pk = None
-                        line.id = None
-                        line.proof = cloned_proof
-                        line.save()
-                        
-                    # Bind the CLONED proof to the Assignment
-                    ctype = ContentType.objects.get(app_label='equational_reasoning_api', model='equationalproof')
-                    AssignmentProof.objects.create(assignment=assignment, content_type=ctype, object_id=cloned_proof.id)
-                
-                except EquationalProof.DoesNotExist:
-                    continue
-
-            elif p_type == 'inductionproof':
-                try:
-                    # 1. Grab the untouched original to read from
-                    orig_proof = InductionProof.objects.get(id=p_id)
-                    
-                    # 2. Grab a FRESH instance to mutate into the clone
-                    cloned_proof = InductionProof.objects.get(id=p_id)
-                    
-                    # Clone the Proof Header
-                    cloned_proof.pk = None
-                    cloned_proof.id = None
-                    cloned_proof.user = None # Orphan it
-                    cloned_proof.save()
-                    
-                    # Clone the Proof Lines using the UNTOUCHED original_proof
-                    for line in orig_proof.proof_lines.all():
-                        line.pk = None
-                        line.id = None
-                        line.proof = cloned_proof
-                        line.save()
-                        
-                    # Bind the CLONED proof to the Assignment
-                    ctype = ContentType.objects.get(app_label='induction_api', model='inductionproof')
-                    AssignmentProof.objects.create(assignment=assignment, content_type=ctype, object_id=cloned_proof.id)
-                
-                except InductionProof.DoesNotExist:
-                    continue
+            self._clone_and_bind_proof(assignment, p_id, p_type)
 
         return assignment
+    
+    def update(self, assignment, validated_data):
+        proofs_data = validated_data.pop('proofs', None)
+        
+        # 1. Update standard fields (title, description, due_date)
+        assignment.title = validated_data.get('title', assignment.title)
+        assignment.description = validated_data.get('description', assignment.description)
+        assignment.due_date = validated_data.get('due_date', assignment.due_date)
+        assignment.save()
+
+        if proofs_data is not None:
+            # Get current proofs attached to this assignment
+            current_assignment_proofs = list(AssignmentProof.objects.filter(assignment=assignment))
+                        
+            new_proof_list = []
+            
+            for index, p_info in enumerate(proofs_data):
+                p_id = p_info.get('id')
+                p_type = p_info.get('type')
+                
+                # Check if this proof is already attached to the assignment
+                # (Matching by object_id and content_type)
+                existing = next((ap for ap in current_assignment_proofs 
+                                if ap.object_id == p_id and ap.content_type.model == p_type), None)
+                
+                if existing:
+                    existing.order = index
+                    existing.save()
+                    new_proof_list.append(existing)
+                else:
+                    # clone newly added proof
+                    cloned_ap = self._clone_and_bind_proof(assignment, p_id, p_type)
+                    if cloned_ap:
+                        cloned_ap.order = index
+                        cloned_ap.save()
+                        new_proof_list.append(cloned_ap)
+
+            for old_ap in current_assignment_proofs:
+                if old_ap not in new_proof_list:
+                    # Check if ANY student has started this proof
+                    has_progress = StudentProofMapping.objects.filter(
+                        assignment=assignment,
+                        template_proof_id=old_ap.object_id,
+                        content_type=old_ap.content_type
+                    ).exists()
+
+                    if not has_progress:
+                        if old_ap.proof_object:
+                            old_ap.proof_object.delete() 
+                        old_ap.delete()
+                    else:
+                        new_proof_list.append(old_ap)
+
+        return assignment
+    
+    def _clone_and_bind_proof(self, assignment, p_id, p_type):
+        """Helper to handle the cloning logic you used in create()"""
+        # Logic for EquationalProof
+        if p_type == 'equationalproof':
+            try:
+                orig = EquationalProof.objects.get(id=p_id)
+                cloned = EquationalProof.objects.get(id=p_id)
+                cloned.pk = cloned.id = None
+                cloned.user = None
+                cloned.save()
+                for line in orig.proof_lines.all():
+                    line.pk = line.id = None
+                    line.proof = cloned
+                    line.save()
+                ctype = ContentType.objects.get(app_label='equational_reasoning_api', model='equationalproof')
+                return AssignmentProof.objects.create(assignment=assignment, content_type=ctype, object_id=cloned.id)
+            except EquationalProof.DoesNotExist: return None
+
+        # Logic for InductionProof
+        elif p_type == 'inductionproof':
+            try:
+                orig = InductionProof.objects.get(id=p_id)
+                cloned = InductionProof.objects.get(id=p_id)
+                cloned.pk = cloned.id = None
+                cloned.user = None
+                cloned.save()
+                for line in orig.proof_lines.all():
+                    line.pk = line.id = None
+                    line.proof = cloned
+                    line.save()
+                ctype = ContentType.objects.get(app_label='induction_api', model='inductionproof')
+                return AssignmentProof.objects.create(assignment=assignment, content_type=ctype, object_id=cloned.id)
+            except InductionProof.DoesNotExist: return None
+        return None
+
+# serializers.py
+class CourseInvitationSerializer(serializers.ModelSerializer):
+    student = UserSerializer(read_only=True)
+    course_name = serializers.CharField(source='course.name', read_only=True)
+    instructor_name = serializers.CharField(source='course.instructor.name', read_only=True)
+
+    class Meta:
+        model = CourseInvitation
+        fields = ['id', 'course', 'course_name', 'instructor_name', 'student', 'status', 'sent_at']

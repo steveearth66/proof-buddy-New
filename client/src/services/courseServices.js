@@ -151,10 +151,22 @@ const getInstructorLibrary = async () => {
 const deleteAssignment = async (assignmentId) => {
     try {
         const response = await axiosInstance.delete(`${API_GATEWAY}/assignments/detail/${assignmentId}`);
-        return { success: true };
+        if (response.status == 204)
+            return { success: true };
+        else return { success: false, message: response.message };
     } catch (error) {
         handleServiceError(error, "Error deleting assignment:");
         return { success: false, message: error.response?.data?.message || "Failed to delete assignment." };
+    }
+};
+
+const updateAssignment = async (assignmentId, assignment) => {
+    try {
+        const response = await axiosInstance.patch(`${API_GATEWAY}/assignments/detail/${assignmentId}`, assignment);
+        return response.data;
+    } catch (error) {
+        handleServiceError(error, "Error updating assignment:");
+        throw error;
     }
 };
 
@@ -194,6 +206,85 @@ const startAssignmentProof = async (assignmentId, proofId, proofType) => {
     }
 };
 
-const courseService = { getCourses, createCourse, leaveCourse, checkUser, updateCourseDescription, updateCourseTerm, startAssignmentProof, getAssignments, getCourse, createAssignment, removeStudent, addStudent, regenerateJoinCode, toggleCourseStatus, getInstructorLibrary, deleteAssignment, joinCourse };
+const getStudentAssignmentStatus = async (assignmentId) => {
+    try {
+        const response = await axiosInstance.get(`${API_GATEWAY}/assignments/${assignmentId}/progress`);
+        return response.data;
+    } catch (error) {
+        console.error("Error getting student proof status:", error);
+        throw error;
+    }
+};
+
+const getCourseInvitations = async (courseId) => {
+    try {
+        const response = await axiosInstance.get(`${API_GATEWAY}/courses/${courseId}/invitations`);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching course invitations:", error);
+        throw error;
+    }
+};
+
+const cancelInvitation = async (courseId, invitationId) => {
+    try {
+        const response = await axiosInstance.delete(`${API_GATEWAY}/courses/${courseId}/invitations`, {
+            data: { invitation_id: invitationId }
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Error cancelling invitation:", error);
+        throw error;
+    }
+};
+
+const getMyInvitations = async () => {
+    try {
+        const response = await axiosInstance.get(`${API_GATEWAY}/invitations/me`);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching student invitations:", error);
+        return [];
+    }
+};
+
+const respondToInvitation = async (invitationId, action) => {
+    try {
+        const response = await axiosInstance.post(`${API_GATEWAY}/invitations/me`, {
+            invitation_id: invitationId,
+            action: action
+        });
+        return response.data;
+    } catch (error) {
+        console.error(`Error ${action}ing invitation:`, error);
+        throw error;
+    }
+};
+
+const courseService = { 
+    getCourses, 
+    createCourse, 
+    leaveCourse, 
+    checkUser, 
+    updateCourseDescription, 
+    updateCourseTerm, 
+    startAssignmentProof, 
+    getAssignments, 
+    getCourse, 
+    createAssignment, 
+    removeStudent, 
+    addStudent, 
+    regenerateJoinCode, 
+    toggleCourseStatus, 
+    getInstructorLibrary, 
+    deleteAssignment, 
+    updateAssignment,
+    joinCourse,
+    getStudentAssignmentStatus,
+    getCourseInvitations,
+    cancelInvitation,
+    getMyInvitations,
+    respondToInvitation
+};
 
 export default courseService;
