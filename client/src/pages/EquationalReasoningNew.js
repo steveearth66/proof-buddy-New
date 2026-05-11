@@ -50,7 +50,7 @@ import {
   getLastRealIndex
 } from "../utils/playModeUtils";
 import userService from "../services/userService"
-import { useLocation, useNavigate, useRouteError } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 /**
  * Equational Reasoning component facilitates the Equational Reasoning Racket.
@@ -1024,7 +1024,7 @@ const handleRuleKeyDown = (e) => {
     isProcessingRef.current = true;
 
     try {
-      if (isBound && userRow.num === "000" && proofParams.support_premise === false) {
+      if (isBound && userRow.num === "000" && !proofParams.support_premise) {
         const premiseRule = footerRule;
         const premiseExpression = footerPadRef.current?.getEquationValue() || "";
 
@@ -1116,10 +1116,10 @@ const handleRuleKeyDown = (e) => {
       }
       setFooterRuleError('');
 
-      // low support premise validation
+      // Validate premise in low support
       if (!proofParams.support_premise && userRow.num === "000") {
         if(!expressionFromFooter || expressionFromFooter.trim() === '') {
-          toast.error("premise line expression error");
+          toast.error("Premise line expression is invalid.");
           isProcessingRef.current = false;
           return;
         }
@@ -1181,7 +1181,7 @@ const handleRuleKeyDown = (e) => {
       }
 
       // No hidden fields, proceed with normal generation
-      if (userRow.num !== "000" && (!previousRacketValue || previousRacketValue.trim() === '')) {
+      if ((userRow.num !== "000" && !proofParams.support_premise) && (!previousRacketValue || previousRacketValue.trim() === '')) {
         toast.error('No source expression found. Make sure the previous line has content.');
         isProcessingRef.current = false;
         return;

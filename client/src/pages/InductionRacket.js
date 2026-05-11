@@ -34,6 +34,7 @@ import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import { useDynamicHeight } from "../hooks/useDynamicHeight";
 import inductionService from "../services/inductionService";
 import userService from "../services/userService";
+import erService from "../services/erService";
 import SetParametersModal from "../components/SetParametersModal";
 import {
   ARROW_KEYS,
@@ -695,6 +696,8 @@ const InductionRacket = () => {
       await inductionService.newProof();
       sessionStorage.removeItem('inductionProofActive');
       sessionStorage.removeItem('induction_current_proof_id');
+      sessionStorage.removeItem('temp_definitions');
+      sessionStorage.removeItem('temp_generics');
       toast.success('Ready to start a new proof!');
       window.location.reload();
     } catch (error) {
@@ -728,7 +731,9 @@ const InductionRacket = () => {
     try {
       const data = await inductionService.downloadProof(proofParams.proof_id);
       const fileName = `${data.name || 'proof'}.json`;
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const jsonStr = JSON.stringify(data, null, 2)
+          .replace(/[\u0080-\uFFFF]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+      const blob = new Blob([jsonStr], { type: 'application/json; charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -791,6 +796,23 @@ const InductionRacket = () => {
     isProcessingRef.current = true;
 
     try {
+
+      if (isBound && userRow.num === "000" && !proofParams.support_premise) {
+        const premiseRule = footerRule;
+        const premiseExpression = footerPadRef.current?.getEquationValue() || "";
+
+        if (!premiseRule || premiseRule.trim() === '') {
+          setFooterRuleError('Not a legal starting rule.');
+          isProcessingRef.current = false;
+          return;
+        }
+        if (!premiseExpression || premiseExpression.trim() === '') {
+          toast.error("You must enter an expression for the premise line.");
+          isProcessingRef.current = false;
+          return;
+        }
+      }
+
       let ruleFromFooter = "";
       let expressionFromFooter = "";
       let previousStartPosition = 0;
@@ -800,7 +822,9 @@ const InductionRacket = () => {
 
       if (isBound) {
         const userIndex = getPadIndex(userRow.num);
-        ruleFromFooter = userRow.num === "000" && !proofParams.support_premise ? "Premise" : footerRule;
+        if (userRow.num === "000") {
+          ruleFromFooter = !proofParams.support_premise ? footerRule : "Premise";
+        }
 
         // --- FOOTER EXPRESSION REFERENCE ---
         if (footerPadRef.current) {
@@ -829,33 +853,6 @@ const InductionRacket = () => {
           studentSelectedNode = previousStartPosition;
           currentIndex = userIndex; // index in array now equals line number
         }
-
-        // Validation for premise line
-        if (userRow.num === "000" && proofParams.support_premise) {
-          const validationPayload = {
-            side: showSide,
-            case: isAnchor ? "base" : "leap",
-            lineNumber: 0,
-            studentRule: ruleFromFooter,
-            studentExpression: expressionFromFooter,
-            studentSelectedNode: 0
-          };
-          try {
-            const validationResult = await inductionService.validateHiddenField(validationPayload);
-            if (validationResult.errors && validationResult.errors.length > 0) {
-              validationResult.errors.forEach(error => toast.error(error));
-              isProcessingRef.current = false;
-              return;
-            }
-            toast.success(validationResult.message || "correct premise");
-            unbindFooter();
-            return;
-          } catch (error) {
-            toast.error('Not a legal starting rule');
-            isProcessingRef.current = false;
-            return;
-          }
-        }
       }
 
       // Validate rule is entered
@@ -868,8 +865,17 @@ const InductionRacket = () => {
       // Clear validation error if rule is valid
       setFooterRuleError('');
 
-      // If user typed "rewrite math", open Substitution modal with rule pre-filled
-      if (ruleFromFooter.trim().toLowerCase() === 'rewrite math') {
+      // Validate premise in low support
+      if (!proofParams.support_premise && userRow.num === "000") {
+        if(!expressionFromFooter || expressionFromFooter.trim() === '') {
+          toast.error("Premise line expression is invalid.");
+          isProcessingRef.current = false;
+          return;
+        }
+      }
+
+      // If user typed "rewrite math" or "rewrite logic", open Substitution modal with rule pre-filled
+      if (ruleFromFooter.trim().toLowerCase() === 'rewrite math' || ruleFromFooter.trim().toLowerCase() === 'rewrite logic') {
         updateShowSubstitution();
         return;
       }
@@ -924,7 +930,7 @@ const InductionRacket = () => {
             }
 
       // Validate payload before sending
-      if (!previousRacketValue || previousRacketValue.trim() === '') {
+      if (userRow.num !== "000" && !proofParams.support_premise && (!previousRacketValue || previousRacketValue.trim() === '')) {
         toast.error('No source expression found. Make sure the previous line has content.');
         return;
       }
@@ -1066,46 +1072,86 @@ const InductionRacket = () => {
         if (navId) {
             const metaData = await inductionService.getInductionProof(navId);
             
-            // --- SANITIZE GENERICS (Prevents "reading 'assumption' of null" crash) ---
             const rawDefinitions = metaData.definition || [];
-            const dbGenerics = rawDefinitions
-              .filter(d => d.is_generic)
-              .map(g => ({
+
+            // Separate the raw data into generics and definitions (generics have is_generic: true)
+            const rawGenerics = rawDefinitions.filter(d => d.is_generic);
+            const rawDefs = rawDefinitions.filter(d => !d.is_generic);
+            // --- Helper to generate a unique key for generics based on usable fields ---
+            const getGenericKey = (g) => `${g.label}|${g.type || ''}`;
+
+            // -------------------------------------------------------------------------
+            // GENERICS PROCESSING
+            // -------------------------------------------------------------------------
+            // 1. Fetch User's permanent generics 
+            const userGenerics = await erService.getUserGenerics(); 
+
+            // Sanitize proof generics
+            const proofGenerics = rawGenerics.map(g => ({
                 ...g,
-                // Normalize field names: DB has 'name', sessionStorage has 'label'
                 label: g.label || g.name,
                 name: g.name || g.label,
-                // Force restrictions to be a valid object if null in DB
                 restrictions: g.restrictions || { assumption: 'None', neverNull: false }
-              }));
-
-            // Merge with existing sessionStorage generics to preserve enabled state
-            const existingGenerics = JSON.parse(sessionStorage.getItem('generics') || '[]');
-            const mergedGenerics = dbGenerics.map(dbGen => {
-              const existing = existingGenerics.find(eg => eg.label === dbGen.label || eg.name === dbGen.name);
-              if (existing) {
-                // Preserve enabled state from sessionStorage
-                const resolved = existing.enabled ?? dbGen.enabled;
-                return { ...dbGen, enabled: resolved };
-              }
-              return dbGen;
-            });
-            
-            // Add any sessionStorage generics not in database yet
-            existingGenerics.forEach(eg => {
-              const isInDb = dbGenerics.some(dbGen => dbGen.label === eg.label || dbGen.name === eg.label);
-              if (!isInDb) {
-                mergedGenerics.push(eg);
-              }
-            });
-
-            sessionStorage.setItem('generics', JSON.stringify(mergedGenerics));
-            
-            // Notify other components (like sidebar) that generics are ready
-            window.dispatchEvent(new CustomEvent('genericsUpdated', { 
-                detail: { allGenerics: mergedGenerics } 
             }));
+
+            // 2. Identify active IDs from the loaded proof
+            const activeProofGenericKeys = new Set(proofGenerics.map(getGenericKey));
+
+            // 3. Process Permanent Generics: Toggle 'applied' based on proof contents
+            const updatedPermanentGenerics = userGenerics.map(gen => ({
+                ...gen,
+                enabled: activeProofGenericKeys.has(getGenericKey(gen))
+            }));
+
+            // 4. Filter for Temporary items (those in proofData but NOT in user's DB)
+            const tempGenerics = proofGenerics.filter(
+                proofGen => !userGenerics.some(userGen => getGenericKey(proofGen) === getGenericKey(userGen))
+            );
+
+            // 5. Commit lists to Session Storage
+            sessionStorage.setItem('generics', JSON.stringify(updatedPermanentGenerics));
+
+            if (tempGenerics.length > 0) {
+                sessionStorage.setItem('temp_generics', JSON.stringify(tempGenerics));
+            } else {
+                sessionStorage.removeItem('temp_generics');
+            }
+
+            // Notify other components that generics are ready
+            window.dispatchEvent(new CustomEvent('genericsUpdated', { 
+                detail: { allGenerics: [...updatedPermanentGenerics] } 
+            }));
+
             // -------------------------------------------------------------------------
+            // DEFINITIONS PROCESSING
+            // -------------------------------------------------------------------------
+            // 1. Fetch User's permanent definitions
+            const userDefs = await erService.getUserDefinitions();
+
+            // 2. Identify active IDs from the loaded proof
+            const activeProofDefKeys = new Set(
+                rawDefs.map(d => `${d.label}|${d.expression}`)
+            );
+
+            // 3. Process Permanent Definitions: Toggle 'applied' based on proof contents
+            const updatedPermanentDefs = userDefs.map(def => ({
+                ...def,
+                applied: activeProofDefKeys.has(`${def.label}|${def.expression}`)
+            }));
+
+            // 4. Filter for Temporary items (those in proofData but NOT in user's DB)
+            const tempDefinitions = rawDefs.filter(
+                dbDef => !userDefs.some(d => dbDef.label === d.label && dbDef.expression === d.expression)
+            );
+
+            // 5. Commit lists to Session Storage
+            sessionStorage.setItem('definitions', JSON.stringify(updatedPermanentDefs));
+
+            if (tempDefinitions.length > 0) {
+                sessionStorage.setItem('temp_definitions', JSON.stringify(tempDefinitions));
+            } else {
+                sessionStorage.removeItem('temp_definitions');
+            }
 
             // Hydrate the Top-Level Form Inputs
             setFormValues(prev => ({
@@ -1647,8 +1693,8 @@ const InductionRacket = () => {
                 ivar: inductionVariable,
                 aval: String(inductionValue),
                 lvar: leapVariable,
-                lhsPremise: proofParams.support_premise ? '' : formValues.lHSGoal,
-                rhsPremise: proofParams.support_premise ? '' : formValues.rHSGoal,
+                lhsPremise: formValues.lHSGoal,
+                rhsPremise: formValues.rHSGoal,
                 definitions: definitions.map(d => ({
                   label: d.label || d.name || '',
                   type: normalizeType(d.type),
@@ -1675,14 +1721,14 @@ const InductionRacket = () => {
                 setBasePremises({
                   LHS: {
                     racket: baseL.racket || formValues.lHSGoal,
-                    rule: proofParams.support_premise ? '' : 'Premise',
+                    rule: 'Premise',
                     startPosition: 0,
                     selectedNode: 0,
                     jsonTree: baseL.jsonTree || {}
                   },
                   RHS: {
                     racket: baseR.racket || formValues.rHSGoal,
-                    rule: proofParams.support_premise ? '' : 'Premise',
+                    rule: 'Premise',
                     startPosition: 0,
                     selectedNode: 0,
                     jsonTree: baseR.jsonTree || {}
@@ -1693,14 +1739,14 @@ const InductionRacket = () => {
                 setLeapPremises({
                   LHS: {
                     racket: leapL.racket || '',
-                    rule: proofParams.support_premise ? '' : 'Premise',
+                    rule: 'Premise',
                     startPosition: 0,
                     selectedNode: 0,
                     jsonTree: leapL.jsonTree || {}
                   },
                   RHS: {
                     racket: leapR.racket || '',
-                    rule: proofParams.support_premise ? '' : 'Premise',
+                    rule: 'Premise',
                     startPosition: 0,
                     selectedNode: 0,
                     jsonTree: leapR.jsonTree || {}
@@ -1727,7 +1773,7 @@ const InductionRacket = () => {
               // Persist any params the user pre-configured before starting the proof.
               // Must be done BEFORE loadProofLinesFromDatabase reads them back from DB.
               const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping', 'visible_rules'];
-              const hasCustomParams = PARAM_KEYS.some(k => proofParams[k] !== true);
+              const hasCustomParams = PARAM_KEYS.some(k => proofParams[k] !== true && (typeof proofParams[k] === 'object' && proofParams[k].length > 0));
               if (hasCustomParams) {
                 try {
                   await inductionService.setParameters(
@@ -1956,22 +2002,16 @@ const InductionRacket = () => {
     let equation;
     if (isPremise) {
       if (isLHS) {
-        equation = proofParams.support_premise 
-        ? ''
-        : leftPremise?.racket || formValues.lHSGoal;
+        equation = leftPremise?.racket || formValues.lHSGoal;
       } else {
-        equation = proofParams.support_premise 
-        ? ''
-        :rightPremise?.racket || formValues.rHSGoal;
+        equation = rightPremise?.racket || formValues.rHSGoal;
       }
     } else {
       equation = field.racket;
     }
     
     const jsonTree = isPremise
-      ? (proofParams.support_premise 
-        ? null 
-        : (isLHS ? leftPremise?.jsonTree : rightPremise?.jsonTree))
+      ? (isLHS ? leftPremise?.jsonTree : rightPremise?.jsonTree)
       : (field.jsonTree || jsonTreeRep[side]);
     
     // Since array index now equals database line_number, use index directly
@@ -2060,15 +2100,9 @@ const InductionRacket = () => {
     }
 
     if (userRow.num === "000") {
-      const equation = (proofParams.support_premise)
-        ? ""
-        : (showSide === "LHS" ? leftPremise?.racket : rightPremise?.racket);
+      const equation = showSide === "LHS" ? leftPremise?.racket : rightPremise?.racket;
       
-      const jsonTree = proofParams.support_premise
-        ? null
-        : (showSide === "LHS" ? leftPremise?.jsonTree : rightPremise?.jsonTree);
-
-      if (!proofParams.support_premise && !equation) {
+      if (!equation) {
         return <div className="alert alert-warning">No equation available</div>;
       }
       const field = racketRuleFields?.[showSide][padIndex];
@@ -2081,14 +2115,13 @@ const InductionRacket = () => {
           equation={displayEquation}
           onHighlightChange={() => {}}
           side={showSide}
-          jsonTree={jsonTree}
+          jsonTree={showSide === "LHS" ? leftPremise?.jsonTree : rightPremise?.jsonTree}
           lineNum={padIndex}
           startPosition={0}
           tabIndex={0}
-          ruleValue={proofParams.support_premise ? footerRule : "Premise"}
-          onRuleChange={proofParams.support_premise ? e => setFooterRule(e.target.value) : () => {}}
-          onRuleKeyDown={handleRuleKeyDown}
-          isRuleReadOnly={!proofParams.support_premise}
+          ruleValue="Premise"
+          onRuleChange={() => {}}
+          isRuleReadOnly={true}
           rulePlaceholder="Rule"
           isEditRow={true}
           currentUserType={currentUserType}
@@ -2361,9 +2394,6 @@ const InductionRacket = () => {
                                     style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}
                                   >
                                     Download Proof
-                                  </Dropdown.Item>
-                                  <Dropdown.Item onClick={handleUploadProof} href="#">
-                                    Upload Proof
                                   </Dropdown.Item>
                                 </Dropdown.Menu>
                             </Dropdown>
@@ -2715,9 +2745,6 @@ const InductionRacket = () => {
                           style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}
                         >
                           Download Proof
-                        </Dropdown.Item>
-                        <Dropdown.Item onClick={handleUploadProof} href="#">
-                          Upload Proof
                         </Dropdown.Item>
                       </Dropdown.Menu>
                     </Dropdown>
