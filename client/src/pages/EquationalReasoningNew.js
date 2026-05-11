@@ -272,23 +272,25 @@ const EquationalReasoningNew = () => {
 
         if (response.isValid) {
           // 5. Construct the Premise lines
+          const isPremiseLowSupport = proofParams.support_premise === false;
+
           const lhsPremiseLine = {
-              racket: formValues.lHSGoal.trim(),
-              rule: "Premise",
+              racket: isPremiseLowSupport ? "" : formValues.lHSGoal.trim(), // blank if low support for premise
+              rule: isPremiseLowSupport ? "" : "Premise",                   // blank if low support for premise
               lineNumber: 0,
               selectedNode: 0,
               startPosition: 0,
-              jsonTree: response.lhsJsonTree || {},
+              jsonTree: isPremiseLowSupport ? {} : (response.lhsJsonTree || {}),
               deleted: false
           };
 
           const rhsPremiseLine = {
-              racket: formValues.rHSGoal.trim(),
-              rule: "Premise",
+              racket: isPremiseLowSupport ? "" : formValues.rHSGoal.trim(), // blank if low support for premise
+              rule: isPremiseLowSupport ? "" : "Premise",                   // blank if low support for premise
               lineNumber: 0,
               selectedNode: 0,
               startPosition: 0,
-              jsonTree: response.rhsJsonTree || {},
+              jsonTree: isPremiseLowSupport ? {} : (response.rhsJsonTree || {}),
               deleted: false
           };
 
@@ -1649,17 +1651,19 @@ const handleRuleKeyDown = (e) => {
   leftPremise,
   rightPremise,
   caseType,
-  currentUserType
+  currentUserType,
+  proofParams
   }) {
     const isLHS = side === "LHS";
     const padIndex = index;
+    const isPremiseLowSupport = proofParams?.support_premise === false;
     
     let equation;
     if (isPremise) {
       if (isLHS) {
-        equation = leftPremise?.racket || formValues.lHSGoal;
+        equation = isPremiseLowSupport ? "" : (leftPremise?.racket || formValues.lHSGoal);
       } else {
-        equation = rightPremise?.racket || formValues.rHSGoal;
+        equation = isPremiseLowSupport ? "" : (rightPremise?.racket || formValues.rHSGoal);
       }
     } else {
       equation = field.racket;
@@ -1670,7 +1674,7 @@ const handleRuleKeyDown = (e) => {
       : (field.jsonTree || jsonTreeRep[side]);
     
     const lineNum = index;
-    const ruleValue = isPremise ? "Premise" : field.rule;
+    const ruleValue = isPremise ? (isPremiseLowSupport ? "" : "Premise") : field.rule;
     const rulePlaceholder = isPremise ? `${side} Premise` : `${side} Rule`;
     const isRuleInvalid = !isPremise && !!validationErrors[side][index];
     const ruleValidationError = validationErrors[side][index];
