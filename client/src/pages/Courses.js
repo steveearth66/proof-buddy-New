@@ -108,6 +108,7 @@ export default function Courses() {
             onViewCourse={handleEnterCourse}
             onToggleStatus={handleToggleCourseStatus}
             onCreateCourse={handleCreateCourse}
+            onJoinCourse={handleJoinCourse}
           />
         )}
       </Container>

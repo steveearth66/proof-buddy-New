@@ -217,7 +217,6 @@ export default function AddAssignmentModal({ show, onHide, onExited, courseId, o
           <tbody>
             {selectedProofs.length > 0 ? (
               selectedProofs.map((proof, index) => {
-                console.log(proof);
                 const selectionRecord = selectedProofs.find(p => p.title === proof.title && p.type === proof.type);
                 return (
                   <tr 

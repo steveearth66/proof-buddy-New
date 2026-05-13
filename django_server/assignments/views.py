@@ -69,7 +69,13 @@ class CourseViewSet(APIView):
             serializer = CourseSerializer(course, context={"request": request})
             return Response(serializer.data, status=status.HTTP_200_OK)
 
-        courses = Course.objects.filter(instructor=user) if user.is_instructor else Course.objects.filter(students=user, is_active = True)
+        if user.is_instructor:
+            # Instructors see courses they own AND courses they have joined as an observer
+            owned = Course.objects.filter(instructor=user)
+            joined = Course.objects.filter(students=user, is_active=True)
+            courses = (owned | joined).distinct()
+        else:
+            courses = Course.objects.filter(students=user, is_active=True)
         serializer = CourseSerializer(courses, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 

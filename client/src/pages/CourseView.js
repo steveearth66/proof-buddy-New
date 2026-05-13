@@ -150,10 +150,13 @@ export default function CourseView() {
   }
 
   // 3. Success State
+  // An instructor who joined someone else's course sees the student view (observer mode).
+  // An instructor who owns the course sees the management view.
+  const isOwnCourse = !userProfile.is_student && course?.instructor?.username === userProfile.username;
   return (
     <MainLayout>
       <Container className="my-4 py-4 bg-white rounded shadow-sm border">
-        {userProfile.is_student ? (
+        {(userProfile.is_student || !isOwnCourse) ? (
           <StudentCourseView
             course={course}
             assignments={assignments}

@@ -681,6 +681,12 @@ const EquationalReasoningNew = () => {
   // const [jsonTreeRep, setJsonTreeRep] = useState({ LHS: {}, RHS: {} });
 
   const checkCurrentProofStatus = async () => {
+    // In play mode, block the check until all lines have been revealed
+    const anyStillActive = playIsActive(playState, 'base', 'LHS') || playIsActive(playState, 'base', 'RHS');
+    if (anyStillActive) {
+      toast.warning('Finish reviewing all proof lines before checking completion.');
+      return;
+    }
     try {
       // Check both base and leap cases
       const result = await equationalService.checkCompletion();
@@ -1349,32 +1355,37 @@ const handleRuleKeyDown = (e) => {
     }
   }, [proofStarted, unbindFooter, clearValidationErrors]);
 
-  // Update Current LHS/RHS display to show the last non-empty line
+  // Update Current LHS/RHS display to show the last non-empty DISPLAYED line
   useEffect(() => {
     if (!proofStarted) return;
-    
+
     const targetFields = racketRuleFields;
     const lhsLines = targetFields.LHS || [];
     const rhsLines = targetFields.RHS || [];
-    
-    // Find last non-empty, non-premise line (premise is at index 0)
-    const findLastNonEmptyLine = (lines) => {
-      for (let i = lines.length - 1; i > 0; i--) {
+
+    // In play mode, clamp scan to only revealed lines; null means show all
+    const lhsLimit = visibleLineCount(playState, 'base', 'LHS');
+    const rhsLimit = visibleLineCount(playState, 'base', 'RHS');
+
+    // Find last non-empty, non-premise line up to maxVisible (premise is at index 0)
+    const findLastNonEmptyLine = (lines, maxVisible) => {
+      const limit = maxVisible !== null ? Math.min(maxVisible, lines.length) : lines.length;
+      for (let i = limit - 1; i > 0; i--) {
         if (lines[i] && lines[i].racket && lines[i].racket.trim() !== '') {
           return lines[i];
         }
       }
       return null;
     };
-    
-    const lastLhsLine = findLastNonEmptyLine(lhsLines);
-    const lastRhsLine = findLastNonEmptyLine(rhsLines);
+
+    const lastLhsLine = findLastNonEmptyLine(lhsLines, lhsLimit);
+    const lastRhsLine = findLastNonEmptyLine(rhsLines, rhsLimit);
     setLhsValue(lastLhsLine?.racket || leftPremise.racket || '');
     setLhsHidden((currentUserType.is_student && lastLhsLine?.hide_expression) || false);
     setRhsValue(lastRhsLine?.racket || rightPremise.racket || '');
     setRhsHidden((currentUserType.is_student && lastRhsLine?.hide_expression) || false);
 
-  }, [proofStarted, racketRuleFields, leftPremise, rightPremise]);
+  }, [proofStarted, racketRuleFields, leftPremise, rightPremise, playState]);
 
   useEffect(() => {
     // Disabled: Confetti should only show when BOTH base AND leap cases are complete
