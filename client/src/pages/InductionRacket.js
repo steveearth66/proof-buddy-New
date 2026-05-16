@@ -34,6 +34,7 @@ import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import { useDynamicHeight } from "../hooks/useDynamicHeight";
 import inductionService from "../services/inductionService";
 import userService from "../services/userService";
+import erService from "../services/erService";
 import SetParametersModal from "../components/SetParametersModal";
 import {
   ARROW_KEYS,

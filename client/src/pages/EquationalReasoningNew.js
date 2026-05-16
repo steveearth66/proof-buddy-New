@@ -251,9 +251,11 @@ const EquationalReasoningNew = () => {
         }
         
         // 4. INITIALIZE ENGINE (setCurrentProof)
+        const isPremiseLowSupport = proofParams.support_premise === false;
+        console.log(isPremiseLowSupport)
         const response = await equationalService.setCurrentProof({
-          lhsPremise: formValues.lHSGoal.trim(),
-          rhsPremise: formValues.rHSGoal.trim(),
+          lhsPremise: isPremiseLowSupport ? "" : formValues.lHSGoal.trim(),
+          rhsPremise: isPremiseLowSupport ? "" : formValues.rHSGoal.trim(),
           name: formValues.proofName,
           tag: formValues.proofTag,
           definitions: definitions.map(d => ({
@@ -273,8 +275,6 @@ const EquationalReasoningNew = () => {
 
         if (response.isValid) {
           // 5. Construct the Premise lines
-          const isPremiseLowSupport = proofParams.support_premise === false;
-
           const lhsPremiseLine = {
               racket: isPremiseLowSupport ? "" : formValues.lHSGoal.trim(), // blank if low support for premise
               rule: isPremiseLowSupport ? "" : "Premise",                   // blank if low support for premise
@@ -294,7 +294,6 @@ const EquationalReasoningNew = () => {
               jsonTree: isPremiseLowSupport ? {} : (response.rhsJsonTree || {}),
               deleted: false
           };
-
           // 6. SAVE TO DATABASE
           const proofPayload = {
               name: formValues.proofName,
@@ -317,7 +316,8 @@ const EquationalReasoningNew = () => {
                 assumption: g.assumption || g.restrictions?.assumption || 'None',
                 neverNull: g.neverNull || g.restrictions?.neverNull || false
                 }
-              }))
+              })),
+              supportPremise: isPremiseLowSupport
           };
 
           const saveResponse = await equationalService.saveProof(proofPayload);
@@ -352,8 +352,10 @@ const EquationalReasoningNew = () => {
           });
           
           setLeftPremise(prev => ({ ...prev, ...lhsPremiseLine }));
+          console.log("LeftPremise: " + leftPremise);
           setRightPremise(prev => ({ ...prev, ...rhsPremiseLine }));
           setCurrentLHS(formValues.lHSGoal.trim());
+          console.log("curr lhs: " + currentLHS);
           setCurrentRHS(formValues.rHSGoal.trim());
           
           clearGoalValidationMessage('LHS');
@@ -503,6 +505,7 @@ const EquationalReasoningNew = () => {
       // -------------------------------------------------------------
       console.log("[Init] Fetching proof lines...");
       const proofData = await equationalService.getProofLines();
+      console.log("anchor " + proofData.lhsAnchorGoal);
 
       if (proofData.hasProof) {
         console.log("[Init] Proof found. Restoring UI...");
@@ -600,7 +603,7 @@ const EquationalReasoningNew = () => {
         setLeftPremise(prev => ({
             ...prev,
             racket: proofData.lhsAnchorGoal || '',
-            rule: 'Premise',
+            rule: proofParams.support_premise ? 'Premise' : proofData.LHS[0].jsonTree[0],
             startPosition: 0,
             selectedNode: 0,
             jsonTree: (proofData.LHS && proofData.LHS[0]) ? proofData.LHS[0].jsonTree : {}
@@ -609,11 +612,12 @@ const EquationalReasoningNew = () => {
         setRightPremise(prev => ({
             ...prev,
             racket: proofData.rhsAnchorGoal || '',
-            rule: 'Premise',
+            rule: proofParams.support_premise ? 'Premise' : proofData.LHS[0].jsonTree[0],
             startPosition: 0,
             selectedNode: 0,
             jsonTree: (proofData.RHS && proofData.RHS[0]) ? proofData.RHS[0].jsonTree : {}
         }));
+        console.log("anchor " + proofData.lhsAnchorGoal);
 
         // C. Helper to Map Database Lines to UI Fields
         const mapLinesToFields = (dbLines) => {
@@ -647,8 +651,8 @@ const EquationalReasoningNew = () => {
 
         // E. Set Current Racket Context
         const findLast = (arr) => arr.slice().reverse().find(x => x.racket && x.racket.trim() !== "")?.racket;
-        setCurrentLHS(findLast(proofData.LHS) || proofData.lhsAnchorGoal);
-        setCurrentRHS(findLast(proofData.RHS) || proofData.rhsAnchorGoal);
+        setCurrentLHS(findLast(proofData.LHS) || (proofParams.support_premise ? proofData.lhsAnchorGoal : ""));
+        setCurrentRHS(findLast(proofData.RHS) || (proofParams.support_premise ? proofData.rhsAnchorGoal : ""));
 
           // F. Restore support params
           const INIT_PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules'];
@@ -765,6 +769,7 @@ const EquationalReasoningNew = () => {
     if (paddedRowNum !== "000") {
       // Array index now equals line number, so use userIndex directly
       const field = (racketRuleFields?.[showSide] || [])[userIndex];
+      console.log(field);
       
       // Only set the rule if it's NOT hidden
       if (field?.hide_justification) {
@@ -773,7 +778,11 @@ const EquationalReasoningNew = () => {
         setFooterRule(field?.rule || "");
       }
     } else {
-      setFooterRule("Premise");
+      if (proofParams.support_premise) {
+        setFooterRule("Premise");
+      } else {
+        setFooterRule("");
+      }
     }
 
     setTimeout(() => {
@@ -1824,7 +1833,7 @@ const handleRuleKeyDown = (e) => {
     if (userRow.num === "000") {
       const equation = showSide === "LHS" ? leftPremise?.racket : rightPremise?.racket;
       
-      if (!equation) {
+      if (!equation && proofParams.support_premise) {
         return <div className="alert alert-warning">No equation available</div>;
       }
       const field = racketRuleFields?.[showSide][padIndex];

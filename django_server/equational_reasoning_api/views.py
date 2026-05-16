@@ -1,6 +1,7 @@
 import json
 import re
 import traceback
+from xml.dom.minidom import Attr
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -233,12 +234,15 @@ def set_current_proof(request):
         definitions = data.get("definitions", [])
         generics = data.get("generics", [])
         
-        # Basic validation
-        if not lhs_premise or not rhs_premise:
-            return Response({
-                "isValid": False, 
-                "errors": ["Both lhsPremise and rhsPremise are required"]
-            }, status=status.HTTP_400_BAD_REQUEST)
+        # Check if premise is supported
+        low_support_premise = data.get("supportPremise")
+        if low_support_premise == False:
+            # Basic validation
+            if not lhs_premise or not rhs_premise:
+                return Response({
+                    "isValid": False, 
+                    "errors": ["Both lhsPremise and rhsPremise are required"]
+                }, status=status.HTTP_400_BAD_REQUEST)
         
         # Create a fresh TwoSidedProof engine
         _, existing_proof_id = get_or_set_equational_obj(user)
@@ -274,6 +278,10 @@ def set_current_proof(request):
         # Build premises and add as first proof lines
         # LHS
         lhs_line = ERProofLine(lhs_premise, proof_obj.LHS.debug, proof_obj.LHS.ruleSet, generics=proof_obj.LHS.generics)
+        print("proof obj (build proof):", proof_obj.LHS.premise)
+        print(" rule set:", proof_obj.LHS.proofLines)
+        print("atr? :", proof_obj.LHS.__getattribute__)
+        print("proof obj lhs debug", proof_obj.LHS.debug)
         if lhs_line.errLog != []:
             return Response({
                 "isValid": False,
@@ -294,6 +302,7 @@ def set_current_proof(request):
         
         # Save to cache
         save_equational_obj_to_cache(user, proof_obj, existing_proof_id)
+        print("proof obj:", proof_obj)
         
         # Save to database if we have a proof_id
         if existing_proof_id:
@@ -302,7 +311,7 @@ def set_current_proof(request):
                 proof_id=existing_proof_id,
                 side='LHS',
                 racket=lhs_premise,
-                rule='Premise',
+                rule= '' if low_support_premise else 'Premise',
                 line_number=0
             )
             # Save RHS premise
@@ -310,7 +319,7 @@ def set_current_proof(request):
                 proof_id=existing_proof_id,
                 side='RHS',
                 racket=rhs_premise,
-                rule='Premise',
+                rule= '' if low_support_premise else 'Premise',
                 line_number=0
             )
         
@@ -332,7 +341,7 @@ def set_current_proof(request):
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
-def apply_rule(request):
+def  apply_rule(request):
     """
     Apply a rule to the current side of the proof.
     Expected JSON: { side, currentRacket, rule, startPosition, selectedNode?, substitution?, lineNumber? }
@@ -372,6 +381,15 @@ def apply_rule(request):
             # correct answer from proof's premise
             answer_racket = str(proof_obj.LHS.proofLines[0].exprTree) if side == "LHS" else str(proof_obj.RHS.proofLines[0].exprTree)
             print("MATCH:", student_expression == answer_racket.strip())
+            print("proofobj premise", )
+            print("data", data)
+
+            prev = EquationalProofLine.objects.filter(
+                    proof_id=proof_id,
+                    side=side.upper(),
+                    
+                ).first()
+            print("prev", prev)
 
             errors = []
             if student_rule != "premise":
@@ -1313,6 +1331,8 @@ def get_or_create_proof(data, user, definitions, generics):
             lhs_goal=proof_serializer_data["lhs_goal"],
             rhs_goal=proof_serializer_data["rhs_goal"]
         )
+        print(data)
+        print(proof_instance)
         add_data_to_proof(data, proof_instance, definitions, generics)
         return proof_instance
     except Exception as e:
@@ -1327,7 +1347,7 @@ def create_proof_line(proof, side, line_number, data, is_premise=False):
     try:
         # Extract fields, handling frontend vs backend naming differences
         racket = data.get("racket", "")
-        rule = data.get("rule", "Premise" if is_premise else "")
+        rule = data.get("rule", "Premise" if (is_premise and proof.support_premise) else "")
         start_position = int(data.get("startPosition", 0) or 0)
         substitution = data.get("substitution", "")
         
