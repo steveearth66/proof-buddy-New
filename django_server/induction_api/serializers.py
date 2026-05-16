@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import InductionProof
+from .models import InductionProof, InductionProofLineComment
 import re
 
 
@@ -178,3 +178,18 @@ class InductionProofCreateSerializer(serializers.Serializer):
                 })
         
         return data
+    
+
+class InductionProofLineCommentSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = InductionProofLineComment
+
+        fields = [
+            'id',
+            'proof_line',
+            'role',
+            'comment',
+            'created_at',
+            'updated_at',
+        ]
