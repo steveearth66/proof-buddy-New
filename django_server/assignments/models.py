@@ -132,6 +132,13 @@ class StudentProofMapping(models.Model):
         if not self.completed_at:
             return False
         return self.completed_at > self.assignment.due_date
+    
+    @property
+    def started_at(self):
+        """ Pulls the creation timestamp directly from the concrete proof object """
+        if self.student_proof:
+            return self.student_proof.created_at
+        return None
 
 class CourseInvitation(models.Model):
     STATUS_CHOICES = [
