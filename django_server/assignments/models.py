@@ -117,6 +117,7 @@ class StudentProofMapping(models.Model):
     )
     object_id = models.PositiveIntegerField()
     student_proof = GenericForeignKey('content_type', 'object_id')
+    completed_at = models.DateTimeField(null=True,blank=True)
 
     class Meta:
         # A student can only have ONE clone of a specific template per assignment
@@ -124,6 +125,13 @@ class StudentProofMapping(models.Model):
 
     def __str__(self):
         return f"{self.student.username} - Clone of Proof {self.template_proof_id}"
+    
+    @property
+    def is_late(self):
+        """ Evaluates if the FIRST completion happened after the deadline """
+        if not self.completed_at:
+            return False
+        return self.completed_at > self.assignment.due_date
 
 class CourseInvitation(models.Model):
     STATUS_CHOICES = [
