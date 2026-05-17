@@ -3,7 +3,9 @@ import { Modal, Button, Form, Table, OverlayTrigger, Tooltip, Spinner } from "re
 import NumberedPagination from '../../Pagination';
 import courseService from '../../../services/courseServices';
 
-export default function AddAssignmentModal({ show, onHide, courseId, onCreateAssignment }) {  
+export default function AddAssignmentModal({ show, onHide, onExited, courseId, onSaveAssignment, assignment = null }) {  
+  const isEditMode = !!assignment;
+
   // --- View State ---
   const [currentView, setCurrentView] = useState('form'); 
   
@@ -21,6 +23,20 @@ export default function AddAssignmentModal({ show, onHide, courseId, onCreateAss
       loadLibrary();
     }
   }, [show]);
+
+  useEffect(() => {
+    if (show) {
+      if (assignment) {
+        setTitle(assignment.title || '');
+        setDueDate(assignment.due_date ? assignment.due_date.substring(0, 16) : '');
+        setSelectedProofs((assignment.proofs || []).map(p => ({ ...p, isOriginal: true })));
+      } else {
+        setTitle('');
+        setDueDate('');
+        setSelectedProofs([]);
+      }
+    }
+  }, [show, assignment]);
 
   // --- Pagination State ---
   const [proofPage, setProofPage] = useState(1);
@@ -40,8 +56,9 @@ export default function AddAssignmentModal({ show, onHide, courseId, onCreateAss
     setIsSubmitting(true);
 
     const payload = {
+        id: assignment?.id,
         title: title,
-        description: "No Description Provided",
+        description: assignment?.description || "No Description Provided",
         due_date: dueDate,
         course: courseId,
         proofs: selectedProofs.map(p => ({
@@ -50,17 +67,18 @@ export default function AddAssignmentModal({ show, onHide, courseId, onCreateAss
         }))
     };
 
-    const success = await onCreateAssignment(payload);
+    try {
+      let success = false;
+        success = await onSaveAssignment(payload);
 
-    setIsSubmitting(false);
-
-    if (success) {
-        // Reset the form and close
-        setTitle('');
-        setDueDate('');
-        setSelectedProofs([]);
-        setCurrentView('form');
+      if (success) {
         onHide();
+        setCurrentView('form');
+      }
+    } catch (error) {
+      console.error("Submission error:", error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -77,7 +95,17 @@ export default function AddAssignmentModal({ show, onHide, courseId, onCreateAss
     });
   };
 
-  const handleRemoveProof = (id) => setSelectedProofs(prev => prev.filter(p => p.id !== id));
+  const handleRemoveProof = (id) => {
+    const proofToRemove = selectedProofs.find(p => p.id === id);
+    if (!proofToRemove) return;
+    const confirmed = window.confirm(
+        `Are you sure you want to remove "${proofToRemove.title}" from this assignment?\nIf you add the proof back, it will use the current version of the selected proof, not the version that was originally used.`
+    );
+
+    if (confirmed) {
+        setSelectedProofs(prev => prev.filter(p => p.id !== id));
+    }
+  };
 
   // --- Drag and Drop Logic ---
   const handleDragStart = (e, index) => {
@@ -124,25 +152,29 @@ export default function AddAssignmentModal({ show, onHide, courseId, onCreateAss
               <th style={{ width: '0%' }} className="text-center">Select</th>
               <th>Proof Name</th>
               <th>Category</th>
-              <th>Difficulty</th>
+              <th>Type</th>
             </tr>
           </thead>
           <tbody>
-            {paginatedInstructorProofs.map(proof => (
-              <tr key={proof.id} onClick={() => handleToggleProof(proof)} style={{ cursor: 'pointer' }}>
-                <td className="text-center">
-                  <Form.Check 
-                    type="checkbox"
-                    checked={selectedProofs.some(p => p.id === proof.id)}
-                    onChange={() => handleToggleProof(proof)}
-                    onClick={(e) => e.stopPropagation()} 
-                  />
-                </td>
-                <td className="fw-semibold">{proof.title}</td>
-                <td>{proof.category}</td>
-                <td>{proof.difficulty}</td>
-              </tr>
-            ))}
+            {paginatedInstructorProofs.map(proof => {
+              const selectionRecord = selectedProofs.find(p => p.title === proof.title && p.type === proof.type);
+              return (
+                <tr key={proof.id} onClick={() => handleToggleProof(proof)} style={{ cursor: selectionRecord?.isOriginal ? 'not-allowed' : 'pointer' }}>                
+                  <td className="text-center">
+                    <Form.Check 
+                      type="checkbox"
+                      checked={!!selectionRecord}
+                      disabled={selectionRecord?.isOriginal}
+                      onChange={() => handleToggleProof(proof)}
+                      onClick={(e) => e.stopPropagation()} 
+                    />
+                  </td>
+                  <td className="fw-semibold">{proof.title}</td>
+                  <td>{proof.category}</td>
+                  <td>{proof.displayType}</td>
+                </tr>
+              )
+            })}
           </tbody>
         </Table>
 
@@ -162,7 +194,7 @@ export default function AddAssignmentModal({ show, onHide, courseId, onCreateAss
   const renderFormView = () => (
     <>
       <Modal.Header closeButton>
-        <Modal.Title>Create Assignment</Modal.Title>
+        <Modal.Title>{(isEditMode) ? "Edit" : "Create"} Assignment</Modal.Title>
       </Modal.Header>
       <Modal.Body>
         <div className="d-flex justify-content-between align-items-center mb-3">
@@ -178,35 +210,50 @@ export default function AddAssignmentModal({ show, onHide, courseId, onCreateAss
               <th style={{ width: '0%' }}></th> 
               <th>Proof Name</th>
               <th>Category</th>
-              <th>Difficulty</th>
+              <th>Type</th>
               <th style={{ width: '0%' }} className="text-center">Action</th>
             </tr>
           </thead>
           <tbody>
             {selectedProofs.length > 0 ? (
-              selectedProofs.map((proof, index) => (
-                <tr 
-                  key={proof.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, index)}
-                  onDragEnter={(e) => handleDragEnter(e, index)}
-                  onDragEnd={handleDragEnd}
-                  onDragOver={(e) => e.preventDefault()}
-                  style={{ cursor: draggedIndex === index ? 'grabbing' : 'grab' }}
-                >
-                  <td className="text-center text-muted"><i className="fa-solid fa-grip-vertical"></i></td>
-                  <td className="fw-semibold">{proof.title}</td>
-                  <td>{proof.category}</td>
-                  <td>{proof.difficulty}</td>
-                  <td className="text-center">
-                    <OverlayTrigger placement="left" overlay={<Tooltip id={`tooltip-remove-${proof.id}`}>Remove From Assignment</Tooltip>}>
-                      <Button variant="outline-danger" size="sm" onClick={() => handleRemoveProof(proof.id)}>
-                        <i className="fa-solid fa-trash-can"></i>
-                      </Button>
-                    </OverlayTrigger>
-                  </td>
-                </tr>
-              ))
+              selectedProofs.map((proof, index) => {
+                const selectionRecord = selectedProofs.find(p => p.title === proof.title && p.type === proof.type);
+                return (
+                  <tr 
+                    key={proof.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragEnter={(e) => handleDragEnter(e, index)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={(e) => e.preventDefault()}
+                    style={{ cursor: draggedIndex === index ? 'grabbing' : 'grab' }}
+                  >
+                    <td className="text-center text-muted"><i className="fa-solid fa-grip-vertical"></i></td>
+                    <td className="fw-semibold">{proof.title}</td>
+                    <td>{proof.category}</td>
+                    <td>{proof.displayType}</td>
+                    <td className="text-center">
+                      {proof.is_locked ? (
+                        <OverlayTrigger overlay={<Tooltip>Cannot remove: Students have already started this proof.</Tooltip>}>
+                          <span className="d-inline-block">
+                            <Button variant="outline-secondary" size="sm" disabled style={{ pointerEvents: 'none' }}>
+                              <i className="fa-solid fa-lock"></i>
+                            </Button>
+                          </span>
+                        </OverlayTrigger>
+                      ) : (
+                        <Button 
+                          variant="outline-danger" 
+                          size="sm" 
+                          onClick={() => handleRemoveProof(proof.id)}
+                        >
+                          <i className="fa-solid fa-trash-can"></i>
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })
             ) : (
               <tr>
                 <td colSpan="5" className="text-center py-4 text-muted">
@@ -247,7 +294,7 @@ export default function AddAssignmentModal({ show, onHide, courseId, onCreateAss
           form="create-assignment-form"
           disabled={selectedProofs.length === 0 || isSubmitting || !title || !dueDate}
         >
-          {isSubmitting ? <Spinner size="sm" animation="border" /> : "Publish Assignment"}
+          {isSubmitting ? <Spinner size="sm" animation="border" /> : (isEditMode ? "Save Changes" : "Publish Assignment")}
         </Button>
       </Modal.Footer>
     </>
@@ -260,6 +307,7 @@ export default function AddAssignmentModal({ show, onHide, courseId, onCreateAss
         onHide();
         setTimeout(() => setCurrentView('form'), 300); // Reset view smoothly after closing
       }} 
+      onExited={onExited}
       size="lg" 
       centered
     >

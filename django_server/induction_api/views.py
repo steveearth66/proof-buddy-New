@@ -22,7 +22,9 @@ from expression_tree.default_udfs import DEFAULT_UDFS
 from proofs.views import use_uploaded_generic
 from .models import InductionProofLine
 
-
+from assignments.models import StudentProofMapping
+from django.contrib.contenttypes.models import ContentType
+from django.utils import timezone
 
 User = get_user_model()
 
@@ -605,6 +607,17 @@ def _ensure_udfs_hydrated(proof, proof_id):
             pass
     for _d in all_defs:
         if _d.get('is_generic'):
+            _glabel = _d.get('label') or _d.get('name') or ''
+            _gtype = _d.get('type', 'int')
+            _grestrictions = _d.get('restrictions') or {}
+            if _glabel:
+                for ts in two_sided:
+                    if _glabel not in ts.generics:
+                        try:
+                            ts.addGeneric(_glabel, _gtype, _grestrictions)
+                            ts.errLog = []
+                        except Exception:
+                            pass
             continue
         _dlabel = _d.get('label') or _d.get('name') or ''
         _dudf = _dlabel.replace('(', ' ').replace(')', ' ').split()
@@ -681,14 +694,19 @@ def check_name_conflict(request):
 
 
 def _check_rewrite_math_misuse(rule):
-    """Return an error message string if the user typed 'rewrite math' into the rule field
-    instead of using the Substitution button, or None if the rule is fine to proceed."""
+    """Return an error message string if the user typed 'rewrite math' or 'rewrite logic'
+    into the rule field instead of using the Substitution button, or None if the rule is fine."""
     rule_norm = (rule or '').strip().lower()
     if rule_norm == 'rewrite math':
         return ("The 'rewrite math' rule must be applied using the Substitution button, "
                 "not the rule field.")
     if rule_norm.startswith('rewrite math'):
         return "'rewrite math' does not require additional parameters to be applied."
+    if rule_norm == 'rewrite logic':
+        return ("The 'rewrite logic' rule must be applied using the Substitution button, "
+                "not the rule field.")
+    if rule_norm.startswith('rewrite logic'):
+        return "'rewrite logic' does not require additional parameters to be applied."
     return None
 
 
@@ -1013,14 +1031,14 @@ def _get_case_side(proof: IndProof, case: str, side: str) -> ERProof:
     return ts.LHS if side_key == "LHS" else ts.RHS
 
 
-def _apply_line(target: ERProof, currentRacket: str, rule: str | None, startPosition: int | None, substitution: str | None):
+def _apply_line(target: ERProof, currentRacket: str, rule: str | None, startPosition: int | None, substitution: str | None, auto_infer: bool = False):
     if rule:
         # Apply rule directly - don't duplicate first
         # The rule application will create a new line based on currentRacket
         if substitution is not None and substitution != "":
             target.addProofLine(currentRacket, rule, int(startPosition or 0), substitution)
         else:
-            target.addProofLine(currentRacket, rule, int(startPosition or 0))
+            target.addProofLine(currentRacket, rule, int(startPosition or 0), auto_infer=auto_infer)
     else:
         # goal/premise line only
         target.addProofLine(currentRacket)
@@ -1168,8 +1186,17 @@ def apply_rule(request):
                                     target.ruleSet['apply'][_lemma_name] = _lemma_rule
                                     _lemma_injected = True
 
+        # Read support_value_mapping from DB (HIGH support = auto-infer params)
+        _auto_infer = False
+        if proof_id:
+            try:
+                _db_ind_proof = InductionProof.objects.get(id=proof_id)
+                _auto_infer = bool(_db_ind_proof.support_value_mapping)
+            except InductionProof.DoesNotExist:
+                pass
+
         if not target.errLog:
-            _apply_line(target, currentRacket, rule, startPosition, substitution)
+            _apply_line(target, currentRacket, rule, startPosition, substitution, auto_infer=_auto_infer)
 
         # Remove temporarily injected lemma rule
         if _lemma_injected and _lemma_name and _lemma_name in target.ruleSet.get('apply', {}):
@@ -1193,6 +1220,7 @@ def apply_rule(request):
         # Save to cache
         save_induction_obj_to_cache(user, proof, proof_id)
         
+        rule_with_sub = None  # will hold appliedRule (with ↦ annotations) if a line was generated
         # Save to database if we have a valid proof line
         if len(target.proofLines) > 0:
             last_line = target.proofLines[-1]
@@ -1261,7 +1289,8 @@ def apply_rule(request):
             "errors": target.errLog,
             "jsonTree": jsonTree,
             "lineNum": max(0, len(target.proofLines) - 1),
-            "resultNodeId": result_node_id
+            "resultNodeId": result_node_id,
+            "rule": rule_with_sub
         }, status=status.HTTP_200_OK)
     except Exception as e:
         import traceback
@@ -1446,6 +1475,8 @@ def substitution(request):
         rule = data.get("rule")
         if rule and rule.lower() == "math":
             rule = "rewrite math"
+        elif rule and rule.lower() == "logic":
+            rule = "rewrite logic"
         currentRacket = data.get("currentRacket", "")
         startPosition = data.get("startPosition", 0)
         selectedNode = data.get("selectedNode")
@@ -1600,13 +1631,28 @@ def check_completion(request):
         if proof_id:
             InductionProof.objects.filter(id=proof_id).update(is_complete=overall_complete)
 
+            # update assignment if it exists and is completed for the first time
+            if overall_complete:
+                content_type = ContentType.objects.get(app_label="induction_api", model="inductionproof")
+                mapping = StudentProofMapping.objects.filter(
+                    content_type=content_type,
+                    object_id=proof_id
+                ).first()
+
+                # If it belongs to an assignment, lock in the completion timestamp
+                if mapping:
+                    # Only set it if it hasn't been completed before
+                    if not mapping.completed_at:
+                        mapping.completed_at = timezone.now()
+                        mapping.save()
+
         # Save updated completion status to cache
         save_induction_obj_to_cache(user, proof, proof_id)
         
         return Response({
             "isComplete": is_complete,
             "label": label,
-            "overallComplete": is_complete
+            "overallComplete": overall_complete
         }, status=status.HTTP_200_OK)
     except Exception as e:
         traceback.print_exc()
@@ -1740,6 +1786,7 @@ def get_current_proof(request):
             "support_ih": proof.support_ih,
             "support_premise": proof.support_premise,
             "support_rule_set": proof.support_rule_set,
+            "visible_rules": parse_visible_rules(proof.visible_rules),
             "support_value_mapping": proof.support_value_mapping,
         }, status=status.HTTP_200_OK)
     except InductionProof.DoesNotExist:
@@ -1903,6 +1950,16 @@ def delete_proof(request):
             {"message": f"Error setting proof to inactive: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST
         )
 
+def parse_visible_rules(raw_val):
+    """Safely parse the TextField string back into a dictionary for the frontend."""
+    if isinstance(raw_val, str) and raw_val.strip():
+        try:
+            return json.loads(raw_val)
+        except json.JSONDecodeError:
+            return {}
+    elif isinstance(raw_val, dict):
+        return raw_val
+    return {}
 
 PARAM_FIELDS = [
     'support_errors',
@@ -1911,6 +1968,7 @@ PARAM_FIELDS = [
     'support_premise',
     'support_rule_set',
     'support_value_mapping',
+    'visible_rules'
 ]
 
 
@@ -1928,7 +1986,10 @@ def set_parameters(request):
         return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
     for field in PARAM_FIELDS:
         if field in request.data:
-            setattr(proof, field, request.data[field])
+            val = request.data[field]
+            if field == 'visible_rules' and isinstance(val, dict):
+                val = json.dumps(val)
+            setattr(proof, field, val)
     proof.save()
     return Response({f: getattr(proof, f) for f in PARAM_FIELDS}, status=status.HTTP_200_OK)
 
@@ -1996,6 +2057,7 @@ def download_proof(request):
         'support_ih': proof.support_ih,
         'support_premise': proof.support_premise,
         'support_rule_set': proof.support_rule_set,
+        'visible_rules': parse_visible_rules(proof.visible_rules),
         'support_value_mapping': proof.support_value_mapping,
         'lines': {
             'base': {
@@ -2044,6 +2106,7 @@ def upload_proof(request):
             support_ih=data.get('support_ih', True),
             support_premise=data.get('support_premise', True),
             support_rule_set=data.get('support_rule_set', True),
+            visible_rules=data.get('visible_rules', {}),
             support_value_mapping=data.get('support_value_mapping', True),
         )
         lines_data = data.get('lines', {})

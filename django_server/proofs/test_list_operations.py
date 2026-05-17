@@ -2,7 +2,7 @@
 Test cases for list operations (cons, first, rest) and predicates (zero?, null?, if, integer?, list?)
 """
 
-from .test_helpers import test_racket_function, do_single_test_case
+from .test_helpers import test_racket_function, do_single_test_case, _RED, _RESET
 
 totalFails = 0
 
@@ -141,4 +141,4 @@ listQ_tests = [
 ]
 test_racket_function('list?', listQ_tests, hasAxiom=True)
 
-print("\nList operations tests completed!\n" if totalFails == 0 else f"List operations: {totalFails} failures\n")
+print("\nList operations tests completed!\n" if totalFails == 0 else f"{_RED}List operations: {totalFails} failures{_RESET}\n")

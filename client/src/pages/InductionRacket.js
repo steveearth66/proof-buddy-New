@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Dropdown from "react-bootstrap/Dropdown";
 import Button from "react-bootstrap/Button";
 import Container from "react-bootstrap/Container";
@@ -34,6 +34,7 @@ import { useDefinitionsWindow } from "../hooks/useDefinitionsWindow";
 import { useDynamicHeight } from "../hooks/useDynamicHeight";
 import inductionService from "../services/inductionService";
 import userService from "../services/userService";
+import erService from "../services/erService";
 import SetParametersModal from "../components/SetParametersModal";
 import {
   ARROW_KEYS,
@@ -89,7 +90,7 @@ const InductionRacket = () => {
   
   // List induction direction: 'up' or 'down' (only relevant when inductionType === 'lists')
   const [listDirection, setListDirection] = useState('up');
-  
+
   // Separate proof lines for base and leap cases
   const [baseRacketFields, setBaseRacketFields] = useState({
     LHS: [EMPTY_INITIAL_FIELD],
@@ -159,7 +160,8 @@ const InductionRacket = () => {
     support_ih: true,
     support_premise: true,
     support_rule_set: true,
-    support_value_mapping: true
+    support_value_mapping: true,
+    visible_rules: {}
   });
 
   useEffect(() => {
@@ -169,6 +171,29 @@ const InductionRacket = () => {
     }
     loadUser();
   }, []);
+
+  const rulesInProof = useMemo(() => {
+    if (!proofStarted) return [];
+
+    const extractRules = (sideArray) => {
+      return (sideArray || [])
+        .filter(field => 
+          field && 
+          !field.deleted && 
+          field.rule && 
+          field.rule.trim() !== "" && 
+          field.rule !== "Premise"
+        )
+        .map(field => field.rule.trim());
+    };
+
+    const baseLHS = extractRules(baseRacketFields?.LHS);
+    const baseRHS = extractRules(baseRacketFields?.RHS);
+    const leapLHS = extractRules(leapRacketFields?.LHS);
+    const leapRHS = extractRules(leapRacketFields?.RHS);
+
+    return [...new Set([...baseLHS, ...baseRHS, ...leapLHS, ...leapRHS])];
+  }, [baseRacketFields, leapRacketFields, proofStarted]);
 
   // Parenthesis highlighting hooks
   const { 
@@ -329,6 +354,14 @@ const InductionRacket = () => {
   };
 
   const checkCurrentProofStatus = async () => {
+    // In play mode, block the check until all lines have been revealed across all cases/sides
+    const anyStillActive = ['base', 'leap'].some(ck =>
+      ['LHS', 'RHS'].some(s => playIsActive(playState, ck, s))
+    );
+    if (anyStillActive) {
+      toast.warning('Finish reviewing all proof lines before checking completion.');
+      return;
+    }
     try {
       // Check both base and leap cases
       const baseResult = await inductionService.checkCompletion('base');
@@ -547,7 +580,7 @@ const InductionRacket = () => {
     try {
       const proofMeta = await inductionService.getCurrentProof();
       if (proofMeta?.hasProof) {
-        const PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping'];
+        const PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping', 'visible_rules'];
         const extracted = {};
         PARAM_KEYS.forEach(k => { if (k in proofMeta) extracted[k] = proofMeta[k]; });
         if (Object.keys(extracted).length > 0) setProofParams(prev => ({ ...prev, ...extracted }));
@@ -572,34 +605,38 @@ const InductionRacket = () => {
     // Toggle the case - baseRacketFields and leapRacketFields are separate in state
     const newIsAnchor = !isAnchor;
     setIsAnchor(newIsAnchor);
-    
-    // Update Current LHS/RHS to match the new case's last non-empty line (or premise)
+
+    // Update Current LHS/RHS to match the new case's last DISPLAYED non-empty line (or premise)
+    const newCaseKey = newIsAnchor ? 'base' : 'leap';
     const targetFields = newIsAnchor ? baseRacketFields : leapRacketFields;
     const targetPremises = newIsAnchor ? basePremises : leapPremises;
     const lhsLines = targetFields.LHS || [];
     const rhsLines = targetFields.RHS || [];
-    
-    // Find last non-empty, non-premise line (premise is at index 0)
-    const findLastNonEmptyLine = (lines) => {
-      // Start from the end and work backwards, skipping empties
-      for (let i = lines.length - 1; i > 0; i--) {
+
+    // In play mode, clamp scan to only revealed lines; null means show all
+    const lhsLimit = visibleLineCount(playState, newCaseKey, 'LHS');
+    const rhsLimit = visibleLineCount(playState, newCaseKey, 'RHS');
+
+    // Find last non-empty, non-premise line up to maxVisible (premise is at index 0)
+    const findLastNonEmptyLine = (lines, maxVisible) => {
+      const limit = maxVisible !== null ? Math.min(maxVisible, lines.length) : lines.length;
+      for (let i = limit - 1; i > 0; i--) {
         if (lines[i] && lines[i].racket && lines[i].racket.trim() !== '') {
           return lines[i];
         }
       }
-      // If no non-empty proof line found, return null (will fall back to premise)
       return null;
     };
-    
-    const lastLhsLine = findLastNonEmptyLine(lhsLines);
-    const lastRhsLine = findLastNonEmptyLine(rhsLines);
-    
+
+    const lastLhsLine = findLastNonEmptyLine(lhsLines, lhsLimit);
+    const lastRhsLine = findLastNonEmptyLine(rhsLines, rhsLimit);
+
     setLhsValue(lastLhsLine?.racket || targetPremises.LHS?.racket || '');
     setRhsValue(lastRhsLine?.racket || targetPremises.RHS?.racket || '');
-    
+
     // No database reload - state already contains both base and leap cases
     // Reloading would reset any highlighting changes made by clicking (not applying rules)
-  }, [isAnchor, baseRacketFields, leapRacketFields, basePremises, leapPremises]);
+  }, [isAnchor, baseRacketFields, leapRacketFields, basePremises, leapPremises, playState]);
 
   /**
    * Unbind footer from current proof line.
@@ -671,6 +708,8 @@ const InductionRacket = () => {
       await inductionService.newProof();
       sessionStorage.removeItem('inductionProofActive');
       sessionStorage.removeItem('induction_current_proof_id');
+      sessionStorage.removeItem('temp_definitions');
+      sessionStorage.removeItem('temp_generics');
       toast.success('Ready to start a new proof!');
       window.location.reload();
     } catch (error) {
@@ -704,7 +743,9 @@ const InductionRacket = () => {
     try {
       const data = await inductionService.downloadProof(proofParams.proof_id);
       const fileName = `${data.name || 'proof'}.json`;
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const jsonStr = JSON.stringify(data, null, 2)
+          .replace(/[\u0080-\uFFFF]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+      const blob = new Blob([jsonStr], { type: 'application/json; charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -817,8 +858,8 @@ const InductionRacket = () => {
       // Clear validation error if rule is valid
       setFooterRuleError('');
 
-      // If user typed "rewrite math", open Substitution modal with rule pre-filled
-      if (ruleFromFooter.trim().toLowerCase() === 'rewrite math') {
+      // If user typed "rewrite math" or "rewrite logic", open Substitution modal with rule pre-filled
+      if (ruleFromFooter.trim().toLowerCase() === 'rewrite math' || ruleFromFooter.trim().toLowerCase() === 'rewrite logic') {
         updateShowSubstitution();
         return;
       }
@@ -907,7 +948,7 @@ const InductionRacket = () => {
         const newField = {
           racket: fullRacket.racket || "",
           jsonTree: fullRacket.jsonTree || {},
-          rule: ruleFromFooter,
+          rule: fullRacket.rule || ruleFromFooter,
           startPosition: previousStartPosition,
           selectedNode: previousStartPosition,
           resultNode: fullRacket.resultNodeId ?? 0,
@@ -1015,46 +1056,86 @@ const InductionRacket = () => {
         if (navId) {
             const metaData = await inductionService.getInductionProof(navId);
             
-            // --- SANITIZE GENERICS (Prevents "reading 'assumption' of null" crash) ---
             const rawDefinitions = metaData.definition || [];
-            const dbGenerics = rawDefinitions
-              .filter(d => d.is_generic)
-              .map(g => ({
+
+            // Separate the raw data into generics and definitions (generics have is_generic: true)
+            const rawGenerics = rawDefinitions.filter(d => d.is_generic);
+            const rawDefs = rawDefinitions.filter(d => !d.is_generic);
+            // --- Helper to generate a unique key for generics based on usable fields ---
+            const getGenericKey = (g) => `${g.label}|${g.type || ''}`;
+
+            // -------------------------------------------------------------------------
+            // GENERICS PROCESSING
+            // -------------------------------------------------------------------------
+            // 1. Fetch User's permanent generics 
+            const userGenerics = await erService.getUserGenerics(); 
+
+            // Sanitize proof generics
+            const proofGenerics = rawGenerics.map(g => ({
                 ...g,
-                // Normalize field names: DB has 'name', sessionStorage has 'label'
                 label: g.label || g.name,
                 name: g.name || g.label,
-                // Force restrictions to be a valid object if null in DB
                 restrictions: g.restrictions || { assumption: 'None', neverNull: false }
-              }));
-
-            // Merge with existing sessionStorage generics to preserve enabled state
-            const existingGenerics = JSON.parse(sessionStorage.getItem('generics') || '[]');
-            const mergedGenerics = dbGenerics.map(dbGen => {
-              const existing = existingGenerics.find(eg => eg.label === dbGen.label || eg.name === dbGen.name);
-              if (existing) {
-                // Preserve enabled state from sessionStorage
-                const resolved = existing.enabled ?? dbGen.enabled;
-                return { ...dbGen, enabled: resolved };
-              }
-              return dbGen;
-            });
-            
-            // Add any sessionStorage generics not in database yet
-            existingGenerics.forEach(eg => {
-              const isInDb = dbGenerics.some(dbGen => dbGen.label === eg.label || dbGen.name === eg.label);
-              if (!isInDb) {
-                mergedGenerics.push(eg);
-              }
-            });
-
-            sessionStorage.setItem('generics', JSON.stringify(mergedGenerics));
-            
-            // Notify other components (like sidebar) that generics are ready
-            window.dispatchEvent(new CustomEvent('genericsUpdated', { 
-                detail: { allGenerics: mergedGenerics } 
             }));
+
+            // 2. Identify active IDs from the loaded proof
+            const activeProofGenericKeys = new Set(proofGenerics.map(getGenericKey));
+
+            // 3. Process Permanent Generics: Toggle 'applied' based on proof contents
+            const updatedPermanentGenerics = userGenerics.map(gen => ({
+                ...gen,
+                enabled: activeProofGenericKeys.has(getGenericKey(gen))
+            }));
+
+            // 4. Filter for Temporary items (those in proofData but NOT in user's DB)
+            const tempGenerics = proofGenerics.filter(
+                proofGen => !userGenerics.some(userGen => getGenericKey(proofGen) === getGenericKey(userGen))
+            );
+
+            // 5. Commit lists to Session Storage
+            sessionStorage.setItem('generics', JSON.stringify(updatedPermanentGenerics));
+
+            if (tempGenerics.length > 0) {
+                sessionStorage.setItem('temp_generics', JSON.stringify(tempGenerics));
+            } else {
+                sessionStorage.removeItem('temp_generics');
+            }
+
+            // Notify other components that generics are ready
+            window.dispatchEvent(new CustomEvent('genericsUpdated', { 
+                detail: { allGenerics: [...updatedPermanentGenerics] } 
+            }));
+
             // -------------------------------------------------------------------------
+            // DEFINITIONS PROCESSING
+            // -------------------------------------------------------------------------
+            // 1. Fetch User's permanent definitions
+            const userDefs = await erService.getUserDefinitions();
+
+            // 2. Identify active IDs from the loaded proof
+            const activeProofDefKeys = new Set(
+                rawDefs.map(d => `${d.label}|${d.expression}`)
+            );
+
+            // 3. Process Permanent Definitions: Toggle 'applied' based on proof contents
+            const updatedPermanentDefs = userDefs.map(def => ({
+                ...def,
+                applied: activeProofDefKeys.has(`${def.label}|${def.expression}`)
+            }));
+
+            // 4. Filter for Temporary items (those in proofData but NOT in user's DB)
+            const tempDefinitions = rawDefs.filter(
+                dbDef => !userDefs.some(d => dbDef.label === d.label && dbDef.expression === d.expression)
+            );
+
+            // 5. Commit lists to Session Storage
+            sessionStorage.setItem('definitions', JSON.stringify(updatedPermanentDefs));
+
+            if (tempDefinitions.length > 0) {
+                sessionStorage.setItem('temp_definitions', JSON.stringify(tempDefinitions));
+            } else {
+                sessionStorage.removeItem('temp_definitions');
+            }
 
             // Hydrate the Top-Level Form Inputs
             setFormValues(prev => ({
@@ -1166,33 +1247,39 @@ const InductionRacket = () => {
     }
   }, [isAnchor, proofStarted, unbindFooter, clearValidationErrors]);
 
-  // Update Current LHS/RHS display to show the last non-empty line
+  // Update Current LHS/RHS display to show the last non-empty DISPLAYED line
   useEffect(() => {
     if (!proofStarted) return;
-    
+
+    const indCaseKey = isAnchor ? 'base' : 'leap';
     const targetFields = isAnchor ? baseRacketFields : leapRacketFields;
     const targetPremises = isAnchor ? basePremises : leapPremises;
     const lhsLines = targetFields.LHS || [];
     const rhsLines = targetFields.RHS || [];
-    
-    // Find last non-empty, non-premise line (premise is at index 0)
-    const findLastNonEmptyLine = (lines) => {
-      for (let i = lines.length - 1; i > 0; i--) {
+
+    // In play mode, clamp scan to only revealed lines; null means show all
+    const lhsLimit = visibleLineCount(playState, indCaseKey, 'LHS');
+    const rhsLimit = visibleLineCount(playState, indCaseKey, 'RHS');
+
+    // Find last non-empty, non-premise line up to maxVisible (premise is at index 0)
+    const findLastNonEmptyLine = (lines, maxVisible) => {
+      const limit = maxVisible !== null ? Math.min(maxVisible, lines.length) : lines.length;
+      for (let i = limit - 1; i > 0; i--) {
         if (lines[i] && lines[i].racket && lines[i].racket.trim() !== '') {
           return lines[i];
         }
       }
       return null;
     };
-    
-    const lastLhsLine = findLastNonEmptyLine(lhsLines);
-    const lastRhsLine = findLastNonEmptyLine(rhsLines);
-    setLhsValue(lastLhsLine?.racket || targetPremises.LHS?.racket || '');
-    setLhsHidden(lastLhsLine?.hide_expression || false);
-    setRhsValue(lastRhsLine?.racket || targetPremises.RHS?.racket || '');
-    setRhsHidden(lastRhsLine?.hide_expression || false);
 
-  }, [proofStarted, isAnchor, baseRacketFields, leapRacketFields, basePremises, leapPremises]);
+    const lastLhsLine = findLastNonEmptyLine(lhsLines, lhsLimit);
+    const lastRhsLine = findLastNonEmptyLine(rhsLines, rhsLimit);
+    setLhsValue(lastLhsLine?.racket || targetPremises.LHS?.racket || '');
+    setLhsHidden((currentUserType.is_student && lastLhsLine?.hide_expression) || false);
+    setRhsValue(lastRhsLine?.racket || targetPremises.RHS?.racket || '');
+    setRhsHidden((currentUserType.is_student && lastRhsLine?.hide_expression) || false);
+
+  }, [proofStarted, isAnchor, baseRacketFields, leapRacketFields, basePremises, leapPremises, playState]);
 
   useEffect(() => {
     // Disabled: Confetti should only show when BOTH base AND leap cases are complete
@@ -1675,8 +1762,8 @@ const InductionRacket = () => {
 
               // Persist any params the user pre-configured before starting the proof.
               // Must be done BEFORE loadProofLinesFromDatabase reads them back from DB.
-              const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping'];
-              const hasCustomParams = PARAM_KEYS.some(k => proofParams[k] !== true);
+              const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping', 'visible_rules'];
+              const hasCustomParams = PARAM_KEYS.some(k => proofParams[k] !== true && (typeof proofParams[k] === 'object' && proofParams[k].length > 0));
               if (hasCustomParams) {
                 try {
                   await inductionService.setParameters(
@@ -2155,7 +2242,9 @@ const InductionRacket = () => {
       <Container className="er-racket-container">
         <OffcanvasRuleSet
           isActive={isOffcanvasActive}
-          toggleFunction={toggleOffcanvas}
+          toggleFunction={toggleOffcanvas}            
+          visibleRules={proofParams.visible_rules}
+          supportRuleSet={proofParams.support_rule_set}
         ></OffcanvasRuleSet>
         {showDefinitionsWindow && (
           <Definitions 
@@ -2295,9 +2384,6 @@ const InductionRacket = () => {
                                     style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}
                                   >
                                     Download Proof
-                                  </Dropdown.Item>
-                                  <Dropdown.Item onClick={handleUploadProof} href="#">
-                                    Upload Proof
                                   </Dropdown.Item>
                                 </Dropdown.Menu>
                             </Dropdown>
@@ -2584,10 +2670,16 @@ const InductionRacket = () => {
                           </Form.Group>
                         </Row>
                       )}
-                      <Row className="justify-content-center er-current-state g-2 mb-0">
-                          <Form.Group as={Col} sm="6" className={showSide === "LHS" ? "active" : ""}><Form.Floating style={{ border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}><Form.Control type="text" value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')} readOnly style={{ border: 'none' }} /><label>Current LHS</label></Form.Floating></Form.Group>
-                          <Form.Group as={Col} sm="6" className={showSide === "RHS" ? "active" : ""}><Form.Floating style={{ border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}><Form.Control type="text" value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')} readOnly style={{ border: 'none' }} /><label>Current RHS</label></Form.Floating></Form.Group>
-                      </Row>
+                      {(proofParams.support_current_lhs_rhs && (
+                        <>
+                          <Row className="justify-content-center er-current-state g-2 mb-0">
+                            <Form.Group as={Col} sm="6" className={showSide === "LHS" ? "active" : ""}><Form.Floating style={{ border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}><Form.Control type="text" value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')} readOnly style={{ border: 'none' }} /><label>Current LHS</label></Form.Floating></Form.Group>
+                            <Form.Group as={Col} sm="6" className={showSide === "RHS" ? "active" : ""}><Form.Floating style={{ border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}><Form.Control type="text" value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')} readOnly style={{ border: 'none' }} /><label>Current RHS</label></Form.Floating></Form.Group>
+                          </Row>
+                        </>
+                      )
+
+                      )}
                   </Col>
 
                   {/* COLUMN 3: CASE SWITCH (Wraps and stays horizontally aligned) */}
@@ -2643,9 +2735,6 @@ const InductionRacket = () => {
                           style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}
                         >
                           Download Proof
-                        </Dropdown.Item>
-                        <Dropdown.Item onClick={handleUploadProof} href="#">
-                          Upload Proof
                         </Dropdown.Item>
                       </Dropdown.Menu>
                     </Dropdown>
@@ -3085,6 +3174,7 @@ const InductionRacket = () => {
         show={showSetParams}
         onHide={() => setShowSetParams(false)}
         params={proofParams}
+        rulesInProof={rulesInProof}
         onSave={async (newParams) => {
           setProofParams(prev => ({ ...prev, ...newParams }));
           if (proofParams.proof_id) {

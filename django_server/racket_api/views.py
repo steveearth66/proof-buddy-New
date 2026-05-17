@@ -514,6 +514,12 @@ def delete_definition_api(request, label):
     if not deleted:
         return Response(status=status.HTTP_400_BAD_REQUEST)
 
+    # Also remove from the engine cache so the label can be reused immediately
+    proof = get_or_set_proof(user)
+    proof.definitions = [d for d in proof.definitions if d["label"] != label]
+    proof.removeUDF(label)
+    save_proof_to_cache(user, proof)
+
     return Response(status=status.HTTP_200_OK)
 
 @api_view(["GET"])

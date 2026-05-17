@@ -31,9 +31,11 @@ class ProofComponent:
     
     def _validateNewLabel(self, label: str) -> bool:
         """Checks if label is not already in use"""
+        stripped = label[:-1] if label.endswith('?') else label
+        valid_chars = len(stripped) > 0 and stripped.isalpha()
         return False not in map(lambda iterable: label not in iterable, (
             reservedLabels, *self.ruleSet.values(), self.generics
-        )) and label.isalpha()
+        )) and valid_chars
     
     def addUDF(self, label, typeStr, body):
         errLog = Parser.preProcess(label,udf=True)[1] #added udf=True so that preprocessing will bypass empty string check
@@ -81,12 +83,18 @@ class ProofComponent:
             for j in range(len(paramsList)):
                 param2TypeDict[paramsList[j]] = RacType(racTypeObj.getDomain()[j]) #got rid of getDomain here and switched to value[0]
             filledBodyNode = fillBody(bodyNode.exprTree, udfLabel, racTypeObj, param2TypeDict)
+            # Post-fillBody: validate if-branch types now that PARAMs are resolved
+            post_errors = []
+            _validate_filled_if_branches(filledBodyNode, post_errors)
+            if post_errors:
+                self.errLog.extend(post_errors)
+                return
             self.ruleSet['apply'][udfLabel] = UDF(udfLabel, filledBodyNode, racTypeObj, paramsList)
            # print(f"Added UDF '{udfLabel}' with type '{str(racTypeObj)}' and body '{str(filledBodyNode)}'")
 
     def removeUDF(self, label):
         if len(label) != 1:
-            label = label.split()[0][1:]
+            label = label.split()[0].lstrip("(")
         if label in self.ruleSet['apply']:
             del self.ruleSet['apply'][label]
 
@@ -235,7 +243,7 @@ class ERProof(ProofComponent):
         self.proofLines: list[ERProofLine] = []
         self.premise: Node = None
 
-    def addProofLine(self, lineStr, ruleStr=None, highlightPos=0, substitution=None):
+    def addProofLine(self, lineStr, ruleStr=None, highlightPos=0, substitution=None, auto_infer=False):
         # prooflines now contain pointers to their proof's ruleset so they can refer to UDFs
         if substitution != None:
             subLine = ERProofLine(substitution, self.debug, self.ruleSet, generics=self.generics)
@@ -249,7 +257,7 @@ class ERProof(ProofComponent):
                 if substitution!=None:
                     proofLine.applySubstitution(ruleStr, highlightPos, subLine)
                 else:
-                    proofLine.applyRule(ruleStr, highlightPos)
+                    proofLine.applyRule(ruleStr, highlightPos, auto_infer=auto_infer)
             elif len(self.proofLines) == 0:
                 # This is the first line of the proof, so it's a premise
                 proofLine.appliedRule = "Premise"
@@ -425,7 +433,7 @@ class ERProofLine(ProofComponent):
                 return ruleObj.ruleType
         raise ValueError
 
-    def applyRule(self, rule: str, startPos: int, subNode: Node = None):
+    def applyRule(self, rule: str, startPos: int, subNode: Node = None, auto_infer: bool = False):
         fullRuleString = rule  # Store the original full rule string before parsing
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
         if targetNode == None:
@@ -471,6 +479,14 @@ class ERProofLine(ProofComponent):
         for label in self.find_undefined_labels(targetNode):
             self.errLog.append(f"No definition found for label '{label}'")
 
+        # ── HIGH support: auto-infer parameter mappings from highlighted node ──
+        # Must run before UDF/Axiom validation so inferred params satisfy the checks below.
+        if auto_infer and not ruleParams:
+            ruleParams, fullRuleString = _infer_params_for_rule(
+                selected, targetNode, ruleCategory, rule, fullRuleString
+            )
+        # ── END HIGH support inference ──
+
         if selected.ruleType == RuleType.DEFINITION:
             values, hadErr = self.parse_and_typecheck_args(
                 rule,
@@ -499,8 +515,9 @@ class ERProofLine(ProofComponent):
             if mismatch_errors:
                 self.errLog.extend(mismatch_errors)
                 return
-
         if selected._ruleType == RuleType.MATH:
+            ok, err = selected.isApplicable(targetNode, subNode)
+        elif selected._ruleType == RuleType.LOGIC:
             ok, err = selected.isApplicable(targetNode, subNode)
         elif ruleCategory == 'eval':
             ok, err = selected.isApplicable(targetNode)
@@ -513,7 +530,7 @@ class ERProofLine(ProofComponent):
 
         newNode = (
             selected.insertSubstitution(targetNode, subNode)
-            if selected.ruleType == RuleType.MATH
+            if selected.ruleType in (RuleType.MATH, RuleType.LOGIC)
             else selected.insertSubstitution(targetNode)
         )
         targetNode.replaceWith(newNode)
@@ -571,6 +588,115 @@ def updatePositions(inputTree: Node, count: int = 0) -> tuple[Node, int]:
             inputTree.children[childIndex] = newChild
             count = newCount + 1
     return inputTree, count
+
+def _unify_lemma_params(premise_node: Node, target_node: Node,
+                        param_names: list, bindings: dict) -> bool:
+    """
+    Walk premise_node and target_node in parallel.
+    When premise_node.data is a free-variable name (in param_names),
+    bind it to the string representation of the corresponding target subtree.
+    Returns True if unification succeeds, False on structural mismatch or conflict.
+    """
+    if premise_node.data in param_names:
+        name = premise_node.data
+        val_str = str(target_node)
+        if name in bindings and bindings[name] != val_str:
+            return False  # conflicting binding
+        bindings[name] = val_str
+        return True
+    if premise_node.data != target_node.data:
+        return False
+    if len(premise_node.children) != len(target_node.children):
+        return False
+    for pc, tc in zip(premise_node.children, target_node.children):
+        if not _unify_lemma_params(pc, tc, param_names, bindings):
+            return False
+    return True
+
+
+def _infer_params_for_rule(selected_rule, target_node: Node, rule_category: str,
+                           rule_name: str, full_rule_string: str) -> tuple:
+    """
+    HIGH support: infer parameter mappings from the highlighted target node.
+    Returns (ruleParams, fullRuleString) where ruleParams is a list of "name=value"
+    strings and fullRuleString is updated with ↦ arrows.
+    If inference is not applicable, returns ([], full_rule_string) unchanged.
+    """
+    # Only infer for UDFs and Axioms
+    if selected_rule.ruleType == RuleType.DEFINITION:
+        param_names = selected_rule.params
+        # Children: [0]=func_label, [1..]=arguments
+        value_nodes = target_node.children[1:]
+        if len(param_names) != len(value_nodes):
+            return [], full_rule_string
+        ruleParams = [f"{name}={str(val)}" for name, val in zip(param_names, value_nodes)]
+        mappings = ", ".join(f"{name}\u21a6{str(val)}" for name, val in zip(param_names, value_nodes))
+        new_full = f"{rule_category} {rule_name} with {mappings}"
+        return ruleParams, new_full
+    if selected_rule.ruleType == RuleType.AXIOM:
+        # Verify structure first — if it fails, let normal error handling fire
+        ok, _ = selected_rule.verifyStructure(target_node)
+        if not ok:
+            return [], full_rule_string
+        ruleParams = []
+        arrows = []
+        for param_name, finder in selected_rule.params.items():
+            locations = finder(target_node)
+            if not locations:
+                return [], full_rule_string
+            first_loc = locations[0]
+            # finder may return a tuple of alternatives for commutative params
+            val_node = first_loc[0] if isinstance(first_loc, tuple) else first_loc
+            val_str = str(val_node)
+            ruleParams.append(f"{param_name}={val_str}")
+            arrows.append(f"{param_name}\u21a6{val_str}")
+        mappings = ", ".join(arrows)
+        new_full = f"{rule_category} {rule_name} {mappings}"
+        return ruleParams, new_full
+    if selected_rule.ruleType == RuleType.LEMMA:
+        param_names = selected_rule.param_names
+        if not param_names:
+            return [], full_rule_string
+        bindings = {}
+        premise_copy = copy.deepcopy(selected_rule.premise_tree)
+        if not _unify_lemma_params(premise_copy, target_node, param_names, bindings):
+            return [], full_rule_string
+        if any(n not in bindings for n in param_names):
+            return [], full_rule_string
+        ruleParams = [f"{n}={bindings[n]}" for n in param_names]
+        arrows = ", ".join(f"{n}\u21a6{bindings[n]}" for n in param_names)
+        new_full = f"{rule_category} {rule_name} {arrows}"
+        return ruleParams, new_full
+    return [], full_rule_string
+
+
+def _resolve_type(t):
+    """Unwrap nested RacType wrappers down to a plain Type enum.
+    getDomain() double-wraps each domain type in RacType, so we need to
+    loop until we reach a non-RacType value."""
+    while isinstance(t, RacType):
+        t = t.getType()
+    return t
+
+
+def _validate_filled_if_branches(node, errors):
+    """Post-fillBody: check if-expressions have matching branch types after parameter
+    types have been resolved from PARAM to their declared concrete types.
+    An if-node in the AST has data='(' with children[0].data=='if'."""
+    if (node.data == '(' and len(node.children) == 4
+            and node.children[0].data == 'if'):
+        t1 = _resolve_type(node.children[2].type)
+        t2 = _resolve_type(node.children[3].type)
+        if t1 is not None and t2 is not None and t1 != t2:
+            if t1 not in FLEX_TYPES and t2 not in FLEX_TYPES:
+                errors.append(
+                    f"Definition body type error: the two result branches of an if-expression "
+                    f"must have the same type, but found {t1} and {t2}. "
+                    f"Check your parameter types or use type 'any' if the types should be flexible."
+                )
+    for child in node.children:
+        _validate_filled_if_branches(child, errors)
+
 
 # fills in the types for the params
 def fillBody(bodyNode, udfLabel, racTypeObj, param2TypeDict):

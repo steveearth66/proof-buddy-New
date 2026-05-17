@@ -2,11 +2,13 @@ import React, { useState, useMemo } from 'react';
 import { Table, Button, Form } from "react-bootstrap";
 import NumberedPagination from '../Pagination';
 import CreateCourseModal from './modals/CreateCourseModal';
+import JoinCourseModal from './modals/JoinCourseModal';
 import useSortableTable from '../../hooks/useSortableTable';
 
-export default function InstructorCatalog({ courses, onViewCourse, onToggleStatus, onToggleJoinCode, onEditJoinCode, onCreateCourse }) {
+export default function InstructorCatalog({ courses, onViewCourse, onToggleStatus, onToggleJoinCode, onEditJoinCode, onCreateCourse, onJoinCourse }) {
   const [coursePage, setCoursePage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showJoinModal, setShowJoinModal] = useState(false);
   const itemsPerPage = 10;
 
   // 2. Consume the Hook
@@ -27,9 +29,14 @@ export default function InstructorCatalog({ courses, onViewCourse, onToggleStatu
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h2 className="mb-0" style={{ color: '#0a3d62' }}>Instructor View: My Courses</h2>
-        <Button variant="primary" onClick={() => setShowCreateModal(true)}>
-          <i className="fa-solid fa-plus me-2"></i>Create Course
-        </Button>
+        <div className="d-flex gap-2">
+          <Button variant="outline-primary" onClick={() => setShowJoinModal(true)}>
+            <i className="fa-solid fa-graduation-cap me-2"></i>Join Course
+          </Button>
+          <Button variant="primary" onClick={() => setShowCreateModal(true)}>
+            <i className="fa-solid fa-plus me-2"></i>Create Course
+          </Button>
+        </div>
       </div>
 
       <Table striped bordered hover responsive className="align-middle">
@@ -93,6 +100,11 @@ export default function InstructorCatalog({ courses, onViewCourse, onToggleStatu
         show={showCreateModal} 
         onHide={() => setShowCreateModal(false)} 
         onCreateCourse={onCreateCourse}
+      />
+      <JoinCourseModal
+        show={showJoinModal}
+        onHide={() => setShowJoinModal(false)}
+        onJoin={onJoinCourse}
       />
     </div>
   );

@@ -21,6 +21,10 @@ from expression_tree.ERRuleset import isMatch
 from expression_tree.default_udfs import DEFAULT_UDFS
 from expression_tree.LemmaApplicator import build_lemma_rule
 
+from assignments.models import StudentProofMapping
+from django.contrib.contenttypes.models import ContentType
+from django.utils import timezone
+
 User = get_user_model()
 
 
@@ -83,6 +87,51 @@ def get_or_set_equational_obj(user):
     return loads(cached['proof_obj']), proof_id
 
 
+def _ensure_er_hydrated(proof_obj, proof_id):
+    """Re-register any UDFs and generics missing from the TwoSidedProof engine.
+    Safety net for cache-miss / server-restart scenarios where the proof object is
+    rebuilt fresh (no UDFs, no generics). Reads the stored definitions from the DB
+    EquationalProof.definition field and replays addUDF / addGeneric for anything
+    that isn't already present in the ruleSet."""
+    if not proof_id:
+        return
+    try:
+        _db_proof = EquationalProof.objects.get(id=proof_id)
+        all_defs = list(_db_proof.definition or [])
+    except EquationalProof.DoesNotExist:
+        return
+
+    sides = [proof_obj.LHS, proof_obj.RHS]
+    for _d in all_defs:
+        if _d.get('is_generic'):
+            _glabel = _d.get('label') or _d.get('name') or ''
+            _gtype = (_d.get('type') or 'int').lower()
+            _grestrictions = _d.get('restrictions') or {}
+            if not _glabel:
+                continue
+            for side in sides:
+                if _glabel not in side.generics:
+                    try:
+                        side.addGeneric(_glabel, _gtype, _grestrictions)
+                        side.errLog = []
+                    except Exception:
+                        pass
+        else:
+            _dlabel = _d.get('label') or _d.get('name') or ''
+            _udf_name = _dlabel.replace('(', ' ').replace(')', ' ').split()
+            if not _udf_name:
+                continue
+            _udf_name = _udf_name[0]
+            _dtype = _d.get('type') or _d.get('def_type')
+            _dbody = _d.get('expression') or _d.get('body')
+            if not _dtype or not _dbody:
+                continue
+            for side in sides:
+                if _udf_name not in side.ruleSet.get('apply', {}):
+                    side.addUDF(_dlabel, _dtype, _dbody)
+                    side.errLog = []
+
+
 def reload_proof_lines_from_db(proof_obj, proof_id):
     """Reload all proof lines from database into the TwoSidedProof object"""
     if proof_id is None:
@@ -117,14 +166,19 @@ def reload_proof_lines_from_db(proof_obj, proof_id):
 
 
 def _check_rewrite_math_misuse(rule):
-    """Return an error message string if the user typed 'rewrite math' into the rule field
-    instead of using the Substitution button, or None if the rule is fine to proceed."""
+    """Return an error message string if the user typed 'rewrite math' or 'rewrite logic'
+    into the rule field instead of using the Substitution button, or None if the rule is fine."""
     rule_norm = (rule or '').strip().lower()
     if rule_norm == 'rewrite math':
         return ("The 'rewrite math' rule must be applied using the Substitution button, "
                 "not the rule field.")
     if rule_norm.startswith('rewrite math'):
         return "'rewrite math' does not require additional parameters to be applied."
+    if rule_norm == 'rewrite logic':
+        return ("The 'rewrite logic' rule must be applied using the Substitution button, "
+                "not the rule field.")
+    if rule_norm.startswith('rewrite logic'):
+        return "'rewrite logic' does not require additional parameters to be applied."
     return None
 
 
@@ -290,10 +344,20 @@ def apply_rule(request):
     user = request.user
     data = request.data
     proof_obj, proof_id = get_or_set_equational_obj(user)
+    _ensure_er_hydrated(proof_obj, proof_id)
     
     try:
         # Reload proof lines from database
         reload_proof_lines_from_db(proof_obj, proof_id)
+
+        # Read support_value_mapping from DB (HIGH support = auto-infer params)
+        _auto_infer = False
+        if proof_id:
+            try:
+                _db_proof = EquationalProof.objects.get(id=proof_id)
+                _auto_infer = bool(_db_proof.support_value_mapping)
+            except EquationalProof.DoesNotExist:
+                pass
 
         side = data.get("side", "LHS")
         current_racket = data.get("currentRacket", "")
@@ -356,7 +420,7 @@ def apply_rule(request):
             if substitution is not None and substitution != "":
                 target.addProofLine(current_racket, rule, int(start_position or 0), substitution)
             else:
-                target.addProofLine(current_racket, rule, int(start_position or 0))
+                target.addProofLine(current_racket, rule, int(start_position or 0), auto_infer=_auto_infer)
 
         # Remove temporarily injected lemma rule
         if _lemma_injected and _lemma_name and _lemma_name in target.ruleSet.get('apply', {}):
@@ -456,12 +520,15 @@ def substitution(request):
     user = request.user
     data = request.data
     proof_obj, proof_id = get_or_set_equational_obj(user)
+    _ensure_er_hydrated(proof_obj, proof_id)
     
     try:
         side = data.get("side", "LHS")
         rule = data.get("rule")
         if rule and rule.lower() == "math":
             rule = "rewrite math"
+        elif rule and rule.lower() == "logic":
+            rule = "rewrite logic"
         current_racket = data.get("currentRacket", "")
         start_position = data.get("startPosition", 0)
         selected_node = data.get("selectedNode")
@@ -640,6 +707,21 @@ def check_completion(request):
         # Update database
         if proof_id:
             EquationalProof.objects.filter(id=proof_id).update(is_complete=is_complete)
+
+            # update assignment if it exists and is completed for the first time
+            if is_complete:
+                content_type = ContentType.objects.get(app_label="equational_reasoning_api", model="equationalproof")
+                mapping = StudentProofMapping.objects.filter(
+                    content_type=content_type,
+                    object_id=proof_id
+                ).first()
+
+                # If it belongs to an assignment, lock in the completion timestamp
+                if mapping:
+                    # Only set it if it hasn't been completed before
+                    if not mapping.completed_at:
+                        mapping.completed_at = timezone.now()
+                        mapping.save()
         
         proof_obj.isComplete = is_complete
         save_equational_obj_to_cache(user, proof_obj, proof_id)
@@ -692,6 +774,19 @@ def get_proof_lines(request):
                 'errors': line.errors
             }
         
+        definitions_and_generics = proof.definition if proof.definition else []
+        definitions_data = []
+        generics_data = []
+        
+        for item in definitions_and_generics:
+            if item.get('is_generic'):
+                generics_data.append(item)
+            else:
+                item['applied'] = True
+                if 'def_type' in item and 'type' not in item:
+                    item['type'] = item.pop('def_type')
+                definitions_data.append(item)
+        
         return Response({
             "hasProof": True,
             "lhsAnchorGoal": proof.lhs_goal,
@@ -704,9 +799,12 @@ def get_proof_lines(request):
             "support_ih": proof.support_ih,
             "support_premise": proof.support_premise,
             "support_rule_set": proof.support_rule_set,
+            "visible_rules": parse_visible_rules(proof.visible_rules),
             "support_value_mapping": proof.support_value_mapping,
             "LHS": [format_line(line) for line in lhs_lines],
-            "RHS": [format_line(line) for line in rhs_lines]
+            "RHS": [format_line(line) for line in rhs_lines],
+            "definitions": definitions_data,
+            "generics": generics_data
         }, status=status.HTTP_200_OK)
         
     except EquationalProof.DoesNotExist:
@@ -1077,39 +1175,31 @@ def load_proof(proof_data):
         except Exception as e:
             print(f"Error loading generic {generic.get('label')}: {e}")
 
-    # 3. Replay Lines into Engine
+    # 3. Restore Lines into Engine
+    # Lines are loaded directly WITHOUT replaying rules. Replaying rules on the
+    # already-computed result expression causes IndexError when the saved
+    # startPosition (from the source tree) no longer exists in the result tree.
+    # Every subsequent operation (apply_rule, check_completion, etc.) calls
+    # reload_proof_lines_from_db() before acting, so the engine state is always
+    # fresh -- rule replay here would be redundant AND unsafe.
     proof_lines = proof_data["proofLines"]
-    
-    # Sort lines by line number to ensure correct order
     sorted_lines = sorted(proof_lines, key=lambda x: x['lineNumber'])
 
     for line_data in sorted_lines:
         is_lhs = line_data['side'] == "LHS"
         target = proof.LHS if is_lhs else proof.RHS
-        # Determine if this is the premise (Line 0) or a derivation step
-        if len(target.proofLines) == 0:
-            target.addProofLine(line_data["racket"])
-            if target.proofLines:
-                target.proofLines[-1].appliedRule = "Premise"
-        else:
-            subValue = line_data["substitution"] if line_data["substitution"] != "" else None
-
-            # It's a derivation step
-            target.addProofLine(
-                line_data["racket"],
-                line_data["rule"],
-                int(line_data["startPosition"] or 0),
-                subValue
-            )
-            
-        # Restore Metadata (Visibility & Highlight IDs) onto the engine object
-        if target.proofLines:
-            current_line_obj = target.proofLines[-1]
-            current_line_obj.hide_expression = line_data.get("hide_expression", False)
-            current_line_obj.hide_justification = line_data.get("hide_justification", False)
-            current_line_obj.resultNodeId = line_data.get("resultNode", 0)
-            current_line_obj.appliedRuleNodeId = line_data.get("selectedNode", 0)
-            current_line_obj.errors = line_data.get("errors", 0)
+        racket = line_data.get("racket", "")
+        if not racket and line_data.get("rule", "") == "":
+            continue  # skip blank trailing UI placeholder lines
+        proof_line = ERProofLine(racket, target.debug, target.ruleSet, generics=target.generics)
+        if proof_line.errLog == []:
+            proof_line.appliedRule = line_data.get("rule", "")
+            proof_line.appliedRuleNodeId = line_data.get("selectedNode", 0)
+            proof_line.resultNodeId = line_data.get("resultNode", 0)
+            proof_line.hide_expression = line_data.get("hide_expression", False)
+            proof_line.hide_justification = line_data.get("hide_justification", False)
+            proof_line.errors = line_data.get("errors", "")
+            target.proofLines.append(proof_line)
 
     return proof
 
@@ -1393,6 +1483,16 @@ def delete_proof(request):
             {"message": f"Error setting proof to inactive: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST
         )
 
+def parse_visible_rules(raw_val):
+    """Safely parse the TextField string back into a dictionary for the frontend."""
+    if isinstance(raw_val, str) and raw_val.strip():
+        try:
+            return json.loads(raw_val)
+        except json.JSONDecodeError:
+            return {}
+    elif isinstance(raw_val, dict):
+        return raw_val
+    return {}
 
 PARAM_FIELDS = [
     'support_errors',
@@ -1401,6 +1501,7 @@ PARAM_FIELDS = [
     'support_premise',
     'support_rule_set',
     'support_value_mapping',
+    'visible_rules'
 ]
 
 
@@ -1418,7 +1519,10 @@ def set_parameters(request):
         return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
     for field in PARAM_FIELDS:
         if field in request.data:
-            setattr(proof, field, request.data[field])
+            val = request.data[field]
+            if field == 'visible_rules' and isinstance(val, dict):
+                val = json.dumps(val)
+            setattr(proof, field, val)
     proof.save()
     return Response({f: getattr(proof, f) for f in PARAM_FIELDS}, status=status.HTTP_200_OK)
 
@@ -1474,6 +1578,7 @@ def download_proof(request):
         'support_ih': proof.support_ih,
         'support_premise': proof.support_premise,
         'support_rule_set': proof.support_rule_set,
+        "visible_rules": parse_visible_rules(proof.visible_rules),
         'support_value_mapping': proof.support_value_mapping,
         'lines': {
             'LHS': [line_to_dict(l) for l in lhs_lines],
@@ -1506,6 +1611,7 @@ def upload_proof(request):
             support_ih=data.get('support_ih', True),
             support_premise=data.get('support_premise', True),
             support_rule_set=data.get('support_rule_set', True),
+            visible_rules=data.get('visible_rules', {}),
             support_value_mapping=data.get('support_value_mapping', True),
         )
         lines_data = data.get('lines', {})
