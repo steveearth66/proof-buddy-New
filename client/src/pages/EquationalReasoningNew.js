@@ -327,7 +327,7 @@ const EquationalReasoningNew = () => {
               sessionStorage.setItem('erProofActive', 'true');
 
               // Persist any params the user pre-configured before starting the proof.
-              const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules'];
+              const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules', 'support_rewrite_complexity'];
               const hasCustomParams = PARAM_KEYS.some(k => proofParams[k] !== true && (typeof proofParams[k] === 'object' && proofParams[k].length > 0));
               if (hasCustomParams) {
                 try {
@@ -399,7 +399,8 @@ const EquationalReasoningNew = () => {
     support_premise: true,
     support_rule_set: true,
     support_value_mapping: true,
-    visible_rules: {}
+    visible_rules: {},
+    support_rewrite_complexity: true
   });
   
   // Separate premises for base and leap cases
@@ -649,7 +650,7 @@ const EquationalReasoningNew = () => {
         setCurrentRHS(findLast(proofData.RHS) || proofData.rhsAnchorGoal);
 
           // F. Restore support params
-          const INIT_PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules'];
+          const INIT_PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules','support_rewrite_complexity'];
           const initExtracted = {};
           INIT_PARAM_KEYS.forEach(k => { if (k in proofData) initExtracted[k] = proofData[k]; });
           if (Object.keys(initExtracted).length > 0) setProofParams(prev => ({ ...prev, ...initExtracted }));
@@ -903,7 +904,7 @@ const EquationalReasoningNew = () => {
       }
 
       // Extract support params and proof_id
-      const PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules'];
+      const PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules','support_rewrite_complexity'];
       const extracted = {};
       PARAM_KEYS.forEach(k => { if (k in proofLines) extracted[k] = proofLines[k]; });
       if (Object.keys(extracted).length > 0) setProofParams(prev => ({ ...prev, ...extracted }));
@@ -1200,6 +1201,7 @@ const handleRuleKeyDown = (e) => {
         rule: ruleFromFooter,
         startPosition: previousStartPosition,
         selectedNode: previousStartPosition,
+        supportRewriteComplexity: proofParams.support_rewrite_complexity,
         ...(typeof currentIndex === 'number' && { lineNumber: currentIndex })
       };
 
@@ -1563,7 +1565,8 @@ const handleRuleKeyDown = (e) => {
         currentRacket: currentRacket,
         side: showSide,
         case: "base",
-        lineNumber: padIndex
+        lineNumber: padIndex,
+        supportRewriteComplexity: proofParams.support_rewrite_complexity
       };
 
       try {
