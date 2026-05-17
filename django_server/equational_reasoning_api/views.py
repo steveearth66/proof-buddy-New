@@ -10,7 +10,7 @@ from dill import dumps, loads
 from django.core.cache import cache
 from django.db import models
 
-from .models import EquationalProof, EquationalProofLine
+from .models import EquationalProof, EquationalProofLine, EquationalProofLineComment
 from proofs.views import use_uploaded_generic
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
@@ -1613,3 +1613,82 @@ def upload_proof(request):
         return Response({'proofId': proof.id, 'proofName': name}, status=status.HTTP_201_CREATED)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+
+@api_view(["POST"])
+def save_comment(request):
+
+    try:
+        user = request.user
+        _, proof_id = get_or_set_equational_obj(user)
+
+        data = request.data
+
+        side = data.get("side")
+        line_number = data.get("line_number")
+        role = data.get("role")
+        comment_text = data.get("comment")
+
+        comment_obj, created = EquationalProofLineComment.objects.update_or_create(
+            proof_id=proof_id,
+            side=side,
+            line_number=line_number,
+            role=role,
+            defaults={
+                "comment": comment_text
+            }
+        )
+
+        return Response({
+            "success": True
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+
+        print("SAVE COMMENT ERROR:", e)
+
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+
+@api_view(["GET"])
+def get_comments(request):
+
+    try:
+        user = request.user
+        _, proof_id = get_or_set_equational_obj(user)
+
+        side = request.GET.get("side")
+        line_number = request.GET.get("line_number")
+
+        comments = EquationalProofLineComment.objects.filter(
+            proof_id=proof_id,
+            side=side,
+            line_number=line_number
+        )
+
+        result = {
+            "student": "",
+            "instructor": ""
+        }
+
+        for c in comments:
+
+            if c.role == "student":
+                result["student"] = c.comment
+
+            elif c.role == "instructor":
+                result["instructor"] = c.comment
+
+        return Response(result, status=status.HTTP_200_OK)
+
+    except Exception as e:
+
+        print("GET COMMENTS ERROR:", e)
+
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )

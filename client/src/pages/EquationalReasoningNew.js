@@ -1750,15 +1750,17 @@ const handleRuleKeyDown = (e) => {
         <Col xs="auto" className="d-flex align-items-center">
           <Button   
           variant="secondary"
-          onClick={() => {
+          onClick={async() => {
+            const data = await equationalService.getComments({
+              side: side,
+              line_number: padIndex
+            })
+
             setActivePadIndex(padIndex);
             setActiveSide(side);
-            const existing = comments?.[side]?.[padIndex] || {
-              student: "",
-              instructor: ""
-            };
-            setStudentComment(existing.student);
-            setInstructorComment(existing.instructor);
+            
+            setStudentComment(data.student || "");
+            setInstructorComment(data.instructor || "");
             setShowCommentsModal(true);
           }}
           >
@@ -2768,17 +2770,21 @@ const handleRuleKeyDown = (e) => {
               onStudentCommentChange={setStudentComment}
               OnInstructorCommentChange={setInstructorComment}
               isStudent={currentUserType?.is_student}
-              onSave={() => {
-                setComments(prev => ({
-                  ...prev,
-                  [activeSide]: {
-                    ...prev[activeSide],
-                    [activePadIndex]: {
-                      student: studentComment,
-                      instructor: instructorComment
-                    }
-                  }
-                }))
+              onSave={async() => {
+                await equationalService.saveComment({
+                  side: activeSide,
+                  line_number: activePadIndex,
+                  role: "student",
+                  comment: studentComment
+                });
+
+                await equationalService.saveComment({
+                  side: activeSide,
+                  line_number: activePadIndex,
+                  role: "instructor",
+                  comment: instructorComment
+                });
+
                 setShowCommentsModal(false);
               }}
             />

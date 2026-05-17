@@ -210,6 +210,38 @@ const uploadProof = async (proofData) => {
   }
 };
 
+const saveComment = async (data) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/save-comment`,
+      data
+    );
+
+    return response.data;
+
+  } catch (error) {
+    handleServiceError(error, "Error saving comment:");
+    throw error;
+  }
+};
+
+const getComments = async (params) => {
+  try {
+    const response = await axiosInstance.get(
+      `${API_GATEWAY}/get-comments`,
+      {
+        params
+      }
+    );
+
+    return response.data;
+
+  } catch (error) {
+    handleServiceError(error, "Error loading comments:");
+    throw error;
+  }
+};
+
 const equationalService = {
   setCurrentProof,
   applyRule,
@@ -227,7 +259,9 @@ const equationalService = {
   deleteRacketProof,
   setParameters,
   downloadProof,
-  uploadProof
+  uploadProof,
+  saveComment,
+  getComments
 };
 
 export default equationalService;

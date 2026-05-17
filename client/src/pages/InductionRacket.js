@@ -3239,7 +3239,7 @@ const InductionRacket = () => {
             comment: studentComment
           });
 
-          inductionService.saveComment({
+          await inductionService.saveComment({
             side: activeSide,
             line_number: activePadIndex,
             role: "instructor",
