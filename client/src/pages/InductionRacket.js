@@ -362,6 +362,14 @@ const InductionRacket = () => {
   };
 
   const checkCurrentProofStatus = async () => {
+    // In play mode, block the check until all lines have been revealed across all cases/sides
+    const anyStillActive = ['base', 'leap'].some(ck =>
+      ['LHS', 'RHS'].some(s => playIsActive(playState, ck, s))
+    );
+    if (anyStillActive) {
+      toast.warning('Finish reviewing all proof lines before checking completion.');
+      return;
+    }
     try {
       // Check both base and leap cases
       const baseResult = await inductionService.checkCompletion('base');
@@ -605,34 +613,38 @@ const InductionRacket = () => {
     // Toggle the case - baseRacketFields and leapRacketFields are separate in state
     const newIsAnchor = !isAnchor;
     setIsAnchor(newIsAnchor);
-    
-    // Update Current LHS/RHS to match the new case's last non-empty line (or premise)
+
+    // Update Current LHS/RHS to match the new case's last DISPLAYED non-empty line (or premise)
+    const newCaseKey = newIsAnchor ? 'base' : 'leap';
     const targetFields = newIsAnchor ? baseRacketFields : leapRacketFields;
     const targetPremises = newIsAnchor ? basePremises : leapPremises;
     const lhsLines = targetFields.LHS || [];
     const rhsLines = targetFields.RHS || [];
-    
-    // Find last non-empty, non-premise line (premise is at index 0)
-    const findLastNonEmptyLine = (lines) => {
-      // Start from the end and work backwards, skipping empties
-      for (let i = lines.length - 1; i > 0; i--) {
+
+    // In play mode, clamp scan to only revealed lines; null means show all
+    const lhsLimit = visibleLineCount(playState, newCaseKey, 'LHS');
+    const rhsLimit = visibleLineCount(playState, newCaseKey, 'RHS');
+
+    // Find last non-empty, non-premise line up to maxVisible (premise is at index 0)
+    const findLastNonEmptyLine = (lines, maxVisible) => {
+      const limit = maxVisible !== null ? Math.min(maxVisible, lines.length) : lines.length;
+      for (let i = limit - 1; i > 0; i--) {
         if (lines[i] && lines[i].racket && lines[i].racket.trim() !== '') {
           return lines[i];
         }
       }
-      // If no non-empty proof line found, return null (will fall back to premise)
       return null;
     };
-    
-    const lastLhsLine = findLastNonEmptyLine(lhsLines);
-    const lastRhsLine = findLastNonEmptyLine(rhsLines);
-    
+
+    const lastLhsLine = findLastNonEmptyLine(lhsLines, lhsLimit);
+    const lastRhsLine = findLastNonEmptyLine(rhsLines, rhsLimit);
+
     setLhsValue(lastLhsLine?.racket || targetPremises.LHS?.racket || '');
     setRhsValue(lastRhsLine?.racket || targetPremises.RHS?.racket || '');
-    
+
     // No database reload - state already contains both base and leap cases
     // Reloading would reset any highlighting changes made by clicking (not applying rules)
-  }, [isAnchor, baseRacketFields, leapRacketFields, basePremises, leapPremises]);
+  }, [isAnchor, baseRacketFields, leapRacketFields, basePremises, leapPremises, playState]);
 
   /**
    * Unbind footer from current proof line.
@@ -1243,33 +1255,39 @@ const InductionRacket = () => {
     }
   }, [isAnchor, proofStarted, unbindFooter, clearValidationErrors]);
 
-  // Update Current LHS/RHS display to show the last non-empty line
+  // Update Current LHS/RHS display to show the last non-empty DISPLAYED line
   useEffect(() => {
     if (!proofStarted) return;
-    
+
+    const indCaseKey = isAnchor ? 'base' : 'leap';
     const targetFields = isAnchor ? baseRacketFields : leapRacketFields;
     const targetPremises = isAnchor ? basePremises : leapPremises;
     const lhsLines = targetFields.LHS || [];
     const rhsLines = targetFields.RHS || [];
-    
-    // Find last non-empty, non-premise line (premise is at index 0)
-    const findLastNonEmptyLine = (lines) => {
-      for (let i = lines.length - 1; i > 0; i--) {
+
+    // In play mode, clamp scan to only revealed lines; null means show all
+    const lhsLimit = visibleLineCount(playState, indCaseKey, 'LHS');
+    const rhsLimit = visibleLineCount(playState, indCaseKey, 'RHS');
+
+    // Find last non-empty, non-premise line up to maxVisible (premise is at index 0)
+    const findLastNonEmptyLine = (lines, maxVisible) => {
+      const limit = maxVisible !== null ? Math.min(maxVisible, lines.length) : lines.length;
+      for (let i = limit - 1; i > 0; i--) {
         if (lines[i] && lines[i].racket && lines[i].racket.trim() !== '') {
           return lines[i];
         }
       }
       return null;
     };
-    
-    const lastLhsLine = findLastNonEmptyLine(lhsLines);
-    const lastRhsLine = findLastNonEmptyLine(rhsLines);
+
+    const lastLhsLine = findLastNonEmptyLine(lhsLines, lhsLimit);
+    const lastRhsLine = findLastNonEmptyLine(rhsLines, rhsLimit);
     setLhsValue(lastLhsLine?.racket || targetPremises.LHS?.racket || '');
     setLhsHidden((currentUserType.is_student && lastLhsLine?.hide_expression) || false);
     setRhsValue(lastRhsLine?.racket || targetPremises.RHS?.racket || '');
     setRhsHidden((currentUserType.is_student && lastRhsLine?.hide_expression) || false);
 
-  }, [proofStarted, isAnchor, baseRacketFields, leapRacketFields, basePremises, leapPremises]);
+  }, [proofStarted, isAnchor, baseRacketFields, leapRacketFields, basePremises, leapPremises, playState]);
 
   useEffect(() => {
     // Disabled: Confetti should only show when BOTH base AND leap cases are complete

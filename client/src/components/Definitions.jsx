@@ -570,17 +570,7 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
       const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
       
       // Merge: prefer backend data but preserve 'enabled' state from sessionStorage
-      const merged = userGenerics.map(backendGen => {
-        const storedGen = storedGenerics.find(sg => sg.label === backendGen.label || sg.name === backendGen.name);
-        if (storedGen) {
-          // sessionStorage is source of truth for enabled state.
-          // If enabled is undefined in sessionStorage, default to true (any known generic should start enabled).
-          const resolvedEnabled = storedGen.enabled !== undefined ? storedGen.enabled : true;
-          return { ...backendGen, enabled: resolvedEnabled };
-        }
-        const resolvedEnabled = backendGen.enabled ?? true;
-        return { ...backendGen, enabled: resolvedEnabled };
-      });
+      const merged = userGenerics;
       
       // Add any sessionStorage generics that don't exist in backend yet
       storedGenerics.forEach(stored => {
