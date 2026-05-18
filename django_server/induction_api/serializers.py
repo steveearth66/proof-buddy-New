@@ -1,9 +1,20 @@
 from rest_framework import serializers
 from .models import InductionProof
+from accounts.models import Account
 import re
 
+class PartialUserSerializer(serializers.ModelSerializer):
+    is_student = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Account
+        fields = ['id', 'username', 'is_student']
+
+    def get_is_student(self, obj):
+        return not obj.is_instructor
 
 class InductionProofSerializer(serializers.ModelSerializer):
+    user = PartialUserSerializer(read_only=True)
     class Meta:
         model = InductionProof
         fields = [

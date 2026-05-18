@@ -24,6 +24,7 @@ from expression_tree.LemmaApplicator import build_lemma_rule
 from assignments.models import StudentProofMapping
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
+from django.shortcuts import get_object_or_404
 
 User = get_user_model()
 
@@ -747,7 +748,18 @@ def get_proof_lines(request):
         return Response({"hasProof": False}, status=status.HTTP_200_OK)
     
     try:
-        proof = EquationalProof.objects.get(id=proof_id, user=user)
+        proof = get_object_or_404(EquationalProof, id=proof_id)
+        if (proof.user != user):
+            proof_content_type = ContentType.objects.get_for_model(EquationalProof)
+        
+            is_authorized_instructor = StudentProofMapping.objects.filter(
+                object_id=proof.id,
+                content_type=proof_content_type,
+                assignment__course__instructor=user
+            ).exists()
+
+            if not is_authorized_instructor:
+                return Response({"hasProof": False}, status=status.HTTP_403_FORBIDDEN)
         
         # Fetch lines
         lhs_lines = EquationalProofLine.objects.filter(
@@ -787,8 +799,13 @@ def get_proof_lines(request):
                     item['type'] = item.pop('def_type')
                 definitions_data.append(item)
         
+        proof_user = {}
+        proof_user['username'] = proof.user.username
+        proof_user['is_student'] = not proof.user.is_instructor
+
         return Response({
             "hasProof": True,
+            "user": proof_user,
             "lhsAnchorGoal": proof.lhs_goal,
             "rhsAnchorGoal": proof.rhs_goal,
             "proofName": proof.name,
@@ -1089,10 +1106,18 @@ def user_proof(user, proof_id):
     compatible with the load_proof logic and frontend response.
     """
     # 1. Fetch the Proof using the correct field names
-    try:
-        proof = EquationalProof.objects.get(user=user, id=proof_id)
-    except EquationalProof.DoesNotExist:
-        return None
+    proof = get_object_or_404(EquationalProof, id=proof_id)
+    if (proof.user != user):
+        proof_content_type = ContentType.objects.get_for_model(EquationalProof)
+    
+        is_authorized_instructor = StudentProofMapping.objects.filter(
+            object_id=proof.id,
+            content_type=proof_content_type,
+            assignment__course__instructor=user
+        ).exists()
+
+        if not is_authorized_instructor:
+            return None
 
     # 2. Fetch Lines ordered by line number
     lines = EquationalProofLine.objects.filter(proof=proof).order_by('line_number')
