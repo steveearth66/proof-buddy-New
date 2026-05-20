@@ -1,9 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import MainLayout from '../layouts/MainLayout';
-import erService from '../services/erService';
-import Row from 'react-bootstrap/Row';
-import Col from 'react-bootstrap/Col';
+onPageChange={(page) => queryProofs(page)}import MainLayout from '../layouts/MainLayout';
+// erService removed: replaced by equationalService and inductionService
+onPageChange={(page) => queryProofs({ page })}import Col from 'react-bootstrap/Col';
 import Container from 'react-bootstrap/Container';
 import Button from 'react-bootstrap/esm/Button';
 import InputGroup from 'react-bootstrap/InputGroup';
