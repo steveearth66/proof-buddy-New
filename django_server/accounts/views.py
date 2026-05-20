@@ -53,7 +53,7 @@ def get_user(request):
         {
             "username": user.username,
             "email": user.email,
-            "is_student": not user.is_instructor,
+            "is_student": not user.is_instructor,            "is_instructor": user.is_instructor,
         },
         status=status.HTTP_200_OK,
     )
