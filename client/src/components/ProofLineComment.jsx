@@ -1,9 +1,14 @@
 import React, { useState, useCallback } from 'react';
-import PropTypes from 'prop-types';
-import Modal from 'react-bootstrap/Modal';
-import Button from 'react-bootstrap/Button';
-
-/**
+          <Button
+                          variant="primary"<span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '4px' }}>
+              {lastSaved && (
+                                          <span style={{ fontSize: '0.72rem', color: '#6c757d', alignSelf: 'center' }}>
+                                                        Last saved: {new Date(lastSaved).toLocaleTimeString()}
+                                          </span>span>
+                    )}
+                    <Button
+                                    variant="primary"</span>span></button>{hasDraft && <span style={{ color: '#e65c00', fontSize: '0.65rem', fontWeight: 700, marginLeft: '1px' }} title="Unsaved draft">*</span>span>}</span>
+                             const handleClose = () => {const hasDraft = newComment.trim().length > 0;/**
  * ProofLineComment
  *
  * A modal-based comment panel attached to a proof line, matching the Figma mockup.
@@ -106,7 +111,7 @@ const ProofLineComment = ({
                             payload.studentComment = newComment.trim();
                   }
                   await onSave(payload);
-                  try { sessionStorage.removeItem(storageKey); } catch { /* ignore */ }
+                  try { sessionStorage.removeItem(storageKey); const tsKey = `plc_ts_${lineKey}`; localStorage.setItem(tsKey, new Date().toISOString()); } catch { /* ignore */ }
                   setNewComment('');
                   setSaveSuccess(true);
                   setTimeout(() => setSaveSuccess(false), 2500);
