@@ -1628,8 +1628,10 @@ const handleGenerateAndCheck = async () => {
             hideExpression={hideExpression}           // NEW: Pass visibility flag
             hideJustification={hideJustification}     // NEW: Pass visibility flag
           />
+              </Col>
             {!isPremise && (
-          <ProofLineComment
+                    <Col xs="auto" style={{ alignSelf: 'center', paddingLeft: '4px', paddingRight: 0 }}>
+              <ProofLineComment
             lineKey={side + "-" + padIndex}
             instructorComment={field.instructor_comment || ""}
             studentComment={field.student_comment || ""}
@@ -1645,8 +1647,8 @@ const handleGenerateAndCheck = async () => {
               });
             }}
           />
+              </Col>
                           )}
-        </Col>
       </Row>
     );
   }
