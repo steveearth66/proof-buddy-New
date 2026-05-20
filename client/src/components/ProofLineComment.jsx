@@ -1,296 +1,467 @@
 import React, { useState, useCallback } from 'react';
 import PropTypes from 'prop-types';
+import Modal from 'react-bootstrap/Modal';
+import Button from 'react-bootstrap/Button';
 
 /**
  * ProofLineComment
- * 
- * An inline collapsible panel attached to a proof line that supports:
- *   - Instructor prompts (read-only for students, editable for instructors)
- *   - Student responses (editable for everyone)
- *   - AI/instructor correctness feedback badge
- *   - Auto-save draft to sessionStorage to survive page refreshes
- * 
+ *
+ * A modal-based comment panel attached to a proof line, matching the Figma mockup.
+ * Features:
+ * - Toggled by a speech-bubble icon button next to the proof line
+ * - Shows "Comments" modal header
+ * - Displays instructor comments and student comments in a read-only area
+ * - New comment textarea for student/instructor input
+ * - Auto-saves draft to sessionStorage
+ * - Instructor can mark student responses correct/incorrect
+ * - Character count indicator on textarea
+ * - Keyboard shortcut: Ctrl+Enter to submit
+ *
  * Props:
- *   lineKey        - unique identifier string, e.g. "LHS-0" or "base-LHS-2"
+ *   lineKey          - unique identifier string, e.g. "LHS-0"
  *   instructorComment - string (from backend)
- *   studentComment - string (from backend)
- *   commentCorrect - null | true | false
- *   isInstructor   - boolean
- *   onSave         - async ({ instructorComment?, studentComment?, commentCorrect? }) => void
- *   disabled       - boolean (disable inputs while a proof operation is in-flight)
+ *   studentComment    - string (from backend)
+ *   commentCorrect    - null | true | false
+ *   isInstructor      - boolean
+ *   onSave           - async (payload) => void
+ *   disabled         - boolean
  */
 const ProofLineComment = ({
-  lineKey,
-  instructorComment = '',
-  studentComment = '',
-  commentCorrect = null,
-  isInstructor = false,
-  onSave,
-  disabled = false
+    lineKey,
+    instructorComment = '',
+    studentComment = '',
+    commentCorrect = null,
+    isInstructor = false,
+    onSave,
+    disabled = false
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
 
-  // Draft state – initialised from props, but auto-saved to sessionStorage
-  const storageKey = `plc_draft_${lineKey}`;
-  const getSavedDraft = () => {
-    try {
-      const saved = sessionStorage.getItem(storageKey);
-      return saved ? JSON.parse(saved) : null;
-    } catch { return null; }
-  };
+    // Draft state with sessionStorage persistence
+    const storageKey = `plc_draft_${lineKey}`;
 
-  const initDraft = getSavedDraft() || {
-    instructorText: instructorComment,
-    studentText: studentComment
-  };
+    const getSavedDraft = () => {
+          try {
+                  const saved = sessionStorage.getItem(storageKey);
+                  return saved ? JSON.parse(saved) : null;
+          } catch { return null; }
+    };
 
-  const [instructorText, setInstructorText] = useState(initDraft.instructorText);
-  const [studentText, setStudentText] = useState(initDraft.studentText);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
-  const [saveSuccess, setSaveSuccess] = useState(false);
+    const initDraft = getSavedDraft() || {
+          instructorText: instructorComment,
+          studentText: studentComment,
+          newComment: ''
+    };
 
-  // Persist drafts to sessionStorage on every change
-  const persistDraft = useCallback((iText, sText) => {
-    try {
-      sessionStorage.setItem(storageKey, JSON.stringify({ instructorText: iText, studentText: sText }));
-    } catch { /* storage full – ignore */ }
-  }, [storageKey]);
+    const [instructorText, setInstructorText] = useState(initDraft.instructorText);
+    const [studentText, setStudentText] = useState(initDraft.studentText);
+    const [newComment, setNewComment] = useState(initDraft.newComment || '');
+    const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState('');
+    const [saveSuccess, setSaveSuccess] = useState(false);
+    const MAX_CHARS = 500;
 
-  const handleInstructorChange = (e) => {
-    const v = e.target.value;
-    setInstructorText(v);
-    persistDraft(v, studentText);
-  };
+    const persistDraft = useCallback((iText, sText, nc) => {
+          try {
+                  sessionStorage.setItem(storageKey, JSON.stringify({
+                            instructorText: iText,
+                            studentText: sText,
+                            newComment: nc
+                  }));
+          } catch { /* storage full */ }
+    }, [storageKey]);
 
-  const handleStudentChange = (e) => {
-    const v = e.target.value;
-    setStudentText(v);
-    persistDraft(instructorText, v);
-  };
+    const handleNewCommentChange = (e) => {
+          const v = e.target.value.slice(0, MAX_CHARS);
+          setNewComment(v);
+          persistDraft(instructorText, studentText, v);
+    };
 
-  const handleSave = async () => {
-    if (!onSave) return;
-    setSaving(true);
-    setSaveError('');
-    setSaveSuccess(false);
-    try {
-      const payload = {};
-      if (isInstructor) payload.instructorComment = instructorText;
-      payload.studentComment = studentText;
-      await onSave(payload);
-      // Clear session draft on successful save
-      try { sessionStorage.removeItem(storageKey); } catch { /* ignore */ }
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2500);
-    } catch (err) {
-      setSaveError('Failed to save. Please try again.');
-    } finally {
-      setSaving(false);
-    }
-  };
+    const handleInstructorTextChange = (e) => {
+          const v = e.target.value;
+          setInstructorText(v);
+          persistDraft(v, studentText, newComment);
+    };
 
-  // Count characters to show a badge on the toggle button
-  const totalChars = instructorComment.length + studentComment.length;
-  const hasContent = totalChars > 0;
+    const handleSubmit = async () => {
+          if (!onSave) return;
+          if (!newComment.trim() && !isInstructor) return;
+          setSaving(true);
+          setSaveError('');
+          setSaveSuccess(false);
+          try {
+                  const payload = {};
+                  if (isInstructor && instructorText !== instructorComment) {
+                            payload.instructorComment = instructorText;
+                  }
+                  if (!isInstructor && newComment.trim()) {
+                            payload.studentComment = newComment.trim();
+                            setStudentText(newComment.trim());
+                  }
+                  if (isInstructor && newComment.trim()) {
+                            payload.instructorComment = newComment.trim();
+                            setInstructorText(newComment.trim());
+                  }
+                  if (Object.keys(payload).length === 0 && newComment.trim()) {
+                            payload.studentComment = newComment.trim();
+                  }
+                  await onSave(payload);
+                  try { sessionStorage.removeItem(storageKey); } catch { /* ignore */ }
+                  setNewComment('');
+                  setSaveSuccess(true);
+                  setTimeout(() => setSaveSuccess(false), 2500);
+          } catch {
+                  setSaveError('Failed to save. Please try again.');
+          } finally {
+                  setSaving(false);
+          }
+    };
 
-  // Correctness badge
-  const correctnessBadge = commentCorrect === true
-    ? <span className="badge bg-success ms-1" title="Marked correct">✓</span>
-    : commentCorrect === false
-      ? <span className="badge bg-danger ms-1" title="Marked incorrect">✗</span>
-      : null;
+    const handleClose = () => {
+          setIsOpen(false);
+          setSaveError('');
+    };
 
-  const toggleButtonStyle = {
-    background: 'none',
-    border: hasContent ? '1px solid #0d6efd' : '1px solid #6c757d',
-    borderRadius: '4px',
-    padding: '1px 6px',
-    cursor: 'pointer',
-    fontSize: '0.75rem',
-    color: hasContent ? '#0d6efd' : '#6c757d',
-    marginLeft: '8px',
-    verticalAlign: 'middle',
-    transition: 'all 0.15s'
-  };
+    // Keyboard shortcut: Ctrl+Enter submits
+    const handleKeyDown = (e) => {
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                  e.preventDefault();
+                  handleSubmit();
+          }
+    };
 
-  const panelStyle = {
-    display: isOpen ? 'block' : 'none',
-    background: '#f8f9fa',
-    border: '1px solid #dee2e6',
-    borderRadius: '0 0 6px 6px',
-    padding: '10px 14px',
-    marginTop: '2px',
-    marginBottom: '6px',
-    fontSize: '0.875rem'
-  };
+    // Determine if there are existing comments to display
+    const hasInstructorComment = !!(instructorComment && instructorComment.trim());
+    const hasStudentComment = !!(studentComment && studentComment.trim());
+    const hasAnyComment = hasInstructorComment || hasStudentComment;
 
-  const labelStyle = {
-    display: 'block',
-    fontWeight: 600,
-    marginBottom: '3px',
-    fontSize: '0.78rem',
-    color: '#495057',
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em'
-  };
+    // Correctness badge for the toggle button
+    const correctnessDot = commentCorrect === true
+      ? <span style={{ color: '#198754', fontSize: '0.6rem', marginLeft: '1px' }}>●</span>span>
+          : commentCorrect === false
+      ? <span style={{ color: '#dc3545', fontSize: '0.6rem', marginLeft: '1px' }}>●</span>span>
+          : null;
 
-  const textareaStyle = {
-    width: '100%',
-    borderRadius: '4px',
-    border: '1px solid #ced4da',
-    padding: '5px 8px',
-    fontSize: '0.85rem',
-    resize: 'vertical',
-    minHeight: '56px',
-    fontFamily: 'inherit'
-  };
+    // Toggle button: speech bubble icon, colored if has content
+    const toggleBtnStyle = {
+          background: 'none',
+          border: 'none',
+          padding: '2px 4px',
+          cursor: 'pointer',
+          fontSize: '0.9rem',
+          color: hasAnyComment ? '#dc3545' : '#adb5bd',
+          lineHeight: 1,
+          verticalAlign: 'middle',
+          transition: 'color 0.15s, transform 0.1s',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '1px'
+    };
 
-  return (
-    <div style={{ display: 'inline-block' }}>
-      {/* Toggle button */}
-      <button
-        style={toggleButtonStyle}
-        onClick={() => setIsOpen(!isOpen)}
-        title={hasContent ? 'View/edit comment' : 'Add comment'}
-        aria-expanded={isOpen}
-      >
-        💬{hasContent ? ` ${totalChars}c` : '+'}
-      </button>
-      {correctnessBadge}
-
-      {/* Panel */}
-      <div style={panelStyle}>
-        {/* Instructor comment section */}
-        <div style={{ marginBottom: '10px' }}>
-          <label style={{ ...labelStyle, color: '#6610f2' }}>
-            📋 Instructor prompt
-          </label>
-          {isInstructor ? (
-            <textarea
-              style={textareaStyle}
-              value={instructorText}
-              onChange={handleInstructorChange}
-              disabled={disabled || saving}
-              placeholder="Type a question or prompt for the student about this proof step..."
-              rows={2}
-            />
-          ) : (
-            <div style={{
-              background: '#ede7f6',
-              border: '1px solid #b39ddb',
-              borderRadius: '4px',
-              padding: '6px 10px',
-              minHeight: '36px',
-              color: instructorComment ? '#4a148c' : '#9e9e9e',
-              fontStyle: instructorComment ? 'normal' : 'italic',
-              whiteSpace: 'pre-wrap'
-            }}>
-              {instructorComment || 'No instructor comment for this step.'}
-            </div>
-          )}
-        </div>
-
-        {/* Student comment section */}
-        <div style={{ marginBottom: '8px' }}>
-          <label style={{ ...labelStyle, color: '#0d6efd' }}>
-            ✏️ {isInstructor ? 'Student response' : 'Your note / response'}
-          </label>
-          <textarea
-            style={textareaStyle}
-            value={studentText}
-            onChange={handleStudentChange}
-            disabled={disabled || saving || (isInstructor && false)}
-            placeholder={
-              isInstructor
-                ? "Student's response will appear here once they write one."
-                : instructorComment
-                  ? "Answer the instructor's question above..."
-                  : "Add your own annotation about this proof step..."
-            }
-            rows={2}
-            readOnly={isInstructor}
-          />
-          {isInstructor && (
-            <div style={{ fontSize: '0.75rem', color: '#6c757d', marginTop: '2px' }}>
-              Instructors can read but not overwrite student responses.
-            </div>
-          )}
-        </div>
-
-        {/* Correctness mark (instructor only) */}
-        {isInstructor && (
-          <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ ...labelStyle, margin: 0 }}>Mark response:</span>
-            <button
-              className={`btn btn-sm ${commentCorrect === true ? 'btn-success' : 'btn-outline-success'}`}
-              onClick={() => onSave && onSave({ commentCorrect: commentCorrect === true ? null : true })}
-              disabled={disabled || saving}
-              title="Mark student response as correct"
-            >
-              ✓ Correct
-            </button>
-            <button
-              className={`btn btn-sm ${commentCorrect === false ? 'btn-danger' : 'btn-outline-danger'}`}
-              onClick={() => onSave && onSave({ commentCorrect: commentCorrect === false ? null : false })}
-              disabled={disabled || saving}
-              title="Mark student response as incorrect"
-            >
-              ✗ Incorrect
-            </button>
-            {commentCorrect !== null && (
-              <button
-                className="btn btn-sm btn-outline-secondary"
-                onClick={() => onSave && onSave({ commentCorrect: null })}
-                disabled={disabled || saving}
-                title="Clear mark"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Save button and feedback */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {!isInstructor && (
-            <button
-              className="btn btn-sm btn-primary"
-              onClick={handleSave}
-              disabled={disabled || saving}
-            >
-              {saving ? 'Saving...' : 'Save'}
-            </button>
-          )}
-          {isInstructor && (
-            <button
-              className="btn btn-sm btn-outline-primary"
-              onClick={handleSave}
-              disabled={disabled || saving}
-            >
-              {saving ? 'Saving prompt...' : 'Save prompt'}
-            </button>
-          )}
-          {saveSuccess && (
-            <span style={{ color: '#198754', fontSize: '0.8rem' }}>✓ Saved</span>
-          )}
-          {saveError && (
-            <span style={{ color: '#dc3545', fontSize: '0.8rem' }}>{saveError}</span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+    return (
+          <span style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+            {/* Toggle trigger button */}
+                  <button
+                            style={toggleBtnStyle}
+                            onClick={() => setIsOpen(true)}
+                            title={hasAnyComment ? 'View/edit comments' : 'Add a comment'}
+                            aria-label="Open comments"
+                            tabIndex={0}
+                            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.15)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+                          >
+                    {/* Flag icon if comments exist, speech bubble otherwise */}
+                    {hasAnyComment ? '🚩' : '💬'}
+                    {correctnessDot}
+                  </button>button>
+          
+            {/* Comments Modal */}
+                <Modal
+                          show={isOpen}
+                          onHide={handleClose}
+                          centered
+                          size="lg"
+                          aria-labelledby={`comments-modal-title-${lineKey}`}
+                        >
+                        <Modal.Header style={{ borderBottom: '1px solid #dee2e6', paddingBottom: '12px' }}>
+                                  <Modal.Title
+                                                id={`comments-modal-title-${lineKey}`}
+                                                style={{ fontWeight: 600, fontSize: '1.1rem' }}
+                                              >
+                                              Comments
+                                  </Modal.Title>Modal.Title>
+                        </Modal.Header>Modal.Header>
+                
+                        <Modal.Body style={{ padding: '20px 24px' }}>
+                          {/* Existing Comments Display Area */}
+                                  <div style={{
+                                      background: '#f0f0f0',
+                                      border: '1px solid #dee2e6',
+                                      borderRadius: '6px',
+                                      minHeight: '140px',
+                                      maxHeight: '260px',
+                                      overflowY: 'auto',
+                                      padding: '14px 16px',
+                                      marginBottom: '16px',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: '10px'
+                        }}>
+                                    {!hasAnyComment ? (
+                                        <div style={{
+                                                          display: 'flex',
+                                                          alignItems: 'center',
+                                                          justifyContent: 'center',
+                                                          height: '100px',
+                                                          color: '#6c757d',
+                                                          fontWeight: 500,
+                                                          fontSize: '0.95rem'
+                                        }}>
+                                                        There are no comments yet
+                                        </div>div>
+                                      ) : (
+                                        <>
+                                          {hasInstructorComment && (
+                                                            <div>
+                                                                                <div style={{
+                                                                                    fontSize: '0.72rem',
+                                                                                    fontWeight: 700,
+                                                                                    color: '#6610f2',
+                                                                                    textTransform: 'uppercase',
+                                                                                    letterSpacing: '0.05em',
+                                                                                    marginBottom: '4px'
+                                                              }}>
+                                                                                                      Instructor Comment
+                                                                                  </div>div>
+                                                              {isInstructor ? (
+                                                                                    <textarea
+                                                                                                              style={{
+                                                                                                                                          width: '100%',
+                                                                                                                                          borderRadius: '4px',
+                                                                                                                                          border: '1px solid #b39ddb',
+                                                                                                                                          padding: '6px 10px',
+                                                                                                                                          fontSize: '0.875rem',
+                                                                                                                                          resize: 'vertical',
+                                                                                                                                          minHeight: '60px',
+                                                                                                                                          background: '#ede7f6',
+                                                                                                                                          fontFamily: 'inherit'
+                                                                                                                }}
+                                                                                                              value={instructorText}
+                                                                                                              onChange={handleInstructorTextChange}
+                                                                                                              disabled={disabled || saving}
+                                                                                                              rows={2}
+                                                                                                              placeholder="Edit your instructor prompt..."
+                                                                                                            />
+                                                                                  ) : (
+                                                                                    <div style={{
+                                                                                                              background: '#ede7f6',
+                                                                                                              border: '1px solid #b39ddb',
+                                                                                                              borderRadius: '4px',
+                                                                                                              padding: '8px 12px',
+                                                                                                              color: '#4a148c',
+                                                                                                              fontSize: '0.875rem',
+                                                                                                              whiteSpace: 'pre-wrap',
+                                                                                                              wordBreak: 'break-word'
+                                                                                      }}>
+                                                                                      {instructorComment}
+                                                                                      </div>div>
+                                                                                )}
+                                                            </div>div>
+                                                        )}
+                                        
+                                          {hasStudentComment && (
+                                                            <div>
+                                                                                <div style={{
+                                                                                    fontSize: '0.72rem',
+                                                                                    fontWeight: 700,
+                                                                                    color: '#0d6efd',
+                                                                                    textTransform: 'uppercase',
+                                                                                    letterSpacing: '0.05em',
+                                                                                    marginBottom: '4px',
+                                                                                    display: 'flex',
+                                                                                    alignItems: 'center',
+                                                                                    gap: '6px'
+                                                              }}>
+                                                                                                      My Comment
+                                                                                  {commentCorrect === true && (
+                                                                                      <span style={{
+                                                                                                                  background: '#198754',
+                                                                                                                  color: '#fff',
+                                                                                                                  borderRadius: '3px',
+                                                                                                                  padding: '0px 5px',
+                                                                                                                  fontSize: '0.65rem',
+                                                                                                                  fontWeight: 600
+                                                                                        }}>✓ Correct</span>span>
+                                                                                                      )}
+                                                                                  {commentCorrect === false && (
+                                                                                      <span style={{
+                                                                                                                  background: '#dc3545',
+                                                                                                                  color: '#fff',
+                                                                                                                  borderRadius: '3px',
+                                                                                                                  padding: '0px 5px',
+                                                                                                                  fontSize: '0.65rem',
+                                                                                                                  fontWeight: 600
+                                                                                        }}>✗ Incorrect</span>span>
+                                                                                                      )}
+                                                                                  </div>div>
+                                                                                <div style={{
+                                                                                    background: '#ffffff',
+                                                                                    border: '1px solid #ced4da',
+                                                                                    borderRadius: '4px',
+                                                                                    padding: '8px 12px',
+                                                                                    color: '#212529',
+                                                                                    fontSize: '0.875rem',
+                                                                                    whiteSpace: 'pre-wrap',
+                                                                                    wordBreak: 'break-word'
+                                                              }}>
+                                                                                  {studentComment}
+                                                                                  </div>div>
+                                                            </div>div>
+                                                        )}
+                                        </>>
+                                      )}
+                                  </div>div>
+                        
+                          {/* Instructor correctness controls */}
+                          {isInstructor && hasStudentComment && (
+                                      <div style={{
+                                                      display: 'flex',
+                                                      alignItems: 'center',
+                                                      gap: '8px',
+                                                      marginBottom: '14px',
+                                                      padding: '8px 12px',
+                                                      background: '#fff3cd',
+                                                      borderRadius: '6px',
+                                                      border: '1px solid #ffc107'
+                                      }}>
+                                                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#664d03' }}>
+                                                                    Mark student response:
+                                                    </span>span>
+                                                    <button
+                                                                      className={`btn btn-sm ${commentCorrect === true ? 'btn-success' : 'btn-outline-success'}`}
+                                                                      onClick={() => onSave && onSave({ commentCorrect: commentCorrect === true ? null : true })}
+                                                                      disabled={disabled || saving}
+                                                                      title="Mark as correct"
+                                                                    >
+                                                                    ✓ Correct
+                                                    </button>button>
+                                                    <button
+                                                                      className={`btn btn-sm ${commentCorrect === false ? 'btn-danger' : 'btn-outline-danger'}`}
+                                                                      onClick={() => onSave && onSave({ commentCorrect: commentCorrect === false ? null : false })}
+                                                                      disabled={disabled || saving}
+                                                                      title="Mark as incorrect"
+                                                                    >
+                                                                    ✗ Incorrect
+                                                    </button>button>
+                                        {commentCorrect !== null && (
+                                                        <button
+                                                                            className="btn btn-sm btn-outline-secondary"
+                                                                            onClick={() => onSave && onSave({ commentCorrect: null })}
+                                                                            disabled={disabled || saving}
+                                                                            title="Clear mark"
+                                                                          >
+                                                                          Clear
+                                                        </button>button>
+                                                    )}
+                                      </div>div>
+                                  )}
+                        
+                          {/* New Comment Input Area */}
+                                  <div style={{ position: 'relative' }}>
+                                              <textarea
+                                                              style={{
+                                                                                width: '100%',
+                                                                                border: '1px solid #ced4da',
+                                                                                borderRadius: '4px',
+                                                                                padding: '10px 12px',
+                                                                                fontSize: '0.875rem',
+                                                                                resize: 'vertical',
+                                                                                minHeight: '90px',
+                                                                                fontFamily: 'inherit',
+                                                                                outline: 'none',
+                                                                                transition: 'border-color 0.15s'
+                                                              }}
+                                                              value={newComment}
+                                                              onChange={handleNewCommentChange}
+                                                              onKeyDown={handleKeyDown}
+                                                              disabled={disabled || saving}
+                                                              placeholder="Enter your comments here"
+                                                              maxLength={MAX_CHARS}
+                                                              onFocus={e => { e.target.style.borderColor = '#0d6efd'; }}
+                                                              onBlur={e => { e.target.style.borderColor = '#ced4da'; }}
+                                                            />
+                                              <div style={{
+                                        textAlign: 'right',
+                                        fontSize: '0.72rem',
+                                        color: newComment.length >= MAX_CHARS ? '#dc3545' : '#6c757d',
+                                        marginTop: '2px'
+                        }}>
+                                                {newComment.length}/{MAX_CHARS} · Ctrl+Enter to submit
+                                              </div>div>
+                                  </div>div>
+                        
+                          {/* Feedback messages */}
+                          {saveSuccess && (
+                                      <div style={{
+                                                      color: '#198754',
+                                                      fontSize: '0.82rem',
+                                                      marginTop: '6px',
+                                                      fontWeight: 500
+                                      }}>
+                                                    ✓ Comment saved successfully
+                                      </div>div>
+                                  )}
+                          {saveError && (
+                                      <div style={{
+                                                      color: '#dc3545',
+                                                      fontSize: '0.82rem',
+                                                      marginTop: '6px'
+                                      }}>
+                                        {saveError}
+                                      </div>div>
+                                  )}
+                        </Modal.Body>Modal.Body>
+                
+                        <Modal.Footer style={{ borderTop: '1px solid #dee2e6', justifyContent: 'space-between' }}>
+                                  <Button
+                                                variant="danger"
+                                                onClick={handleClose}
+                                                style={{
+                                                                background: '#e05c6a',
+                                                                border: 'none',
+                                                                borderRadius: '6px',
+                                                                padding: '7px 18px',
+                                                                fontWeight: 500
+                                                }}
+                                              >
+                                              Close Comments Window
+                                  </Button>Button>
+                                  <Button
+                                                variant="primary"
+                                                onClick={handleSubmit}
+                                                disabled={disabled || saving || (!newComment.trim() && !(isInstructor && instructorText !== instructorComment))}
+                                                style={{
+                                                                borderRadius: '6px',
+                                                                padding: '7px 18px',
+                                                                fontWeight: 500
+                                                }}
+                                              >
+                                    {saving ? 'Saving...' : 'Submit Comment'}
+                                  </Button>Button>
+                        </Modal.Footer>Modal.Footer>
+                </Modal>Modal>
+          </span>span>
+        );
 };
 
 ProofLineComment.propTypes = {
-  lineKey: PropTypes.string.isRequired,
-  instructorComment: PropTypes.string,
-  studentComment: PropTypes.string,
-  commentCorrect: PropTypes.bool,
-  isInstructor: PropTypes.bool,
-  onSave: PropTypes.func,
-  disabled: PropTypes.bool
+    lineKey: PropTypes.string.isRequired,
+    instructorComment: PropTypes.string,
+    studentComment: PropTypes.string,
+    commentCorrect: PropTypes.bool,
+    isInstructor: PropTypes.bool,
+    onSave: PropTypes.func,
+    disabled: PropTypes.bool
 };
 
 export default ProofLineComment;
