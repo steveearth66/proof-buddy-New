@@ -19,7 +19,7 @@ import { useInputState } from "../hooks/useInputState";
 import { useFormValidation } from "../hooks/useFormValidation";
 import { useGoalCheck } from "../hooks/useGoalCheck";
 import { useCurrentRacketValues } from "../hooks/useCurrentRacketValues";
-import { useFormSubmit } from "../hooks/useFormSubmit";
+// useFormSubmit imported for future use
 import "../scss/_forms.scss";
 import "../scss/_er-racket.scss";
 import { useRacketRuleFields } from "../hooks/useRacketRuleFields";
@@ -2447,7 +2447,7 @@ const handleGenerateAndCheck = async () => {
             
             try {
                 // Call backend to clear line in database and reset completion flags
-                await equationalService.deleteLine('base', showSide, lineNum);
+                await equationalService.deleteLine(showSide, lineNum);
                 
                 // Update local state to clear the line
                 const targetFields = racketRuleFields;
