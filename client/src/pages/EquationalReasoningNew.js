@@ -18,7 +18,6 @@ import { useOffcanvas } from "../hooks/useOffcanvas";
 import { useInputState } from "../hooks/useInputState";
 import { useFormValidation } from "../hooks/useFormValidation";
 import { useGoalCheck } from "../hooks/useGoalCheck";
-import { useCurrentRacketValues } from "../hooks/useCurrentRacketValues";
 // useFormSubmit imported for future use
 import "../scss/_forms.scss";
 import "../scss/_er-racket.scss";
@@ -44,7 +43,6 @@ import {
 } from "../utils/erRacketUtils";
 import {
   initPlayState,
-  isActive as playIsActive,
   visibleLineCount,
   showContinue,
   advancePlay,
@@ -52,7 +50,7 @@ import {
   getLastRealIndex
 } from "../utils/playModeUtils";
 import userService from "../services/userService"
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 
 /**
  * Equational Reasoning component facilitates the Equational Reasoning Racket.
@@ -115,9 +113,9 @@ const EquationalReasoningNew = () => {
       handleSelect: rhsGoalSelect 
     } = useParenHighlight(formValues.rHSGoal);
     
-    const [validationMessages, handleBlur, setAllTouched, isFormValid] =
+    const [validationMessages, handleBlur] =
         useFormValidation(formValues, validateField);
-    const [validated, setValidated] = useState(false);
+  const [validated] = useState(false);
     const [
         ,
         checkGoal,
@@ -156,10 +154,6 @@ const EquationalReasoningNew = () => {
     // Current values (computed from last line)
     const [currentLHS, setCurrentLHS] = useState("");
     const [currentRHS, setCurrentRHS] = useState("");
-    const [racketFields, setRacketFields] = useState({
-        LHS: [],
-        RHS: []
-      });
     const [errors, setErrors] = useState([]);
     const [showOverwriteModal, setShowOverwriteModal] = useState(false);
     const [showStartConfirmModal, setShowStartConfirmModal] = useState(false);
@@ -416,11 +410,6 @@ const EquationalReasoningNew = () => {
   const uploadFileRef = useRef(null);
   const [userRow, setUserRow] = useState({ num: "" });
   const [isBound, setIsBound] = useState(false);
-  const navigate = useNavigate();
-  const loadErrorShownRef = useRef(false);
-  const [loadedProof, setLoadedProof] = useState(null);
-  const [footerRule, setFooterRule] = useState("");
-  const [footerRuleError, setFooterRuleError] = useState("");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   
   // Hook for getting available height for scrollable proof area
@@ -585,6 +574,7 @@ const EquationalReasoningNew = () => {
     };
 
     initializeProofSession();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Initialize jsonTreeRep as empty object for passing to renderPersistentPadRow
@@ -702,7 +692,7 @@ const EquationalReasoningNew = () => {
     }, 0);
 
     return true;
-  }, [showSide, lhsPadRefs, rhsPadRefs, racketRuleFields, clearValidationErrors]);
+  }, [showSide, lhsPadRefs, rhsPadRefs, racketRuleFields, clearValidationErrors, formValues.lHSGoal, formValues.rHSGoal]);
 
   // Control body overflow when proof is started
   
@@ -721,6 +711,7 @@ const EquationalReasoningNew = () => {
    * Load proof lines from the database and populate racketRuleFields with highlighting data.
    * This ensures that when switching sides/cases, the highlighting persists.
    */
+  // eslint-disable-next-line no-unused-vars
   const loadProofLinesFromDatabase = useCallback(async () => {
     console.log('[loadProofLinesFromDatabase] CALLED');
     try {
@@ -825,7 +816,7 @@ const EquationalReasoningNew = () => {
     toggleSide();
     
     // No database reload - we want to preserve current UI state including any highlighting changes
-  }, [showSide, toggleSide]);
+  }, [toggleSide]);
 
   /**
    * Unbind footer from current proof line.
