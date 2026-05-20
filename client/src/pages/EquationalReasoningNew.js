@@ -410,6 +410,8 @@ const EquationalReasoningNew = () => {
   const uploadFileRef = useRef(null);
   const [userRow, setUserRow] = useState({ num: "" });
   const [isBound, setIsBound] = useState(false);
+  const [footerRule, setFooterRule] = useState("");
+  const [footerRuleError, setFooterRuleError] = useState("");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   
   // Hook for getting available height for scrollable proof area
@@ -692,7 +694,8 @@ const EquationalReasoningNew = () => {
     }, 0);
 
     return true;
-  }, [showSide, lhsPadRefs, rhsPadRefs, racketRuleFields, clearValidationErrors, formValues.lHSGoal, formValues.rHSGoal]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSide, lhsPadRefs, rhsPadRefs, racketRuleFields, clearValidationErrors]);
 
   // Control body overflow when proof is started
   
