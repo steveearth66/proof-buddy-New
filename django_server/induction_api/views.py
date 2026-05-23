@@ -22,7 +22,9 @@ from expression_tree.default_udfs import DEFAULT_UDFS
 from proofs.views import use_uploaded_generic
 from .models import InductionProofLine
 
-
+from assignments.models import StudentProofMapping
+from django.contrib.contenttypes.models import ContentType
+from django.utils import timezone
 
 User = get_user_model()
 
@@ -1628,6 +1630,21 @@ def check_completion(request):
         # Persist overall completion status to database
         if proof_id:
             InductionProof.objects.filter(id=proof_id).update(is_complete=overall_complete)
+
+            # update assignment if it exists and is completed for the first time
+            if overall_complete:
+                content_type = ContentType.objects.get(app_label="induction_api", model="inductionproof")
+                mapping = StudentProofMapping.objects.filter(
+                    content_type=content_type,
+                    object_id=proof_id
+                ).first()
+
+                # If it belongs to an assignment, lock in the completion timestamp
+                if mapping:
+                    # Only set it if it hasn't been completed before
+                    if not mapping.completed_at:
+                        mapping.completed_at = timezone.now()
+                        mapping.save()
 
         # Save updated completion status to cache
         save_induction_obj_to_cache(user, proof, proof_id)
