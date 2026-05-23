@@ -25,6 +25,7 @@ from .models import InductionProofLine
 from assignments.models import StudentProofMapping
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
+from django.shortcuts import get_object_or_404
 
 User = get_user_model()
 
@@ -540,7 +541,18 @@ def get_induction_proof(request, proof_id):
     user = request.user
     
     try:
-        proof = InductionProof.objects.get(id=proof_id, user=user)
+        proof = get_object_or_404(InductionProof, id=proof_id)
+        if (proof.user != user):
+            proof_content_type = ContentType.objects.get_for_model(InductionProof)
+        
+            is_authorized_instructor = StudentProofMapping.objects.filter(
+                object_id=proof.id,
+                content_type=proof_content_type,
+                assignment__course__instructor=user
+            ).exists()
+
+            if not is_authorized_instructor:
+                return Response({"hasProof": False}, status=status.HTTP_403_OK)
         serializer = InductionProofSerializer(proof)
         return Response(serializer.data, status=status.HTTP_200_OK)
     except InductionProof.DoesNotExist:
@@ -1841,10 +1853,18 @@ def set_induction_session_by_id(request):
     proof_id = request.data.get('proof_id')
     
     try:
-        try:
-            proof = InductionProof.objects.get(id=proof_id, user=user)
-        except InductionProof.DoesNotExist:
-            return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
+        proof = get_object_or_404(InductionProof, id=proof_id)
+        if (proof.user != user):
+            proof_content_type = ContentType.objects.get_for_model(InductionProof)
+        
+            is_authorized_instructor = StudentProofMapping.objects.filter(
+                object_id=proof.id,
+                content_type=proof_content_type,
+                assignment__course__instructor=user
+            ).exists()
+
+            if not is_authorized_instructor:
+                return Response({"hasProof": False}, status=status.HTTP_403_FORBIDDEN)
         
         # 1. Initialize the Engine
         ind_proof = IndProof()

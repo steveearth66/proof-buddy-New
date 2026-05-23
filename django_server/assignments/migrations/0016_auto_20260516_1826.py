@@ -38,6 +38,8 @@ def backfill_completed_dates(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
+        ('equational_reasoning_api', '0007_alter_equationalproof_visible_rules'),
+        ('induction_api', '0016_alter_inductionproof_visible_rules'),
         ('assignments', '0015_studentproofmapping_completed_at'),
         ('equational_reasoning_api', '0008_equationalproof_support_rewrite_complexity'),
         ('induction_api', '0017_inductionproof_support_rewrite_complexity'),

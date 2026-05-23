@@ -3,14 +3,21 @@ import { Modal, Button, Form, Table, OverlayTrigger, Tooltip, Spinner } from "re
 import NumberedPagination from '../../Pagination';
 import courseService from '../../../services/courseServices';
 
-export default function AddAssignmentModal({ show, onHide, onExited, courseId, onSaveAssignment, assignment = null }) {  
-  const isEditMode = !!assignment;
+export const AssignmentMode = Object.freeze({
+  CREATE: 'create',
+  EDIT: 'edit',
+  COPY: 'copy'
+});
 
+export default function AddAssignmentModal({ show, onHide, onExited, courseId, onSaveAssignment, mode, assignment = null }) {  
   // --- View State ---
   const [currentView, setCurrentView] = useState('form'); 
   
   const [libraryProofs, setLibraryProofs] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  const [instructorCourses, setInstructorCourses] = useState([]);
+  const [targetCourseId, setTargetCourseId] = useState('');
 
   useEffect(() => {
     if (show) {
@@ -18,6 +25,9 @@ export default function AddAssignmentModal({ show, onHide, onExited, courseId, o
         setIsLoading(true);
         const data = await courseService.getInstructorLibrary();
         setLibraryProofs(data);
+
+        const courseData = await courseService.getCourses();
+        setInstructorCourses(courseData);
         setIsLoading(false);
       };
       loadLibrary();
@@ -25,18 +35,26 @@ export default function AddAssignmentModal({ show, onHide, onExited, courseId, o
   }, [show]);
 
   useEffect(() => {
-    if (show) {
-      if (assignment) {
+  if (show) {
+    if (assignment) {
+      if (mode === 'copy') {
+        setTitle(`Copy of ${assignment.title || ''}`);
+        setDueDate('');
+        setTargetCourseId('');
+        setSelectedProofs((assignment.proofs || []).map(p => ({ ...p, is_locked: false, isOriginal: false })));
+      } else {
         setTitle(assignment.title || '');
         setDueDate(assignment.due_date ? assignment.due_date.substring(0, 16) : '');
+        setTargetCourseId(courseId);
         setSelectedProofs((assignment.proofs || []).map(p => ({ ...p, isOriginal: true })));
-      } else {
-        setTitle('');
-        setDueDate('');
-        setSelectedProofs([]);
       }
+    } else {
+      setTitle('');
+      setDueDate('');
+      setSelectedProofs([]);
     }
-  }, [show, assignment]);
+  }
+}, [show, assignment, mode]);
 
   // --- Pagination State ---
   const [proofPage, setProofPage] = useState(1);
@@ -56,14 +74,16 @@ export default function AddAssignmentModal({ show, onHide, onExited, courseId, o
     setIsSubmitting(true);
 
     const payload = {
-        id: assignment?.id,
+        id: mode === AssignmentMode.EDIT ? assignment?.id : null,
         title: title,
         description: assignment?.description || "No Description Provided",
         due_date: dueDate,
-        course: courseId,
-        proofs: selectedProofs.map(p => ({
+        course: mode === AssignmentMode.COPY ? targetCourseId : courseId,
+        proofs: selectedProofs.map((p, idx) => ({
             id: p.id,
-            type: p.type
+            type: p.type,
+            name: p.name,
+            order: idx
         }))
     };
 
@@ -99,7 +119,7 @@ export default function AddAssignmentModal({ show, onHide, onExited, courseId, o
     const proofToRemove = selectedProofs.find(p => p.id === id);
     if (!proofToRemove) return;
     const confirmed = window.confirm(
-        `Are you sure you want to remove "${proofToRemove.title}" from this assignment?\nIf you add the proof back, it will use the current version of the selected proof, not the version that was originally used.`
+        `Are you sure you want to remove "${proofToRemove.name}" from this assignment?\nIf you add the proof back, it will use the current version of the selected proof, not the version that was originally used.`
     );
 
     if (confirmed) {
@@ -151,13 +171,13 @@ export default function AddAssignmentModal({ show, onHide, onExited, courseId, o
             <tr>
               <th style={{ width: '0%' }} className="text-center">Select</th>
               <th>Proof Name</th>
-              <th>Category</th>
+              <th>Tag</th>
               <th>Type</th>
             </tr>
           </thead>
           <tbody>
             {paginatedInstructorProofs.map(proof => {
-              const selectionRecord = selectedProofs.find(p => p.title === proof.title && p.type === proof.type);
+              const selectionRecord = selectedProofs.find(p => p.name === proof.name && p.type === proof.type);
               return (
                 <tr key={proof.id} onClick={() => handleToggleProof(proof)} style={{ cursor: selectionRecord?.isOriginal ? 'not-allowed' : 'pointer' }}>                
                   <td className="text-center">
@@ -169,8 +189,8 @@ export default function AddAssignmentModal({ show, onHide, onExited, courseId, o
                       onClick={(e) => e.stopPropagation()} 
                     />
                   </td>
-                  <td className="fw-semibold">{proof.title}</td>
-                  <td>{proof.category}</td>
+                  <td className="fw-semibold">{proof.name}</td>
+                  <td>{proof.tag}</td>
                   <td>{proof.displayType}</td>
                 </tr>
               )
@@ -194,7 +214,17 @@ export default function AddAssignmentModal({ show, onHide, onExited, courseId, o
   const renderFormView = () => (
     <>
       <Modal.Header closeButton>
-        <Modal.Title>{(isEditMode) ? "Edit" : "Create"} Assignment</Modal.Title>
+        <Modal.Title>{(() => {
+          switch (mode) {
+            case AssignmentMode.CREATE:
+              return "Create";
+            case AssignmentMode.EDIT:
+              return "Edit";
+            case AssignmentMode.COPY:
+              return "Copy";
+          }
+        }
+        )()} Assignment</Modal.Title>
       </Modal.Header>
       <Modal.Body>
         <div className="d-flex justify-content-between align-items-center mb-3">
@@ -207,9 +237,9 @@ export default function AddAssignmentModal({ show, onHide, onExited, courseId, o
         <Table size="sm" bordered hover className="align-middle mb-4">
           <thead className="table-light">
             <tr>
-              <th style={{ width: '0%' }}></th> 
+              {selectedProofs.length > 1 && <th style={{ width: '0%' }}></th>} 
               <th>Proof Name</th>
-              <th>Category</th>
+              <th>Tag</th>
               <th>Type</th>
               <th style={{ width: '0%' }} className="text-center">Action</th>
             </tr>
@@ -217,20 +247,41 @@ export default function AddAssignmentModal({ show, onHide, onExited, courseId, o
           <tbody>
             {selectedProofs.length > 0 ? (
               selectedProofs.map((proof, index) => {
-                const selectionRecord = selectedProofs.find(p => p.title === proof.title && p.type === proof.type);
+                let canDrag = selectedProofs.length > 1;
+                const selectionRecord = selectedProofs.find(p => p.name === proof.name && p.type === proof.type);
                 return (
                   <tr 
                     key={proof.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, index)}
-                    onDragEnter={(e) => handleDragEnter(e, index)}
-                    onDragEnd={handleDragEnd}
-                    onDragOver={(e) => e.preventDefault()}
-                    style={{ cursor: draggedIndex === index ? 'grabbing' : 'grab' }}
+                    draggable={canDrag}
+                    onDragStart={(e) => canDrag ? handleDragStart(e, index) : e.preventDefault()}
+                    onDragEnter={(e) => canDrag ? handleDragEnter(e, index) : null}
+                    onDragEnd={canDrag ? handleDragEnd : null}
+                    onDragOver={(e) => canDrag ? e.preventDefault() : null}
+                    style={{ 
+                      cursor: !canDrag 
+                        ? 'default' 
+                        : draggedIndex === index 
+                          ? 'grabbing' 
+                          : 'grab' 
+                    }}
                   >
-                    <td className="text-center text-muted"><i className="fa-solid fa-grip-vertical"></i></td>
-                    <td className="fw-semibold">{proof.title}</td>
-                    <td>{proof.category}</td>
+                    {canDrag && <td className="text-center text-muted"><i className="fa-solid fa-grip-vertical"></i></td>}
+                    <td className="fw-semibold">
+                      {proof.is_locked ? (
+                        <>{proof.name}</>
+                      ) : (
+                        <Form.Control 
+                          type="text" 
+                          size="sm"
+                          value={proof.name} 
+                          onChange={(e) => {
+                            const newName = e.target.value;
+                            setSelectedProofs(prev => prev.map((p, i) => i === index ? { ...p, name: newName } : p));
+                          }} 
+                        />
+                      )}
+                  </td>
+                    <td>{proof.tag}</td>
                     <td>{proof.displayType}</td>
                     <td className="text-center">
                       {proof.is_locked ? (
@@ -284,6 +335,21 @@ export default function AddAssignmentModal({ show, onHide, onExited, courseId, o
               required
             />
           </Form.Group>
+          {mode === AssignmentMode.COPY && (
+          <Form.Group className="mb-3">
+            <Form.Label className="fw-semibold">Target Course</Form.Label>
+            <Form.Select 
+              value={targetCourseId} 
+              onChange={(e) => setTargetCourseId(e.target.value)}
+              required
+            >
+              <option value="">-- Select Destination Course --</option>
+              {instructorCourses.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </Form.Select>
+          </Form.Group>
+        )}
         </Form>
       </Modal.Body>
       <Modal.Footer className="bg-light border-top-0">
@@ -292,9 +358,19 @@ export default function AddAssignmentModal({ show, onHide, onExited, courseId, o
           variant="primary" 
           type="submit" 
           form="create-assignment-form"
-          disabled={selectedProofs.length === 0 || isSubmitting || !title || !dueDate}
+          disabled={selectedProofs.length === 0 || isSubmitting || !title || !dueDate || !targetCourseId}
         >
-          {isSubmitting ? <Spinner size="sm" animation="border" /> : (isEditMode ? "Save Changes" : "Publish Assignment")}
+          {isSubmitting ? <Spinner size="sm" animation="border" /> : (() => {
+            switch (mode) {
+              case AssignmentMode.CREATE:
+                return "Publish Assignment";
+              case AssignmentMode.EDIT:
+                return "Save Changes";
+              case AssignmentMode.COPY:
+                return "Save Copy";
+            }
+          }
+          )()}
         </Button>
       </Modal.Footer>
     </>

@@ -152,6 +152,7 @@ const InductionRacket = () => {
   const [showStartConfirmModal, setShowStartConfirmModal] = useState(false);
   const [conflictType, setConflictType] = useState(null);
   const [currentUserType, setCurrentUserType] = useState(null);
+  const [proofOwner, setProofOwner] = useState(null);
   const [showSetParams, setShowSetParams] = useState(false);
   const [proofParams, setProofParams] = useState({
     proof_id: null,
@@ -164,14 +165,6 @@ const InductionRacket = () => {
     visible_rules: {},
     support_rewrite_complexity: true
   });
-
-  useEffect(() => {
-    async function loadUser() {
-      const profile = await userService.getUserProfile();
-      setCurrentUserType(profile);
-    }
-    loadUser();
-  }, []);
 
   const rulesInProof = useMemo(() => {
     if (!proofStarted) return [];
@@ -1024,6 +1017,9 @@ const InductionRacket = () => {
       initializedRef.current = true;
       
       try {
+        const profile = await userService.getUserProfile();
+        setCurrentUserType(profile);
+
         // -------------------------------------------------------------
         // STEP 1: NEGOTIATE SESSION ID & WAKE UP BACKEND
         // -------------------------------------------------------------
@@ -1057,7 +1053,10 @@ const InductionRacket = () => {
         // -------------------------------------------------------------
         if (navId) {
             const metaData = await inductionService.getInductionProof(navId);
-            
+            if (metaData?.user?.username) {
+                setProofOwner(metaData.user);
+            }
+
             const rawDefinitions = metaData.definition || [];
 
             // Separate the raw data into generics and definitions (generics have is_generic: true)
@@ -1277,9 +1276,9 @@ const InductionRacket = () => {
     const lastLhsLine = findLastNonEmptyLine(lhsLines, lhsLimit);
     const lastRhsLine = findLastNonEmptyLine(rhsLines, rhsLimit);
     setLhsValue(lastLhsLine?.racket || targetPremises.LHS?.racket || '');
-    setLhsHidden((currentUserType.is_student && lastLhsLine?.hide_expression) || false);
+    setLhsHidden(((isReviewMode ? proofOwner.is_student : !currentUserType.is_student) && lastLhsLine?.hide_expression) || false);
     setRhsValue(lastRhsLine?.racket || targetPremises.RHS?.racket || '');
-    setRhsHidden((currentUserType.is_student && lastRhsLine?.hide_expression) || false);
+    setRhsHidden(((isReviewMode ? proofOwner?.is_student : !currentUserType?.is_student) && lastRhsLine?.hide_expression) || false);
 
   }, [proofStarted, isAnchor, baseRacketFields, leapRacketFields, basePremises, leapPremises, playState]);
 
@@ -2240,8 +2239,31 @@ const InductionRacket = () => {
     }
   };
 
+  const isReviewMode = useMemo(() => {
+    return !!(
+      proofStarted && 
+      proofOwner && 
+      currentUserType && 
+      currentUserType.username !== proofOwner.username
+    );
+  }, [proofStarted, proofOwner, currentUserType]);
+
   return (
     <MainLayout>
+      {isReviewMode && (
+        <Alert 
+          variant="warning" 
+          className="d-flex align-items-center py-1 mb-0 justify-content-center shadow-sm border-warning rounded-0"
+        >
+          <div className="d-flex align-items-center gap-2">
+            <i className="fa-solid fa-user-shield text-warning fs-5"></i>
+            <div>
+              <strong className="text-dark">Review Mode:</strong> Viewing proof owned by 
+              <span className="badge bg-dark mx-1 fs-6">{proofOwner.username}</span>.
+            </div>
+          </div>
+        </Alert>
+      )}
       <Container className="er-racket-container">
         <OffcanvasRuleSet
           isActive={isOffcanvasActive}
@@ -2305,7 +2327,7 @@ const InductionRacket = () => {
                                 <Form.Control 
                                   type="text" value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')} 
                                   readOnly 
-                                  style={{ cursor: "not-allowed", border: 'none', height: '40px', minWidth: `${Math.max((lhsValue?.length || 11), 11)}ch` }} 
+                                  style={{ cursor: "not-allowed", border: 'none', height: '40px', minWidth: `${Math.max((lhsValue?.length || 11), 11)}ch`, WebkitTextSecurity: proofStarted && lhsHidden ? "disc" : "none" }} 
                                 />
                                 <label>Current LHS</label>
                             </Form.Floating>
@@ -2317,7 +2339,7 @@ const InductionRacket = () => {
                                   type="text" 
                                   value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')} 
                                   readOnly 
-                                  style={{ cursor: "not-allowed", border: 'none', height: '40px', minWidth: `${Math.max((lhsValue?.length || 11), 11)}ch` }} 
+                                  style={{ cursor: "not-allowed", border: 'none', height: '40px', minWidth: `${Math.max((lhsValue?.length || 11), 11)}ch`, WebkitTextSecurity: proofStarted && rhsHidden ? "disc" : "none" }} 
                                 />
                                 <label>Current RHS</label>
                             </Form.Floating>
@@ -2341,7 +2363,7 @@ const InductionRacket = () => {
                                   ]
                                 }}
                               >
-                                  {!currentUserType?.is_student && (
+                                  {isReviewMode ? proofOwner?.is_student : !currentUserType?.is_student && (
                                     <Dropdown.Item onClick={() => setShowSetParams(true)} href="#">
                                       Set Parameters
                                     </Dropdown.Item>
@@ -2676,8 +2698,24 @@ const InductionRacket = () => {
                       {(proofParams.support_current_lhs_rhs && (
                         <>
                           <Row className="justify-content-center er-current-state g-2 mb-0">
-                            <Form.Group as={Col} sm="6" className={showSide === "LHS" ? "active" : ""}><Form.Floating style={{ border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}><Form.Control type="text" value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')} readOnly style={{ border: 'none' }} /><label>Current LHS</label></Form.Floating></Form.Group>
-                            <Form.Group as={Col} sm="6" className={showSide === "RHS" ? "active" : ""}><Form.Floating style={{ border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}><Form.Control type="text" value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')} readOnly style={{ border: 'none' }} /><label>Current RHS</label></Form.Floating></Form.Group>
+                            <Form.Group as={Col} sm="6" className={showSide === "LHS" ? "active" : ""}>
+                              <Form.Floating style={{ border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}>
+                                <Form.Control 
+                                  type="text" 
+                                  value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')} 
+                                  readOnly 
+                                  style={{ border: 'none', WebkitTextSecurity: proofStarted && lhsHidden ? "disc" : "none" }} 
+                                />
+                                <label>Current LHS</label></Form.Floating></Form.Group>
+                            <Form.Group as={Col} sm="6" className={showSide === "RHS" ? "active" : ""}>
+                              <Form.Floating style={{ border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}>
+                                <Form.Control 
+                                  type="text" 
+                                  value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')} 
+                                  readOnly 
+                                  style={{ border: 'none', WebkitTextSecurity: proofStarted && rhsHidden ? "disc" : "none" }} 
+                                />
+                                <label>Current RHS</label></Form.Floating></Form.Group>
                           </Row>
                         </>
                       )
@@ -2711,7 +2749,7 @@ const InductionRacket = () => {
                           ]
                         }}
                       >
-                        {!currentUserType?.is_student && (
+                        {isReviewMode ? proofOwner?.is_student : !currentUserType?.is_student && (
                           <Dropdown.Item onClick={() => setShowSetParams(true)} href="#">
                             Set Parameters
                           </Dropdown.Item>
@@ -2879,7 +2917,7 @@ const InductionRacket = () => {
                       leftPremise,
                       rightPremise,
                       caseType: indCaseKey,
-                      currentUserType: currentUserType
+                      currentUserType: isReviewMode ? proofOwner : !currentUserType
                     });
                   })}
                   {showContinue(playState, indCaseKey, showSide, indLastReal) && (

@@ -9,6 +9,7 @@ import { Eye } from "react-bootstrap-icons";
 export default function InstructorCourseView({ course, assignments, onBack, onToggleStatus, onRegenerateJoinCode, onUpdateCourse, onSaveAssignment, onDeleteAssignment }) {
   const [assignmentPage, setAssignmentPage] = useState(1);
   const [showAddAssignmentModal, setShowAddAssignmentModal] = useState(false);
+  const [addAssignmentMode, setAddAssignmentMode] = useState(null);
   const [editAssignment, setEditAssignment] = useState(null);
   const [showAssignmentProgressModal, setShowAssignmentProgressModal] = useState(false);
   const [viewAssignment, setViewAssignment] = useState(null);
@@ -207,6 +208,13 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
 
   const handleEditAssignment = async (assignment) => {
     setEditAssignment(assignment);
+    setAddAssignmentMode("edit");
+    setShowAddAssignmentModal(true);
+  };
+
+  const handleCopyAssignment = async (assignment) => {
+    setEditAssignment(assignment);
+    setAddAssignmentMode("copy");
     setShowAddAssignmentModal(true);
   };
 
@@ -418,7 +426,7 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
 
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h4 className="mb-0">Assignments</h4>
-        <Button variant="primary" size="sm" onClick={() => setShowAddAssignmentModal(true)}>
+        <Button variant="primary" size="sm" onClick={() => {setAddAssignmentMode("create"); setShowAddAssignmentModal(true);}}>
           <i className="fa-solid fa-plus me-2"></i>Add Assignment
         </Button>
       </div>
@@ -473,13 +481,16 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
                     </Badge>
                   </td>
                   <td className="text-center" style={{ whiteSpace: 'nowrap' }}>
-                    <OverlayTrigger placement="left" overlay={<Tooltip id={`tooltip-view-${assignment.id}`}>Edit Assignment</Tooltip>}>
+                    <OverlayTrigger placement="top" overlay={<Tooltip id={`tooltip-view-${assignment.id}`}>Edit Assignment</Tooltip>}>
                       <Button variant="outline-secondary" size="sm" className="me-1" onClick={(e) => {e.currentTarget.blur(); handleEditAssignment(assignment);}}><i className="fa-solid fa-pen"></i></Button>
                     </OverlayTrigger>
-                    <OverlayTrigger placement="left" overlay={<Tooltip id={`tooltip-view-${assignment.id}`}>View Student Progress</Tooltip>}>
+                    <OverlayTrigger placement="top" overlay={<Tooltip id={`tooltip-view-${assignment.id}`}>View Student Progress</Tooltip>}>
                       <Button variant="outline-secondary" size="sm" className="me-1" onClick={(e) => {e.currentTarget.blur(); handleViewStudentProgress(assignment);}}><Eye></Eye></Button>
                     </OverlayTrigger>
-                    <OverlayTrigger placement="left" overlay={<Tooltip id={`tooltip-delete-assignment-${assignment.id}`}>Delete Assignment</Tooltip>}>
+                    <OverlayTrigger placement="top" overlay={<Tooltip id={`tooltip-view-${assignment.id}`}>Copy Assignment</Tooltip>}>
+                      <Button variant="outline-secondary" size="sm" className="me-1" onClick={(e) => {e.currentTarget.blur(); handleCopyAssignment(assignment);}}><i className="fa-solid fa-copy"></i></Button>
+                    </OverlayTrigger>
+                    <OverlayTrigger placement="top" overlay={<Tooltip id={`tooltip-delete-assignment-${assignment.id}`}>Delete Assignment</Tooltip>}>
                       <Button variant="outline-danger" size="sm" onClick={(e) => {e.currentTarget.blur(); handleDeleteAssignmentClick(assignment);}}><i className="fa-solid fa-trash"></i></Button>
                     </OverlayTrigger>
                   </td>
@@ -661,6 +672,7 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
         onExited={() => setEditAssignment(null)}        
         courseId={course.id} 
         onSaveAssignment={onSaveAssignment}
+        mode={addAssignmentMode}
         assignment={editAssignment}
       />
 

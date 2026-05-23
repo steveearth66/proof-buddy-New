@@ -60,14 +60,7 @@ const EquationalReasoningNew = () => {
     const [showSide, toggleSide] = useToggleSide();
     const [formValues, handleChange, setFormValues] = useInputState(INITIAL_FORM_VALUES);
     const [currentUserType, setCurrentUserType] = useState(null);
-    
-    useEffect(() => {
-      async function loadUser() {
-        const profile = await userService.getUserProfile();
-        setCurrentUserType(profile);
-      }
-      loadUser();
-    }, []);
+    const [proofOwner, setProofOwner] = useState(null);
 
     const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
     const topSectionRef = useRef(null);
@@ -446,6 +439,15 @@ const EquationalReasoningNew = () => {
     return [...new Set([...lhsRules, ...rhsRules])];
   }, [racketRuleFields, proofStarted]);
   
+  const isReviewMode = useMemo(() => {
+    return !!(
+      proofStarted && 
+      proofOwner && 
+      currentUserType && 
+      currentUserType.username !== proofOwner.username
+    );
+  }, [proofStarted, proofOwner, currentUserType]);
+  
   // Hook for getting available height for scrollable proof area
   const availableHeight = useDynamicHeight();
 
@@ -460,6 +462,9 @@ const EquationalReasoningNew = () => {
     console.log('[Init] Starting session initialization...');
 
     try {
+      const profile = await userService.getUserProfile();
+      setCurrentUserType(profile);
+
       // -------------------------------------------------------------
       // STEP 1: HYDRATE BACKEND (If coming from "All Proofs" page)
       // -------------------------------------------------------------
@@ -505,7 +510,9 @@ const EquationalReasoningNew = () => {
 
       if (proofData.hasProof) {
         console.log("[Init] Proof found. Restoring UI...");
-        
+        if (proofData?.user?.username) {
+          setProofOwner(proofData.user);
+        }
         const rawDefinitions = proofData.definitions || [];
         const rawGenerics = proofData.generics || [];
         // rawDefs are definitions only (backend already separates generics into proofData.generics)
@@ -1383,9 +1390,9 @@ const handleRuleKeyDown = (e) => {
     const lastLhsLine = findLastNonEmptyLine(lhsLines, lhsLimit);
     const lastRhsLine = findLastNonEmptyLine(rhsLines, rhsLimit);
     setLhsValue(lastLhsLine?.racket || leftPremise.racket || '');
-    setLhsHidden((currentUserType.is_student && lastLhsLine?.hide_expression) || false);
+    setLhsHidden(((isReviewMode ? proofOwner?.is_student : !currentUserType?.is_student) && lastLhsLine?.hide_expression) || false);
     setRhsValue(lastRhsLine?.racket || rightPremise.racket || '');
-    setRhsHidden((currentUserType.is_student && lastRhsLine?.hide_expression) || false);
+    setRhsHidden(((isReviewMode ? proofOwner?.is_student : !currentUserType?.is_student) && lastRhsLine?.hide_expression) || false);
 
   }, [proofStarted, racketRuleFields, leftPremise, rightPremise, playState]);
 
@@ -1747,7 +1754,7 @@ const handleRuleKeyDown = (e) => {
             ruleValidationError={ruleValidationError}
             isEditRow={false}
             showEyeButtons={true}
-            currentUserType={currentUserType}
+            currentUserType={isReviewMode ? proofOwner : !currentUserType}
             hideExpression={hideExpression}
             hideJustification={hideJustification}
             onRuleHiddenToggle={() => handleRuleHiddenToggle(side, index)}
@@ -1790,7 +1797,7 @@ const handleRuleKeyDown = (e) => {
           isRuleReadOnly={true}
           rulePlaceholder="Rule"
           isEditRow={true}
-          currentUserType={currentUserType}
+          currentUserType={isReviewMode ? proofOwner : !currentUserType}
           hideExpression={isExpressionHidden}
         />
       );
@@ -1833,7 +1840,7 @@ const handleRuleKeyDown = (e) => {
           isRuleInvalid={!!footerRuleError}
           ruleValidationError={footerRuleError}
           isEditRow={true}
-          currentUserType={currentUserType}
+          currentUserType={isReviewMode ? proofOwner : !currentUserType}
           hideExpression={isExpressionHidden}
         />
       );
@@ -1921,6 +1928,20 @@ const handleRuleKeyDown = (e) => {
     
   return (
     <MainLayout>
+      {isReviewMode && (
+        <Alert 
+          variant="warning" 
+          className="d-flex align-items-center py-1 mb-0 justify-content-center shadow-sm border-warning rounded-0"
+        >
+          <div className="d-flex align-items-center gap-2">
+            <i className="fa-solid fa-user-shield text-warning fs-5"></i>
+            <div>
+              <strong className="text-dark">Review Mode:</strong> Viewing proof owned by 
+              <span className="badge bg-dark mx-1 fs-6">{proofOwner.username}</span>.
+            </div>
+          </div>
+        </Alert>
+      )}
       <Container className="er-racket-container">
         <OffcanvasRuleSet
           isActive={isOffcanvasActive}
@@ -2101,7 +2122,7 @@ const handleRuleKeyDown = (e) => {
                         ]
                       }}
                     >
-                      {!currentUserType?.is_student && (
+                      {isReviewMode ? proofOwner?.is_student : !currentUserType?.is_student && (
                         <Dropdown.Item onClick={() => setShowSetParams(true)} href="#">
                           Set Parameters
                         </Dropdown.Item>
@@ -2427,7 +2448,7 @@ const handleRuleKeyDown = (e) => {
                       leftPremise,
                       rightPremise,
                       caseType: 'base',
-                      currentUserType: currentUserType
+                      currentUserType: isReviewMode ? proofOwner : !currentUserType
                     });
                   })}
                   {showContinue(playState, 'base', showSide, erLastReal) && (
