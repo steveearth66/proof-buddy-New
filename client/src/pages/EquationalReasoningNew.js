@@ -1101,7 +1101,7 @@ const handleRuleKeyDown = (e) => {
 
       if (isBound) {
         const userIndex = getPadIndex(userRow.num);
-        ruleFromFooter = userRow.num === "000" ? "Premise" : footerRule;
+        ruleFromFooter = (userRow.num === "000" && proofParams.support_premise) ? "Premise" : footerRule;
 
         // --- FOOTER EXPRESSION REFERENCE ---
         if (footerPadRef.current) {
@@ -1159,13 +1159,13 @@ const handleRuleKeyDown = (e) => {
           side: showSide,
           lineNumber: 0,
           field: 'expression',
-          setting_visibility: true
+          setting_visibility: false
         });
         await equationalService.toggleVisibilityPremise({
           side: showSide,
           lineNumber: 0,
           field: 'justification',
-          setting_visibility: true
+          setting_visibility: false
         });
 
         // Update premise lines state to reflect immediately without waiting for refresh
@@ -1520,9 +1520,6 @@ const handleRuleKeyDown = (e) => {
     const shouldHide = !proofParams.support_premise;
 
     sides.forEach(async (side) => {
-      if (shouldHide && racketRuleFields[side][0]?.hide_expression === false && 
-        racketRuleFields[side][0]?.hide_justification === false) return;
-
       try {
         await equationalService.toggleVisibilityPremise({
           side,
@@ -1537,13 +1534,17 @@ const handleRuleKeyDown = (e) => {
           setting_visibility: shouldHide
         });
 
-        setRacketRuleFields(prev => ({
-          ...prev,
-          [side]: prev[side].map((field, idx) => 
-            idx === 0
-              ? { ...field, hide_expression: shouldHide, hide_justification: shouldHide }
-              : field)
-        }));
+        setRacketRuleFields(prev => {
+          const updated = {
+            ...prev,
+            [side]: prev[side].map((field, idx) => 
+              idx === 0
+                ? { ...field, hide_expression: shouldHide, hide_justification: shouldHide }
+                : field)
+          };
+          return updated;
+        });
+
       } catch (error) {
         toast.error(`Failed to update update premise ${side} visibility`);
       }
@@ -1980,10 +1981,7 @@ const handleRuleKeyDown = (e) => {
         )
       }));
 
-      console.log("isPremiseLine:", isPremiseLine, "index:", index);
-      console.log("result:", result);
       return actualStatus; 
-
     } catch (error) {
       toast.error("Database update failed.");
       throw error;
@@ -1994,14 +1992,7 @@ const handleRuleKeyDown = (e) => {
     try {
       const isPremiseLine = !proofParams.support_premise && index === 0;
 
-      const response = isPremiseLine
-        ? await equationalService.toggleVisibilityPremise({
-          side: side,
-          lineNumber: index,
-          field: 'expression',
-          setting_visibility: !proofParams.support_premise
-        })
-        : await equationalService.toggleVisibility({
+      const response = await equationalService.toggleVisibility({
           side: side,
           lineNumber: index,
           field: 'expression'
