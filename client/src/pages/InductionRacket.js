@@ -1161,8 +1161,6 @@ const InductionRacket = () => {
 
             setInductiveHypothesisLHS(metaData.inductive_hypothesis_lhs || "");
             setInductiveHypothesisRHS(metaData.inductive_hypothesis_rhs || "");
-            
-            console.log("META DATA IH:", metaData.inductive_hypothesis_lhs);
         }
 
         // -------------------------------------------------------------
@@ -1619,9 +1617,8 @@ const InductionRacket = () => {
 
       if (response && response.data) {
         if (response.status === 201 || response.status === 200) {
-          console.log("FULL RESPONSE:", response);
-          setInductiveHypothesisLHS(response.inductive_hypothesis_lhs);
-          setInductiveHypothesisRHS(response.inductive_hypothesis_rhs);
+          setInductiveHypothesisLHS(response.data.inductive_hypothesis_lhs);
+          setInductiveHypothesisRHS(response.data.inductive_hypothesis_rhs);
 
           // Handle generics created by backend (could be multiple for list induction)
           const genericsCreated = response.data.generics_created || 
