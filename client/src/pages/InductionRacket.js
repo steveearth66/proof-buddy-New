@@ -2196,13 +2196,22 @@ const InductionRacket = () => {
 
       const actualStatus = result.new_value; 
 
-      setRacketRuleFields(prev => ({
-        ...prev,
-        [side]: prev[side].map((field, idx) => 
-          idx === index ? { ...field, hide_justification: actualStatus } : field
-        )
-      }));
-
+      if (!proofParams.support_premise && index === 0) {
+        setRacketRuleFields(prev => ({
+          ...prev,
+          [side]: prev[side].map((field, idx) => 
+            idx === 0 ? { ...field, hide_justification: true } : field
+          )
+        }));
+      } else {
+        setRacketRuleFields(prev => ({
+          ...prev,
+          [side]: prev[side].map((field, idx) => 
+            idx === index ? { ...field, hide_justification: actualStatus } : field
+          )
+        }));
+    }
+  
       return actualStatus; 
 
     } catch (error) {
@@ -2222,12 +2231,21 @@ const InductionRacket = () => {
 
       const actualStatus = result.new_value;
 
-      setRacketRuleFields(prev => ({
-        ...prev,
-        [side]: prev[side].map((field, idx) => 
-          idx === index ? { ...field, hide_expression: actualStatus } : field
-        )
-      }));
+      if (!proofParams.support_premise && index === 0) {
+        setRacketRuleFields(prev => ({
+          ...prev,
+          [side]: prev[side].map((field, idx) => 
+            idx === 0 ? { ...field, hide_expression: true } : field
+          )
+        }));
+      } else {
+        setRacketRuleFields(prev => ({
+          ...prev,
+          [side]: prev[side].map((field, idx) => 
+            idx === index ? { ...field, hide_expression: actualStatus } : field
+          )
+        }));
+      }
 
       return actualStatus;
 

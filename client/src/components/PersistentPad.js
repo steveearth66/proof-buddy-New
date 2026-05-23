@@ -226,7 +226,7 @@ const PersistentPad = forwardRef(function PersistentPad(
           <label>{rulePlaceholder}</label>
           
           {/* Only show eye button for non-students */}
-          {lineNum !== 0 && showEyeButtons && !isStudent && (rule !== '') && (
+          {showEyeButtons && !isStudent && (rule !== '') && (
             <OverlayTrigger
               popperConfig={{ strategy: 'fixed' }}
               overlay={

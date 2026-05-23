@@ -11,6 +11,7 @@ urlpatterns = [
     path("check-completion", views.check_completion, name="check_completion"),
     path("get-proof-lines", views.get_proof_lines, name="get_proof_lines"),
     path("toggle-visibility", views.toggle_visibility, name="toggle_visibility"),
+    path("toggle-visibility-premise", views.toggle_visibility_premise, name="toggle_visibility_premise"),
     path("validate-hidden-field", views.validate_hidden_field, name="validate_hidden_field"),
     path("proofs", views.get_user_proofs, name="get_user_proofs"),
     path("get-user-proof", views.get_user_proof, name="get_user_proof"),

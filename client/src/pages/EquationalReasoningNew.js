@@ -765,11 +765,11 @@ const EquationalReasoningNew = () => {
     setUserRow({ num: paddedRowNum });
     setIsBound(true);
 
+    // Array index now equals line number, so use userIndex directly
+    const field = (racketRuleFields?.[showSide] || [])[userIndex];
+    
     // Set footer rule initially to what the field has
-    if (paddedRowNum !== "000") {
-      // Array index now equals line number, so use userIndex directly
-      const field = (racketRuleFields?.[showSide] || [])[userIndex];
-      
+    if (paddedRowNum !== "000") {      
       // Only set the rule if it's NOT hidden
       if (field?.hide_justification) {
         setFooterRule("");  // Keep it blank if hidden
@@ -777,7 +777,11 @@ const EquationalReasoningNew = () => {
         setFooterRule(field?.rule || "");
       }
     } else {
-      setFooterRule("Premise");
+      if (field?.hidden_justification) {
+        setFooterRule("")
+      } else {
+         setFooterRule("Premise");
+      }
     }
 
     setTimeout(() => {
@@ -1132,6 +1136,53 @@ const handleRuleKeyDown = (e) => {
       }
       setFooterRuleError('');
 
+      // special validation for premise 
+      if (userRow.num === "000") {
+        const premiseRacket = showSide === "LHS"? leftPremise.racket :rightPremise.racket;
+
+        if (ruleFromFooter.trim().toLowerCase() !== "premise") {
+          toast.error("Invalid rule for premise line");
+          isProcessingRef.current = false;
+          return;
+        }
+
+        if (expressionFromFooter.trim() !== premiseRacket.trim()) {
+          toast.error("Incorrect expression for premise line");
+          isProcessingRef.current = false;
+          return;
+        }
+
+        toast.success("Correct!");
+
+        // save to DB
+        await equationalService.toggleVisibilityPremise({
+          side: showSide,
+          lineNumber: 0,
+          field: 'expression',
+          setting_visibility: true
+        });
+        await equationalService.toggleVisibilityPremise({
+          side: showSide,
+          lineNumber: 0,
+          field: 'justification',
+          setting_visibility: true
+        });
+
+        // Update premise lines state to reflect immediately without waiting for refresh
+        setRacketRuleFields(prev => ({
+          ...prev,
+          [showSide]: prev[showSide].map((field, idx) =>
+            idx === 0
+              ? { ...field, hide_expression: false, hide_justification: false }
+              : field
+          )
+        }));
+
+        unbindFooter();
+        isProcessingRef.current = false;
+        return;
+      }
+
       // If user typed "rewrite math" or "rewrite logic", open Substitution modal with rule pre-filled
       if (ruleFromFooter.trim().toLowerCase() === 'rewrite math' || ruleFromFooter.trim().toLowerCase() === 'rewrite logic') {
         updateShowSubstitution();
@@ -1462,6 +1513,43 @@ const handleRuleKeyDown = (e) => {
     };
   }, [isBound, userRow.num, showSide, lhsPadRefs, rhsPadRefs]);
 
+  useEffect(() => {
+    if (!proofStarted) return;
+
+    const sides = ['LHS', 'RHS'];
+    const shouldHide = !proofParams.support_premise;
+
+    sides.forEach(async (side) => {
+      if (shouldHide && racketRuleFields[side][0]?.hide_expression === false && 
+        racketRuleFields[side][0]?.hide_justification === false) return;
+
+      try {
+        await equationalService.toggleVisibilityPremise({
+          side,
+          lineNumber: 0,
+          field: 'expression',
+          setting_visibility: shouldHide
+        });
+        await equationalService.toggleVisibilityPremise({
+          side,
+          lineNumber: 0,
+          field: 'justification',
+          setting_visibility: shouldHide
+        });
+
+        setRacketRuleFields(prev => ({
+          ...prev,
+          [side]: prev[side].map((field, idx) => 
+            idx === 0
+              ? { ...field, hide_expression: shouldHide, hide_justification: shouldHide }
+              : field)
+        }));
+      } catch (error) {
+        toast.error(`Failed to update update premise ${side} visibility`);
+      }
+    });
+  }, [proofParams.support_premise, proofStarted, racketRuleFields?.LHS?.length, racketRuleFields?.RHS?.length]);
+
   const handleSubstitution = useCallback(
     async ({ substitution, rule }) => {
       // Clear previous errors when user attempts a new submission
@@ -1762,7 +1850,7 @@ const handleRuleKeyDown = (e) => {
       return null;
     }
 
-    if (userRow.num === "000") {
+    if (userRow.num === "000" && proofParams.support_premise) {
       const equation = showSide === "LHS" ? leftPremise?.racket : rightPremise?.racket;
       
       if (!equation) {
@@ -1868,11 +1956,20 @@ const handleRuleKeyDown = (e) => {
 
   const handleRuleHiddenToggle = async (side, index) => {
     try {
-      const result = await equationalService.toggleVisibility({
-        side: side,
-        lineNumber: index,
-        field: 'justification'
-      });
+      const isPremiseLine = !proofParams.support_premise && index === 0;
+
+      const result = isPremiseLine
+        ? await equationalService.toggleVisibilityPremise({
+          side: side,
+          lineNumber: index,
+          field: 'justification',
+          setting_visibility: !racketRuleFields[side][index].hide_justification
+        })
+        : await equationalService.toggleVisibility({
+          side: side,
+          lineNumber: index,
+          field: 'justification'
+        });
 
       const actualStatus = result.new_value; 
 
@@ -1883,6 +1980,8 @@ const handleRuleKeyDown = (e) => {
         )
       }));
 
+      console.log("isPremiseLine:", isPremiseLine, "index:", index);
+      console.log("result:", result);
       return actualStatus; 
 
     } catch (error) {
@@ -1893,11 +1992,20 @@ const handleRuleKeyDown = (e) => {
 
   const handleExpressionHiddenToggle = async (side, index) => {
     try {
-      const response = await equationalService.toggleVisibility({
-        side: side,
-        lineNumber: index,
-        field: 'expression'
-      });
+      const isPremiseLine = !proofParams.support_premise && index === 0;
+
+      const response = isPremiseLine
+        ? await equationalService.toggleVisibilityPremise({
+          side: side,
+          lineNumber: index,
+          field: 'expression',
+          setting_visibility: !proofParams.support_premise
+        })
+        : await equationalService.toggleVisibility({
+          side: side,
+          lineNumber: index,
+          field: 'expression'
+        });
 
       const actualValue = response.new_value;
 
