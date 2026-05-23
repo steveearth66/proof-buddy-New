@@ -22,14 +22,12 @@ export default function ViewAssignmentProgressModal({ show, onHide, assignment }
     const fetchProgressData = async () => {
       setIsLoading(true);
       try {
-        // Boom! Clean, readable, and reusable.
         const data = await courseService.getStudentAssignmentStatus(assignment.id);
         
         if (isMounted && data) {
           setMatrixData(data);
         }
       } catch (error) {
-        // You can set an error state here if you want: setError(true);
         console.error("Dashboard failed to load:", error);
       } finally {
         if (isMounted) {
@@ -59,6 +57,14 @@ export default function ViewAssignmentProgressModal({ show, onHide, assignment }
           <div className="d-flex align-items-center justify-content-center text-nowrap">
             <i className="fa-solid fa-circle-check text-success me-2"></i>
             <span className="align-middle" style={{ paddingTop: '2px' }}>Completed</span>
+          </div>
+        );
+
+      case 'late':
+        return (
+          <div className="d-flex align-items-center justify-content-center text-nowrap">
+            <i className="fa-solid fa-clock text-danger me-2"></i>
+      <span className="align-middle text-danger" style={{ paddingTop: '2px' }}>Completed (Late)</span>
           </div>
         );
       
@@ -133,7 +139,7 @@ export default function ViewAssignmentProgressModal({ show, onHide, assignment }
               </thead>
               
               <tbody>
-                {/* Map over Students from API */}
+                {/* Map over Students */}
                 {matrixData.students.map((student) => (
                   <tr key={student.id}>
                     
@@ -149,11 +155,10 @@ export default function ViewAssignmentProgressModal({ show, onHide, assignment }
                       return (
                         <td 
                           key={`${student.id}-${col.id}`}
-                          style={{ cursor: hasStarted ? 'pointer' : 'default' }}
+                          // style={{ cursor: hasStarted ? 'pointer' : 'default' }} // TODO: add ability for instructor to view the student's proofs
                           onClick={() => {
                             if (hasStarted) {
-                              // Ready for your instructor viewing feature!
-                              console.log(`Instructor wants to view clone ID: ${statusData.cloned_proof_id} (${statusData.proof_type})`);
+                              // console.log(`Instructor wants to view clone ID: ${statusData.cloned_proof_id} (${statusData.proof_type})`);
                             }
                           }}
                         >

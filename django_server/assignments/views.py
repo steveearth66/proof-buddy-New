@@ -351,19 +351,19 @@ class InstructorLibraryView(APIView):
         for proof in equational:
             library.append({
                 'id': proof.id,
-                'title': proof.name or "Untitled Equational Proof",
+                'name': proof.name or "Untitled Equational Proof",
                 'type': 'equationalproof',
                 'displayType': 'Equational Reasoning',
-                'category': proof.tag or 'General'
+                'tag': proof.tag or 'General'
             })
             
         for proof in induction:
             library.append({
                 'id': proof.id,
-                'title': proof.name or "Untitled Induction Proof",
+                'name': proof.name or "Untitled Induction Proof",
                 'type': 'inductionproof',
                 'displayType': 'Induction',
-                'category': proof.tag or 'General'
+                'tag': proof.tag or 'General'
             })
             
         return Response(library)
@@ -587,7 +587,7 @@ class AssignmentProgressMatrixView(APIView):
             if not cloned_proof:
                 proof_status = "error" 
             elif getattr(cloned_proof, 'is_complete', False):
-                proof_status = "complete"
+                proof_status = "complete" if not m.is_late else "late"
             else:
                 proof_status = "in progress"
 

@@ -21,6 +21,10 @@ from expression_tree.ERRuleset import isMatch
 from expression_tree.default_udfs import DEFAULT_UDFS
 from expression_tree.LemmaApplicator import build_lemma_rule
 
+from assignments.models import StudentProofMapping
+from django.contrib.contenttypes.models import ContentType
+from django.utils import timezone
+
 User = get_user_model()
 
 
@@ -703,6 +707,21 @@ def check_completion(request):
         # Update database
         if proof_id:
             EquationalProof.objects.filter(id=proof_id).update(is_complete=is_complete)
+
+            # update assignment if it exists and is completed for the first time
+            if is_complete:
+                content_type = ContentType.objects.get(app_label="equational_reasoning_api", model="equationalproof")
+                mapping = StudentProofMapping.objects.filter(
+                    content_type=content_type,
+                    object_id=proof_id
+                ).first()
+
+                # If it belongs to an assignment, lock in the completion timestamp
+                if mapping:
+                    # Only set it if it hasn't been completed before
+                    if not mapping.completed_at:
+                        mapping.completed_at = timezone.now()
+                        mapping.save()
         
         proof_obj.isComplete = is_complete
         save_equational_obj_to_cache(user, proof_obj, proof_id)

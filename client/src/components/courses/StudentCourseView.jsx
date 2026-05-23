@@ -146,7 +146,7 @@ export default function StudentCourseView({ course, assignments, onBack }) {
                                 const btnInfo = getButtonProps(proof.status);
                                 return (
                                   <tr key={proof.id}>
-                                    <td className="fw-medium align-middle">{proof.title}</td>
+                                    <td className="fw-medium align-middle">{proof.name}</td>
                                     
                                     <td style={{ whiteSpace: 'nowrap' }}>
                                       <div className="d-flex align-items-center">
