@@ -8,12 +8,13 @@ import ruleSet from "./RuleSet";
 import Form from "react-bootstrap/Form";
 
 const PARAM_ROWS = [
-  { key: "support_errors",          label: "Error Messages" },
-  { key: "support_current_lhs_rhs", label: "Current LHS/RHS" },
-  { key: "support_ih",              label: "Induction Hypothesis" },
-  { key: "support_premise",         label: "Premise" },
-  { key: "support_rule_set",        label: "Rule Set" },
-  { key: "support_value_mapping",   label: "Value Mapping" }
+  { key: "support_errors",             label: "Error Messages" },
+  { key: "support_current_lhs_rhs",    label: "Current LHS/RHS" },
+  { key: "support_ih",                 label: "Induction Hypothesis" },
+  { key: "support_premise",            label: "Premise" },
+  { key: "support_rule_set",           label: "Rule Set" },
+  { key: "support_value_mapping",      label: "Value Mapping" },
+  { key: "support_rewrite_complexity", label: "Rewrite Complexity" }
 ];
 
 const DEFAULT_PARAMS = {

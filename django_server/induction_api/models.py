@@ -57,6 +57,7 @@ class InductionProof(models.Model):
     support_rule_set = models.BooleanField(default=True)
     visible_rules = models.TextField(default=dict, blank=True)
     support_value_mapping = models.BooleanField(default=True)
+    support_rewrite_complexity = models.BooleanField(default=True)
 
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)

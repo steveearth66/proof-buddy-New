@@ -70,7 +70,7 @@ class Rule(ABC):
         return self._ruleType
 
     @abstractmethod
-    def isApplicable(self, ruleNode: Node, rawParams: list[str] = None) -> tuple[bool, str]:
+    def isApplicable(self, ruleNode: Node, rawParams: list[str] = None, support_review_complexity = True) -> tuple[bool, str]:
         pass
 
     @abstractmethod
@@ -1069,6 +1069,40 @@ def _racketNodeToSympyBool(node: Node, abstract_pairs: list, used_names: set):
         return sp.Symbol(var_name)
     return None
 
+def _count_racket_math_ops(node, abstract_pairs: list) -> int:
+    """
+    Recursively counts core math operations in a Racket Node tree.
+    """
+    # 1. CHUNKING CHECK: If this node is chunked, drop it and its children entirely
+    if any(pair[0] == node for pair in abstract_pairs):
+        return 0
+    
+    # 2. COUNT THE OPERATOR DIRECTLY
+    # If this specific node is a core operator string, count it as 1 operation
+    count = 1 if node.data in _MATH_OPS else 0
+
+    # 3. RECURSE DOWN TO CHILDREN
+    if node.children:
+        count += sum(_count_racket_math_ops(child, abstract_pairs) for child in node.children)
+        
+    return count
+
+
+def _count_racket_logic_ops(node, abstract_pairs: list) -> int:
+    """
+    Recursively counts logic operations in a Racket Node tree, respecting chunking.
+    """
+    if any(pair[0] == node for pair in abstract_pairs):
+        return 0
+    
+    count = 0
+    if node.data in _BOOL_OPS:
+        count += 1
+
+    if node.children:
+        count += sum(_count_racket_logic_ops(child, abstract_pairs) for child in node.children)
+    return count
+
 # --- end helpers ---
 
 class AdvMath(Rule):
@@ -1077,7 +1111,7 @@ class AdvMath(Rule):
 
 # presumes buildtree checked types/qty already for main node and the subnode
 # "subnode" is the exptree created by the user in the Substitution pane.
-    def isApplicable(self, ruleNode: Node, subNode:Node) -> tuple[bool, str]:  # presumes buildtree checked types/qty already
+    def isApplicable(self, ruleNode: Node, subNode:Node, support_rewrite_complexity: bool = True) -> tuple[bool, str]:  # presumes buildtree checked types/qty already
         try:
             # Collect every token name from both trees so _fresh_var won't
             # collide with existing variable names like k, n, L, etc.
@@ -1092,6 +1126,14 @@ class AdvMath(Rule):
             if main_expr_str == "ERROR" or sub_expr_str == "ERROR":
                 return False, 'Math rule: expression could not be converted for symbolic comparison'
             
+            if not support_rewrite_complexity:
+                # Count core operations directly from the Racket Node, subtracting chunked elements
+                ruleNode_ops = _count_racket_math_ops(ruleNode, abstract_pairs)
+                subNode_ops = _count_racket_math_ops(subNode, abstract_pairs)
+                
+                if ruleNode_ops > 4 and subNode_ops > 4:
+                    return False, "at least one of the expressions must be under 5 core operations or else it is too complex to be done in a single rewrite"
+
             # Parse expressions with SymPy
             main_sympy = sp.sympify(main_expr_str)
             sub_sympy = sp.sympify(sub_expr_str)
@@ -1151,7 +1193,7 @@ class AdvLogic(Rule):
     def __init__(self):
         super().__init__('advLogic', RuleType.LOGIC)
 
-    def isApplicable(self, ruleNode: Node, subNode: Node) -> tuple[bool, str]:
+    def isApplicable(self, ruleNode: Node, subNode: Node, support_rewrite_complexity: bool = True) -> tuple[bool, str]:
         try:
             if subNode.children:
                 if subNode.data != '(' or subNode.children[0].data not in _BOOL_OPS:
@@ -1164,6 +1206,14 @@ class AdvLogic(Rule):
             sub_sympy = _racketNodeToSympyBool(ruleNode, abstract_pairs, used_names)
             if main_sympy is None or sub_sympy is None:
                 return False, 'Logic rule: expression could not be converted for boolean comparison'
+            
+            if not support_rewrite_complexity:
+                source_ops = _count_racket_logic_ops(subNode, abstract_pairs)
+                target_ops = _count_racket_logic_ops(ruleNode, abstract_pairs)
+                
+                if source_ops > 4 and target_ops > 4:
+                    return False, "at least one of the expressions must be under 5 core operations or else it is too complex to be done in a single rewrite"
+
             from sympy.logic.inference import satisfiable
             if satisfiable(sp.Xor(main_sympy, sub_sympy)) == False:  # noqa: E712
                 return True, 'advLogic.isApplicable() PASS'
