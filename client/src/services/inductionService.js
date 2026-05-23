@@ -272,6 +272,38 @@ const toggleVisibility = async (data) => {
   }
 };
 
+const saveComment = async (data) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/save-comment`,
+      data
+    );
+
+    return response.data;
+
+  } catch (error) {
+    handleServiceError(error, "Error saving comment:");
+    throw error;
+  }
+};
+
+const getComments = async (params) => {
+  try {
+    const response = await axiosInstance.get(
+      `${API_GATEWAY}/get-comments`,
+      {
+        params
+      }
+    );
+
+    return response.data;
+
+  } catch (error) {
+    handleServiceError(error, "Error loading comments:");
+    throw error;
+  }
+};
+
 const inductionService = {
   startInductionProof,
   clearInduction,
@@ -294,7 +326,9 @@ const inductionService = {
   downloadProof,
   uploadProof,
   validateHiddenField,
-  toggleVisibility
+  toggleVisibility,
+  saveComment,
+  getComments
 };
 
 export default inductionService;

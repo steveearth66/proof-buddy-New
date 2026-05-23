@@ -52,6 +52,7 @@ import {
 import userService from "../services/userService";
 import erService from "../services/erService";
 import { useLocation, useNavigate } from "react-router-dom";
+import CommentsModal from "../components/CommentsModal";
 
 /**
  * Equational Reasoning component facilitates the Equational Reasoning Racket.
@@ -395,6 +396,12 @@ const EquationalReasoningNew = () => {
     visible_rules: {},
     support_rewrite_complexity: true
   });
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [comments, setComments] = useState({});
+  const [activePadIndex, setActivePadIndex] = useState(null);
+  const [activeSide, setActiveSide] = useState(null);
+  const [studentComment, setStudentComment] = useState("");
+  const [instructorComment, setInstructorComment] = useState("");
   
   // Separate premises for base and leap cases
   const [leftPremise, setLeftPremise] = useState(INITIAL_PREMISE_STATE);
@@ -1761,6 +1768,26 @@ const handleRuleKeyDown = (e) => {
             onExpressionHiddenToggle={() => handleExpressionHiddenToggle(side, index)}
           />
         </Col>
+        <Col xs="auto" className="d-flex align-items-center">
+          <Button   
+          variant="secondary"
+          onClick={async() => {
+            const data = await equationalService.getComments({
+              side: side,
+              line_number: padIndex
+            })
+
+            setActivePadIndex(padIndex);
+            setActiveSide(side);
+            
+            setStudentComment(data.student || "");
+            setInstructorComment(data.instructor || "");
+            setShowCommentsModal(true);
+          }}
+          >
+            <i className="fa-regular fa-message"></i>
+          </Button>
+        </Col>
       </Row>
     );
   }
@@ -2770,6 +2797,32 @@ const handleRuleKeyDown = (e) => {
           }
         }}
       />
+      <CommentsModal
+              show={showCommentsModal}
+              onHide={() => setShowCommentsModal(false)}
+              studentComment={studentComment}
+              instructorComment={instructorComment}
+              onStudentCommentChange={setStudentComment}
+              OnInstructorCommentChange={setInstructorComment}
+              isStudent={currentUserType?.is_student}
+              onSave={async() => {
+                await equationalService.saveComment({
+                  side: activeSide,
+                  line_number: activePadIndex,
+                  role: "student",
+                  comment: studentComment
+                });
+
+                await equationalService.saveComment({
+                  side: activeSide,
+                  line_number: activePadIndex,
+                  role: "instructor",
+                  comment: instructorComment
+                });
+
+                setShowCommentsModal(false);
+              }}
+            />
     </MainLayout>
   );
 };

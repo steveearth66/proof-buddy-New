@@ -21,4 +21,6 @@ urlpatterns = [
     path("set-parameters", views.set_parameters, name="set_parameters"),
     path("download-proof", views.download_proof, name="download_proof"),
     path("upload-proof", views.upload_proof, name="upload_proof"),
+    path("save-comment", views.save_comment, name="save_comment"),
+    path("get-comments", views.get_comments, name="get_comments"),
 ]
