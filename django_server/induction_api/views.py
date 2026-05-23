@@ -22,7 +22,9 @@ from expression_tree.default_udfs import DEFAULT_UDFS
 from proofs.views import use_uploaded_generic
 from .models import InductionProofLine
 
-
+from assignments.models import StudentProofMapping
+from django.contrib.contenttypes.models import ContentType
+from django.utils import timezone
 
 User = get_user_model()
 
@@ -1029,12 +1031,12 @@ def _get_case_side(proof: IndProof, case: str, side: str) -> ERProof:
     return ts.LHS if side_key == "LHS" else ts.RHS
 
 
-def _apply_line(target: ERProof, currentRacket: str, rule: str | None, startPosition: int | None, substitution: str | None, auto_infer: bool = False):
+def _apply_line(target: ERProof, currentRacket: str, rule: str | None, startPosition: int | None, substitution: str | None, auto_infer: bool = False, support_rewrite_complexity = True):
     if rule:
         # Apply rule directly - don't duplicate first
         # The rule application will create a new line based on currentRacket
         if substitution is not None and substitution != "":
-            target.addProofLine(currentRacket, rule, int(startPosition or 0), substitution)
+            target.addProofLine(currentRacket, rule, int(startPosition or 0), substitution, support_rewrite_complexity=support_rewrite_complexity)
         else:
             target.addProofLine(currentRacket, rule, int(startPosition or 0), auto_infer=auto_infer)
     else:
@@ -1065,6 +1067,7 @@ def apply_rule(request):
         selectedNode = data.get("selectedNode")
         substitution = data.get("substitution")
         lineNumber = data.get("lineNumber")
+        support_rewrite_complexity = data.get("supportRewriteComplexity", True)
 
         # Guard: "rewrite math" must use the Substitution button, not the rule field
         rewrite_math_error = _check_rewrite_math_misuse(rule)
@@ -1194,7 +1197,7 @@ def apply_rule(request):
                 pass
 
         if not target.errLog:
-            _apply_line(target, currentRacket, rule, startPosition, substitution, auto_infer=_auto_infer)
+            _apply_line(target, currentRacket, rule, startPosition, substitution, auto_infer=_auto_infer, support_rewrite_complexity=support_rewrite_complexity)
 
         # Remove temporarily injected lemma rule
         if _lemma_injected and _lemma_name and _lemma_name in target.ruleSet.get('apply', {}):
@@ -1480,6 +1483,7 @@ def substitution(request):
         selectedNode = data.get("selectedNode")
         substitution = data.get("substitution")
         lineNumber = data.get("lineNumber")
+        support_rewrite_complexity = data.get("supportRewriteComplexity")
 
         target = _get_case_side(proof, case, side)
         # Clear previous errors before attempting new substitution
@@ -1489,7 +1493,7 @@ def substitution(request):
             proof.baseCase.markIncomplete()
         else:
             proof.leapStep.markIncomplete()
-        _apply_line(target, currentRacket, rule, startPosition, substitution)
+        _apply_line(target, currentRacket, rule, startPosition, substitution, support_rewrite_complexity)
 
         is_valid = len(target.errLog) == 0
         racket_str = target.getPrevRacket() if is_valid else "Error generating racket"
@@ -1628,6 +1632,21 @@ def check_completion(request):
         # Persist overall completion status to database
         if proof_id:
             InductionProof.objects.filter(id=proof_id).update(is_complete=overall_complete)
+
+            # update assignment if it exists and is completed for the first time
+            if overall_complete:
+                content_type = ContentType.objects.get(app_label="induction_api", model="inductionproof")
+                mapping = StudentProofMapping.objects.filter(
+                    content_type=content_type,
+                    object_id=proof_id
+                ).first()
+
+                # If it belongs to an assignment, lock in the completion timestamp
+                if mapping:
+                    # Only set it if it hasn't been completed before
+                    if not mapping.completed_at:
+                        mapping.completed_at = timezone.now()
+                        mapping.save()
 
         # Save updated completion status to cache
         save_induction_obj_to_cache(user, proof, proof_id)
@@ -1771,6 +1790,7 @@ def get_current_proof(request):
             "support_rule_set": proof.support_rule_set,
             "visible_rules": parse_visible_rules(proof.visible_rules),
             "support_value_mapping": proof.support_value_mapping,
+            "support_rewrite_complexity": proof.support_rewrite_complexity,
         }, status=status.HTTP_200_OK)
     except InductionProof.DoesNotExist:
         return Response({"hasProof": False}, status=status.HTTP_200_OK)
@@ -1951,7 +1971,8 @@ PARAM_FIELDS = [
     'support_premise',
     'support_rule_set',
     'support_value_mapping',
-    'visible_rules'
+    'visible_rules',
+    'support_rewrite_complexity'
 ]
 
 
@@ -2042,6 +2063,7 @@ def download_proof(request):
         'support_rule_set': proof.support_rule_set,
         'visible_rules': parse_visible_rules(proof.visible_rules),
         'support_value_mapping': proof.support_value_mapping,
+        'support_rewrite_complexity': proof.support_rewrite_complexity,
         'lines': {
             'base': {
                 'LHS': get_side_lines('base', 'LHS'),
@@ -2091,6 +2113,7 @@ def upload_proof(request):
             support_rule_set=data.get('support_rule_set', True),
             visible_rules=data.get('visible_rules', {}),
             support_value_mapping=data.get('support_value_mapping', True),
+            support_rewrite_complexity=data.get('support_rewrite_complexity', True)
         )
         lines_data = data.get('lines', {})
         for case in ('base', 'leap'):

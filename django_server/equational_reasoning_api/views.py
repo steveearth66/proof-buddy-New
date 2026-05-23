@@ -21,6 +21,10 @@ from expression_tree.ERRuleset import isMatch
 from expression_tree.default_udfs import DEFAULT_UDFS
 from expression_tree.LemmaApplicator import build_lemma_rule
 
+from assignments.models import StudentProofMapping
+from django.contrib.contenttypes.models import ContentType
+from django.utils import timezone
+
 User = get_user_model()
 
 
@@ -362,6 +366,7 @@ def apply_rule(request):
         selected_node = data.get("selectedNode")
         substitution = data.get("substitution")
         line_number = data.get("lineNumber")
+        support_rewrite_complexity = data.get("supportRewriteComplexity", True)
 
         # Guard: "rewrite math" must use the Substitution button, not the rule field
         rewrite_math_error = _check_rewrite_math_misuse(rule)
@@ -414,7 +419,7 @@ def apply_rule(request):
         # Apply the rule (skip if we already have errors from lemma lookup)
         if not target.errLog:
             if substitution is not None and substitution != "":
-                target.addProofLine(current_racket, rule, int(start_position or 0), substitution)
+                target.addProofLine(current_racket, rule, int(start_position or 0), substitution, support_rewrite_complexity=support_rewrite_complexity)
             else:
                 target.addProofLine(current_racket, rule, int(start_position or 0), auto_infer=_auto_infer)
 
@@ -530,14 +535,14 @@ def substitution(request):
         selected_node = data.get("selectedNode")
         substitution_expr = data.get("substitution")
         line_number = data.get("lineNumber")
-        
+        support_rewrite_complexity = data.get("supportRewriteComplexity", True)
         target = proof_obj.LHS if side == "LHS" else proof_obj.RHS
         target.errLog = []
         proof_obj.isComplete = False
-        
+        print(support_rewrite_complexity)
         # Apply substitution
         if substitution_expr is not None and substitution_expr != "":
-            target.addProofLine(current_racket, rule, int(start_position or 0), substitution_expr)
+            target.addProofLine(current_racket, rule, int(start_position or 0), substitution_expr, support_rewrite_complexity=support_rewrite_complexity)
         else:
             target.addProofLine(current_racket, rule, int(start_position or 0))
         
@@ -612,6 +617,7 @@ def substitution(request):
         }, status=status.HTTP_200_OK)
         
     except Exception as e:
+        traceback.print_exc()
         return Response({
             "isValid": False,
             "errors": [str(e)]
@@ -703,6 +709,21 @@ def check_completion(request):
         # Update database
         if proof_id:
             EquationalProof.objects.filter(id=proof_id).update(is_complete=is_complete)
+
+            # update assignment if it exists and is completed for the first time
+            if is_complete:
+                content_type = ContentType.objects.get(app_label="equational_reasoning_api", model="equationalproof")
+                mapping = StudentProofMapping.objects.filter(
+                    content_type=content_type,
+                    object_id=proof_id
+                ).first()
+
+                # If it belongs to an assignment, lock in the completion timestamp
+                if mapping:
+                    # Only set it if it hasn't been completed before
+                    if not mapping.completed_at:
+                        mapping.completed_at = timezone.now()
+                        mapping.save()
         
         proof_obj.isComplete = is_complete
         save_equational_obj_to_cache(user, proof_obj, proof_id)
@@ -781,6 +802,7 @@ def get_proof_lines(request):
             "support_premise": proof.support_premise,
             "support_rule_set": proof.support_rule_set,
             "visible_rules": parse_visible_rules(proof.visible_rules),
+            "support_rewrite_complexity": proof.support_rewrite_complexity,
             "support_value_mapping": proof.support_value_mapping,
             "LHS": [format_line(line) for line in lhs_lines],
             "RHS": [format_line(line) for line in rhs_lines],
@@ -1482,7 +1504,8 @@ PARAM_FIELDS = [
     'support_premise',
     'support_rule_set',
     'support_value_mapping',
-    'visible_rules'
+    'visible_rules',
+    'support_rewrite_complexity'
 ]
 
 
@@ -1561,6 +1584,7 @@ def download_proof(request):
         'support_rule_set': proof.support_rule_set,
         "visible_rules": parse_visible_rules(proof.visible_rules),
         'support_value_mapping': proof.support_value_mapping,
+        'support_rewrite_complexity': proof.support_rewrite_complexity,
         'lines': {
             'LHS': [line_to_dict(l) for l in lhs_lines],
             'RHS': [line_to_dict(l) for l in rhs_lines],
@@ -1594,6 +1618,7 @@ def upload_proof(request):
             support_rule_set=data.get('support_rule_set', True),
             visible_rules=data.get('visible_rules', {}),
             support_value_mapping=data.get('support_value_mapping', True),
+            support_rewrite_complexity=data.get('support_rewrite_complexity', True)
         )
         lines_data = data.get('lines', {})
         for side in ('LHS', 'RHS'):

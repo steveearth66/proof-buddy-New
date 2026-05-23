@@ -587,7 +587,7 @@ class AssignmentProgressMatrixView(APIView):
             if not cloned_proof:
                 proof_status = "error" 
             elif getattr(cloned_proof, 'is_complete', False):
-                proof_status = "complete"
+                proof_status = "complete" if not m.is_late else "late"
             else:
                 proof_status = "in progress"
 
