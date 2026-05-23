@@ -171,6 +171,7 @@ const InductionRacket = () => {
   const [activeSide, setActiveSide] = useState(null);
   const [studentComment, setStudentComment] = useState("");
   const [instructorComment, setInstructorComment] = useState("");
+  const [commentStatus, setCommentStatus] = useState({})
 
   useEffect(() => {
     async function loadUser() {
@@ -1160,6 +1161,8 @@ const InductionRacket = () => {
 
             setInductiveHypothesisLHS(metaData.inductive_hypothesis_lhs || "");
             setInductiveHypothesisRHS(metaData.inductive_hypothesis_rhs || "");
+            
+            console.log("META DATA IH:", metaData.inductive_hypothesis_lhs);
         }
 
         // -------------------------------------------------------------
@@ -1476,12 +1479,12 @@ const InductionRacket = () => {
       return;
     }
 
-    if ((!inductiveHypothesisLHS || inductiveHypothesisLHS.trim() === "") && !proofParams?.support_ih) {
+    if ((!inductiveHypothesisLHS || inductiveHypothesisLHS.trim() === "") && !proofParams?.support_ih) { // i did this earlier I think
       toast.error("Inductive hypothesis for LHS must be provided.");
       return;
     }
 
-    if (!inductiveHypothesisRHS || inductiveHypothesisRHS.trim() === "") {
+    if ((!inductiveHypothesisRHS || inductiveHypothesisRHS.trim() === "") && !proofParams?.support_ih){
       toast.error("Inductive hypothesis for RHS must be provided.");
       return;
     }
@@ -1537,7 +1540,9 @@ const InductionRacket = () => {
       }
       
       // Validate LHS Inductive Hypothesis
-      try {
+      // if IH support is set to high, skip this and send the blanks to backend
+      if (!proofParams?.support_ih){
+        try {
         const lhsIHValidation = await inductionService.checkGoal({
           case: 'leap',
           side: 'LHS',
@@ -1581,6 +1586,7 @@ const InductionRacket = () => {
         toast.error(`RHS Inductive Hypothesis validation failed:\n${errorMessage}`);
         return;
       }
+      }
 
       // Prefer session definitions; include only enabled/applied ones
       let definitions = [];
@@ -1613,6 +1619,10 @@ const InductionRacket = () => {
 
       if (response && response.data) {
         if (response.status === 201 || response.status === 200) {
+          console.log("FULL RESPONSE:", response);
+          setInductiveHypothesisLHS(response.inductive_hypothesis_lhs);
+          setInductiveHypothesisRHS(response.inductive_hypothesis_rhs);
+
           // Handle generics created by backend (could be multiple for list induction)
           const genericsCreated = response.data.generics_created || 
                                   (response.data.generic_definition_created ? [response.data.generic_definition_created] : []);
@@ -2088,7 +2098,7 @@ const InductionRacket = () => {
         </Col>
         <Col xs="auto" className="d-flex align-items-center">
           <Button   
-          variant="secondary"
+          variant= "secondary" //{hasComments ? "warning" : "secondary"}
           onClick={async() => {
             const data = await inductionService.getComments({
               side: side,
@@ -2099,6 +2109,8 @@ const InductionRacket = () => {
             setActiveSide(side);
             setStudentComment(data.student || "");
             setInstructorComment(data.instructor || "");
+
+            //if either a student or instructor comment exists, make button a dif color
 
             setShowCommentsModal(true);
           }}
@@ -2677,7 +2689,7 @@ const InductionRacket = () => {
                                 onClick={ihLhsSelect}
                                 ref={ihLhsRef}
                                 highlightPositions={ihLhsHighlights}
-                                disabled={proofStarted}
+                                disabled={proofStarted || proofParams.support_ih}
                               />
                           </Form.Group>
                           <Form.Group as={Col} md="6" className="er-inductive-hypothesis-rhs">
@@ -2693,7 +2705,7 @@ const InductionRacket = () => {
                                 onClick={ihRhsSelect}
                                 ref={ihRhsRef}
                                 highlightPositions={ihRhsHighlights}
-                                disabled={proofStarted}
+                                disabled={proofStarted || proofParams.support_ih}
                               />
                           </Form.Group>
                         </Row>

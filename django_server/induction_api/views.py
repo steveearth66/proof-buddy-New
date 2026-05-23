@@ -333,6 +333,12 @@ def start_induction_proof(request):
         import copy
         
         try:
+            # Detect whether frontend is using high support mode
+            high_support_mode = (
+                not inductive_hypothesis_lhs.strip() and
+                not inductive_hypothesis_rhs.strip()
+            )
+
             # Parse the goals and IH expressions (frontend already validated these)
             lhs_goal_line = ERProofLine(lhs_leap_goal, False, None, generics=None)
             rhs_goal_line = ERProofLine(rhs_leap_goal, False, None, generics=None)
@@ -345,24 +351,34 @@ def start_induction_proof(request):
             
             recursiveReplaceNodes(expected_lhs_ih_tree, [induction_variable], [lvar_node])
             recursiveReplaceNodes(expected_rhs_ih_tree, [induction_variable], [lvar_node])
-            
-            # Get the already-parsed IH lines from the validation above
-            lhs_ih_line = ERProofLine(inductive_hypothesis_lhs, False, None, generics=None)
-            rhs_ih_line = ERProofLine(inductive_hypothesis_rhs, False, None, generics=None)
-            
-            # Compare the trees
-            if str(lhs_ih_line.exprTree) != str(expected_lhs_ih_tree):
-                print(f"LHS IH mismatch!")
-                return Response(
-                    {"error": f"LHS Inductive Hypothesis must be the LHS goal with {induction_variable} replaced by {leap_variable}.\nExpected: {expected_lhs_ih_tree}\nGot: {inductive_hypothesis_lhs}"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            if str(rhs_ih_line.exprTree) != str(expected_rhs_ih_tree):
-                return Response(
-                    {"error": f"RHS Inductive Hypothesis must be the RHS goal with {induction_variable} replaced by {leap_variable}.\nExpected: {expected_rhs_ih_tree}\nGot: {inductive_hypothesis_rhs}"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+
+            # Convert generated trees to strings
+            expected_lhs_ih = str(expected_lhs_ih_tree)
+            expected_rhs_ih = str(expected_rhs_ih_tree)
+
+            if high_support_mode:
+                # Autofill IH values
+                inductive_hypothesis_lhs = expected_lhs_ih
+                inductive_hypothesis_rhs = expected_rhs_ih
+
+            else:
+                # Get the already-parsed IH lines from the validation above
+                lhs_ih_line = ERProofLine(inductive_hypothesis_lhs, False, None, generics=None)
+                rhs_ih_line = ERProofLine(inductive_hypothesis_rhs, False, None, generics=None)
+                
+                # Compare the trees
+                if str(lhs_ih_line.exprTree) != str(expected_lhs_ih_tree):
+                    print(f"LHS IH mismatch!")
+                    return Response(
+                        {"error": f"LHS Inductive Hypothesis must be the LHS goal with {induction_variable} replaced by {leap_variable}.\nExpected: {expected_lhs_ih_tree}\nGot: {inductive_hypothesis_lhs}"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                if str(rhs_ih_line.exprTree) != str(expected_rhs_ih_tree):
+                    return Response(
+                        {"error": f"RHS Inductive Hypothesis must be the RHS goal with {induction_variable} replaced by {leap_variable}.\nExpected: {expected_rhs_ih_tree}\nGot: {inductive_hypothesis_rhs}"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
                     
         except Exception as e:
             return Response(
@@ -487,7 +503,9 @@ def start_induction_proof(request):
                     "proof_tag": proof.tag,
                     "generic_definition_created": generic_lvar,  # For backwards compatibility
                     "generics_created": generics_to_create,  # All generics created
-                    "data": serializer.data
+                    "data": serializer.data,
+                    "inductive_hypothesis_lhs": inductive_hypothesis_lhs,
+                    "inductive_hypothesis_rhs": inductive_hypothesis_rhs
                 },
                 status=status.HTTP_201_CREATED
             )
