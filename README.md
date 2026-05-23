@@ -1,5 +1,5 @@
 # Proof Buddy
-A web application for verifying mathematical proofs using True-False Logic (TFL) and First Order Logic (FOL), currently utilized by professors and students in courses at Drexel University.
+A web application for verifying mathematical proofs using Equational Reasoning with Racket. It is capable of symbolic manipulation and structural induction. It is currently utilized by professors and students in courses at Drexel University.
 
 ## Table of Contents
 - [Prerequisites](#prerequisites)

@@ -116,10 +116,13 @@ class AssignmentSerializer(serializers.ModelSerializer):
             if not template_proof:
                 continue
 
+            type = ap.content_type.model
             proof_info = {
                 "id": template_proof.id, # Template ID
-                "title": getattr(template_proof, 'name', 'Untitled Proof'),
-                "type": ap.content_type.model,
+                "name": getattr(template_proof, 'name', 'Untitled Proof'),
+                "tag": getattr(template_proof, 'tag', 'General'),
+                "type": type,
+                "displayType": "Equational Reasoning" if type == "equationalproof" else "Induction",
                 "status": "Not Started",
                 "student_proof_id": None,
                 "is_locked": StudentProofMapping.objects.filter(
@@ -174,8 +177,9 @@ class CreateAssignmentSerializer(serializers.ModelSerializer):
         for proof in proofs_data:
             p_type = proof.get('type')
             p_id = proof.get('id')
+            p_name = proof.get('name')
             
-            self._clone_and_bind_proof(assignment, p_id, p_type)
+            self._clone_and_bind_proof(assignment, p_id, p_type, p_name)
 
         return assignment
     
@@ -197,6 +201,7 @@ class CreateAssignmentSerializer(serializers.ModelSerializer):
             for index, p_info in enumerate(proofs_data):
                 p_id = p_info.get('id')
                 p_type = p_info.get('type')
+                p_name = p_info.get('name')
                 
                 # Check if this proof is already attached to the assignment
                 # (Matching by object_id and content_type)
@@ -205,11 +210,18 @@ class CreateAssignmentSerializer(serializers.ModelSerializer):
                 
                 if existing:
                     existing.order = index
+                    if not StudentProofMapping.objects.filter(
+                        assignment=assignment,
+                        template_proof_id=existing.object_id,
+                        content_type=existing.content_type
+                    ).exists():
+                        existing.proof_object.name = p_name
+                        existing.proof_object.save()
                     existing.save()
                     new_proof_list.append(existing)
                 else:
                     # clone newly added proof
-                    cloned_ap = self._clone_and_bind_proof(assignment, p_id, p_type)
+                    cloned_ap = self._clone_and_bind_proof(assignment, p_id, p_type, p_name)
                     if cloned_ap:
                         cloned_ap.order = index
                         cloned_ap.save()
@@ -233,13 +245,14 @@ class CreateAssignmentSerializer(serializers.ModelSerializer):
 
         return assignment
     
-    def _clone_and_bind_proof(self, assignment, p_id, p_type):
+    def _clone_and_bind_proof(self, assignment, p_id, p_type, p_name):
         """Helper to handle the cloning logic you used in create()"""
         # Logic for EquationalProof
         if p_type == 'equationalproof':
             try:
                 orig = EquationalProof.objects.get(id=p_id)
                 cloned = EquationalProof.objects.get(id=p_id)
+                cloned.name = p_name
                 cloned.pk = cloned.id = None
                 cloned.user = None
                 cloned.save()
@@ -256,6 +269,7 @@ class CreateAssignmentSerializer(serializers.ModelSerializer):
             try:
                 orig = InductionProof.objects.get(id=p_id)
                 cloned = InductionProof.objects.get(id=p_id)
+                cloned.name = p_name
                 cloned.pk = cloned.id = None
                 cloned.user = None
                 cloned.save()
