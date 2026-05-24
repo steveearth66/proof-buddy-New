@@ -517,7 +517,7 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false, 
   const [genericToEdit, setGenericToEdit] = useState({});
   const [editGeneric, setEditGeneric] = useState(false);
   
-  const [tempDefinitions] = useState(JSON.parse(sessionStorage.getItem('temp_definitions')) || []);
+  const [tempDefinitions, setTempDefinitions] = useState(JSON.parse(sessionStorage.getItem('temp_definitions')) || []);
   const [tempGenerics] = useState(JSON.parse(sessionStorage.getItem('temp_generics')) || []);
 
   // Re-sync with sessionStorage whenever component becomes visible
@@ -571,6 +571,18 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false, 
       window.removeEventListener('genericsUpdated', handleGenericsUpdated);
     };
   }, []);
+
+  const handleHiddenReveal = (label, expression) => {
+    const updateList = (list) =>
+      list.map(def => def.label === label ? { ...def, expression_hidden: false, expression } : def);
+    const updatedDefs = updateList(definitions);
+    sessionStorage.setItem('definitions', JSON.stringify(updatedDefs));
+    setDefinitions(updatedDefs);
+    const storedTemp = JSON.parse(sessionStorage.getItem('temp_definitions')) || [];
+    const updatedTemp = updateList(storedTemp);
+    sessionStorage.setItem('temp_definitions', JSON.stringify(updatedTemp));
+    setTempDefinitions(updatedTemp);
+  };
 
   const deleteDefinition = async (label) => {
     const confirm = window.confirm(
@@ -856,6 +868,7 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false, 
                       isLocked={isLocked}
                       isStudent={isStudent}
                       validateHiddenDefinitionFn={validateHiddenDefinitionFn}
+                      onHiddenReveal={handleHiddenReveal}
                     />
                   ))}
                 </div>
@@ -877,6 +890,7 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false, 
                       isLocked={isLocked}
                       isStudent={isStudent}
                       validateHiddenDefinitionFn={validateHiddenDefinitionFn}
+                      onHiddenReveal={handleHiddenReveal}
                     />
                   ))}
                 </div>
@@ -896,6 +910,7 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false, 
                       isLocked={true}
                       isStudent={isStudent}
                       validateHiddenDefinitionFn={validateHiddenDefinitionFn}
+                      onHiddenReveal={handleHiddenReveal}
                     />
                   ))}
                 </div>
@@ -971,7 +986,8 @@ function Definition({
   applyDefinition,
   isLocked = false,
   isStudent = false,
-  validateHiddenDefinitionFn
+  validateHiddenDefinitionFn,
+  onHiddenReveal = null
 }) {
   const isDefaultUDF = definition.is_default === true || definition.deletable === false;
   const [hiddenInput, setHiddenInput] = useState('');
@@ -986,6 +1002,7 @@ function Definition({
       if (result.isValid) {
         setHiddenRevealed(true);
         setRevealedExpression(result.expression);
+        if (onHiddenReveal) onHiddenReveal(definition.label, result.expression);
       } else {
         setHiddenError('the input expression does not match the hidden definition');
       }

@@ -143,14 +143,17 @@ class AssignmentSerializer(serializers.ModelSerializer):
 
                 if mapping:
                     student_proof = mapping.student_proof
-                    proof_info["student_proof_id"] = mapping.object_id
-                    
-                    is_completed = getattr(student_proof, 'is_complete', False) 
-                    
-                    if is_completed:
-                        proof_info["status"] = "Completed"
+                    # If the student deleted their copy (is_active=False), treat it as Not Started
+                    # so the frontend calls startAssignmentProof and gets a fresh clone.
+                    if student_proof and not getattr(student_proof, 'is_active', True):
+                        pass
                     else:
-                        proof_info["status"] = "In Progress"
+                        proof_info["student_proof_id"] = mapping.object_id
+                        is_completed = getattr(student_proof, 'is_complete', False)
+                        if is_completed:
+                            proof_info["status"] = "Completed"
+                        else:
+                            proof_info["status"] = "In Progress"
 
             proof_data.append(proof_info)
 

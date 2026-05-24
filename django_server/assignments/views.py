@@ -499,11 +499,17 @@ def start_assignment_proof(request, assignment_id):
     ).first()
 
     if existing_mapping:
-        return Response({
-            "success": True, 
-            "new_proof_id": existing_mapping.object_id,
-            "type": proof_type
-        }, status=status.HTTP_200_OK)
+        # Return the existing clone only if it is still active (not deleted by the student).
+        # If the student deleted their copy, fall through to create a fresh clone below.
+        active_proof = ProofModel.objects.filter(
+            id=existing_mapping.object_id, is_active=True
+        ).first()
+        if active_proof:
+            return Response({
+                "success": True,
+                "new_proof_id": existing_mapping.object_id,
+                "type": proof_type
+            }, status=status.HTTP_200_OK)
 
     # 3. DEEP CLONE THE PROOF
     try:
@@ -532,14 +538,19 @@ def start_assignment_proof(request, assignment_id):
     except ProofModel.DoesNotExist:
         return Response({"message": "Template proof not found."}, status=status.HTTP_404_NOT_FOUND)
 
-    # 4. Save the mapping linking the assignment, student, and the new clone
-    StudentProofMapping.objects.create(
-        assignment=assignment,
-        student=request.user,
-        template_proof_id=template_proof_id,
-        content_type=content_type,
-        object_id=cloned_proof.id
-    )
+    # 4. Save (or update) the mapping linking the assignment, student, and the new clone.
+    # If the student previously deleted their copy, update the mapping to point to the fresh clone.
+    if existing_mapping:
+        existing_mapping.object_id = cloned_proof.id
+        existing_mapping.save()
+    else:
+        StudentProofMapping.objects.create(
+            assignment=assignment,
+            student=request.user,
+            template_proof_id=template_proof_id,
+            content_type=content_type,
+            object_id=cloned_proof.id
+        )
 
     return Response({
         "success": True, 

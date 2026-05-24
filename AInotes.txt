@@ -26,8 +26,6 @@ The production database contains saved student and instructor proofs that are di
 
 You should take on the role of a paired programmer.  you may presume I am have expert level knowledge in math (especially proofs) and pedagogy and in python; however, i only have very rudimentary understanding of frontend (html, css, javascript, react, django, sql, database) so those aspects will have to be explained more fully.
 
-The ERracket mode works for the most part. So, it is critical that you not make any changes there, at least not without alerting me first to exactly what you are doing so we can make sure you don't break something which functions.
-
 When directed to implement a plan, proceed with the implementation slowly and carefully. let me verify the work manually msyelf to check everything is correct and nothing got broken before moving onto the next step.  you can recommend to me some relevant tests to do after each step.
 
 also, you should always stay within the expected structures that have been defined.  So, for example, the backend works primarily with trees, so do NOT try to work with them as strings.
@@ -916,3 +914,52 @@ KEY LESSONS:
 2. The proper fix is always to move database calls into TestCase methods — not to rename files or skip tests. Renaming hides the problem; proper TestCase wrapping solves it.
 3. Django's TEST: NAME setting in settings.py is only effective for code running inside a TestCase. Module-level imports bypass it entirely.
 4. When a restore SQL fails with a NOT NULL constraint error, check whether the model gained new non-nullable fields since the backup was made. The fix is to substitute a default value for NULL in the restore file, not to change the schema.
+
+---
+
+SESSION 2026-05-23: Hidden Definition Bugs — errLog Contamination, Parameter Label Mismatch, and Panel State Persistence
+
+TWO BUGS FIXED IN THIS SESSION (both required backend fixes; the second also required a frontend fix):
+
+BUG 1: "No completed proof named 'invFour' found" when applying a rule
+
+SYMPTOM: After a student entered a valid expression for a hidden student-entry definition (e.g. invFour), applying a rule like "apply invFour" returned "No completed proof named 'invFour' found" — as if the definition was never registered with the proof engine.
+
+DEAD-END DIAGNOSTIC PATH:
+Initially investigated the lemma lookup path (_lookup_lemma) — the error message said "No completed proof named X found" so it seemed like the issue was that the lemma wasn't being stored or retrieved correctly from the database. This was wrong because the error wasn't a lemma problem at all; the UDF (user-defined function) for invFour was simply never successfully added to the engine's ruleSet. The lemma error message was a misleading symptom of the deeper failure.
+
+Added debug prints to apply_rule and validate_hidden_definition to trace the actual flow. This revealed that the UDF was absent from ruleSet['apply'], which shifted investigation to addUDF.
+
+ACTUAL ROOT CAUSE (two compounding issues):
+
+Issue A — errLog contamination: load_proof was calling addUDF('invFour', 'int>int', '****') — registering the hidden definition using its masked expression. This caused ERProofEngine.addUDF to write errors into self.errLog ('**** contains illegal characters' AND 'Cannot map 0 parameters to 1 types'). ERProofEngine.addUDF has a guard at its very start: "if self.errLog != []: return". Because errLog accumulates across ALL addUDF calls on the same ERProof instance and is NEVER cleared between calls by default, every subsequent addUDF call on that instance — including the one in validate_hidden_definition that registers the real student expression — silently returned immediately without doing anything.
+
+Issue B — Parameter label mismatch: Even after clearing errLog, calling addUDF('invFour', 'int>int', expression) still fails because the definition snapshot stores just 'invFour' (no parameter names) but the type 'int>int' expects 1 parameter. The engine's str2Type parses 'int>int' as having domain=(int,), but paramsList derived from the label 'invFour' is [] (length 0, not 1), causing another error. The live Definition row in the database stores the full label '(invFour x)', so the fix was to look up the live Definition by its stored id and use that full label.
+
+WHY THE MISTAKES HAPPENED: The errLog guard in addUDF is not obvious — it is easy to assume that calling addUDF with a valid expression just works. That a prior call with '****' had already dirtied errLog was entirely invisible. Also, the snapshot label 'invFour' looked like a valid label string, hiding the param-count mismatch.
+
+THE FIX (three locations in views.py):
+- load_proof: Skip any definition whose expression is '****' or empty; clear errLog before and after each addUDF call; use full label from live Definition by id when snapshot label lacks parentheses.
+- validate_hidden_definition: Use live_def.label (already looked up by id earlier in the function) instead of the snapshot label; clear errLog before and after each addUDF call.
+- _ensure_er_hydrated: Same pattern — skip masked expressions, look up full label by id, clear errLog before and after each addUDF call; also guard with "if udf_name not in side.ruleSet['apply']" to avoid double-registration.
+
+KEY LESSON: ERProofEngine.addUDF's self.errLog accumulates across all calls on the same instance. Any failed addUDF call (even one with an intentionally invalid/masked expression) will permanently block all future addUDF calls on that instance unless errLog is explicitly cleared first. Always clear errLog immediately BEFORE calling addUDF and again immediately AFTER. Never call addUDF with a masked ('****') or otherwise invalid expression — skip it entirely. Always use the full parameter label (e.g., '(invFour x)') from the live database record, not a snapshot label that may have been stored without parameter names.
+
+---
+
+BUG 2: Expression reverts to Hidden '****' after closing and reopening the definitions panel
+
+SYMPTOM: Student enters expression for a hidden definition, clicks Check, sees the expression and "Visible" status — but if they close and reopen the Proof Definitions panel, it reverts to showing '****' and Hidden status, as if the check never happened.
+
+DEAD-END PATH:
+Initially thought this might be a backend issue — perhaps validate_hidden_definition was not returning the expression correctly, or the frontend was calling the wrong endpoint. Verified the backend was fine.
+
+Then thought the issue might be in EquationalReasoningNew.js — perhaps validateHiddenDefinitionFn needed to be wrapped to update parent state. But looking at the code, the direct service call was already correct.
+
+ACTUAL ROOT CAUSE: hiddenRevealed and revealedExpression are LOCAL React state in the Definition component (child of ShowDefinitions). When the user closes the definitions panel, ShowDefinitions unmounts, destroying all descendant component state. When the panel reopens, ShowDefinitions remounts and reads from sessionStorage — but sessionStorage['definitions'] and sessionStorage['temp_definitions'] were NEVER updated when the check succeeded. They still had expression_hidden: true and expression: '****'. So every reopen showed the old hidden state.
+
+WHY THE REGRESSION HAPPENED: In a prior session, validateHiddenDefinitionFn was a local wrapper function in EquationalReasoningNew.js that called the service AND updated sessionStorage/React state after success. The savedDefs fix in that same session replaced it with equationalService.validateHiddenDefinition (a direct service call), which removed the state-update side effect. This introduced the regression silently.
+
+THE FIX: Added an onHiddenReveal callback prop to the Definition component. After a successful check in handleCheckHidden, call onHiddenReveal(label, expression). In ShowDefinitions, implement handleHiddenReveal to update BOTH sessionStorage['definitions'] AND sessionStorage['temp_definitions'] (mapping over each list to update any entry whose label matches, flipping expression_hidden to false and setting the expression), and also update React state via setDefinitions and setTempDefinitions. Pass onHiddenReveal={handleHiddenReveal} to all three Definition rendering sites.
+
+KEY LESSON: When a component unmounts (e.g., a collapsible panel closes), all local state in it and its descendants is destroyed. Any "revealed" or "unlocked" status that needs to survive a close/reopen cycle must be persisted to sessionStorage immediately on success — not just held in local component state. When refactoring a callback from a wrapper (that had side effects) to a direct service call, audit what side effects the wrapper was providing and ensure they are preserved elsewhere.

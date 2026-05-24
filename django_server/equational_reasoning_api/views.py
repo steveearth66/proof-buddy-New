@@ -131,6 +131,49 @@ def _is_definition_hidden(rule, user, proof_id):
         return False
 
 
+def _is_definition_unimplemented(rule, user, proof_id):
+    """Return True if the rule name matches a definition with no expression (student-entry mode not yet fulfilled)."""
+    from proofs.models import Definition as _LiveDef
+    from django.db.models import Q
+    fn_name = rule.strip().split()[-1].lstrip('(').rstrip(')')
+    # If the student already unlocked/entered an expression in this proof session, it's no longer unimplemented.
+    if proof_id and cache.get(f"hidden_unlocked_{proof_id}_{fn_name}"):
+        return False
+    # Also check the proof snapshot — the student may have entered an expression in a prior session.
+    if proof_id:
+        try:
+            snap = EquationalProof.objects.only('definition').get(id=proof_id)
+            for snap_item in (snap.definition or []):
+                if snap_item.get('is_generic'):
+                    continue
+                snap_label = snap_item.get('label', '')
+                if (snap_label == fn_name or
+                        snap_label.startswith(f'({fn_name} ') or
+                        snap_label.startswith(f'({fn_name})')):
+                    if snap_item.get('expression'):
+                        return False
+        except Exception:
+            pass
+    _def_owner = user
+    try:
+        _spm = StudentProofMapping.objects.filter(
+            content_type=ContentType.objects.get_for_model(EquationalProof),
+            object_id=proof_id
+        ).select_related('assignment__course__instructor').first()
+        if _spm:
+            _def_owner = _spm.assignment.course.instructor
+    except Exception:
+        pass
+    try:
+        return _LiveDef.objects.filter(
+            created_by=_def_owner, expression=''
+        ).filter(
+            Q(label=fn_name) | Q(label__startswith=f'({fn_name} ') | Q(label__startswith=f'({fn_name})')
+        ).exists()
+    except Exception:
+        return False
+
+
 def _ensure_er_hydrated(proof_obj, proof_id):
     """Re-register any UDFs and generics missing from the TwoSidedProof engine.
     Safety net for cache-miss / server-restart scenarios where the proof object is
@@ -168,11 +211,24 @@ def _ensure_er_hydrated(proof_obj, proof_id):
             _udf_name = _udf_name[0]
             _dtype = _d.get('type') or _d.get('def_type')
             _dbody = _d.get('expression') or _d.get('body')
-            if not _dtype or not _dbody:
+            if not _dtype or not _dbody or _dbody == '****':
                 continue
+            # Use the full label (with params) from the live Definition when available.
+            # Snapshots may store only the function name (e.g. 'invFour') while
+            # addUDF requires the full form (e.g. '(invFour x)') to count parameters.
+            _full_label = _dlabel
+            _def_id = _d.get('id')
+            if _def_id and '(' not in _dlabel:
+                try:
+                    from proofs.models import Definition as _LiveDefHydrate
+                    _live = _LiveDefHydrate.objects.only('label').get(id=_def_id)
+                    _full_label = _live.label
+                except Exception:
+                    pass
             for side in sides:
                 if _udf_name not in side.ruleSet.get('apply', {}):
-                    side.addUDF(_dlabel, _dtype, _dbody)
+                    side.errLog = []
+                    side.addUDF(_full_label, _dtype, _dbody)
                     side.errLog = []
 
 
@@ -412,6 +468,9 @@ def apply_rule(request):
         line_number = data.get("lineNumber")
         support_rewrite_complexity = data.get("supportRewriteComplexity", True)
 
+        if rule and _is_definition_unimplemented(rule, user, proof_id):
+            return Response({"isValid": False, "errors": ["function definitions cannot be applied until implemented"]}, status=status.HTTP_200_OK)
+
         if rule and not user.is_instructor:
             if _is_definition_hidden(rule, user, proof_id):
                 return Response({"isValid": False, "errors": ["hidden functions cannot be applied until made visible through implementation"]}, status=status.HTTP_200_OK)
@@ -578,6 +637,9 @@ def substitution(request):
             rule = "rewrite math"
         elif rule and rule.lower() == "logic":
             rule = "rewrite logic"
+
+        if rule and _is_definition_unimplemented(rule, user, proof_id):
+            return Response({"isValid": False, "errors": ["function definitions cannot be applied until implemented"]}, status=status.HTTP_200_OK)
 
         if rule and not user.is_instructor:
             if _is_definition_hidden(rule, user, proof_id):
@@ -1198,8 +1260,15 @@ def validate_hidden_definition(request):
                 snapshot_defs[target_idx]["expression"] = student_expression
                 snapshot_defs[target_idx]["expression_hidden"] = False
                 EquationalProof.objects.filter(id=proof_id).update(definition=snapshot_defs)
-        proof_obj.LHS.addUDF(label, def_type, student_expression)
-        proof_obj.RHS.addUDF(label, def_type, student_expression)
+        # Use the full label from the live Definition (e.g. '(invFour x)') — the
+        # request sends the snapshot label which may lack parameter names.
+        _addUDF_label = live_def.label if live_def is not None else label
+        proof_obj.LHS.errLog = []
+        proof_obj.LHS.addUDF(_addUDF_label, def_type, student_expression)
+        proof_obj.LHS.errLog = []
+        proof_obj.RHS.errLog = []
+        proof_obj.RHS.addUDF(_addUDF_label, def_type, student_expression)
+        proof_obj.RHS.errLog = []
         save_equational_obj_to_cache(user, proof_obj, proof_id)
         fn_name = label.strip().lstrip('(').split()[0].rstrip(')')
         cache.set(f"hidden_unlocked_{proof_id}_{fn_name}", True, timeout=86400)
@@ -1399,10 +1468,27 @@ def load_proof(proof_data):
         label = definition.get("label")
         def_type = definition.get("type")
         expression = definition.get("expression")
-        
-        if label and def_type and expression:
-            proof.LHS.addUDF(label, def_type, expression)
-            proof.RHS.addUDF(label, def_type, expression)
+        # Skip masked or empty expressions — hidden defs cannot be registered
+        if not label or not def_type or not expression or expression == '****':
+            continue
+        # Use the full label (with params) from the live Definition when available.
+        # Snapshots sometimes store only the function name (e.g. 'invFour') while
+        # addUDF requires the full form (e.g. '(invFour x)') to count parameters.
+        full_label = label
+        _def_id = definition.get('id')
+        if _def_id and '(' not in label:
+            try:
+                from proofs.models import Definition as _LiveDefLoad
+                _live = _LiveDefLoad.objects.only('label').get(id=_def_id)
+                full_label = _live.label
+            except Exception:
+                pass
+        proof.LHS.errLog = []
+        proof.LHS.addUDF(full_label, def_type, expression)
+        proof.LHS.errLog = []
+        proof.RHS.errLog = []
+        proof.RHS.addUDF(full_label, def_type, expression)
+        proof.RHS.errLog = []
 
     # 2. Load Generics into Engine
     generics = proof_data.get("generics", [])
