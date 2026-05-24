@@ -513,10 +513,29 @@ def use_definition(request, label):
 def update_definition(request):
     user = request.user
     json_data = request.data
-    definition = edit_definition(user, json_data["label"], json_data)
+    label = json_data.get("label", "")
+    expression = json_data.get("expression", "")
+
+    # Validate expression through the proof engine before saving to DB
+    if expression:
+        proof = get_or_set_proof(user)
+        # Temporarily remove the old UDF so the label is free for re-validation
+        proof.removeUDF(label)
+        try:
+            proof.addUDF(label, json_data.get("type", ""), expression)
+        except Exception:
+            return Response({"message": "label, type, and expression are inconsistent"}, status=status.HTTP_400_BAD_REQUEST)
+        errors = proof.getErrorsAndClear()
+        if errors:
+            return Response({"message": str(errors)}, status=status.HTTP_400_BAD_REQUEST)
+        # Update the proof cache with the re-validated UDF
+        proof.definitions = [d for d in proof.definitions if d.get("label") != label]
+        save_proof_to_cache(user, proof)
+
+    definition = edit_definition(user, label, json_data)
 
     if not definition:
-        return Response(status=status.HTTP_400_BAD_REQUEST)
+        return Response({"message": "Definition not found"}, status=status.HTTP_400_BAD_REQUEST)
 
     return Response(definition, status=status.HTTP_200_OK)
 
@@ -558,6 +577,13 @@ def add_generic(request):
     data = request.data
     proof = get_or_set_proof(user)
     label = data.get("label", "")
+    # Generics are restricted to primitive types (int, list, bool, any).
+    # Labels with whitespace or parentheses indicate function-type generics which are not supported.
+    if any(c in label for c in '() \t\n'):
+        return Response(
+            {'message': 'can only create primitive generics: integers, lists, and booleans'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
     # Defensively remove any stale generic with this label from DB and cache.
     # A prior 500 can leave a DB record without a matching cache entry, causing
     # a duplicate-key error on the next create attempt.
