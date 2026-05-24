@@ -104,6 +104,19 @@ const validateHiddenField = async (data) => {
   }
 };
 
+const validateHiddenDefinition = async ({ label, studentExpression }) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/validate-hidden-definition`,
+      { label, student_expression: studentExpression }
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, 'Error validating hidden definition:');
+    throw error;
+  }
+};
+
 const getRacketProofs = async ({ page = 1, query = "" }) => {
   try {
     const response = await axiosInstance.get(`${API_GATEWAY}/proofs?page=${page}&query=${query}`);
@@ -251,6 +264,7 @@ const equationalService = {
   getProofLines,
   toggleVisibility,
   validateHiddenField,
+  validateHiddenDefinition,
   getRacketProofs,
   getRacketProof,
   clearProof,

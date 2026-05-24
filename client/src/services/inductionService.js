@@ -326,6 +326,7 @@ const inductionService = {
   downloadProof,
   uploadProof,
   validateHiddenField,
+  validateHiddenDefinition,
   toggleVisibility,
   saveComment,
   getComments

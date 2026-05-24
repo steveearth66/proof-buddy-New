@@ -244,6 +244,8 @@ def add_definitions(request):
     try:
         if json_data["expression"]:
             proof.addUDF(json_data["label"], json_data["type"], json_data["expression"])
+        elif json_data.get("expression_hidden"):
+            pass  # student-entry mode: no expression to register yet, skip addUDF
         else:
             raise ValueError('Definition must have expression')
 
