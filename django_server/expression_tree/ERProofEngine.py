@@ -122,7 +122,10 @@ class ProofComponent:
         elif type == 'any':
             self.generics[label] = GenericAny()
         else:
-            raise ValueError('Invalid type string')
+            parsed = str2Type(type)
+            if parsed.getType() in FAIL_TYPES:
+                raise ValueError('Invalid type string')
+            self.generics[label] = GenericTyped(parsed)
 
 class TwoSidedProof(ProofComponent):
     def __init__(self, debug=False):

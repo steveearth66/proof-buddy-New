@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view
 from django.contrib.auth import get_user_model
-from proofs.models import Proof
+from proofs.models import Proof, Generic as GenericModel
 from proofs.views import (
     get_or_create_proof,
     user_proofs,
@@ -240,6 +240,14 @@ def add_definitions(request):
     user = request.user
     json_data = request.data
     proof = get_or_set_proof(user)
+    label = json_data.get("label", "")
+
+    # If a generic with this label exists, temporarily remove it from the proof engine
+    # so addUDF can use the label. If we return early on error we skip save_proof_to_cache,
+    # so the cache retains the original proof (with the generic still present).
+    had_generic = label in proof.generics
+    if had_generic:
+        del proof.generics[label]
 
     try:
         if json_data["expression"]:
@@ -259,7 +267,14 @@ def add_definitions(request):
             {"message": str(errors)}, status=status.HTTP_400_BAD_REQUEST
         )
 
+    # Always clean up any generic with this label from DB after successful addUDF.
+    # This handles both explicit conversion AND cache/DB desync cases (e.g. a prior
+    # 500 error that inserted the generic into DB without updating the proof cache).
+    GenericModel.objects.filter(label=label, created_by=user).delete()
+
     definition = create_user_definition(user, json_data)
+    if not definition:
+        return Response({"message": "Error saving definition"}, status=status.HTTP_400_BAD_REQUEST)
     definition["applied"] = True
     proof.definitions.append(definition)
     save_proof_to_cache(user, proof)
@@ -542,6 +557,13 @@ def add_generic(request):
     user = request.user
     data = request.data
     proof = get_or_set_proof(user)
+    label = data.get("label", "")
+    # Defensively remove any stale generic with this label from DB and cache.
+    # A prior 500 can leave a DB record without a matching cache entry, causing
+    # a duplicate-key error on the next create attempt.
+    GenericModel.objects.filter(label=label, created_by=user).delete()
+    if label in proof.generics:
+        del proof.generics[label]
     try:
         generic = create_user_generic(user, data)
         generic["enabled"] = True
