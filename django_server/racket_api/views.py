@@ -1,4 +1,4 @@
-from expression_tree.ERProofEngine import TwoSidedProof, ERProof, ERProofLine
+from expression_tree.ERProofEngine import TwoSidedProof, ERProof, ERProofLine, ProofComponent
 from expression_tree.ERCommon import makeJson
 from rest_framework.response import Response
 from rest_framework import status
@@ -516,19 +516,22 @@ def update_definition(request):
     label = json_data.get("label", "")
     expression = json_data.get("expression", "")
 
-    # Validate expression through the proof engine before saving to DB
+    # Validate expression using a fresh ProofComponent — avoids interference
+    # from the user's working proof state (shared dict refs, existing UDFs, etc.)
     if expression:
-        proof = get_or_set_proof(user)
-        # Temporarily remove the old UDF so the label is free for re-validation
-        proof.removeUDF(label)
+        validator = ProofComponent()
         try:
-            proof.addUDF(label, json_data.get("type", ""), expression)
+            validator.addUDF(label, json_data.get("type", ""), expression)
         except Exception:
             return Response({"message": "label, type, and expression are inconsistent"}, status=status.HTTP_400_BAD_REQUEST)
-        errors = proof.getErrorsAndClear()
+        errors = validator.errLog
         if errors:
             return Response({"message": str(errors)}, status=status.HTTP_400_BAD_REQUEST)
-        # Update the proof cache with the re-validated UDF
+        # Validation passed — update the working proof cache
+        proof = get_or_set_proof(user)
+        proof.removeUDF(label)
+        proof.addUDF(label, json_data.get("type", ""), expression)
+        proof.getErrorsAndClear()
         proof.definitions = [d for d in proof.definitions if d.get("label") != label]
         save_proof_to_cache(user, proof)
 

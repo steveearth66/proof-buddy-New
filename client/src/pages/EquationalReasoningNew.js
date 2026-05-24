@@ -298,6 +298,7 @@ const EquationalReasoningNew = () => {
               leftRacketsAndRules: [],
               rightRacketsAndRules: [],
               definitions: definitions.map(d => ({
+                id: d.id || null,
                 label: d.label || d.name || '',
                 type: normalizeType(d.type),
                 expression: d.expression

@@ -36,6 +36,7 @@ export default function Definitions({ toggleDefinitionsWindow, isLocked = false,
             toggleDefinitionsWindow={toggleDefinitionsWindow}
             isLocked={isLocked}
             isStudent={isStudent}
+            validateHiddenDefinitionFn={validateHiddenDefinitionFn}
           />
         )}
       </div>
@@ -503,7 +504,7 @@ function CreateDefinition({
   );
 }
 
-function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false, isStudent = false }) {
+function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false, isStudent = false, validateHiddenDefinitionFn }) {
   const [definitions, setDefinitions] = useState(
     JSON.parse(sessionStorage.getItem('definitions')) || []
   );
@@ -853,6 +854,8 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false, 
                       updateEdit={updateEdit}
                       applyDefinition={applyDefinition}
                       isLocked={isLocked}
+                      isStudent={isStudent}
+                      validateHiddenDefinitionFn={validateHiddenDefinitionFn}
                     />
                   ))}
                 </div>
@@ -872,6 +875,8 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false, 
                       updateEdit={updateEdit}
                       applyDefinition={applyDefinition}
                       isLocked={isLocked}
+                      isStudent={isStudent}
+                      validateHiddenDefinitionFn={validateHiddenDefinitionFn}
                     />
                   ))}
                 </div>
@@ -889,6 +894,8 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false, 
                       eventKey={`temp-def-${def.id || i}`}
                       definition={{ ...def, applied: true }} 
                       isLocked={true}
+                      isStudent={isStudent}
+                      validateHiddenDefinitionFn={validateHiddenDefinitionFn}
                     />
                   ))}
                 </div>
@@ -962,10 +969,62 @@ function Definition({
   deleteDefinition,
   updateEdit,
   applyDefinition,
-  isLocked = false
+  isLocked = false,
+  isStudent = false,
+  validateHiddenDefinitionFn
 }) {
   const isDefaultUDF = definition.is_default === true || definition.deletable === false;
-  
+  const [hiddenInput, setHiddenInput] = useState('');
+  const [hiddenError, setHiddenError] = useState('');
+  const [hiddenRevealed, setHiddenRevealed] = useState(false);
+  const [revealedExpression, setRevealedExpression] = useState('');
+
+  const handleCheckHidden = async () => {
+    setHiddenError('');
+    try {
+      const result = await validateHiddenDefinitionFn({ label: definition.label, studentExpression: hiddenInput });
+      if (result.isValid) {
+        setHiddenRevealed(true);
+        setRevealedExpression(result.expression);
+      } else {
+        setHiddenError('the input expression does not match the hidden definition');
+      }
+    } catch (err) {
+      setHiddenError('the input expression does not match the hidden definition');
+    }
+  };
+
+  const renderExpression = () => {
+    if (definition.expression_hidden && isStudent) {
+      if (hiddenRevealed) {
+        return <span>{revealedExpression}</span>;
+      }
+      return (
+        <div>
+          <span>****</span>
+          <div className="d-flex align-items-center mt-1" style={{ gap: '6px' }}>
+            <Form.Control
+              type="text"
+              size="sm"
+              placeholder="Enter expression to unlock"
+              value={hiddenInput}
+              onChange={e => setHiddenInput(e.target.value)}
+              style={{ maxWidth: '260px' }}
+            />
+            <Button size="sm" variant="outline-primary" onClick={handleCheckHidden}>
+              Check
+            </Button>
+          </div>
+          {hiddenError && <p style={{ color: 'red', marginTop: '4px', marginBottom: '0' }}>{hiddenError}</p>}
+        </div>
+      );
+    }
+    if (definition.expression_hidden && !definition.expression) {
+      return <span style={{ color: 'red' }}>user supplied</span>;
+    }
+    return <span>{definition.expression}</span>;
+  };
+
   return (
     <Accordion>
       <Accordion.Item eventKey={eventKey}>
@@ -976,11 +1035,9 @@ function Definition({
           <p>Type: {definition.type}</p>
           <p>
             Expression:{' '}
-            {definition.expression_hidden && !definition.expression
-              ? <span style={{ color: 'red' }}>user supplied</span>
-              : definition.expression}
+            {renderExpression()}
           </p>
-          <p>Visibility: {definition.expression_hidden ? 'Hidden' : 'Visible'}</p>
+          <p>Visibility: {(definition.expression_hidden && !(isStudent && hiddenRevealed)) ? 'Hidden' : 'Visible'}</p>
           {definition.notes && <p>Notes: {definition.notes}</p>}
           <div className="def-buttons">
             <Button

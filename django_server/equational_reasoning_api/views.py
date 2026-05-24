@@ -88,6 +88,49 @@ def get_or_set_equational_obj(user):
     return loads(cached['proof_obj']), proof_id
 
 
+def _is_definition_hidden(rule, user, proof_id):
+    """Return True if the rule name corresponds to a hidden definition for this user/proof."""
+    from proofs.models import Definition as _LiveDef
+    from django.db.models import Q
+    fn_name = rule.strip().split()[-1].lstrip('(').rstrip(')')
+    if cache.get(f"hidden_unlocked_{proof_id}_{fn_name}"):
+        return False
+    if proof_id:
+        try:
+            snap = EquationalProof.objects.only('definition').get(id=proof_id)
+            for snap_item in (snap.definition or []):
+                if snap_item.get('is_generic'):
+                    continue
+                snap_label = snap_item.get('label', '')
+                if (snap_label == fn_name or
+                        snap_label.startswith(f'({fn_name} ') or
+                        snap_label.startswith(f'({fn_name})')):
+                    if not snap_item.get('expression_hidden', True):
+                        cache.set(f"hidden_unlocked_{proof_id}_{fn_name}", True, timeout=86400)
+                        return False
+                    return True
+        except Exception:
+            pass
+    _def_owner = user
+    try:
+        _spm = StudentProofMapping.objects.filter(
+            content_type=ContentType.objects.get_for_model(EquationalProof),
+            object_id=proof_id
+        ).select_related('assignment__course__instructor').first()
+        if _spm:
+            _def_owner = _spm.assignment.course.instructor
+    except Exception:
+        pass
+    try:
+        return _LiveDef.objects.filter(
+            created_by=_def_owner, expression_hidden=True
+        ).filter(
+            Q(label=fn_name) | Q(label__startswith=f'({fn_name} ') | Q(label__startswith=f'({fn_name})')
+        ).exists()
+    except Exception:
+        return False
+
+
 def _ensure_er_hydrated(proof_obj, proof_id):
     """Re-register any UDFs and generics missing from the TwoSidedProof engine.
     Safety net for cache-miss / server-restart scenarios where the proof object is
@@ -369,6 +412,10 @@ def apply_rule(request):
         line_number = data.get("lineNumber")
         support_rewrite_complexity = data.get("supportRewriteComplexity", True)
 
+        if rule and not user.is_instructor:
+            if _is_definition_hidden(rule, user, proof_id):
+                return Response({"isValid": False, "errors": ["hidden functions cannot be applied until made visible through implementation"]}, status=status.HTTP_200_OK)
+
         # Guard: "rewrite math" must use the Substitution button, not the rule field
         rewrite_math_error = _check_rewrite_math_misuse(rule)
         if rewrite_math_error:
@@ -531,6 +578,11 @@ def substitution(request):
             rule = "rewrite math"
         elif rule and rule.lower() == "logic":
             rule = "rewrite logic"
+
+        if rule and not user.is_instructor:
+            if _is_definition_hidden(rule, user, proof_id):
+                return Response({"isValid": False, "errors": ["hidden functions cannot be applied until made visible through implementation"]}, status=status.HTTP_200_OK)
+
         current_racket = data.get("currentRacket", "")
         start_position = data.get("startPosition", 0)
         selected_node = data.get("selectedNode")
@@ -791,7 +843,22 @@ def get_proof_lines(request):
         definitions_and_generics = proof.definition if proof.definition else []
         definitions_data = []
         generics_data = []
-        
+
+        # Determine who created these definitions.
+        # For a student's cloned assignment proof the definitions belong to the
+        # instructor, not the student who owns the cloned proof.
+        from proofs.models import Definition as _LiveDef
+        _def_owner = proof.user
+        try:
+            _spm = StudentProofMapping.objects.filter(
+                content_type=ContentType.objects.get_for_model(EquationalProof),
+                object_id=proof_id
+            ).select_related('assignment__course__instructor').first()
+            if _spm:
+                _def_owner = _spm.assignment.course.instructor
+        except Exception:
+            pass
+
         for item in definitions_and_generics:
             if item.get('is_generic'):
                 generics_data.append(item)
@@ -799,10 +866,26 @@ def get_proof_lines(request):
                 item['applied'] = True
                 if 'def_type' in item and 'type' not in item:
                     item['type'] = item.pop('def_type')
+                # Refresh expression_hidden from the live Definition record.
+                # proof.definition is a snapshot that can go stale when the
+                # instructor toggles visibility after the proof was saved.
+                # Use id-based lookup when available; fall back to label+owner.
+                try:
+                    def_id = item.get('id')
+                    if def_id:
+                        live_def = _LiveDef.objects.only('expression_hidden').get(id=def_id)
+                    else:
+                        live_def = _LiveDef.objects.only('expression_hidden').filter(
+                            label=item.get('label'), created_by=_def_owner
+                        ).first()
+                    if live_def and item.get('expression_hidden', True):
+                        item['expression_hidden'] = live_def.expression_hidden
+                except Exception:
+                    pass
                 if item.get('expression_hidden') and not user.is_instructor:
                     item['expression'] = '****'
                 definitions_data.append(item)
-        
+
         proof_user = {}
         proof_user['username'] = proof.user.username
         proof_user['is_student'] = not proof.user.is_instructor
@@ -1044,45 +1127,82 @@ def validate_hidden_definition(request):
         db_proof = EquationalProof.objects.get(id=proof_id)
     except EquationalProof.DoesNotExist:
         return Response({"error": "Proof not found."}, status=status.HTTP_400_BAD_REQUEST)
-    definitions = list(db_proof.definition or [])
-    target_idx = None
-    target_def = None
-    for idx, d in enumerate(definitions):
-        if d.get("label") == label and not d.get("is_generic"):
-            target_idx = idx
-            target_def = d
-            break
-    if target_def is None:
+    # Determine who owns the definitions (instructor for student assignment proofs)
+    from proofs.models import Definition as _LiveDef
+    from django.contrib.contenttypes.models import ContentType
+    _def_owner = user
+    try:
+        _spm = StudentProofMapping.objects.filter(
+            content_type=ContentType.objects.get_for_model(EquationalProof),
+            object_id=proof_id
+        ).select_related('assignment__course__instructor').first()
+        if _spm:
+            _def_owner = _spm.assignment.course.instructor
+    except Exception:
+        pass
+    # Look up the live Definition from the DB. If not found, fall back to the snapshot
+    # (test environments and standalone proofs may not have a live Definition row).
+    live_def = None
+    snapshot_defs = list(db_proof.definition or [])
+    snapshot_entry = next((d for d in snapshot_defs if d.get("label") == label and not d.get("is_generic")), None)
+    def_id = snapshot_entry.get("id") if snapshot_entry else None
+    try:
+        if def_id:
+            live_def = _LiveDef.objects.get(id=def_id)
+        else:
+            live_def = _LiveDef.objects.filter(label=label, created_by=_def_owner).first()
+    except Exception:
+        pass
+    # Determine expression_hidden and stored_expression from live row or snapshot fallback
+    if live_def is not None:
+        if not live_def.expression_hidden:
+            return Response({"error": "Definition is not hidden."}, status=status.HTTP_400_BAD_REQUEST)
+        stored_expression = live_def.expression or ""
+    elif snapshot_entry is not None:
+        if not snapshot_entry.get("expression_hidden"):
+            return Response({"error": "Definition is not hidden."}, status=status.HTTP_400_BAD_REQUEST)
+        stored_expression = snapshot_entry.get("expression") or ""
+    else:
         return Response({"error": "Definition not found."}, status=status.HTTP_400_BAD_REQUEST)
-    if not target_def.get("expression_hidden"):
-        return Response({"error": "Definition is not hidden."}, status=status.HTTP_400_BAD_REQUEST)
     # Parse the student input using the ER engine
     temp_proof = ERProof()
     temp_proof.addProofLine(student_expression)
     if temp_proof.errLog:
         return Response({"isValid": False, "message": "Syntax error in expression."}, status=status.HTTP_200_OK)
     student_tree = makeJson(temp_proof.proofLines[-1].exprTree)
-    stored_expression = target_def.get("expression", "")
     if stored_expression:
-        # Case A: compare trees
+        # Case A: compare trees against the real stored expression
         stored_proof = ERProof()
         stored_proof.addProofLine(stored_expression)
         if stored_proof.errLog:
             return Response({"error": "Stored expression is unparseable."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         stored_tree = makeJson(stored_proof.proofLines[-1].exprTree)
         if student_tree == stored_tree:
+            fn_name = label.strip().lstrip('(').split()[0].rstrip(')')
+            target_idx = next((i for i, d in enumerate(snapshot_defs) if d.get("label") == label and not d.get("is_generic")), None)
+            if target_idx is not None:
+                snapshot_defs[target_idx] = dict(snapshot_defs[target_idx])
+                snapshot_defs[target_idx]["expression_hidden"] = False
+                EquationalProof.objects.filter(id=proof_id).update(definition=snapshot_defs)
+            cache.set(f"hidden_unlocked_{proof_id}_{fn_name}", True, timeout=86400)
             return Response({"isValid": True, "expression": stored_expression}, status=status.HTTP_200_OK)
         else:
             return Response({"isValid": False, "message": "the input expression does not match the hidden definition"}, status=status.HTTP_200_OK)
     else:
         # Case B: student-entry mode — accept any valid expression
-        def_type = target_def.get("type") or target_def.get("def_type", "")
-        definitions[target_idx] = dict(target_def)
-        definitions[target_idx]["expression"] = student_expression
-        EquationalProof.objects.filter(id=proof_id).update(definition=definitions)
+        def_type = snapshot_entry.get("type") or snapshot_entry.get("def_type", "") if snapshot_entry else ""
+        if snapshot_entry is not None:
+            target_idx = next((i for i, d in enumerate(snapshot_defs) if d.get("label") == label and not d.get("is_generic")), None)
+            if target_idx is not None:
+                snapshot_defs[target_idx] = dict(snapshot_defs[target_idx])
+                snapshot_defs[target_idx]["expression"] = student_expression
+                snapshot_defs[target_idx]["expression_hidden"] = False
+                EquationalProof.objects.filter(id=proof_id).update(definition=snapshot_defs)
         proof_obj.LHS.addUDF(label, def_type, student_expression)
         proof_obj.RHS.addUDF(label, def_type, student_expression)
         save_equational_obj_to_cache(user, proof_obj, proof_id)
+        fn_name = label.strip().lstrip('(').split()[0].rstrip(')')
+        cache.set(f"hidden_unlocked_{proof_id}_{fn_name}", True, timeout=86400)
         return Response({"isValid": True, "expression": student_expression}, status=status.HTTP_200_OK)
 
 
@@ -1213,15 +1333,39 @@ def user_proof(user, proof_id):
     # 3. Fetch Definitions
     # 'definition' is a JSONField in your model, so access it directly.
     definitions_and_generics = proof.definition if proof.definition else []
-    
+
     definitions_data = []
     generics_data = []
-    
+
+    from proofs.models import Definition as _LiveDef
+    _def_owner = proof.user
+    try:
+        _spm = StudentProofMapping.objects.filter(
+            content_type=ContentType.objects.get_for_model(EquationalProof),
+            object_id=proof_id
+        ).select_related('assignment__course__instructor').first()
+        if _spm:
+            _def_owner = _spm.assignment.course.instructor
+    except Exception:
+        pass
+
     for item in definitions_and_generics:
         if item.get('is_generic'):
             generics_data.append(item)
         else:
             item['applied'] = True
+            try:
+                def_id = item.get('id')
+                if def_id:
+                    live_def = _LiveDef.objects.only('expression_hidden').get(id=def_id)
+                else:
+                    live_def = _LiveDef.objects.only('expression_hidden').filter(
+                        label=item.get('label'), created_by=_def_owner
+                    ).first()
+                if live_def and item.get('expression_hidden', True):
+                    item['expression_hidden'] = live_def.expression_hidden
+            except Exception:
+                pass
             if item.get('expression_hidden') and not user.is_instructor:
                 item['expression'] = '****'
             definitions_data.append(item)
