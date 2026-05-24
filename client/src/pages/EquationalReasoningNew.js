@@ -1980,6 +1980,8 @@ const handleRuleKeyDown = (e) => {
           <Definitions 
             toggleDefinitionsWindow={toggleDefinitionsWindow} 
             isLocked={proofStarted}
+            isStudent={currentUserType?.is_student}
+            validateHiddenDefinitionFn={equationalService.validateHiddenDefinition}
           />
         )}
 
