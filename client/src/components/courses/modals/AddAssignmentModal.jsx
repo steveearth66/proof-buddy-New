@@ -358,7 +358,7 @@ export default function AddAssignmentModal({ show, onHide, onExited, courseId, o
           variant="primary" 
           type="submit" 
           form="create-assignment-form"
-          disabled={selectedProofs.length === 0 || isSubmitting || !title || !dueDate || !targetCourseId}
+          disabled={selectedProofs.length === 0 || isSubmitting || !title || !dueDate || (mode === AssignmentMode.COPY && !targetCourseId)}
         >
           {isSubmitting ? <Spinner size="sm" animation="border" /> : (() => {
             switch (mode) {
