@@ -58,7 +58,7 @@ export default function CourseView() {
 
     // 2. Background Database Sync
     try {
-      await courseService.toggleCourseStatus(courseId, newStatus);
+      await courseService.setCourseStatus(courseId, newStatus);
     } catch (error) {
       // 3. Rollback on failure
       console.error("Failed to update status", error);
