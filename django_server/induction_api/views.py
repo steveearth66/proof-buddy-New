@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
 from dill import dumps, loads
 from django.core.cache import cache
-from .models import InductionProof
+from .models import InductionProof, InductionProofLineComment
 from .serializers import InductionProofSerializer, InductionProofCreateSerializer
 import re
 import traceback
@@ -25,6 +25,7 @@ from .models import InductionProofLine
 from assignments.models import StudentProofMapping
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
+from django.shortcuts import get_object_or_404
 
 User = get_user_model()
 
@@ -335,6 +336,12 @@ def start_induction_proof(request):
         import copy
         
         try:
+            # Detect whether frontend is using high support mode
+            high_support_mode = (
+                not inductive_hypothesis_lhs.strip() and
+                not inductive_hypothesis_rhs.strip()
+            )
+
             # Parse the goals and IH expressions (frontend already validated these)
             lhs_goal_line = ERProofLine(lhs_leap_goal, False, None, generics=None)
             rhs_goal_line = ERProofLine(rhs_leap_goal, False, None, generics=None)
@@ -347,24 +354,34 @@ def start_induction_proof(request):
             
             recursiveReplaceNodes(expected_lhs_ih_tree, [induction_variable], [lvar_node])
             recursiveReplaceNodes(expected_rhs_ih_tree, [induction_variable], [lvar_node])
-            
-            # Get the already-parsed IH lines from the validation above
-            lhs_ih_line = ERProofLine(inductive_hypothesis_lhs, False, None, generics=None)
-            rhs_ih_line = ERProofLine(inductive_hypothesis_rhs, False, None, generics=None)
-            
-            # Compare the trees
-            if str(lhs_ih_line.exprTree) != str(expected_lhs_ih_tree):
-                print(f"LHS IH mismatch!")
-                return Response(
-                    {"error": f"LHS Inductive Hypothesis must be the LHS goal with {induction_variable} replaced by {leap_variable}.\nExpected: {expected_lhs_ih_tree}\nGot: {inductive_hypothesis_lhs}"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            if str(rhs_ih_line.exprTree) != str(expected_rhs_ih_tree):
-                return Response(
-                    {"error": f"RHS Inductive Hypothesis must be the RHS goal with {induction_variable} replaced by {leap_variable}.\nExpected: {expected_rhs_ih_tree}\nGot: {inductive_hypothesis_rhs}"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+
+            # Convert generated trees to strings
+            expected_lhs_ih = str(expected_lhs_ih_tree)
+            expected_rhs_ih = str(expected_rhs_ih_tree)
+
+            if high_support_mode:
+                # Autofill IH values
+                inductive_hypothesis_lhs = expected_lhs_ih
+                inductive_hypothesis_rhs = expected_rhs_ih
+
+            else:
+                # Get the already-parsed IH lines from the validation above
+                lhs_ih_line = ERProofLine(inductive_hypothesis_lhs, False, None, generics=None)
+                rhs_ih_line = ERProofLine(inductive_hypothesis_rhs, False, None, generics=None)
+                
+                # Compare the trees
+                if str(lhs_ih_line.exprTree) != str(expected_lhs_ih_tree):
+                    print(f"LHS IH mismatch!")
+                    return Response(
+                        {"error": f"LHS Inductive Hypothesis must be the LHS goal with {induction_variable} replaced by {leap_variable}.\nExpected: {expected_lhs_ih_tree}\nGot: {inductive_hypothesis_lhs}"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                if str(rhs_ih_line.exprTree) != str(expected_rhs_ih_tree):
+                    return Response(
+                        {"error": f"RHS Inductive Hypothesis must be the RHS goal with {induction_variable} replaced by {leap_variable}.\nExpected: {expected_rhs_ih_tree}\nGot: {inductive_hypothesis_rhs}"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
                     
         except Exception as e:
             return Response(
@@ -489,7 +506,9 @@ def start_induction_proof(request):
                     "proof_tag": proof.tag,
                     "generic_definition_created": generic_lvar,  # For backwards compatibility
                     "generics_created": generics_to_create,  # All generics created
-                    "data": serializer.data
+                    "data": serializer.data,
+                    "inductive_hypothesis_lhs": inductive_hypothesis_lhs,
+                    "inductive_hypothesis_rhs": inductive_hypothesis_rhs
                 },
                 status=status.HTTP_201_CREATED
             )
@@ -540,9 +559,26 @@ def get_induction_proof(request, proof_id):
     user = request.user
     
     try:
-        proof = InductionProof.objects.get(id=proof_id, user=user)
+        proof = get_object_or_404(InductionProof, id=proof_id)
+        if (proof.user != user):
+            proof_content_type = ContentType.objects.get_for_model(InductionProof)
+        
+            is_authorized_instructor = StudentProofMapping.objects.filter(
+                object_id=proof.id,
+                content_type=proof_content_type,
+                assignment__course__instructor=user
+            ).exists()
+
+            if not is_authorized_instructor:
+                return Response({"hasProof": False}, status=status.HTTP_403_OK)
         serializer = InductionProofSerializer(proof)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        response_data = dict(serializer.data)
+        definitions = [dict(d) for d in (response_data.get("definition") or [])]
+        for item in definitions:
+            if item.get("expression_hidden") and not user.is_instructor:
+                item["expression"] = "****"
+        response_data["definition"] = definitions
+        return Response(response_data, status=status.HTTP_200_OK)
     except InductionProof.DoesNotExist:
         return Response(
             {"error": "Proof not found"},
@@ -1841,10 +1877,18 @@ def set_induction_session_by_id(request):
     proof_id = request.data.get('proof_id')
     
     try:
-        try:
-            proof = InductionProof.objects.get(id=proof_id, user=user)
-        except InductionProof.DoesNotExist:
-            return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
+        proof = get_object_or_404(InductionProof, id=proof_id)
+        if (proof.user != user):
+            proof_content_type = ContentType.objects.get_for_model(InductionProof)
+        
+            is_authorized_instructor = StudentProofMapping.objects.filter(
+                object_id=proof.id,
+                content_type=proof_content_type,
+                assignment__course__instructor=user
+            ).exists()
+
+            if not is_authorized_instructor:
+                return Response({"hasProof": False}, status=status.HTTP_403_FORBIDDEN)
         
         # 1. Initialize the Engine
         ind_proof = IndProof()
@@ -2259,6 +2303,69 @@ def validate_hidden_field(request):
         import traceback
         traceback.print_exc()
         return Response({"error": f"Server Error: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def validate_hidden_definition(request):
+    """
+    Validate a student's expression against a hidden definition.
+    Case A: definition has a stored expression — student must match the tree exactly.
+    Case B: definition has no expression (student-entry mode) — any valid parse is accepted,
+            stored in the DB proof record and registered in the engine cache.
+    """
+    user = request.user
+    label = request.data.get("label")
+    student_expression = request.data.get("student_expression", "").strip()
+    if not label or not student_expression:
+        return Response({"error": "Missing label or student_expression."}, status=status.HTTP_400_BAD_REQUEST)
+    ind, proof_id = get_or_set_induction_obj(user)
+    if not proof_id:
+        return Response({"error": "No active proof session found."}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        db_proof = InductionProof.objects.get(id=proof_id)
+    except InductionProof.DoesNotExist:
+        return Response({"error": "Proof not found."}, status=status.HTTP_400_BAD_REQUEST)
+    definitions = list(db_proof.definition or [])
+    target_idx = None
+    target_def = None
+    for idx, d in enumerate(definitions):
+        if d.get("label") == label and not d.get("is_generic"):
+            target_idx = idx
+            target_def = d
+            break
+    if target_def is None:
+        return Response({"error": "Definition not found."}, status=status.HTTP_400_BAD_REQUEST)
+    if not target_def.get("expression_hidden"):
+        return Response({"error": "Definition is not hidden."}, status=status.HTTP_400_BAD_REQUEST)
+    # Parse the student input using the ER engine
+    temp_proof = ERProof()
+    temp_proof.addProofLine(student_expression)
+    if temp_proof.errLog:
+        return Response({"isValid": False, "message": "Syntax error in expression."}, status=status.HTTP_200_OK)
+    student_tree = makeJson(temp_proof.proofLines[-1].exprTree)
+    stored_expression = target_def.get("expression", "")
+    if stored_expression:
+        # Case A: compare trees
+        stored_proof = ERProof()
+        stored_proof.addProofLine(stored_expression)
+        if stored_proof.errLog:
+            return Response({"error": "Stored expression is unparseable."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        stored_tree = makeJson(stored_proof.proofLines[-1].exprTree)
+        if student_tree == stored_tree:
+            return Response({"isValid": True, "expression": stored_expression}, status=status.HTTP_200_OK)
+        else:
+            return Response({"isValid": False, "message": "the input expression does not match the hidden definition"}, status=status.HTTP_200_OK)
+    else:
+        # Case B: student-entry mode — accept any valid expression
+        def_type = target_def.get("type") or target_def.get("def_type", "")
+        definitions[target_idx] = dict(target_def)
+        definitions[target_idx]["expression"] = student_expression
+        InductionProof.objects.filter(id=proof_id).update(definition=definitions)
+        ind.baseCase.addUDF(label, def_type, student_expression)
+        ind.leapStep.addUDF(label, def_type, student_expression)
+        save_induction_obj_to_cache(user, ind, proof_id)
+        return Response({"isValid": True, "expression": student_expression}, status=status.HTTP_200_OK)
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def toggle_visibility(request):
@@ -2328,3 +2435,88 @@ def toggle_visibility(request):
         traceback.print_exc()
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+@api_view(["POST"])
+def save_comment(request):
+    if request.method != "POST":
+        return Response(
+            {"error": "POST required"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        user = request.user
+        _, proof_id = get_or_set_induction_obj(user)
+
+        data = request.data
+
+        side = data.get("side")
+        line_number = data.get("line_number")
+        role = data.get("role")
+        comment_text = data.get("comment")
+
+        if not all([side, line_number is not None, role]):
+            return Response(
+                {"error": "Missing required fields"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        comment_obj, created = InductionProofLineComment.objects.update_or_create(
+            proof_id=proof_id,
+            side=side,
+            line_number=line_number,
+            role=role,
+            defaults={
+                "comment": comment_text
+            }
+        )
+
+        return Response({
+            "success": True,
+            "created": created
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+@api_view(["GET"])
+def get_comments(request):
+
+    try:
+        user = request.user
+        _, proof_id = get_or_set_induction_obj(user)
+
+        side = request.GET.get("side")
+        line_number = int(request.GET.get("line_number"))
+
+        comments = InductionProofLineComment.objects.filter(
+            proof_id=proof_id,
+            side=side,
+            line_number=line_number
+        )
+
+        result = {
+            "student": "",
+            "instructor": ""
+        }
+
+        for c in comments:
+
+            if c.role == "student":
+                result["student"] = c.comment
+
+            elif c.role == "instructor":
+                result["instructor"] = c.comment
+
+        return Response(result, status=status.HTTP_200_OK)
+
+    except Exception as e:
+
+        print("GET COMMENTS ERROR:", e)
+
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )

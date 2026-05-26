@@ -49,7 +49,7 @@ A Python/Django 5 application exposing a REST API through Django REST Framework 
 - **induction_api**: All endpoints for the mathematical induction proof mode.
 - **proofs**: Legacy proof storage, definition and generic management.
 - **racket_api**: Legacy proof validation endpoints.
-- **assignments**: Instructor term/assignment management and student submission tracking.
+- **assignments**: Instructor course/assignment management and student submission tracking.
 
 ### 2.3 Proof Engine (expression_tree/)
 A pure-Python library within the Django codebase. It is the intellectual core of the system. It parses Racket-like expressions, builds typed ASTs, and evaluates whether a claimed rule application is valid. It is completely stateless with respect to the web layer — it receives expression strings and rule strings, and returns results and errors. The active proof object during a session is serialized with `dill` and stored in Django's database-backed cache.

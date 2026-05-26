@@ -52,6 +52,7 @@ import {
 import userService from "../services/userService";
 import erService from "../services/erService";
 import { useLocation, useNavigate } from "react-router-dom";
+import CommentsModal from "../components/CommentsModal";
 
 /**
  * Equational Reasoning component facilitates the Equational Reasoning Racket.
@@ -60,14 +61,7 @@ const EquationalReasoningNew = () => {
     const [showSide, toggleSide] = useToggleSide();
     const [formValues, handleChange, setFormValues] = useInputState(INITIAL_FORM_VALUES);
     const [currentUserType, setCurrentUserType] = useState(null);
-    
-    useEffect(() => {
-      async function loadUser() {
-        const profile = await userService.getUserProfile();
-        setCurrentUserType(profile);
-      }
-      loadUser();
-    }, []);
+    const [proofOwner, setProofOwner] = useState(null);
 
     const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
     const topSectionRef = useRef(null);
@@ -238,15 +232,18 @@ const EquationalReasoningNew = () => {
         // 3. PREPARE DEFINITIONS & GENERICS
         const normalizeType = (t) => (t || '').replace(/\s*->\s*/g, ' > ').trim();
         let definitions = [];
+        let savedDefs = [];
         let generics = [];
         try {
           const storedDefs = JSON.parse(sessionStorage.getItem('definitions')) || [];
           definitions = storedDefs.filter(d => d.applied && d.expression);
+          savedDefs = storedDefs.filter(d => d.applied);
           const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
           generics = storedGenerics.filter(g => g.enabled);
         } catch (e) {
           console.error('Error reading session definitions:', e);
           definitions = [];
+          savedDefs = [];
           generics = [];
         }
         
@@ -303,10 +300,12 @@ const EquationalReasoningNew = () => {
               rightPremise: { ...rhsPremiseLine },
               leftRacketsAndRules: [],
               rightRacketsAndRules: [],
-              definitions: definitions.map(d => ({
+              definitions: savedDefs.map(d => ({
+                id: d.id || null,
                 label: d.label || d.name || '',
                 type: normalizeType(d.type),
-                expression: d.expression
+                expression: d.expression || '',
+                expression_hidden: d.expression_hidden || false
               })),
               generics: generics.map(g => ({
                 label: g.label || g.name || '',
@@ -402,6 +401,12 @@ const EquationalReasoningNew = () => {
     visible_rules: {},
     support_rewrite_complexity: true
   });
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [comments, setComments] = useState({});
+  const [activePadIndex, setActivePadIndex] = useState(null);
+  const [activeSide, setActiveSide] = useState(null);
+  const [studentComment, setStudentComment] = useState("");
+  const [instructorComment, setInstructorComment] = useState("");
   
   // Separate premises for base and leap cases
   const [leftPremise, setLeftPremise] = useState(INITIAL_PREMISE_STATE);
@@ -446,6 +451,15 @@ const EquationalReasoningNew = () => {
     return [...new Set([...lhsRules, ...rhsRules])];
   }, [racketRuleFields, proofStarted]);
   
+  const isReviewMode = useMemo(() => {
+    return !!(
+      proofStarted && 
+      proofOwner && 
+      currentUserType && 
+      currentUserType.username !== proofOwner.username
+    );
+  }, [proofStarted, proofOwner, currentUserType]);
+  
   // Hook for getting available height for scrollable proof area
   const availableHeight = useDynamicHeight();
 
@@ -460,6 +474,9 @@ const EquationalReasoningNew = () => {
     console.log('[Init] Starting session initialization...');
 
     try {
+      const profile = await userService.getUserProfile();
+      setCurrentUserType(profile);
+
       // -------------------------------------------------------------
       // STEP 1: HYDRATE BACKEND (If coming from "All Proofs" page)
       // -------------------------------------------------------------
@@ -505,7 +522,9 @@ const EquationalReasoningNew = () => {
 
       if (proofData.hasProof) {
         console.log("[Init] Proof found. Restoring UI...");
-        
+        if (proofData?.user?.username) {
+          setProofOwner(proofData.user);
+        }
         const rawDefinitions = proofData.definitions || [];
         const rawGenerics = proofData.generics || [];
         // rawDefs are definitions only (backend already separates generics into proofData.generics)
@@ -1383,9 +1402,9 @@ const handleRuleKeyDown = (e) => {
     const lastLhsLine = findLastNonEmptyLine(lhsLines, lhsLimit);
     const lastRhsLine = findLastNonEmptyLine(rhsLines, rhsLimit);
     setLhsValue(lastLhsLine?.racket || leftPremise.racket || '');
-    setLhsHidden((currentUserType.is_student && lastLhsLine?.hide_expression) || false);
+    setLhsHidden(((isReviewMode ? proofOwner?.is_student : !currentUserType?.is_student) && lastLhsLine?.hide_expression) || false);
     setRhsValue(lastRhsLine?.racket || rightPremise.racket || '');
-    setRhsHidden((currentUserType.is_student && lastRhsLine?.hide_expression) || false);
+    setRhsHidden(((isReviewMode ? proofOwner?.is_student : !currentUserType?.is_student) && lastRhsLine?.hide_expression) || false);
 
   }, [proofStarted, racketRuleFields, leftPremise, rightPremise, playState]);
 
@@ -1747,12 +1766,32 @@ const handleRuleKeyDown = (e) => {
             ruleValidationError={ruleValidationError}
             isEditRow={false}
             showEyeButtons={true}
-            currentUserType={currentUserType}
+            currentUserType={isReviewMode ? proofOwner : !currentUserType}
             hideExpression={hideExpression}
             hideJustification={hideJustification}
             onRuleHiddenToggle={() => handleRuleHiddenToggle(side, index)}
             onExpressionHiddenToggle={() => handleExpressionHiddenToggle(side, index)}
           />
+        </Col>
+        <Col xs="auto" className="d-flex align-items-center">
+          <Button   
+          variant="secondary"
+          onClick={async() => {
+            const data = await equationalService.getComments({
+              side: side,
+              line_number: padIndex
+            })
+
+            setActivePadIndex(padIndex);
+            setActiveSide(side);
+            
+            setStudentComment(data.student || "");
+            setInstructorComment(data.instructor || "");
+            setShowCommentsModal(true);
+          }}
+          >
+            <i className="fa-regular fa-message"></i>
+          </Button>
         </Col>
       </Row>
     );
@@ -1790,7 +1829,7 @@ const handleRuleKeyDown = (e) => {
           isRuleReadOnly={true}
           rulePlaceholder="Rule"
           isEditRow={true}
-          currentUserType={currentUserType}
+          currentUserType={isReviewMode ? proofOwner : !currentUserType}
           hideExpression={isExpressionHidden}
         />
       );
@@ -1833,7 +1872,7 @@ const handleRuleKeyDown = (e) => {
           isRuleInvalid={!!footerRuleError}
           ruleValidationError={footerRuleError}
           isEditRow={true}
-          currentUserType={currentUserType}
+          currentUserType={isReviewMode ? proofOwner : !currentUserType}
           hideExpression={isExpressionHidden}
         />
       );
@@ -1921,6 +1960,20 @@ const handleRuleKeyDown = (e) => {
     
   return (
     <MainLayout>
+      {isReviewMode && (
+        <Alert 
+          variant="warning" 
+          className="d-flex align-items-center py-1 mb-0 justify-content-center shadow-sm border-warning rounded-0"
+        >
+          <div className="d-flex align-items-center gap-2">
+            <i className="fa-solid fa-user-shield text-warning fs-5"></i>
+            <div>
+              <strong className="text-dark">Review Mode:</strong> Viewing proof owned by 
+              <span className="badge bg-dark mx-1 fs-6">{proofOwner.username}</span>.
+            </div>
+          </div>
+        </Alert>
+      )}
       <Container className="er-racket-container">
         <OffcanvasRuleSet
           isActive={isOffcanvasActive}
@@ -1932,6 +1985,8 @@ const handleRuleKeyDown = (e) => {
           <Definitions 
             toggleDefinitionsWindow={toggleDefinitionsWindow} 
             isLocked={proofStarted}
+            isStudent={currentUserType?.is_student}
+            validateHiddenDefinitionFn={equationalService.validateHiddenDefinition}
           />
         )}
 
@@ -2101,7 +2156,7 @@ const handleRuleKeyDown = (e) => {
                         ]
                       }}
                     >
-                      {!currentUserType?.is_student && (
+                      {isReviewMode ? proofOwner?.is_student : !currentUserType?.is_student && (
                         <Dropdown.Item onClick={() => setShowSetParams(true)} href="#">
                           Set Parameters
                         </Dropdown.Item>
@@ -2427,7 +2482,7 @@ const handleRuleKeyDown = (e) => {
                       leftPremise,
                       rightPremise,
                       caseType: 'base',
-                      currentUserType: currentUserType
+                      currentUserType: isReviewMode ? proofOwner : !currentUserType
                     });
                   })}
                   {showContinue(playState, 'base', showSide, erLastReal) && (
@@ -2749,6 +2804,32 @@ const handleRuleKeyDown = (e) => {
           }
         }}
       />
+      <CommentsModal
+              show={showCommentsModal}
+              onHide={() => setShowCommentsModal(false)}
+              studentComment={studentComment}
+              instructorComment={instructorComment}
+              onStudentCommentChange={setStudentComment}
+              OnInstructorCommentChange={setInstructorComment}
+              isStudent={currentUserType?.is_student}
+              onSave={async() => {
+                await equationalService.saveComment({
+                  side: activeSide,
+                  line_number: activePadIndex,
+                  role: "student",
+                  comment: studentComment
+                });
+
+                await equationalService.saveComment({
+                  side: activeSide,
+                  line_number: activePadIndex,
+                  role: "instructor",
+                  comment: instructorComment
+                });
+
+                setShowCommentsModal(false);
+              }}
+            />
     </MainLayout>
   );
 };

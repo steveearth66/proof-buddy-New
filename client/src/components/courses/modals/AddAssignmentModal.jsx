@@ -52,6 +52,7 @@ export default function AddAssignmentModal({ show, onHide, onExited, courseId, o
       setTitle('');
       setDueDate('');
       setSelectedProofs([]);
+      setTargetCourseId(courseId);
     }
   }
 }, [show, assignment, mode]);
@@ -78,7 +79,7 @@ export default function AddAssignmentModal({ show, onHide, onExited, courseId, o
         title: title,
         description: assignment?.description || "No Description Provided",
         due_date: dueDate,
-        course: mode === AssignmentMode.COPY ? targetCourseId : courseId,
+        course: targetCourseId,
         proofs: selectedProofs.map((p, idx) => ({
             id: p.id,
             type: p.type,
@@ -358,7 +359,7 @@ export default function AddAssignmentModal({ show, onHide, onExited, courseId, o
           variant="primary" 
           type="submit" 
           form="create-assignment-form"
-          disabled={selectedProofs.length === 0 || isSubmitting || !title || !dueDate || !targetCourseId}
+          disabled={selectedProofs.length === 0 || isSubmitting || !title || !dueDate || (mode === AssignmentMode.COPY && !targetCourseId)}
         >
           {isSubmitting ? <Spinner size="sm" animation="border" /> : (() => {
             switch (mode) {

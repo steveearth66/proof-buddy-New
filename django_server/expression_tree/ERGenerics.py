@@ -169,3 +169,8 @@ class GenericAny(ERGeneric):
     @property
     def neverNull(self):
         return GenericList().neverNull
+
+class GenericTyped(ERGeneric):
+    """Generic for any type not covered by the specific generic classes (e.g. function types like int>int)"""
+    def __init__(self, racType: RacType):
+        super().__init__(racType)
