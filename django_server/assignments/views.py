@@ -1,5 +1,5 @@
 from .models import Assignment, StudentProofMapping, Course, CourseInvitation
-from .serializers import AssignmentSerializer, CourseSerializer, CreateCourseSerializer, CreateAssignmentSerializer, CourseInvitationSerializer
+from .serializers import AssignmentSerializer, CourseSerializer, StudentViewCourseSerializer, CreateCourseSerializer, CreateAssignmentSerializer, CourseInvitationSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -44,13 +44,17 @@ class CourseViewSet(APIView):
                         "last_name": "Test"
                     }
                 ],
+                "join_code_expires_at": "2026-05-17 02:29:11.926406",
                 "created_by": {
                     "id": 3,
                     "email": "testmail@mail.com",
                     "username": "int566",
                     "first_name": "John",
                     "last_name": "Instructor"
-                }
+                },
+                "is_active": true,
+                "term": "Fall 2025",
+                "description": "Course Description"
             }
         ]
     """
@@ -66,17 +70,18 @@ class CourseViewSet(APIView):
             if not (user.is_instructor and course.instructor == user) and user not in course.students.all() and not user.is_superuser or (user in course.students.all() and course.is_active is False):
                 return Response({"message": "You are not authorized to view this course."}, status=status.HTTP_403_FORBIDDEN)
 
-            serializer = CourseSerializer(course, context={"request": request})
+            serializer = CourseSerializer(course, context={"request": request}) if course.instructor == user or user.is_superuser else StudentViewCourseSerializer(course, context={"request": request})
             return Response(serializer.data, status=status.HTTP_200_OK)
 
-        if user.is_instructor:
+        if user.is_instructor or user.is_superuser:
             # Instructors see courses they own AND courses they have joined as an observer
             owned = Course.objects.filter(instructor=user)
             joined = Course.objects.filter(students=user, is_active=True)
             courses = (owned | joined).distinct()
+            serializer = CourseSerializer(courses, many=True)
         else:
             courses = Course.objects.filter(students=user, is_active=True)
-        serializer = CourseSerializer(courses, many=True)
+            serializer = StudentViewCourseSerializer(courses, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     # POST /courses/
@@ -89,7 +94,7 @@ class CourseViewSet(APIView):
     """
     def post(self, request):
         if not (request.user.is_instructor or request.user.is_superuser):
-            return Response({"message": "You are not authorized to create a course"}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"message": "You are not authorized to create a course."}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = CreateCourseSerializer(data=request.data, context={"request": request})
         if serializer.is_valid():
@@ -139,34 +144,27 @@ class AssignmentViewSet(APIView):
             {
                 "id": 6,
                 "title": "Test 2",
-                "description": "Lorem ipsum dolor sit amet, consectetur",
-                "due_date": "2024-12-12T00:00:00-05:00",
-                "submissions": [
-                    {
-                        "id": 5,
-                        "student": {
-                            "id": 1,
-                            "email": "javanpryce1@gmail.com",
-                            "username": "pryceja",
-                            "first_name": "Javan",
-                            "last_name": "Test"
-                        },
-                        "submission_date": "2024-12-01T20:13:42.764919-05:00",
-                        "proofs": [
-                            14,
-                            30,
-                            33
-                        ],
-                        "grade": 0.0
-                    }
-                ],
+                "description": "No Description Provided",
+                "due_date": "2026-12-12T00:00:00-05:00",
                 "created_by": {
-                    "id": 2,
-                    "email": "admin@localhost",
-                    "username": "admin",
-                    "first_name": "",
-                    "last_name": ""
-                }
+                    "id": 3,
+                    "email": "testmail@mail.com",
+                    "username": "int566",
+                    "first_name": "John",
+                    "last_name": "Instructor"
+                },
+                "proofs": [
+                    {
+                        "id": 1,
+                        "name": "Proof Name",
+                        "tag": "tag",
+                        "type": "equationalproof",
+                        "displayType": "Equational Reasoning",
+                        "status": "Not Started",
+                        "student_proof_id": 3,
+                        "is_locked": true
+                    }
+                ]
             }
         ]
     """
@@ -189,15 +187,24 @@ class AssignmentViewSet(APIView):
     # e.g. post data
     """
     {
-        "title": "Test 7",
-        "description": "test assignment",
+        "id": null,
+        "title": "Assignment Title",
+        "description": "No Description Provided",
         "due_date": "2024-12-12",
-        "course": 55
+        "course": 1,
+        "proofs": [
+            {
+                "id": 1,
+                "type": "equationalproof",
+                "name": "Proof Name",
+                "order": 0
+            }
+        ]
     }
     """
     def post(self, request):
         if not (request.user.is_instructor or request.user.is_superuser):
-            return Response({"message": "You are not authorized to create an assignment"}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"message": "You are not authorized to create an assignment."}, status=status.HTTP_403_FORBIDDEN)
 
         course_id = request.data.get("course")
         try:
@@ -253,15 +260,17 @@ def remove_student(request):
         )
 
     try:
-        student = (
-            User.objects.get(username=student)
-            if "@" not in student
-            else User.objects.get(email=student)
-        )
+        student_user = None
+        if "@" in student:
+            student_user = User.objects.get(email=student, is_instructor=False, is_superuser=False)
+        
+        # If no results by email (or no @ in string), check by username
+        if student_user is None:
+            student_user = User.objects.get(username=student, is_instructor=False, is_superuser=False)
     except User.DoesNotExist:
         return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    course.students.remove(student)
+    course.students.remove(student_user)
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -452,7 +461,7 @@ def join_course(request):
             
             return Response({
                 "message": "Successfully joined the course!",
-                "course": CourseSerializer(course).data
+                "course": StudentViewCourseSerializer(course).data
             }, status=status.HTTP_200_OK)
 
     # If the loop finishes without returning, no valid code was found
@@ -703,3 +712,4 @@ class StudentInvitationView(APIView):
             return Response({"message": "Invitation declined."}, status=status.HTTP_200_OK)
 
         return Response({"error": "Invalid action."}, status=status.HTTP_400_BAD_REQUEST)
+    

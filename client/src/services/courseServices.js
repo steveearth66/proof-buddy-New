@@ -106,7 +106,7 @@ const regenerateJoinCode = async (courseId) => {
     }
 };
 
-const toggleCourseStatus = async (courseId, newStatus) => {
+const setCourseStatus = async (courseId, newStatus) => {
     try {
         const response = await axiosInstance.patch(`${API_GATEWAY}/courses/${courseId}`, { is_active: newStatus });
         return response.data;
@@ -275,7 +275,7 @@ const courseService = {
     removeStudent, 
     addStudent, 
     regenerateJoinCode, 
-    toggleCourseStatus, 
+    setCourseStatus, 
     getInstructorLibrary, 
     deleteAssignment, 
     updateAssignment,

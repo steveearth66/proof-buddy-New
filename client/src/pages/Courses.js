@@ -77,7 +77,7 @@ export default function Courses() {
     setCourses(prev => prev.map(c => c.id === courseId ? { ...c, is_active: newStatus } : c));
 
     try {
-      await courseService.toggleCourseStatus(courseId, newStatus);
+      await courseService.setCourseStatus(courseId, newStatus);
     } catch (error) {
       console.error("Failed to update status", error);
       toast.error("Failed to save status change.");
