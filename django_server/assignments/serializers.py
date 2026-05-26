@@ -8,8 +8,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from .models import Assignment, StudentProofMapping, Course, AssignmentProof, CourseInvitation
 from accounts.serializers import UserSerializer
-from equational_reasoning_api.models import EquationalProof, EquationalProofLine
-from induction_api.models import InductionProof, InductionProofLine
+from equational_reasoning_api.models import EquationalProof
+from induction_api.models import InductionProof
 
 User = get_user_model()
 
@@ -30,6 +30,19 @@ class CourseSerializer(serializers.ModelSerializer):
     
     def get_students(self, obj):
         return UserSerializer(obj.students, many=True).data
+
+class StudentViewCourseSerializer(serializers.ModelSerializer):
+    instructor = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Course
+        fields = ['id', 'name', 'instructor', 'is_active', 'term', 'description']
+
+    def get_instructor(self, obj):
+        instructor = UserSerializer(obj.instructor).data
+        instructor.pop('id')
+        instructor.pop('email')
+        return instructor
 
 class CreateCourseSerializer(serializers.ModelSerializer):
     students = serializers.ListField(child=serializers.CharField(), required=False)
@@ -84,24 +97,15 @@ class CreateCourseSerializer(serializers.ModelSerializer):
         return response_data
 
 class AssignmentSerializer(serializers.ModelSerializer):
-    created_by = serializers.SerializerMethodField()
     proofs = serializers.SerializerMethodField()
     class Meta:
         model = Assignment
-        fields = ['id', 'title', 'description', 'due_date', 'course', 'created_by', 'proofs']
+        fields = ['id', 'title', 'description', 'due_date', 'course', 'proofs']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         user = self.context.get('request').user if 'request' in self.context else None
-
-        if not (user and getattr(user, 'is_instructor', False)):
-            self.fields.pop('submissions', None)
-        if not (user and not getattr(user, 'is_instructor', True)):
-            self.fields.pop('submission', None)
-    
-    def get_created_by(self, obj):
-        return UserSerializer(obj.created_by).data
     
     def get_proofs(self, obj):
         request = self.context.get('request')
@@ -134,6 +138,7 @@ class AssignmentSerializer(serializers.ModelSerializer):
 
             # If the user is a student, check if they have started it
             if user and not user.is_superuser and getattr(user, 'is_instructor', False) == False:
+                proof_info.pop("is_locked")
                 mapping = StudentProofMapping.objects.filter(
                     assignment=obj,
                     student=user,
