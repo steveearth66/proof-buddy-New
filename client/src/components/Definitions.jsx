@@ -115,7 +115,7 @@ function CreateDefinition({
       expression: '',
       notes: formValues.notes,
       applied: true,
-      expression_hidden: false,
+      expression_hidden: false
     };
     if (generic.type.toLowerCase() === 'int')
       generic.restrictions = { assumption: 'Non-negative' };
@@ -148,7 +148,7 @@ function CreateDefinition({
       expression: '',
       notes: formValues.notes,
       applied: true,
-      expression_hidden: true,
+      expression_hidden: true
     };
     try {
       const createdDefinition = await erService.createDefinition(definition);
@@ -181,7 +181,7 @@ function CreateDefinition({
       expression: '',
       notes: formValues.notes,
       applied: true,
-      expression_hidden: true,
+      expression_hidden: true
     };
     try {
       const newDefinition = await toast.promise(
@@ -221,7 +221,7 @@ function CreateDefinition({
         expression: '',
         notes: formValues.notes,
         applied: true,
-        expression_hidden: false,
+        expression_hidden: false
       };
       if (generic.type.toLowerCase() === 'int')
         generic.restrictions = { assumption: 'Non-negative' };
@@ -255,7 +255,7 @@ function CreateDefinition({
       expression: formValues.expression,
       notes: formValues.notes,
       applied: true,
-      expression_hidden: expressionHidden,
+      expression_hidden: expressionHidden
     };
 
     const definitions = JSON.parse(sessionStorage.getItem('definitions')) || [];
@@ -1109,7 +1109,7 @@ function EditGeneric({ generic, onBack, onGenericUpdated, onConvertToDefinition,
           expression: expression.trim(),
           notes: notes.trim(),
           applied: true,
-          expression_hidden: false,
+          expression_hidden: false
         };
         const created = await toast.promise(
           erService.createDefinition(newDefinition),
@@ -1131,7 +1131,7 @@ function EditGeneric({ generic, onBack, onGenericUpdated, onConvertToDefinition,
           expression: '',
           notes: notes.trim(),
           applied: true,
-          expression_hidden: false,
+          expression_hidden: false
         };
         if (newGeneric.type.toLowerCase() === 'int')
           newGeneric.restrictions = { assumption: 'Non-negative' };
