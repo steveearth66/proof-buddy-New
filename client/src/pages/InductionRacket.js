@@ -161,7 +161,8 @@ const InductionRacket = () => {
     support_premise: true,
     support_rule_set: true,
     support_value_mapping: true,
-    visible_rules: {}
+    visible_rules: {},
+    support_rewrite_complexity: true
   });
 
   useEffect(() => {
@@ -580,7 +581,7 @@ const InductionRacket = () => {
     try {
       const proofMeta = await inductionService.getCurrentProof();
       if (proofMeta?.hasProof) {
-        const PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping', 'visible_rules'];
+        const PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules','support_rewrite_complexity'];
         const extracted = {};
         PARAM_KEYS.forEach(k => { if (k in proofMeta) extracted[k] = proofMeta[k]; });
         if (Object.keys(extracted).length > 0) setProofParams(prev => ({ ...prev, ...extracted }));
@@ -926,6 +927,7 @@ const InductionRacket = () => {
         rule: ruleFromFooter,
         startPosition: previousStartPosition,
         selectedNode: previousStartPosition,
+        supportRewriteComplexity: proofParams.support_rewrite_complexity,
         ...(typeof currentIndex === 'number' && { lineNumber: currentIndex })
       };
 
@@ -1762,7 +1764,7 @@ const InductionRacket = () => {
 
               // Persist any params the user pre-configured before starting the proof.
               // Must be done BEFORE loadProofLinesFromDatabase reads them back from DB.
-              const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping', 'visible_rules'];
+              const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping', 'visible_rules','support_rewrite_complexity'];
               const hasCustomParams = PARAM_KEYS.some(k => proofParams[k] !== true && (typeof proofParams[k] === 'object' && proofParams[k].length > 0));
               if (hasCustomParams) {
                 try {
@@ -1866,7 +1868,8 @@ const InductionRacket = () => {
         currentRacket: currentRacket,
         side: showSide,
         case: isAnchor ? "base" : "leap",
-        lineNumber: padIndex  // Tell backend which line to update
+        lineNumber: padIndex,  // Tell backend which line to update
+        supportRewriteComplexity: proofParams.support_rewrite_complexity
       };
 
       try {
