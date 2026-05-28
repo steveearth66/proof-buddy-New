@@ -1,7 +1,6 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
-import erService from '../services/erService';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import Container from 'react-bootstrap/Container';
@@ -48,12 +47,10 @@ export default function Proofs() {
   const [proofObject, setProofObject] = useState({});
   const [query, setQuery] = useState('');
   const [deleteTargetId, setDeleteTargetId] = useState(null);
-  const uploadFileRef = useRef(null);
   const currentStrategy = PROOF_CONFIG[proofType];
-  
+
   const queryProofs = useCallback(async ({ page = 1 } = {}) => {
     try {
-      // Dynamic call based on the selected proof type
       const proofsData = await currentStrategy.service[currentStrategy.fetchMethod]({ query, page });
       setProofObject(proofsData);
     } catch (error) {
@@ -66,41 +63,17 @@ export default function Proofs() {
     queryProofs();
   }, [queryProofs]);
 
-  const handleUploadFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const proofData = JSON.parse(text);
-      const expectedType = proofType === PROOF_TYPES.INDUCTION ? 'induction' : 'equational';
-      if (proofData.proofType !== expectedType) {
-        toast.error(`This file is not an ${expectedType} proof.`);
-        return;
-      }
-      const result = await currentStrategy.service.uploadProof(proofData);
-      toast.success(`Proof "${result.proofName}" uploaded successfully.`);
-      await queryProofs();
-    } catch (error) {
-      console.error('Error uploading proof:', error);
-      toast.error('Failed to upload proof. The file may be invalid or corrupted.');
-    }
-  };
-
   const handleDelete = async () => {
     if (!deleteTargetId) return;
-
     try {
       await currentStrategy.service[currentStrategy.deleteMethod](deleteTargetId);
-      
-      // Get Page Number to load after deletion
       const isLastItemOnPage = proofObject.proofs.length === 1;
       const isNotFirstPage = proofObject.currentPage > 1;
-      const pageToLoad = (isLastItemOnPage && isNotFirstPage) ? proofObject.currentPage - 1 : proofObject.currentPage;
-      
-      // Close Modal
+      const pageToLoad = (isLastItemOnPage && isNotFirstPage)
+        ? proofObject.currentPage - 1
+        : proofObject.currentPage;
       setDeleteTargetId(null);
       toast.success("Proof deleted.");
-
       await queryProofs({ page: pageToLoad });
     } catch (error) {
       console.error('Error deleting proof:', error);
@@ -114,27 +87,11 @@ export default function Proofs() {
         <Row className="align-items-center">
           <Col><h1>All {currentStrategy.label} Proofs</h1></Col>
           <Col xs="auto">
-            <Button
-              className="blue-btn"
-              onClick={() => { uploadFileRef.current.value = ''; uploadFileRef.current.click(); }}
-            >
-              Upload Proof from a Saved File
-            </Button>
-            <input
-              type="file"
-              accept=".json"
-              ref={uploadFileRef}
-              onChange={handleUploadFileChange}
-              style={{ display: 'none' }}
-            />
-          </Col>
-          <Col xs="auto">
-            {/* Toggle between types */}
-            <Form.Select 
-              value={proofType} 
+            <Form.Select
+              value={proofType}
               onChange={(e) => {
                 setProofType(e.target.value);
-                setQuery(''); // Clear search when switching types
+                setQuery('');
               }}
             >
               <option value={PROOF_TYPES.EQUATIONAL}>Equational Proofs</option>
@@ -164,18 +121,19 @@ export default function Proofs() {
               </Spinner>
             ) : (
               proofObject.proofs?.map((proof) => (
-                <ProofCard 
-                  key={`${proof.id}`} 
-                  proof={proof} 
+                <ProofCard
+                  key={`${proof.id}`}
+                  proof={proof}
                   config={currentStrategy}
                   onDelete={(id) => setDeleteTargetId(id)}
                 />
               ))
             )}
-            {proofObject.proofs?.length === 0 && <p className='not-found'>No proofs found</p>}
+            {proofObject.proofs?.length === 0 && (
+              <p className='not-found'>No proofs found</p>
+            )}
           </div>
 
-          {/* Confirmation Modal */}
           <Modal show={!!deleteTargetId} onHide={() => setDeleteTargetId(null)} centered>
             <Modal.Header closeButton>
               <Modal.Title>Confirm Deletion</Modal.Title>
@@ -193,7 +151,7 @@ export default function Proofs() {
             </Modal.Footer>
           </Modal>
 
-          <NumberedPagination {...proofObject} onPageChange={(page) => queryProofs(page)} />
+          <NumberedPagination {...proofObject} onPageChange={(page) => queryProofs({ page })} />
         </div>
       </Container>
     </MainLayout>
@@ -209,9 +167,9 @@ function ProofCard({ proof, onDelete, config }) {
       <Button
         className="btn btn-sm"
         onClick={() => onDelete(proof.id)}
-        style={{ 
-          position: 'absolute', 
-          top: '8px', 
+        style={{
+          position: 'absolute',
+          top: '8px',
           right: '8px'
         }}
         variant="outline-danger"
@@ -230,7 +188,6 @@ function ProofCard({ proof, onDelete, config }) {
       <p>
         <b>Completed:</b> {complete ? 'True' : 'False'}
       </p>
-      {/* Route is now dynamic based on config */}
       <Link to={config.viewRoute} state={{ id: proof.id }}>
         <Button variant="outline-secondary" style={{ width: '100%' }}>
           Open Proof

@@ -5,12 +5,9 @@ from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
 from dill import dumps, loads
 from django.core.cache import cache
-from .models import InductionProof, InductionProofLineComment
+from .models import InductionProof, InductionProofLine
 from .serializers import InductionProofSerializer, InductionProofCreateSerializer
 import re
-import traceback
-import json
-from django.db import models
 
 # ER Engine imports for induction proof wiring
 from expression_tree.IndProofs import IndProof
@@ -20,12 +17,7 @@ from expression_tree.ERRuleset import recursiveReplaceNodes, IH
 from expression_tree.LemmaApplicator import build_lemma_rule
 from expression_tree.default_udfs import DEFAULT_UDFS
 from proofs.views import use_uploaded_generic
-from .models import InductionProofLine
 
-from assignments.models import StudentProofMapping
-from django.contrib.contenttypes.models import ContentType
-from django.utils import timezone
-from django.shortcuts import get_object_or_404
 
 User = get_user_model()
 
@@ -336,12 +328,6 @@ def start_induction_proof(request):
         import copy
         
         try:
-            # Detect whether frontend is using high support mode
-            high_support_mode = (
-                not inductive_hypothesis_lhs.strip() and
-                not inductive_hypothesis_rhs.strip()
-            )
-
             # Parse the goals and IH expressions (frontend already validated these)
             lhs_goal_line = ERProofLine(lhs_leap_goal, False, None, generics=None)
             rhs_goal_line = ERProofLine(rhs_leap_goal, False, None, generics=None)
@@ -354,34 +340,24 @@ def start_induction_proof(request):
             
             recursiveReplaceNodes(expected_lhs_ih_tree, [induction_variable], [lvar_node])
             recursiveReplaceNodes(expected_rhs_ih_tree, [induction_variable], [lvar_node])
-
-            # Convert generated trees to strings
-            expected_lhs_ih = str(expected_lhs_ih_tree)
-            expected_rhs_ih = str(expected_rhs_ih_tree)
-
-            if high_support_mode:
-                # Autofill IH values
-                inductive_hypothesis_lhs = expected_lhs_ih
-                inductive_hypothesis_rhs = expected_rhs_ih
-
-            else:
-                # Get the already-parsed IH lines from the validation above
-                lhs_ih_line = ERProofLine(inductive_hypothesis_lhs, False, None, generics=None)
-                rhs_ih_line = ERProofLine(inductive_hypothesis_rhs, False, None, generics=None)
-                
-                # Compare the trees
-                if str(lhs_ih_line.exprTree) != str(expected_lhs_ih_tree):
-                    print(f"LHS IH mismatch!")
-                    return Response(
-                        {"error": f"LHS Inductive Hypothesis must be the LHS goal with {induction_variable} replaced by {leap_variable}.\nExpected: {expected_lhs_ih_tree}\nGot: {inductive_hypothesis_lhs}"},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                
-                if str(rhs_ih_line.exprTree) != str(expected_rhs_ih_tree):
-                    return Response(
-                        {"error": f"RHS Inductive Hypothesis must be the RHS goal with {induction_variable} replaced by {leap_variable}.\nExpected: {expected_rhs_ih_tree}\nGot: {inductive_hypothesis_rhs}"},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+            
+            # Get the already-parsed IH lines from the validation above
+            lhs_ih_line = ERProofLine(inductive_hypothesis_lhs, False, None, generics=None)
+            rhs_ih_line = ERProofLine(inductive_hypothesis_rhs, False, None, generics=None)
+            
+            # Compare the trees
+            if str(lhs_ih_line.exprTree) != str(expected_lhs_ih_tree):
+                print(f"LHS IH mismatch!")
+                return Response(
+                    {"error": f"LHS Inductive Hypothesis must be the LHS goal with {induction_variable} replaced by {leap_variable}.\nExpected: {expected_lhs_ih_tree}\nGot: {inductive_hypothesis_lhs}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if str(rhs_ih_line.exprTree) != str(expected_rhs_ih_tree):
+                return Response(
+                    {"error": f"RHS Inductive Hypothesis must be the RHS goal with {induction_variable} replaced by {leap_variable}.\nExpected: {expected_rhs_ih_tree}\nGot: {inductive_hypothesis_rhs}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
                     
         except Exception as e:
             return Response(
@@ -506,9 +482,7 @@ def start_induction_proof(request):
                     "proof_tag": proof.tag,
                     "generic_definition_created": generic_lvar,  # For backwards compatibility
                     "generics_created": generics_to_create,  # All generics created
-                    "data": serializer.data,
-                    "inductive_hypothesis_lhs": inductive_hypothesis_lhs,
-                    "inductive_hypothesis_rhs": inductive_hypothesis_rhs
+                    "data": serializer.data
                 },
                 status=status.HTTP_201_CREATED
             )
@@ -559,26 +533,9 @@ def get_induction_proof(request, proof_id):
     user = request.user
     
     try:
-        proof = get_object_or_404(InductionProof, id=proof_id)
-        if (proof.user != user):
-            proof_content_type = ContentType.objects.get_for_model(InductionProof)
-        
-            is_authorized_instructor = StudentProofMapping.objects.filter(
-                object_id=proof.id,
-                content_type=proof_content_type,
-                assignment__course__instructor=user
-            ).exists()
-
-            if not is_authorized_instructor:
-                return Response({"hasProof": False}, status=status.HTTP_403_OK)
+        proof = InductionProof.objects.get(id=proof_id, user=user)
         serializer = InductionProofSerializer(proof)
-        response_data = dict(serializer.data)
-        definitions = [dict(d) for d in (response_data.get("definition") or [])]
-        for item in definitions:
-            if item.get("expression_hidden") and not user.is_instructor:
-                item["expression"] = "****"
-        response_data["definition"] = definitions
-        return Response(response_data, status=status.HTTP_200_OK)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     except InductionProof.DoesNotExist:
         return Response(
             {"error": "Proof not found"},
@@ -643,17 +600,6 @@ def _ensure_udfs_hydrated(proof, proof_id):
             pass
     for _d in all_defs:
         if _d.get('is_generic'):
-            _glabel = _d.get('label') or _d.get('name') or ''
-            _gtype = _d.get('type', 'int')
-            _grestrictions = _d.get('restrictions') or {}
-            if _glabel:
-                for ts in two_sided:
-                    if _glabel not in ts.generics:
-                        try:
-                            ts.addGeneric(_glabel, _gtype, _grestrictions)
-                            ts.errLog = []
-                        except Exception:
-                            pass
             continue
         _dlabel = _d.get('label') or _d.get('name') or ''
         _dudf = _dlabel.replace('(', ' ').replace(')', ' ').split()
@@ -671,7 +617,9 @@ def _ensure_udfs_hydrated(proof, proof_id):
 
 
 def reload_proof_lines_from_db(proof, proof_id):
-    """Reload all proof lines from database into the IndProof object"""    
+    """Reload all proof lines from database into the IndProof object"""
+    from .models import InductionProofLine
+    
     if proof_id is None:
         return
     
@@ -698,8 +646,6 @@ def reload_proof_lines_from_db(proof, proof_id):
             proof_line.appliedRuleNodeId = line.selected_node  # Restore highlighting position
             target.proofLines.append(proof_line)
             proof_line.errors = line.errors
-            proof_line.hide_expression = line.hide_expression
-            proof_line.hide_justification = line.hide_justification
     except Exception as e:
         pass
 
@@ -730,19 +676,14 @@ def check_name_conflict(request):
 
 
 def _check_rewrite_math_misuse(rule):
-    """Return an error message string if the user typed 'rewrite math' or 'rewrite logic'
-    into the rule field instead of using the Substitution button, or None if the rule is fine."""
+    """Return an error message string if the user typed 'rewrite math' into the rule field
+    instead of using the Substitution button, or None if the rule is fine to proceed."""
     rule_norm = (rule or '').strip().lower()
     if rule_norm == 'rewrite math':
         return ("The 'rewrite math' rule must be applied using the Substitution button, "
                 "not the rule field.")
     if rule_norm.startswith('rewrite math'):
         return "'rewrite math' does not require additional parameters to be applied."
-    if rule_norm == 'rewrite logic':
-        return ("The 'rewrite logic' rule must be applied using the Substitution button, "
-                "not the rule field.")
-    if rule_norm.startswith('rewrite logic'):
-        return "'rewrite logic' does not require additional parameters to be applied."
     return None
 
 
@@ -1067,14 +1008,14 @@ def _get_case_side(proof: IndProof, case: str, side: str) -> ERProof:
     return ts.LHS if side_key == "LHS" else ts.RHS
 
 
-def _apply_line(target: ERProof, currentRacket: str, rule: str | None, startPosition: int | None, substitution: str | None, auto_infer: bool = False, support_rewrite_complexity = True):
+def _apply_line(target: ERProof, currentRacket: str, rule: str | None, startPosition: int | None, substitution: str | None):
     if rule:
         # Apply rule directly - don't duplicate first
         # The rule application will create a new line based on currentRacket
         if substitution is not None and substitution != "":
-            target.addProofLine(currentRacket, rule, int(startPosition or 0), substitution, support_rewrite_complexity=support_rewrite_complexity)
+            target.addProofLine(currentRacket, rule, int(startPosition or 0), substitution)
         else:
-            target.addProofLine(currentRacket, rule, int(startPosition or 0), auto_infer=auto_infer)
+            target.addProofLine(currentRacket, rule, int(startPosition or 0))
     else:
         # goal/premise line only
         target.addProofLine(currentRacket)
@@ -1103,7 +1044,6 @@ def apply_rule(request):
         selectedNode = data.get("selectedNode")
         substitution = data.get("substitution")
         lineNumber = data.get("lineNumber")
-        support_rewrite_complexity = data.get("supportRewriteComplexity", True)
 
         # Guard: "rewrite math" must use the Substitution button, not the rule field
         rewrite_math_error = _check_rewrite_math_misuse(rule)
@@ -1223,17 +1163,8 @@ def apply_rule(request):
                                     target.ruleSet['apply'][_lemma_name] = _lemma_rule
                                     _lemma_injected = True
 
-        # Read support_value_mapping from DB (HIGH support = auto-infer params)
-        _auto_infer = False
-        if proof_id:
-            try:
-                _db_ind_proof = InductionProof.objects.get(id=proof_id)
-                _auto_infer = bool(_db_ind_proof.support_value_mapping)
-            except InductionProof.DoesNotExist:
-                pass
-
         if not target.errLog:
-            _apply_line(target, currentRacket, rule, startPosition, substitution, auto_infer=_auto_infer, support_rewrite_complexity=support_rewrite_complexity)
+            _apply_line(target, currentRacket, rule, startPosition, substitution)
 
         # Remove temporarily injected lemma rule
         if _lemma_injected and _lemma_name and _lemma_name in target.ruleSet.get('apply', {}):
@@ -1257,7 +1188,6 @@ def apply_rule(request):
         # Save to cache
         save_induction_obj_to_cache(user, proof, proof_id)
         
-        rule_with_sub = None  # will hold appliedRule (with ↦ annotations) if a line was generated
         # Save to database if we have a valid proof line
         if len(target.proofLines) > 0:
             last_line = target.proofLines[-1]
@@ -1326,8 +1256,7 @@ def apply_rule(request):
             "errors": target.errLog,
             "jsonTree": jsonTree,
             "lineNum": max(0, len(target.proofLines) - 1),
-            "resultNodeId": result_node_id,
-            "rule": rule_with_sub
+            "resultNodeId": result_node_id
         }, status=status.HTTP_200_OK)
     except Exception as e:
         import traceback
@@ -1512,14 +1441,11 @@ def substitution(request):
         rule = data.get("rule")
         if rule and rule.lower() == "math":
             rule = "rewrite math"
-        elif rule and rule.lower() == "logic":
-            rule = "rewrite logic"
         currentRacket = data.get("currentRacket", "")
         startPosition = data.get("startPosition", 0)
         selectedNode = data.get("selectedNode")
         substitution = data.get("substitution")
         lineNumber = data.get("lineNumber")
-        support_rewrite_complexity = data.get("supportRewriteComplexity")
 
         target = _get_case_side(proof, case, side)
         # Clear previous errors before attempting new substitution
@@ -1529,7 +1455,7 @@ def substitution(request):
             proof.baseCase.markIncomplete()
         else:
             proof.leapStep.markIncomplete()
-        _apply_line(target, currentRacket, rule, startPosition, substitution, support_rewrite_complexity)
+        _apply_line(target, currentRacket, rule, startPosition, substitution)
 
         is_valid = len(target.errLog) == 0
         racket_str = target.getPrevRacket() if is_valid else "Error generating racket"
@@ -1640,49 +1566,22 @@ def check_completion(request):
         reload_proof_lines_from_db(proof, proof_id)
         
         case = data.get("case", "base")
-        is_student = not user.is_instructor
         
         if case == 'base':
-            is_complete = proof.baseCase.checkComplete(is_student)
+            is_complete = proof.baseCase.checkComplete()
             label = "BASE CASE"
         elif case == 'leap':
-            is_complete = proof.leapStep.checkComplete(is_student)
+            is_complete = proof.leapStep.checkComplete()
             label = "LEAP STEP"
         else:
             return Response({"error": "Invalid case. Use 'base' or 'leap'."}, status=status.HTTP_400_BAD_REQUEST)
         
         # Check overall completion and update indProof.isComplete
-        is_mathematically_complete = proof.checkComplete(user.is_instructor)
+        overall_complete = proof.checkComplete()
 
-        # Check if there are any hidden fields remaining
-        has_hidden_fields = False
-        if not user.is_instructor and proof_id:
-            has_hidden_fields = InductionProofLine.objects.filter(
-                proof_id=proof_id, case=case
-            ).filter(
-                models.Q(hide_expression=True) | models.Q(hide_justification=True)
-            ).exists()
-        
-        # Proof is only complete if mathematically correct AND no hidden fields
-        overall_complete = is_mathematically_complete and not has_hidden_fields
         # Persist overall completion status to database
         if proof_id:
             InductionProof.objects.filter(id=proof_id).update(is_complete=overall_complete)
-
-            # update assignment if it exists and is completed for the first time
-            if overall_complete:
-                content_type = ContentType.objects.get(app_label="induction_api", model="inductionproof")
-                mapping = StudentProofMapping.objects.filter(
-                    content_type=content_type,
-                    object_id=proof_id
-                ).first()
-
-                # If it belongs to an assignment, lock in the completion timestamp
-                if mapping:
-                    # Only set it if it hasn't been completed before
-                    if not mapping.completed_at:
-                        mapping.completed_at = timezone.now()
-                        mapping.save()
 
         # Save updated completion status to cache
         save_induction_obj_to_cache(user, proof, proof_id)
@@ -1693,7 +1592,6 @@ def check_completion(request):
             "overallComplete": overall_complete
         }, status=status.HTTP_200_OK)
     except Exception as e:
-        traceback.print_exc()
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -1777,8 +1675,9 @@ def get_proof_lines(request):
                 'substitution': line.substitution,
                 'jsonTree': json_tree,
                 'errors': line.errors,
-                'hide_expression': line.hide_expression,
-                'hide_justification': line.hide_justification
+                'instructor_comment': line.instructor_comment,
+                'student_comment': line.student_comment,
+                'comment_correct': line.comment_correct
             }
             result[line.case][line.side].append(line_data)
         
@@ -1824,9 +1723,7 @@ def get_current_proof(request):
             "support_ih": proof.support_ih,
             "support_premise": proof.support_premise,
             "support_rule_set": proof.support_rule_set,
-            "visible_rules": parse_visible_rules(proof.visible_rules),
             "support_value_mapping": proof.support_value_mapping,
-            "support_rewrite_complexity": proof.support_rewrite_complexity,
         }, status=status.HTTP_200_OK)
     except InductionProof.DoesNotExist:
         return Response({"hasProof": False}, status=status.HTTP_200_OK)
@@ -1877,18 +1774,10 @@ def set_induction_session_by_id(request):
     proof_id = request.data.get('proof_id')
     
     try:
-        proof = get_object_or_404(InductionProof, id=proof_id)
-        if (proof.user != user):
-            proof_content_type = ContentType.objects.get_for_model(InductionProof)
-        
-            is_authorized_instructor = StudentProofMapping.objects.filter(
-                object_id=proof.id,
-                content_type=proof_content_type,
-                assignment__course__instructor=user
-            ).exists()
-
-            if not is_authorized_instructor:
-                return Response({"hasProof": False}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            proof = InductionProof.objects.get(id=proof_id, user=user)
+        except InductionProof.DoesNotExist:
+            return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
         
         # 1. Initialize the Engine
         ind_proof = IndProof()
@@ -1997,16 +1886,6 @@ def delete_proof(request):
             {"message": f"Error setting proof to inactive: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST
         )
 
-def parse_visible_rules(raw_val):
-    """Safely parse the TextField string back into a dictionary for the frontend."""
-    if isinstance(raw_val, str) and raw_val.strip():
-        try:
-            return json.loads(raw_val)
-        except json.JSONDecodeError:
-            return {}
-    elif isinstance(raw_val, dict):
-        return raw_val
-    return {}
 
 PARAM_FIELDS = [
     'support_errors',
@@ -2015,8 +1894,6 @@ PARAM_FIELDS = [
     'support_premise',
     'support_rule_set',
     'support_value_mapping',
-    'visible_rules',
-    'support_rewrite_complexity'
 ]
 
 
@@ -2034,10 +1911,7 @@ def set_parameters(request):
         return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
     for field in PARAM_FIELDS:
         if field in request.data:
-            val = request.data[field]
-            if field == 'visible_rules' and isinstance(val, dict):
-                val = json.dumps(val)
-            setattr(proof, field, val)
+            setattr(proof, field, request.data[field])
     proof.save()
     return Response({f: getattr(proof, f) for f in PARAM_FIELDS}, status=status.HTTP_200_OK)
 
@@ -2105,9 +1979,7 @@ def download_proof(request):
         'support_ih': proof.support_ih,
         'support_premise': proof.support_premise,
         'support_rule_set': proof.support_rule_set,
-        'visible_rules': parse_visible_rules(proof.visible_rules),
         'support_value_mapping': proof.support_value_mapping,
-        'support_rewrite_complexity': proof.support_rewrite_complexity,
         'lines': {
             'base': {
                 'LHS': get_side_lines('base', 'LHS'),
@@ -2155,9 +2027,7 @@ def upload_proof(request):
             support_ih=data.get('support_ih', True),
             support_premise=data.get('support_premise', True),
             support_rule_set=data.get('support_rule_set', True),
-            visible_rules=data.get('visible_rules', {}),
             support_value_mapping=data.get('support_value_mapping', True),
-            support_rewrite_complexity=data.get('support_rewrite_complexity', True)
         )
         lines_data = data.get('lines', {})
         for case in ('base', 'leap'):
@@ -2181,342 +2051,263 @@ def upload_proof(request):
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-def normalize_whitespace(text):
-    """Remove all whitespace for comparison"""
-    return re.sub(r'\s+', ' ', text.strip())
 
-def compare_exact(student_input, actual_value):
-    """
-    Compare two racket expressions for exact match (whitespace-agnostic).
-    Order matters: (+ 2 1) != (+ 1 2)
-    """
-    return normalize_whitespace(student_input) == normalize_whitespace(actual_value)
 
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-def validate_hidden_field(request):
-    """
-    Validate student input against hidden field value.
-    Validates Rule + Selection OR Expression via AST JSON tree comparison.
-    """    
-    user = request.user
-    
-    # 1. Grab the fully populated engine from the cache instead of manually reading it
-    proof_obj, proof_id = get_or_set_induction_obj(user)
-    
-    if not proof_id:
-        return Response({"error": "No active proof session found. Please reload."}, status=status.HTTP_400_BAD_REQUEST)
-    
-    try:
-        # 2. Extract Data
-        side = request.data.get('side')
-        case = request.data.get('case')
-        line_number = request.data.get('lineNumber')
-        student_expression = request.data.get('studentExpression')
-        student_rule = request.data.get('studentRule')
-        student_selected = request.data.get('studentSelectedNode') 
-        
-        if not side or line_number is None:
-            return Response({"error": "Missing parameters."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Determine target side to get the correct rules and generics
-        currentCase = proof_obj.baseCase if case == 'base' else proof_obj.leapStep
-        target = currentCase.LHS if side.upper() == 'LHS' else currentCase.RHS
-        
-        # 3. Get Database Line
-        try:
-            line = InductionProofLine.objects.get(
-                proof_id=proof_id, side=side.upper(), line_number=line_number, case=case.lower()
-            )
-        except InductionProofLine.DoesNotExist:
-            return Response({"error": "Line not found"}, status=status.HTTP_404_NOT_FOUND)
-        
-        errors = []
-        changed = False
-        is_correct = False
-        
-        # 4. Logic: Master Key Validation (Rule + Selection)
-        if student_rule is not None:
-            rule_text_match = compare_exact(student_rule, line.rule)
-            
-            selection_match = True
-            if line.selected_node is not None and student_selected is not None:
-                 if int(student_selected) != int(line.selected_node):
-                     selection_match = False
-                     errors.append("Incorrect selection.")
 
-            if rule_text_match and selection_match:
-                if line.hide_justification:
-                    line.hide_justification = False
-                    changed = True
-                if line.hide_expression:
-                    line.hide_expression = False
-                    changed = True
-                is_correct = True
-            elif not rule_text_match:
-                errors.append("Rule does not match.")
-        
-        # 5. Logic: Expression Tree Match (JSON Dictionary Comparison)
-        if student_expression is not None and student_expression.strip() != "":
-            try:
-                # Use the target's actual ruleSet and generics so UDFs are parsed correctly
-                temp_line = ERProofLine(
-                    student_expression, 
-                    target.debug, 
-                    target.ruleSet, 
-                    generics=target.generics
-                )
-                
-                if not temp_line.errLog:
-                    raw_student_tree = makeJson(temp_line.exprTree)
-                    
-                    student_tree = json.loads(json.dumps(raw_student_tree))
-                    
-                    # 3. Deep compare
-                    if student_tree == line.json_tree:
-                        line.hide_expression = False
-                        changed = True
-                        is_correct = True
-                    else:
-                        errors.append("Expression does not match.")
-                else:
-                    errors.append("Syntax error in expression.")
-            except Exception as e:
-                errors.append(f"Error parsing expression: {str(e)}")
-        else:
-            errors.append("You must provide an expression.")
-
-        if changed:
-            line.save()
-        
-        message = "Correct!" if is_correct and not errors else None
-        
-        return Response({
-            "isValid": is_correct,
-            "errors": errors,
-            "hide_expression": line.hide_expression,
-            "hide_justification": line.hide_justification,
-            "message": message
-        }, status=status.HTTP_200_OK)
-        
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return Response({"error": f"Server Error: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-def validate_hidden_definition(request):
-    """
-    Validate a student's expression against a hidden definition.
-    Case A: definition has a stored expression — student must match the tree exactly.
-    Case B: definition has no expression (student-entry mode) — any valid parse is accepted,
-            stored in the DB proof record and registered in the engine cache.
-    """
-    user = request.user
-    label = request.data.get("label")
-    student_expression = request.data.get("student_expression", "").strip()
-    if not label or not student_expression:
-        return Response({"error": "Missing label or student_expression."}, status=status.HTTP_400_BAD_REQUEST)
-    ind, proof_id = get_or_set_induction_obj(user)
-    if not proof_id:
-        return Response({"error": "No active proof session found."}, status=status.HTTP_400_BAD_REQUEST)
-    try:
-        db_proof = InductionProof.objects.get(id=proof_id)
-    except InductionProof.DoesNotExist:
-        return Response({"error": "Proof not found."}, status=status.HTTP_400_BAD_REQUEST)
-    definitions = list(db_proof.definition or [])
-    target_idx = None
-    target_def = None
-    for idx, d in enumerate(definitions):
-        if d.get("label") == label and not d.get("is_generic"):
-            target_idx = idx
-            target_def = d
-            break
-    if target_def is None:
-        return Response({"error": "Definition not found."}, status=status.HTTP_400_BAD_REQUEST)
-    if not target_def.get("expression_hidden"):
-        return Response({"error": "Definition is not hidden."}, status=status.HTTP_400_BAD_REQUEST)
-    # Parse the student input using the ER engine
-    temp_proof = ERProof()
-    temp_proof.addProofLine(student_expression)
-    if temp_proof.errLog:
-        return Response({"isValid": False, "message": "Syntax error in expression."}, status=status.HTTP_200_OK)
-    student_tree = makeJson(temp_proof.proofLines[-1].exprTree)
-    stored_expression = target_def.get("expression", "")
-    if stored_expression:
-        # Case A: compare trees
-        stored_proof = ERProof()
-        stored_proof.addProofLine(stored_expression)
-        if stored_proof.errLog:
-            return Response({"error": "Stored expression is unparseable."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        stored_tree = makeJson(stored_proof.proofLines[-1].exprTree)
-        if student_tree == stored_tree:
-            return Response({"isValid": True, "expression": stored_expression}, status=status.HTTP_200_OK)
-        else:
-            return Response({"isValid": False, "message": "the input expression does not match the hidden definition"}, status=status.HTTP_200_OK)
-    else:
-        # Case B: student-entry mode — accept any valid expression
-        def_type = target_def.get("type") or target_def.get("def_type", "")
-        definitions[target_idx] = dict(target_def)
-        definitions[target_idx]["expression"] = student_expression
-        InductionProof.objects.filter(id=proof_id).update(definition=definitions)
-        ind.baseCase.addUDF(label, def_type, student_expression)
-        ind.leapStep.addUDF(label, def_type, student_expression)
-        save_induction_obj_to_cache(user, ind, proof_id)
-        return Response({"isValid": True, "expression": student_expression}, status=status.HTTP_200_OK)
+# ========================
+# Visibility & User Proofs - Induction
+# ========================
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def toggle_visibility(request):
+    """Toggle hide_expression or hide_justification on a specific induction proof line."""
     user = request.user
-    
-    # 1. Get the session object
     proof_obj, proof_id = get_or_set_induction_obj(user)
-    
+
     if not proof_id:
         return Response({"error": "Session expired or invalid proof ID"}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        reload_proof_lines_from_db(proof_obj, proof_id)
-
+        case = request.data.get('case')
         side = request.data.get('side')
         line_number = request.data.get('lineNumber')
-        field = request.data.get('field') 
-        case = request.data.get('case')
-        
-        if not side or line_number is None or field not in ['expression', 'justification'] or not case:
+        field = request.data.get('field')
+
+        if not case or not side or line_number is None or field not in ['expression', 'justification']:
             return Response({"error": "Invalid parameters"}, status=status.HTTP_400_BAD_REQUEST)
-            
-        side = side.upper()
-        target_case = proof_obj.baseCase if case == 'base' else proof_obj.leapStep
-        target_proof = target_case.LHS if side == 'LHS' else target_case.RHS
-        
-        # Now this check will pass because proofLines is fully populated
-        if line_number < 0 or line_number >= len(target_proof.proofLines):
-            return Response({
-                "error": f"Line number {line_number} out of bounds. Total lines: {len(target_proof.proofLines)}"
-            }, status=status.HTTP_400_BAD_REQUEST)
-            
-        line_obj = target_proof.proofLines[line_number]
-        
-        # Toggle attribute in Memory
-        attr_name = 'hide_expression' if field == 'expression' else 'hide_justification'
-        current_val = getattr(line_obj, attr_name, False)
-        new_val = not current_val
-        setattr(line_obj, attr_name, new_val)
 
-        # Save updated object to Cache
-        save_induction_obj_to_cache(user, proof_obj, proof_id)
-        
-        # Update Database
-        try:
-            db_line = InductionProofLine.objects.get(
-                proof_id=proof_id, side=side, line_number=line_number, case=case
-            )
-            if field == 'expression':
-                db_line.hide_expression = new_val
-            else:
-                db_line.hide_justification = new_val
-            db_line.save()
-        except InductionProofLine.DoesNotExist:
-            pass 
+        line_obj = InductionProofLine.objects.get(
+            proof_id=proof_id, case=case.lower(), side=side.upper(), line_number=line_number
+        )
 
+        if field == 'expression':
+            line_obj.hide_expression = not line_obj.hide_expression
+        else:
+            line_obj.hide_justification = not line_obj.hide_justification
+
+        line_obj.save()
         return Response({
             "success": True,
-            "line_number": line_number,
-            "side": side,
-            "field": field,
-            "new_value": new_val
+            "hide_expression": line_obj.hide_expression,
+            "hide_justification": line_obj.hide_justification,
         }, status=status.HTTP_200_OK)
-        
+
+    except InductionProofLine.DoesNotExist:
+        return Response({"error": "Proof line not found"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+
 @api_view(["POST"])
-def save_comment(request):
-    if request.method != "POST":
-        return Response(
-            {"error": "POST required"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+@permission_classes([IsAuthenticated])
+def validate_hidden_field(request):
+    """Validate a student's answer for a hidden field on an induction proof line."""
+    user = request.user
+    proof_obj, proof_id = get_or_set_induction_obj(user)
+
+    if not proof_id:
+        return Response({"error": "Session expired or invalid proof ID"}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        user = request.user
-        _, proof_id = get_or_set_induction_obj(user)
+        case = request.data.get('case')
+        side = request.data.get('side')
+        line_number = request.data.get('lineNumber')
+        field = request.data.get('field')
+        student_answer = request.data.get('studentAnswer', '')
 
-        data = request.data
+        if not case or not side or line_number is None or field not in ['expression', 'justification']:
+            return Response({"error": "Invalid parameters"}, status=status.HTTP_400_BAD_REQUEST)
 
-        side = data.get("side")
-        line_number = data.get("line_number")
-        role = data.get("role")
-        comment_text = data.get("comment")
-
-        if not all([side, line_number is not None, role]):
-            return Response(
-                {"error": "Missing required fields"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        comment_obj, created = InductionProofLineComment.objects.update_or_create(
-            proof_id=proof_id,
-            side=side,
-            line_number=line_number,
-            role=role,
-            defaults={
-                "comment": comment_text
-            }
+        line_obj = InductionProofLine.objects.get(
+            proof_id=proof_id, case=case.lower(), side=side.upper(), line_number=line_number
         )
 
-        return Response({
-            "success": True,
-            "created": created
-        }, status=status.HTTP_200_OK)
+        if field == 'expression':
+            correct = student_answer.strip() == line_obj.racket.strip()
+        else:
+            correct = student_answer.strip().lower() == line_obj.rule.strip().lower()
 
+        return Response({"correct": correct}, status=status.HTTP_200_OK)
+
+    except InductionProofLine.DoesNotExist:
+        return Response({"error": "Proof line not found"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
-        return Response(
-            {"error": str(e)},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
 @api_view(["GET"])
-def get_comments(request):
+@permission_classes([IsAuthenticated])
+def get_user_proofs(request):
+    """Return a list of the user's active induction proofs."""
+    user = request.user
+    try:
+        proofs = InductionProof.objects.filter(user=user, is_active=True).order_by('-created_at')
+        data = [
+            {
+                "id": p.id,
+                "name": p.name,
+                "tag": p.tag,
+                "proof_type": p.proof_type,
+                "is_complete": p.is_complete,
+                "created_at": p.created_at.isoformat(),
+            }
+            for p in proofs
+        ]
+        return Response({"proofs": data}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def get_user_proof(request):
+    """Load a specific induction proof by ID into the session."""
+    user = request.user
+    proof_id = request.data.get('proof_id')
+
+    if not proof_id:
+        return Response({"error": "Proof ID required"}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        user = request.user
-        _, proof_id = get_or_set_induction_obj(user)
-
-        side = request.GET.get("side")
-        line_number = int(request.GET.get("line_number"))
-
-        comments = InductionProofLineComment.objects.filter(
-            proof_id=proof_id,
-            side=side,
-            line_number=line_number
-        )
-
-        result = {
-            "student": "",
-            "instructor": ""
-        }
-
-        for c in comments:
-
-            if c.role == "student":
-                result["student"] = c.comment
-
-            elif c.role == "instructor":
-                result["instructor"] = c.comment
-
-        return Response(result, status=status.HTTP_200_OK)
-
+        proof = InductionProof.objects.get(id=proof_id, user=user)
+        save_induction_obj_to_cache(user, None, proof_id)
+        return Response({"success": True, "message": "Proof loaded"}, status=status.HTTP_200_OK)
+    except InductionProof.DoesNotExist:
+        return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        print("GET COMMENTS ERROR:", e)
 
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def clear_proof(request):
+    """Clear the induction session cache so the user can start a new proof."""
+    user = request.user
+    clear_induction_proof(user)
+    return Response({"message": "Session cleared successfully"}, status=status.HTTP_200_OK)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def discard_proof(request):
+    """Archive the active induction proof and clear the session cache."""
+    user = request.user
+    try:
+        proof = InductionProof.objects.filter(user=user, is_active=True).order_by('-created_at').first()
+        if proof:
+            proof.is_active = False
+            proof.save()
+        clear_induction_proof(user)
+        return Response({"message": "Proof archived successfully"}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def save_proof(request):
+    """Save the current induction proof session to the database."""
+    user = request.user
+    proof_obj, proof_id = get_or_set_induction_obj(user)
+
+    if not proof_id:
+        return Response({"error": "No active proof to save"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        proof = InductionProof.objects.get(id=proof_id, user=user)
+        name = request.data.get('name', proof.name)
+        proof.name = name
+        proof.save()
+        return Response({"success": True, "proofId": proof.id, "proofName": proof.name}, status=status.HTTP_200_OK)
+    except InductionProof.DoesNotExist:
+        return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+# ========================
+# Comments Feature - Induction
+# ========================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def update_comment(request):
+    """
+    Update the instructor or student comment on a specific induction proof line.
+    
+    POST body: { case, side, lineNumber, instructorComment?, studentComment?, commentCorrect? }
+    """
+    user = request.user
+
+    cached = cache.get(f"induction_obj_{user.username}")
+    if not cached:
         return Response(
-            {"error": str(e)},
+            {"error": "No active proof session. Please open a proof first."},
             status=status.HTTP_400_BAD_REQUEST
         )
+
+    proof_id = cached.get('proof_id')
+    if not proof_id:
+        return Response(
+            {"error": "Proof ID missing from session."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    case = request.data.get('case', '').lower()
+    side = request.data.get('side', '').upper()
+    line_number = request.data.get('lineNumber')
+    instructor_comment = request.data.get('instructorComment')
+    student_comment = request.data.get('studentComment')
+    comment_correct = request.data.get('commentCorrect')
+
+    if case not in ('base', 'leap') or side not in ('LHS', 'RHS') or line_number is None:
+        return Response(
+            {"error": "case, side, and lineNumber are required."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        line = InductionProofLine.objects.get(
+            proof_id=proof_id,
+            case=case,
+            side=side,
+            line_number=int(line_number)
+        )
+    except InductionProofLine.DoesNotExist:
+        return Response(
+            {"error": f"Proof line {case} {side} {line_number} not found."},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    is_instructor = getattr(user, 'is_instructor', False)
+
+    if instructor_comment is not None:
+        if not is_instructor:
+            return Response(
+                {"error": "Only instructors can set instructor comments."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        line.instructor_comment = instructor_comment
+
+    if student_comment is not None:
+        line.student_comment = student_comment
+
+    if comment_correct is not None:
+        if not is_instructor:
+            return Response(
+                {"error": "Only instructors can mark comments as correct or incorrect."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        line.comment_correct = comment_correct
+
+    line.save()
+
+    return Response({
+        "success": True,
+        "case": line.case,
+        "lineNumber": line.line_number,
+        "side": line.side,
+        "instructorComment": line.instructor_comment,
+        "studentComment": line.student_comment,
+        "commentCorrect": line.comment_correct,
+    }, status=status.HTTP_200_OK)

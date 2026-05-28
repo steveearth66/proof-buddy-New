@@ -104,15 +104,19 @@ const validateHiddenField = async (data) => {
   }
 };
 
-const validateHiddenDefinition = async ({ label, studentExpression }) => {
+/**
+ * updateComment - Save instructor prompt or student response on a proof line.
+ * @param {Object} data - { side, lineNumber, instructorComment?, studentComment?, commentCorrect? }
+ */
+const updateComment = async (data) => {
   try {
     const response = await axiosInstance.post(
-      `${API_GATEWAY}/validate-hidden-definition`,
-      { label, student_expression: studentExpression }
+      `${API_GATEWAY}/update-comment`,
+      data
     );
     return response.data;
   } catch (error) {
-    handleServiceError(error, 'Error validating hidden definition:');
+    handleServiceError(error, 'Error updating proof line comment:');
     throw error;
   }
 };
@@ -129,7 +133,6 @@ const getRacketProofs = async ({ page = 1, query = "" }) => {
 
 const getRacketProof = async (proofId) => {
   try {
-    // Send POST request to match the view
     const response = await axiosInstance.post(`${API_GATEWAY}/get-user-proof`, { 
       proof_id: proofId 
     });
@@ -182,8 +185,8 @@ const deleteRacketProof = async (proof_id) => {
   try {
     const response = await axiosInstance.post(
       `${API_GATEWAY}/delete-proof`, { 
-      proof_id: proof_id 
-    }
+        proof_id: proof_id 
+      }
     );
     return response.data;
   }
@@ -223,38 +226,6 @@ const uploadProof = async (proofData) => {
   }
 };
 
-const saveComment = async (data) => {
-  try {
-    const response = await axiosInstance.post(
-      `${API_GATEWAY}/save-comment`,
-      data
-    );
-
-    return response.data;
-
-  } catch (error) {
-    handleServiceError(error, "Error saving comment:");
-    throw error;
-  }
-};
-
-const getComments = async (params) => {
-  try {
-    const response = await axiosInstance.get(
-      `${API_GATEWAY}/get-comments`,
-      {
-        params
-      }
-    );
-
-    return response.data;
-
-  } catch (error) {
-    handleServiceError(error, "Error loading comments:");
-    throw error;
-  }
-};
-
 const equationalService = {
   setCurrentProof,
   applyRule,
@@ -264,7 +235,7 @@ const equationalService = {
   getProofLines,
   toggleVisibility,
   validateHiddenField,
-  validateHiddenDefinition,
+  updateComment,
   getRacketProofs,
   getRacketProof,
   clearProof,
@@ -273,9 +244,7 @@ const equationalService = {
   deleteRacketProof,
   setParameters,
   downloadProof,
-  uploadProof,
-  saveComment,
-  getComments
+  uploadProof
 };
 
 export default equationalService;

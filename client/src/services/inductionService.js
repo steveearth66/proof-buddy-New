@@ -246,73 +246,19 @@ const uploadProof = async (proofData) => {
   }
 };
 
-const validateHiddenField = async (data) => {
+/**
+ * updateComment - Save instructor prompt or student response on an induction proof line.
+ * @param {Object} data - { case, side, lineNumber, instructorComment?, studentComment?, commentCorrect? }
+ */
+const updateComment = async (data) => {
   try {
     const response = await axiosInstance.post(
-      `${API_GATEWAY}/validate-hidden-field`,
+      `${API_GATEWAY}/update-comment`,
       data
     );
     return response.data;
   } catch (error) {
-    handleServiceError(error, 'Error validating hidden field:');
-    throw error;
-  }
-};
-
-const validateHiddenDefinition = async ({ label, studentExpression }) => {
-  try {
-    const response = await axiosInstance.post(
-      `${API_GATEWAY}/validate-hidden-definition`,
-      { label, student_expression: studentExpression }
-    );
-    return response.data;
-  } catch (error) {
-    handleServiceError(error, 'Error validating hidden definition:');
-    throw error;
-  }
-};
-
-const toggleVisibility = async (data) => {
-  try {
-    const response = await axiosInstance.post(
-      `${API_GATEWAY}/toggle-visibility`,
-      data
-    );
-    return response.data;
-  } catch (error) {
-    handleServiceError(error, "Error toggling visibility:");
-    throw error;
-  }
-};
-
-const saveComment = async (data) => {
-  try {
-    const response = await axiosInstance.post(
-      `${API_GATEWAY}/save-comment`,
-      data
-    );
-
-    return response.data;
-
-  } catch (error) {
-    handleServiceError(error, "Error saving comment:");
-    throw error;
-  }
-};
-
-const getComments = async (params) => {
-  try {
-    const response = await axiosInstance.get(
-      `${API_GATEWAY}/get-comments`,
-      {
-        params
-      }
-    );
-
-    return response.data;
-
-  } catch (error) {
-    handleServiceError(error, "Error loading comments:");
+    handleServiceError(error, 'Error updating induction proof line comment:');
     throw error;
   }
 };
@@ -338,11 +284,7 @@ const inductionService = {
   setParameters,
   downloadProof,
   uploadProof,
-  validateHiddenField,
-  validateHiddenDefinition,
-  toggleVisibility,
-  saveComment,
-  getComments
+  updateComment
 };
 
 export default inductionService;
