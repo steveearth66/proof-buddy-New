@@ -14,6 +14,7 @@ urlpatterns = [
     path("validate-hidden-field", views.validate_hidden_field, name="validate_hidden_field"),
     # Comments feature
     path("update-comment", views.update_comment, name="update_comment"),
+    path("check-name-conflict", views.check_name_conflict, name="check_name_conflict"),
     path("proofs", views.get_user_proofs, name="get_user_proofs"),
     path("get-user-proof", views.get_user_proof, name="get_user_proof"),
     path("clear-proof", views.clear_proof, name="clear_proof"),

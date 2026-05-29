@@ -45,8 +45,8 @@ export_to_csv.short_description = "Export selected to CSV"
 
 @admin.register(EquationalProof)
 class EquationalProofAdmin(admin.ModelAdmin):
-    list_display = ['id', 'name', 'tag', 'user', 'current_side', 'is_valid', 'is_complete', 'created_at']
-    list_filter = ['is_valid', 'is_complete', 'current_side', 'created_at']
+    list_display = ['id', 'name', 'tag', 'user', 'current_side', 'is_complete', 'created_at']
+    list_filter = ['is_complete', 'current_side', 'created_at']
     search_fields = ['name', 'tag', 'user__username']
     readonly_fields = ['created_at', 'updated_at']
     actions = [export_to_csv]

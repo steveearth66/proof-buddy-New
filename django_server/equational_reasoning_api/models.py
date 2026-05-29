@@ -36,6 +36,7 @@ class EquationalProof(models.Model):
     support_premise = models.BooleanField(default=True)
     support_rule_set = models.BooleanField(default=True)
     support_value_mapping = models.BooleanField(default=True)
+    support_rewrite_complexity = models.BooleanField(default=True)
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

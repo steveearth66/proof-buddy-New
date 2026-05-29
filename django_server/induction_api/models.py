@@ -53,6 +53,7 @@ class InductionProof(models.Model):
     support_premise = models.BooleanField(default=True)
     support_rule_set = models.BooleanField(default=True)
     support_value_mapping = models.BooleanField(default=True)
+    support_rewrite_complexity = models.BooleanField(default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -121,3 +122,26 @@ class InductionProofLine(models.Model):
 
     def __str__(self):
         return f'{self.case} {self.side} Line {self.line_number}: {self.racket[:50]}'
+
+
+class InductionProofLineComment(models.Model):
+
+    ROLE_CHOICES = [
+        ('student', 'Student'),
+        ('instructor', 'Instructor'),
+    ]
+
+    proof = models.ForeignKey(
+        InductionProof,
+        related_name='line_comments',
+        on_delete=models.CASCADE
+    )
+    side = models.CharField(max_length=3)
+    line_number = models.IntegerField()
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.role} comment on {self.side} line {self.line_number}'

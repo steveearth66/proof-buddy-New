@@ -1326,6 +1326,11 @@ def save_proof(request):
                 {"message": "Error saving proof"}, status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Update cache with the new proof_id so apply_rule and update_comment
+        # can find the correct DB record for subsequent operations.
+        proof_obj, _ = get_or_set_equational_obj(user)
+        save_equational_obj_to_cache(user, proof_obj, proof.id)
+
         return Response(
             {"message": "Proof saved successfully", "proofId": proof.id}, 
             status=status.HTTP_201_CREATED
