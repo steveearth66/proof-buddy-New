@@ -232,15 +232,18 @@ const EquationalReasoningNew = () => {
         // 3. PREPARE DEFINITIONS & GENERICS
         const normalizeType = (t) => (t || '').replace(/\s*->\s*/g, ' > ').trim();
         let definitions = [];
+        let savedDefs = [];
         let generics = [];
         try {
           const storedDefs = JSON.parse(sessionStorage.getItem('definitions')) || [];
           definitions = storedDefs.filter(d => d.applied && d.expression);
+          savedDefs = storedDefs.filter(d => d.applied);
           const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
           generics = storedGenerics.filter(g => g.enabled);
         } catch (e) {
           console.error('Error reading session definitions:', e);
           definitions = [];
+          savedDefs = [];
           generics = [];
         }
         
@@ -297,10 +300,12 @@ const EquationalReasoningNew = () => {
               rightPremise: { ...rhsPremiseLine },
               leftRacketsAndRules: [],
               rightRacketsAndRules: [],
-              definitions: definitions.map(d => ({
+              definitions: savedDefs.map(d => ({
+                id: d.id || null,
                 label: d.label || d.name || '',
                 type: normalizeType(d.type),
-                expression: d.expression
+                expression: d.expression || '',
+                expression_hidden: d.expression_hidden || false
               })),
               generics: generics.map(g => ({
                 label: g.label || g.name || '',
@@ -1980,6 +1985,8 @@ const handleRuleKeyDown = (e) => {
           <Definitions 
             toggleDefinitionsWindow={toggleDefinitionsWindow} 
             isLocked={proofStarted}
+            isStudent={currentUserType?.is_student}
+            validateHiddenDefinitionFn={equationalService.validateHiddenDefinition}
           />
         )}
 

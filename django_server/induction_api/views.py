@@ -572,7 +572,13 @@ def get_induction_proof(request, proof_id):
             if not is_authorized_instructor:
                 return Response({"hasProof": False}, status=status.HTTP_403_OK)
         serializer = InductionProofSerializer(proof)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        response_data = dict(serializer.data)
+        definitions = [dict(d) for d in (response_data.get("definition") or [])]
+        for item in definitions:
+            if item.get("expression_hidden") and not user.is_instructor:
+                item["expression"] = "****"
+        response_data["definition"] = definitions
+        return Response(response_data, status=status.HTTP_200_OK)
     except InductionProof.DoesNotExist:
         return Response(
             {"error": "Proof not found"},
@@ -2297,6 +2303,69 @@ def validate_hidden_field(request):
         import traceback
         traceback.print_exc()
         return Response({"error": f"Server Error: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def validate_hidden_definition(request):
+    """
+    Validate a student's expression against a hidden definition.
+    Case A: definition has a stored expression — student must match the tree exactly.
+    Case B: definition has no expression (student-entry mode) — any valid parse is accepted,
+            stored in the DB proof record and registered in the engine cache.
+    """
+    user = request.user
+    label = request.data.get("label")
+    student_expression = request.data.get("student_expression", "").strip()
+    if not label or not student_expression:
+        return Response({"error": "Missing label or student_expression."}, status=status.HTTP_400_BAD_REQUEST)
+    ind, proof_id = get_or_set_induction_obj(user)
+    if not proof_id:
+        return Response({"error": "No active proof session found."}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        db_proof = InductionProof.objects.get(id=proof_id)
+    except InductionProof.DoesNotExist:
+        return Response({"error": "Proof not found."}, status=status.HTTP_400_BAD_REQUEST)
+    definitions = list(db_proof.definition or [])
+    target_idx = None
+    target_def = None
+    for idx, d in enumerate(definitions):
+        if d.get("label") == label and not d.get("is_generic"):
+            target_idx = idx
+            target_def = d
+            break
+    if target_def is None:
+        return Response({"error": "Definition not found."}, status=status.HTTP_400_BAD_REQUEST)
+    if not target_def.get("expression_hidden"):
+        return Response({"error": "Definition is not hidden."}, status=status.HTTP_400_BAD_REQUEST)
+    # Parse the student input using the ER engine
+    temp_proof = ERProof()
+    temp_proof.addProofLine(student_expression)
+    if temp_proof.errLog:
+        return Response({"isValid": False, "message": "Syntax error in expression."}, status=status.HTTP_200_OK)
+    student_tree = makeJson(temp_proof.proofLines[-1].exprTree)
+    stored_expression = target_def.get("expression", "")
+    if stored_expression:
+        # Case A: compare trees
+        stored_proof = ERProof()
+        stored_proof.addProofLine(stored_expression)
+        if stored_proof.errLog:
+            return Response({"error": "Stored expression is unparseable."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        stored_tree = makeJson(stored_proof.proofLines[-1].exprTree)
+        if student_tree == stored_tree:
+            return Response({"isValid": True, "expression": stored_expression}, status=status.HTTP_200_OK)
+        else:
+            return Response({"isValid": False, "message": "the input expression does not match the hidden definition"}, status=status.HTTP_200_OK)
+    else:
+        # Case B: student-entry mode — accept any valid expression
+        def_type = target_def.get("type") or target_def.get("def_type", "")
+        definitions[target_idx] = dict(target_def)
+        definitions[target_idx]["expression"] = student_expression
+        InductionProof.objects.filter(id=proof_id).update(definition=definitions)
+        ind.baseCase.addUDF(label, def_type, student_expression)
+        ind.leapStep.addUDF(label, def_type, student_expression)
+        save_induction_obj_to_cache(user, ind, proof_id)
+        return Response({"isValid": True, "expression": student_expression}, status=status.HTTP_200_OK)
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def toggle_visibility(request):

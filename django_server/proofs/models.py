@@ -12,6 +12,7 @@ class Definition(models.Model):
     label = models.CharField(max_length=100)
     def_type = models.CharField(max_length=100)
     expression = models.CharField(max_length=255, blank=True)
+    expression_hidden = models.BooleanField(default=False)
     notes = models.TextField(default="", blank=True)
     created_by = models.ForeignKey(
         'accounts.Account', related_name='definitions', on_delete=models.CASCADE)

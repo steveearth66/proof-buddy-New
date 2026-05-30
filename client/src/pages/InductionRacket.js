@@ -2320,6 +2320,8 @@ const InductionRacket = () => {
           <Definitions 
             toggleDefinitionsWindow={toggleDefinitionsWindow} 
             isLocked={proofStarted}
+            isStudent={currentUserType?.is_student}
+            validateHiddenDefinitionFn={inductionService.validateHiddenDefinition}
           />
         )}
 

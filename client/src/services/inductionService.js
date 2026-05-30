@@ -259,6 +259,19 @@ const validateHiddenField = async (data) => {
   }
 };
 
+const validateHiddenDefinition = async ({ label, studentExpression }) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/validate-hidden-definition`,
+      { label, student_expression: studentExpression }
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, 'Error validating hidden definition:');
+    throw error;
+  }
+};
+
 const toggleVisibility = async (data) => {
   try {
     const response = await axiosInstance.post(
@@ -326,6 +339,7 @@ const inductionService = {
   downloadProof,
   uploadProof,
   validateHiddenField,
+  validateHiddenDefinition,
   toggleVisibility,
   saveComment,
   getComments

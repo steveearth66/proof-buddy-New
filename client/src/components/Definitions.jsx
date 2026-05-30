@@ -5,6 +5,8 @@ import Row from 'react-bootstrap/Row';
 import Alert from 'react-bootstrap/Alert';
 import Button from 'react-bootstrap/esm/Button';
 import Accordion from 'react-bootstrap/Accordion';
+import Modal from 'react-bootstrap/Modal';
+import { Eye, EyeSlash } from 'react-bootstrap-icons';
 import validateField from '../utils/definitionsFormValidation';
 import { useInputState } from '../hooks/useInputState';
 import { useFormValidation } from '../hooks/useFormValidation';
@@ -16,22 +18,25 @@ import { toast } from 'react-toastify';
 import { createPortal } from 'react-dom';
 import RacketInput from './RacketInput';
 
-export default function Definitions({ toggleDefinitionsWindow, isLocked = false }) {
+export default function Definitions({ toggleDefinitionsWindow, isLocked = false, isStudent = false, validateHiddenDefinitionFn }) {
   const [showCreateDefinition, setShowCreateDefinition] = useState(false);
 
   return createPortal(
     <div className="overlay">
       <div className="card">
         {showCreateDefinition ? (
-          <CreateDefinition 
-            onUpdate={setShowCreateDefinition} 
+          <CreateDefinition
+            onUpdate={setShowCreateDefinition}
             isLocked={isLocked}
+            isStudent={isStudent}
           />
         ) : (
           <ShowDefinitions
             onUpdate={setShowCreateDefinition}
             toggleDefinitionsWindow={toggleDefinitionsWindow}
             isLocked={isLocked}
+            isStudent={isStudent}
+            validateHiddenDefinitionFn={validateHiddenDefinitionFn}
           />
         )}
       </div>
@@ -49,7 +54,10 @@ function CreateDefinition({
   notes,
   edit,
   updateDefinition,
-  isLocked = false
+  isLocked = false,
+  isStudent = false,
+  expressionHiddenInit = false,
+  onConvertToGeneric = null
 }) {
   const initialValues = {
     label: label || '',
@@ -64,6 +72,8 @@ function CreateDefinition({
   const [validated, setValidated] = useState(false);
   const [errors, setErrors] = useState([]);
   const [successMessage, setSuccessMessage] = useState('');
+  const [expressionHidden, setExpressionHidden] = useState(expressionHiddenInit);
+  const [showChoiceModal, setShowChoiceModal] = useState(false);
   
   // Parenthesis highlighting for each field
   const { 
@@ -96,6 +106,147 @@ function CreateDefinition({
     setErrors([]);
   };
 
+  const doCreateGeneric = async () => {
+    const generics_ss = JSON.parse(sessionStorage.getItem('generics')) || [];
+    const generic = {
+      id,
+      label: formValues.label,
+      type: formValues.type,
+      expression: '',
+      notes: formValues.notes,
+      applied: true,
+      expression_hidden: false
+    };
+    if (generic.type.toLowerCase() === 'int')
+      generic.restrictions = { assumption: 'Non-negative' };
+    if (generic.type.toLowerCase() === 'list')
+      generic.restrictions = { neverNull: true };
+    try {
+      const createdGeneric = await erService.createGeneric(generic);
+      createdGeneric.enabled = true;
+      generics_ss.push(createdGeneric);
+      sessionStorage.setItem('generics', JSON.stringify(generics_ss));
+      setSuccessMessage('Generic created successfully.');
+      setErrors([]);
+      handleReset();
+    } catch (error) {
+      if (error.response?.data?.message) {
+        setErrors([error.response.data.message]);
+      } else {
+        setErrors(['An error occurred. Please try again']);
+      }
+      setValidated(false);
+    }
+  };
+
+  const doCreateStudentEntry = async () => {
+    const definitions_ss = JSON.parse(sessionStorage.getItem('definitions')) || [];
+    const definition = {
+      id,
+      label: formValues.label,
+      type: formValues.type,
+      expression: '',
+      notes: formValues.notes,
+      applied: true,
+      expression_hidden: true
+    };
+    try {
+      const createdDefinition = await erService.createDefinition(definition);
+      if (createdDefinition) {
+        createdDefinition.type = createdDefinition.def_type;
+        definitions_ss.push(createdDefinition);
+        sessionStorage.setItem('definitions', JSON.stringify(definitions_ss));
+        setSuccessMessage('Student-entry definition created successfully.');
+        setErrors([]);
+        handleReset();
+      } else {
+        setErrors(['An error occurred. Please try again.']);
+        setValidated(false);
+      }
+    } catch (error) {
+      if (error.response?.data?.message) {
+        setErrors(Array.isArray(error.response.data.message) ? error.response.data.message : [error.response.data.message]);
+      } else {
+        setErrors(['An error occurred. Please try again.']);
+      }
+      setValidated(false);
+    }
+  };
+
+  const doEditAsStudentEntry = async () => {
+    const definition = {
+      id,
+      label: formValues.label,
+      type: formValues.type,
+      expression: '',
+      notes: formValues.notes,
+      applied: true,
+      expression_hidden: true
+    };
+    try {
+      const newDefinition = await toast.promise(
+        erService.editDefinition(definition),
+        {
+          pending: 'Updating definition...',
+          success: 'Definition updated successfully.',
+          error: 'An error occurred. Please try again.'
+        }
+      );
+      setErrors([]);
+      updateDefinition({
+        id: newDefinition.id,
+        label: newDefinition.label,
+        type: newDefinition.def_type,
+        expression: newDefinition.expression,
+        notes: newDefinition.notes,
+        expression_hidden: true
+      });
+      onUpdate(false);
+    } catch (error) {
+      if (error.response && error.response.data && error.response.data.message) {
+        setErrors(Array.isArray(error.response.data.message) ? error.response.data.message : [error.response.data.message]);
+      } else {
+        setErrors(['An error occurred. Please try again.']);
+      }
+      setValidated(false);
+    }
+  };
+
+  const doEditAsGeneric = async () => {
+    try {
+      await erService.deleteDefinition(formValues.label);
+      const generic = {
+        label: formValues.label,
+        type: formValues.type,
+        expression: '',
+        notes: formValues.notes,
+        applied: true,
+        expression_hidden: false
+      };
+      if (generic.type.toLowerCase() === 'int')
+        generic.restrictions = { assumption: 'Non-negative' };
+      if (generic.type.toLowerCase() === 'list')
+        generic.restrictions = { neverNull: true };
+      const createdGeneric = await toast.promise(
+        erService.createGeneric(generic),
+        {
+          pending: 'Converting to generic...',
+          success: 'Generic created successfully.',
+          error: 'An error occurred. Please try again.'
+        }
+      );
+      createdGeneric.enabled = true;
+      onConvertToGeneric(formValues.label, createdGeneric);
+    } catch (error) {
+      if (error.response?.data?.message) {
+        setErrors([error.response.data.message]);
+      } else {
+        setErrors(['An error occurred. Please try again.']);
+      }
+      setValidated(false);
+    }
+  };
+
   const handleCreateDefinition = async () => {
     const definition = {
       id,
@@ -103,7 +254,8 @@ function CreateDefinition({
       type: formValues.type,
       expression: formValues.expression,
       notes: formValues.notes,
-      applied: true
+      applied: true,
+      expression_hidden: expressionHidden
     };
 
     const definitions = JSON.parse(sessionStorage.getItem('definitions')) || [];
@@ -111,9 +263,8 @@ function CreateDefinition({
     let exists = false;
 
     if (edit) {
-      if (!definition.expression) {
-        setErrors(['Cannot edit a definition to a generic.']);
-        setValidated(false);
+      if (!definition.expression && !expressionHidden) {
+        setShowChoiceModal(true);
         return;
       }
       try {
@@ -132,7 +283,8 @@ function CreateDefinition({
           label: newDefinition.label,
           type: newDefinition.def_type,
           expression: newDefinition.expression,
-          notes: newDefinition.notes
+          notes: newDefinition.notes,
+          expression_hidden: expressionHidden
         });
       } catch (error) {
         if (error.response && error.response.data && error.response.data.message) {
@@ -152,54 +304,35 @@ function CreateDefinition({
     }
 
     if (!exists) {
-      // Create generic if expression is left blank
       if (!definition.expression) {
-        try {
-          const generic = definition;
-          // Add default restrictions:
-          if (generic.type.toLowerCase() === 'int')
-            generic.restrictions = { assumption: 'Non-negative' };
-          if (generic.type.toLowerCase() === 'list')
-            generic.restrictions = { neverNull: true };
+        if (!expressionHidden) {
+          setShowChoiceModal(true);
+          return;
+        }
+        await doCreateStudentEntry();
+        return;
+      }
+      try {
+        const createdDefinition = await erService.createDefinition(definition);
+        setErrors([]);
 
-          const createdGeneric = await erService.createGeneric(generic);
-          createdGeneric.enabled = true;
-          generics.push(createdGeneric);
-          sessionStorage.setItem('generics', JSON.stringify(generics));
-          setSuccessMessage('Generic created successfully.');
-          setErrors([]);
+        if (createdDefinition) {
+          createdDefinition.type = createdDefinition.def_type;
+          definitions.push(createdDefinition);
+          sessionStorage.setItem('definitions', JSON.stringify(definitions));
+          setSuccessMessage('Definition created successfully.');
           handleReset();
-        } catch (error) {
-          if (error.response?.data?.message) {
-            setErrors([error.response.data.message]);
-          } else {
-            setErrors(['An error occurred. Please try again']);
-          }
+        } else {
+          setErrors(['An error occurred. Please try again.']);
           setValidated(false);
         }
-      } else {
-        try {
-          const createdDefinition = await erService.createDefinition(definition);
-          setErrors([]);
-
-          if (createdDefinition) {
-            createdDefinition.type = createdDefinition.def_type;
-            definitions.push(createdDefinition);
-            sessionStorage.setItem('definitions', JSON.stringify(definitions));
-            setSuccessMessage('Definition created successfully.');
-            handleReset();
-          } else {
-            setErrors(['An error occurred. Please try again.']);
-            setValidated(false);
-          }
-        } catch (error) {
-          if (error.response && error.response.data && error.response.data.message) {
-            setErrors(Array.isArray(error.response.data.message) ? error.response.data.message : [error.response.data.message]);
-          } else {
-            setErrors(['An error occurred. Please try again.']); // generic error message
-          }
-          setValidated(false);
+      } catch (error) {
+        if (error.response && error.response.data && error.response.data.message) {
+          setErrors(Array.isArray(error.response.data.message) ? error.response.data.message : [error.response.data.message]);
+        } else {
+          setErrors(['An error occurred. Please try again.']); // generic error message
         }
+        setValidated(false);
       }
     }
   };
@@ -322,6 +455,26 @@ function CreateDefinition({
             />
           </Col>
         </Row>
+        {!isStudent && (
+          <div className="d-flex justify-content-center align-items-center mt-2" style={{ gap: '8px' }}>
+            <Button
+              variant="link"
+              type="button"
+              onClick={() => setExpressionHidden(prev => !prev)}
+              title="Toggle visibility"
+              style={{ color: expressionHidden ? 'red' : 'green', fontSize: '1.5rem', padding: '0' }}
+            >
+              {expressionHidden ? <EyeSlash /> : <Eye />}
+            </Button>
+            <span style={{ color: expressionHidden ? 'red' : 'green', fontSize: '0.9rem' }}>
+              {!expressionHidden
+                ? 'function definition visible to users'
+                : formValues.expression
+                  ? 'function definition hidden from users'
+                  : 'user supplies function implementation'}
+            </span>
+          </div>
+        )}
         <div className="def-button-row">
           <Button variant="outline-danger" onClick={() => onUpdate(false)}>
             Go Back
@@ -331,11 +484,27 @@ function CreateDefinition({
           </Button>
         </div>
       </Form>
+      <Modal show={showChoiceModal} onHide={() => setShowChoiceModal(false)} className="definition-choice-modal" backdropClassName="definition-choice-modal-backdrop">
+        <Modal.Header closeButton>
+          <Modal.Title>No expression entered</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          Do you wish to create a generic {formValues.type} free variable, or have the student enter their own implementation?
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="outline-success" onClick={() => { setShowChoiceModal(false); edit ? doEditAsGeneric() : doCreateGeneric(); }}>
+            Create Generic
+          </Button>
+          <Button variant="outline-primary" onClick={() => { setShowChoiceModal(false); edit ? doEditAsStudentEntry() : doCreateStudentEntry(); }}>
+            Student Entry
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 }
 
-function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }) {
+function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false, isStudent = false, validateHiddenDefinitionFn }) {
   const [definitions, setDefinitions] = useState(
     JSON.parse(sessionStorage.getItem('definitions')) || []
   );
@@ -345,8 +514,10 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
   });
   const [definitionToEdit, setDefinitionToEdit] = useState({});
   const [edit, setEdit] = useState(false);
+  const [genericToEdit, setGenericToEdit] = useState({});
+  const [editGeneric, setEditGeneric] = useState(false);
   
-  const [tempDefinitions] = useState(JSON.parse(sessionStorage.getItem('temp_definitions')) || []);
+  const [tempDefinitions, setTempDefinitions] = useState(JSON.parse(sessionStorage.getItem('temp_definitions')) || []);
   const [tempGenerics] = useState(JSON.parse(sessionStorage.getItem('temp_generics')) || []);
 
   // Re-sync with sessionStorage whenever component becomes visible
@@ -401,6 +572,18 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
     };
   }, []);
 
+  const handleHiddenReveal = (label, expression) => {
+    const updateList = (list) =>
+      list.map(def => def.label === label ? { ...def, expression_hidden: false, expression } : def);
+    const updatedDefs = updateList(definitions);
+    sessionStorage.setItem('definitions', JSON.stringify(updatedDefs));
+    setDefinitions(updatedDefs);
+    const storedTemp = JSON.parse(sessionStorage.getItem('temp_definitions')) || [];
+    const updatedTemp = updateList(storedTemp);
+    sessionStorage.setItem('temp_definitions', JSON.stringify(updatedTemp));
+    setTempDefinitions(updatedTemp);
+  };
+
   const deleteDefinition = async (label) => {
     const confirm = window.confirm(
       'Are you sure you want to delete this definition?'
@@ -437,16 +620,58 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
     }
   };
 
-  const updateDefinition = async ({ id, label, type, expression, notes }) => {
+  const updateDefinition = async ({ id, label, type, expression, notes, expression_hidden }) => {
     const updatedDefinitions = definitions.map((def) => {
       if (def.id === id) {
-        return { id, label, type, expression, notes };
+        return { id, label, type, expression, notes, expression_hidden };
       } else {
         return def;
       }
     });
     sessionStorage.setItem('definitions', JSON.stringify(updatedDefinitions));
     setDefinitions(updatedDefinitions);
+  };
+
+  const updateGenericEdit = (generic) => {
+    setGenericToEdit(generic);
+    setEditGeneric(true);
+  };
+
+  const onGenericUpdated = (oldId, createdGeneric) => {
+    setGenerics(prev => {
+      const updated = [...prev.filter(g => g.id !== oldId), createdGeneric];
+      sessionStorage.setItem('generics', JSON.stringify(updated));
+      return updated;
+    });
+    setEditGeneric(false);
+  };
+
+  const handleConvertFromGeneric = (oldId, createdDefinition) => {
+    setGenerics(prev => {
+      const updated = prev.filter(g => g.id !== oldId);
+      sessionStorage.setItem('generics', JSON.stringify(updated));
+      return updated;
+    });
+    setDefinitions(prev => {
+      const updated = [...prev, createdDefinition];
+      sessionStorage.setItem('definitions', JSON.stringify(updated));
+      return updated;
+    });
+    setEditGeneric(false);
+  };
+
+  const handleConvertToGeneric = (label, createdGeneric) => {
+    setDefinitions(prev => {
+      const updated = prev.filter(d => d.label !== label);
+      sessionStorage.setItem('definitions', JSON.stringify(updated));
+      return updated;
+    });
+    setGenerics(prev => {
+      const updated = [...prev, createdGeneric];
+      sessionStorage.setItem('generics', JSON.stringify(updated));
+      return updated;
+    });
+    setEdit(false);
   };
 
   const updateEdit = (definition) => {
@@ -592,6 +817,18 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
   useEffect(() => {
   }, [generics]);
 
+  if (editGeneric) {
+    return (
+      <EditGeneric
+        generic={genericToEdit}
+        onBack={() => setEditGeneric(false)}
+        onGenericUpdated={onGenericUpdated}
+        onConvertToDefinition={handleConvertFromGeneric}
+        isLocked={isLocked}
+      />
+    );
+  }
+
   if (edit) {
     return (
       <CreateDefinition
@@ -604,6 +841,9 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
         edit={edit}
         updateDefinition={updateDefinition}
         isLocked={isLocked}
+        isStudent={isStudent}
+        expressionHiddenInit={definitionToEdit.expression_hidden || false}
+        onConvertToGeneric={handleConvertToGeneric}
       />
     );
   } else {
@@ -626,6 +866,9 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
                       updateEdit={updateEdit}
                       applyDefinition={applyDefinition}
                       isLocked={isLocked}
+                      isStudent={isStudent}
+                      validateHiddenDefinitionFn={validateHiddenDefinitionFn}
+                      onHiddenReveal={handleHiddenReveal}
                     />
                   ))}
                 </div>
@@ -645,6 +888,9 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
                       updateEdit={updateEdit}
                       applyDefinition={applyDefinition}
                       isLocked={isLocked}
+                      isStudent={isStudent}
+                      validateHiddenDefinitionFn={validateHiddenDefinitionFn}
+                      onHiddenReveal={handleHiddenReveal}
                     />
                   ))}
                 </div>
@@ -662,6 +908,9 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
                       eventKey={`temp-def-${def.id || i}`}
                       definition={{ ...def, applied: true }} 
                       isLocked={true}
+                      isStudent={isStudent}
+                      validateHiddenDefinitionFn={validateHiddenDefinitionFn}
+                      onHiddenReveal={handleHiddenReveal}
                     />
                   ))}
                 </div>
@@ -680,6 +929,7 @@ function ShowDefinitions({ onUpdate, toggleDefinitionsWindow, isLocked = false }
                   eventKey={index}
                   enableGeneric={enableGeneric}
                   deleteGeneric={deleteGeneric}
+                  updateGenericEdit={updateGenericEdit}
                   isLocked={isLocked}
                 />
               ))}
@@ -734,10 +984,64 @@ function Definition({
   deleteDefinition,
   updateEdit,
   applyDefinition,
-  isLocked = false
+  isLocked = false,
+  isStudent = false,
+  validateHiddenDefinitionFn,
+  onHiddenReveal = null
 }) {
   const isDefaultUDF = definition.is_default === true || definition.deletable === false;
-  
+  const [hiddenInput, setHiddenInput] = useState('');
+  const [hiddenError, setHiddenError] = useState('');
+  const [hiddenRevealed, setHiddenRevealed] = useState(false);
+  const [revealedExpression, setRevealedExpression] = useState('');
+
+  const handleCheckHidden = async () => {
+    setHiddenError('');
+    try {
+      const result = await validateHiddenDefinitionFn({ label: definition.label, studentExpression: hiddenInput });
+      if (result.isValid) {
+        setHiddenRevealed(true);
+        setRevealedExpression(result.expression);
+        if (onHiddenReveal) onHiddenReveal(definition.label, result.expression);
+      } else {
+        setHiddenError('the input expression does not match the hidden definition');
+      }
+    } catch (err) {
+      setHiddenError('the input expression does not match the hidden definition');
+    }
+  };
+
+  const renderExpression = () => {
+    if (definition.expression_hidden && isStudent) {
+      if (hiddenRevealed) {
+        return <span>{revealedExpression}</span>;
+      }
+      return (
+        <div>
+          <span>****</span>
+          <div className="d-flex align-items-center mt-1" style={{ gap: '6px' }}>
+            <Form.Control
+              type="text"
+              size="sm"
+              placeholder="Enter expression to unlock"
+              value={hiddenInput}
+              onChange={e => setHiddenInput(e.target.value)}
+              style={{ maxWidth: '260px' }}
+            />
+            <Button size="sm" variant="outline-primary" onClick={handleCheckHidden}>
+              Check
+            </Button>
+          </div>
+          {hiddenError && <p style={{ color: 'red', marginTop: '4px', marginBottom: '0' }}>{hiddenError}</p>}
+        </div>
+      );
+    }
+    if (definition.expression_hidden && !definition.expression) {
+      return <span style={{ color: 'red' }}>user supplied</span>;
+    }
+    return <span>{definition.expression}</span>;
+  };
+
   return (
     <Accordion>
       <Accordion.Item eventKey={eventKey}>
@@ -746,7 +1050,11 @@ function Definition({
         </Accordion.Header>
         <Accordion.Body>
           <p>Type: {definition.type}</p>
-          <p>Expression: {definition.expression}</p>
+          <p>
+            Expression:{' '}
+            {renderExpression()}
+          </p>
+          <p>Visibility: {(definition.expression_hidden && !(isStudent && hiddenRevealed)) ? 'Hidden' : 'Visible'}</p>
           {definition.notes && <p>Notes: {definition.notes}</p>}
           <div className="def-buttons">
             <Button
@@ -779,11 +1087,164 @@ function Definition({
   );
 }
 
+function EditGeneric({ generic, onBack, onGenericUpdated, onConvertToDefinition, isLocked = false }) {
+  const [label, setLabel] = useState(generic.label);
+  const [type, setType] = useState(generic.type);
+  const [expression, setExpression] = useState('');
+  const [notes, setNotes] = useState(generic.notes || '');
+  const [errors, setErrors] = useState([]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!label.trim() || !type.trim()) {
+      setErrors(['Label and type are required.']);
+      return;
+    }
+    try {
+      if (expression.trim()) {
+        // Convert to definition — backend atomically removes the generic and creates the definition
+        const newDefinition = {
+          label: label.trim(),
+          type: type.trim(),
+          expression: expression.trim(),
+          notes: notes.trim(),
+          applied: true,
+          expression_hidden: false
+        };
+        const created = await toast.promise(
+          erService.createDefinition(newDefinition),
+          {
+            pending: 'Converting to definition...',
+            success: 'Definition created successfully.',
+            error: 'An error occurred. Please try again.'
+          }
+        );
+        if (created) {
+          created.type = created.def_type;
+          onConvertToDefinition(generic.id, created);
+        }
+      } else {
+        await erService.deleteGeneric(generic.id);
+        const newGeneric = {
+          label: label.trim(),
+          type: type.trim(),
+          expression: '',
+          notes: notes.trim(),
+          applied: true,
+          expression_hidden: false
+        };
+        if (newGeneric.type.toLowerCase() === 'int')
+          newGeneric.restrictions = { assumption: 'Non-negative' };
+        if (newGeneric.type.toLowerCase() === 'list')
+          newGeneric.restrictions = { neverNull: true };
+        const created = await toast.promise(
+          erService.createGeneric(newGeneric),
+          {
+            pending: 'Updating generic...',
+            success: 'Generic updated successfully.',
+            error: 'An error occurred. Please try again.'
+          }
+        );
+        created.enabled = true;
+        onGenericUpdated(generic.id, created);
+      }
+    } catch (error) {
+      if (error.response?.data?.message) {
+        setErrors([error.response.data.message]);
+      } else {
+        setErrors(['An error occurred. Please try again.']);
+      }
+    }
+  };
+
+  return (
+    <div>
+      <h4>Edit Generic</h4>
+      {errors.length > 0 && (
+        <Alert variant="danger" className="scroll-error">
+          {errors.map((error, index) => (
+            <p key={index}>{error}</p>
+          ))}
+        </Alert>
+      )}
+      <Form className="form" onSubmit={handleSubmit}>
+        <Row>
+          <Col>
+            <div className="label-field-container">
+              <label className="form-label">Label</label>
+              <RacketInput
+                type="text"
+                name="label"
+                placeholder="Enter Label"
+                value={label}
+                onChange={e => setLabel(e.target.value)}
+                disabled={isLocked}
+                required
+              />
+            </div>
+          </Col>
+          <Col>
+            <div className="type-field-container">
+              <label className="form-label">Type</label>
+              <RacketInput
+                type="text"
+                name="type"
+                placeholder="Enter Type"
+                value={type}
+                onChange={e => setType(e.target.value)}
+                disabled={isLocked}
+                required
+              />
+            </div>
+          </Col>
+        </Row>
+        <Row>
+          <Col>
+            <div className="expression-field-container">
+              <label className="form-label">Expression (leave blank to keep as generic)</label>
+              <RacketInput
+                type="text"
+                name="expression"
+                placeholder="Enter Expression"
+                value={expression}
+                onChange={e => setExpression(e.target.value)}
+                disabled={isLocked}
+              />
+            </div>
+          </Col>
+        </Row>
+        <Row>
+          <Col>
+            <div>
+              <label className="form-label">Notes</label>
+              <Form.Control
+                as="textarea"
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                disabled={isLocked}
+              />
+            </div>
+          </Col>
+        </Row>
+        <div className="def-button-row">
+          <Button variant="outline-danger" type="button" onClick={onBack}>
+            Go Back
+          </Button>
+          <Button variant="outline-primary" type="submit" disabled={isLocked}>
+            Update Generic
+          </Button>
+        </div>
+      </Form>
+    </div>
+  );
+}
+
 function Generic({
   generic,
   eventKey,
   enableGeneric,
   deleteGeneric,
+  updateGenericEdit,
   isLocked = false
 }) {
 
@@ -820,6 +1281,15 @@ function Generic({
             >
               {generic.enabled ? "Disable" : "Enable"} Generic
             </Button>
+            {updateGenericEdit && (
+              <Button
+                variant="outline-primary"
+                onClick={() => updateGenericEdit(generic)}
+                disabled={isLocked}
+              >
+                Edit
+              </Button>
+            )}
             <Button
               variant="outline-danger"
               onClick={() => deleteGeneric(generic)}
