@@ -50,6 +50,11 @@ export default function CourseView() {
     loadCourseData();
   }, [id]);
 
+  const handleAssignmentRefresh = async () => {
+    const fetchedAssignments = await courseService.getAssignments(id);
+    setAssignments(fetchedAssignments);
+  };
+
   const handleToggleCourseStatus = async (courseId, currentStatus) => {
     const newStatus = !currentStatus;
 
@@ -172,6 +177,7 @@ export default function CourseView() {
             onUpdateCourse={handleUpdateCourse}
             onSaveAssignment={handleSaveAssignment}
             onDeleteAssignment={handleDeleteAssignment}
+            onRefreshAssignments={handleAssignmentRefresh}
           />
         )}
       </Container>

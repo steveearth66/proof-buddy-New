@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Table, Button, Form, Badge, Card, Row, Col, InputGroup, Spinner, Alert, ListGroup, OverlayTrigger, Tooltip } from "react-bootstrap";
+import { Table, Button, Form, Badge, Card, Row, Col, InputGroup, Spinner, Alert, ListGroup, OverlayTrigger, Tooltip, Nav } from "react-bootstrap";
 import AddAssignmentModal from './modals/AddAssignmentModal';
 import useSortableTable from '../../hooks/useSortableTable';
 import courseService from '../../services/courseServices';
 import ViewAssignmentProgressModal from './modals/ViewAssignmentProgressModal';
 import { Eye } from "react-bootstrap-icons";
 
-export default function InstructorCourseView({ course, assignments, onBack, onToggleStatus, onRegenerateJoinCode, onUpdateCourse, onSaveAssignment, onDeleteAssignment }) {
+export default function InstructorCourseView({ course, assignments, onBack, onToggleStatus, onRegenerateJoinCode, onUpdateCourse, onSaveAssignment, onDeleteAssignment, onRefreshAssignments }) {
   const [assignmentPage, setAssignmentPage] = useState(1);
   const [showAddAssignmentModal, setShowAddAssignmentModal] = useState(false);
   const [addAssignmentMode, setAddAssignmentMode] = useState(null);
@@ -28,6 +28,24 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
 
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
+  const [shareRequestsTab, setShareRequestsTab] = useState('incoming');
+  const [incomingShares, setIncomingShares] = useState([]);
+  const [outgoingShares, setOutgoingShares] = useState([]);
+  const [isProcessingShare, setIsProcessingShare] = useState(false);
+
+  const fetchShareRequests = async () => {
+    try {
+      const data = await courseService.getSharedAssignments(course.id);
+      onRefreshAssignments();
+      if (data) {
+        setIncomingShares(data.incoming || []);
+        setOutgoingShares(data.sent || []);
+      }
+    } catch (err) {
+      console.error("Error populating component share request arrays:", err);
+    }
+  };
+
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
@@ -41,7 +59,58 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
         if (data) setInvitations(data);
     };
     fetchInvitations();
+    fetchShareRequests();
   }, [course.id]);
+
+  const handleResolveShare = async (shareRequestId, action) => {
+    if (action === 'reject' && !window.confirm("Are you sure you want to decline this shared assignment package?")) return;
+    
+    setIsProcessingShare(true);
+    try {
+      await courseService.respondToShareRequest(shareRequestId, action);
+      await fetchShareRequests();
+    } catch (err) {
+      alert("Error processing share request choice.");
+    } finally {
+      setIsProcessingShare(false);
+    }
+  };
+
+  const handleCancelShareRequest = async (shareRequestId) => {
+    if (!window.confirm("Are you sure you want to revoke this outbound share request? This will delete the staged copy.")) return;
+
+    try {
+      await courseService.cancelShareRequest(shareRequestId);
+      await fetchShareRequests();
+    } catch (err) {
+      alert("Failed to cancel share request.");
+    }
+  };
+
+  const handleSaveAssignment = async (payload) => {
+    let success = true;
+    try {
+      if (payload.copy_mode === 'external') {
+        const sharePayload = {
+          source_course_id: parseInt(payload.source_course_id),
+          target_course_id: parseInt(payload.course),
+          title: payload.title,
+          description: payload.description,
+          due_date: payload.due_date,
+          proofs: payload.proofs
+        };
+        await courseService.sendAssignmentShare(sharePayload);
+      } else {
+        await onSaveAssignment(payload);
+      }
+    } catch (error) {
+      console.error("Failed to execute assignment save transaction:", error);
+      success = false;
+    } finally {
+      fetchShareRequests();
+    }
+    return success;
+  };
 
   // Define your dynamic width
   const dueDateWidth = 
@@ -507,6 +576,141 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
         </tbody>
       </Table>
 
+      {(outgoingShares.length > 0 || incomingShares.length > 0) && (
+        <Card className="mb-4 shadow-sm border-0 bg-light p-3">
+          <div className="d-flex justify-content-between align-items-center mb-2">
+            <h5 className="mb-0 text-dark fw-bold">
+              <i className="fa-solid fa-share-nodes me-2 text-primary"></i>Shared Assignment Packages
+            </h5>
+            {incomingShares.length > 0 && (
+              <Badge bg="danger" pill className="ms-2">{incomingShares.length} Pending</Badge>
+            )}
+          </div>
+          <p className="text-muted small mb-3">
+            Review incoming shared assignments or check the state of assignments you pushed out to a colleague.
+          </p>
+
+          <Nav variant="pills" className="mb-3" activeKey={shareRequestsTab} onSelect={(k) => setShareRequestsTab(k)}>
+            <Nav.Item>
+              <Nav.Link eventKey="incoming" className="small py-1">
+                Incoming Packages ({incomingShares.length})
+              </Nav.Link>
+            </Nav.Item>
+            <Nav.Item>
+              <Nav.Link eventKey="outgoing" className="small py-1">
+                Sent Tracking ({outgoingShares.length})
+              </Nav.Link>
+            </Nav.Item>
+          </Nav>
+
+          {shareRequestsTab === 'incoming' ? (
+            <Table striped bordered hover responsive size="sm" className="bg-white align-middle mb-0 small shadow-sm rounded">
+              <thead className="table-secondary">
+                <tr>
+                  <th>Sender</th>
+                  <th>Assignment Title</th>
+                  <th>Included Proof Elements</th>
+                  <th className="text-center" style={{ width: '1%' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {incomingShares.length > 0 ? (
+                  incomingShares.map((req) => (
+                    <tr key={req.share_request_id}>
+                      <td className="fw-semibold">@{req.sender_username}</td>
+                      <td>
+                        <div className="fw-bold text-primary">{req.assignment.title}</div>
+                        <div className="text-muted text-truncate" style={{ maxWidth: '280px' }}>
+                          {req.assignment.description}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="d-flex flex-wrap gap-1">
+                          {req.assignment.proofs?.map((p, i) => (
+                            <Badge key={i} bg="info" className="text-dark bg-opacity-10 border border-info-subtle">
+                              {p.name} ({p.type === 'equationalproof' ? 'Eq' : 'Ind'})
+                            </Badge>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="text-center" style={{ whiteSpace: 'nowrap' }}>
+                        <Button 
+                          variant="success" size="sm" className="me-1 py-0 px-2 fw-semibold"
+                          onClick={() => handleResolveShare(req.share_request_id, 'accept')}
+                          disabled={isProcessingShare}
+                        >
+                          Accept
+                        </Button>
+                        <Button 
+                          variant="outline-danger" size="sm" className="py-0 px-2"
+                          onClick={() => handleResolveShare(req.share_request_id, 'reject')}
+                          disabled={isProcessingShare}
+                        >
+                          Decline
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="4" className="text-center py-3 text-muted fst-italic">
+                      No incoming assignment sharing requests found for this course.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </Table>
+          ) : (
+            <Table striped bordered hover responsive size="sm" className="bg-white align-middle mb-0 small shadow-sm rounded">
+              <thead className="table-secondary">
+                <tr>
+                  <th>Target Destination Course</th>
+                  <th>Assignment Title</th>
+                  <th className="text-center">Status</th>
+                  <th className="text-center" style={{ width: '1%' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {outgoingShares.length > 0 ? (
+                  outgoingShares.map((req) => (
+                    <tr key={req.share_request_id}>
+                      <td>
+                        <div className="fw-semibold">{req.target_course_name}</div>
+                        <div className="small text-muted">Recipient: {req.recipient_instructor}</div>
+                      </td>
+                      <td className="fw-bold text-dark">{req.assignment_title}</td>
+                      <td className="text-center">
+                        <Badge bg={req.status === 'pending' ? 'warning' : req.status === 'accepted' ? 'success' : 'danger'} className="text-capitalize px-2 py-1">
+                          {req.status}
+                        </Badge>
+                      </td>
+                      <td className="text-center">
+                        {req.status === 'pending' && (
+                          <Button variant="outline-danger" size="sm" className="py-0 px-2" onClick={() => handleCancelShareRequest(req.share_request_id)}>
+                            Revoke
+                          </Button>
+                        )}
+                        {req.status === 'rejected' && (
+                          <Button variant="outline-secondary" size="sm" className="py-0 px-2" onClick={() => handleCancelShareRequest(req.share_request_id)}>
+                            Clear
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="4" className="text-center py-3 text-muted fst-italic">
+                      You haven't initiated any shared packages from this course environment.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </Table>
+          )}
+        </Card>
+      )}
+
       {/* Student Roster */}
       <h4 className="mb-3">Enrolled Students</h4>
       <Table striped bordered hover responsive className="align-middle">
@@ -671,7 +875,7 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
         onHide={() => setShowAddAssignmentModal(false)}
         onExited={() => setEditAssignment(null)}        
         courseId={course.id} 
-        onSaveAssignment={onSaveAssignment}
+        onSaveAssignment={handleSaveAssignment}
         mode={addAssignmentMode}
         assignment={editAssignment}
       />
