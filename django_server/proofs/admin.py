@@ -23,14 +23,14 @@ def export_to_csv(modeladmin, request, queryset):
     ]
     
     # Write header
-    writer.writerow([field.name for field in fields])
+    writer.writerow([field.attname for field in fields])
     
     # Write data rows
     for obj in queryset:
         row = []
         for field in fields:
             try:
-                value = getattr(obj, field.name, None)
+                value = getattr(obj, field.attname, None)
                 # Convert value to string, handle None and objects
                 if value is None:
                     row.append('')
