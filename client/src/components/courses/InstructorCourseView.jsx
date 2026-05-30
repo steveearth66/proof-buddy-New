@@ -550,16 +550,16 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
                     </Badge>
                   </td>
                   <td className="text-center" style={{ whiteSpace: 'nowrap' }}>
-                    <OverlayTrigger placement="top" overlay={<Tooltip id={`tooltip-view-${assignment.id}`}>Edit Assignment</Tooltip>}>
+                    <OverlayTrigger placement="top" overlay={<Tooltip style={{ position:"fixed" }} id={`tooltip-view-${assignment.id}`}>Edit Assignment</Tooltip>}>
                       <Button variant="outline-secondary" size="sm" className="me-1" onClick={(e) => {e.currentTarget.blur(); handleEditAssignment(assignment);}}><i className="fa-solid fa-pen"></i></Button>
                     </OverlayTrigger>
-                    <OverlayTrigger placement="top" overlay={<Tooltip id={`tooltip-view-${assignment.id}`}>View Student Progress</Tooltip>}>
+                    <OverlayTrigger placement="top" overlay={<Tooltip style={{ position:"fixed" }} id={`tooltip-view-${assignment.id}`}>View Student Progress</Tooltip>}>
                       <Button variant="outline-secondary" size="sm" className="me-1" onClick={(e) => {e.currentTarget.blur(); handleViewStudentProgress(assignment);}}><Eye></Eye></Button>
                     </OverlayTrigger>
-                    <OverlayTrigger placement="top" overlay={<Tooltip id={`tooltip-view-${assignment.id}`}>Copy Assignment</Tooltip>}>
+                    <OverlayTrigger placement="top" overlay={<Tooltip style={{ position:"fixed" }} id={`tooltip-view-${assignment.id}`}>Copy Assignment</Tooltip>}>
                       <Button variant="outline-secondary" size="sm" className="me-1" onClick={(e) => {e.currentTarget.blur(); handleCopyAssignment(assignment);}}><i className="fa-solid fa-copy"></i></Button>
                     </OverlayTrigger>
-                    <OverlayTrigger placement="top" overlay={<Tooltip id={`tooltip-delete-assignment-${assignment.id}`}>Delete Assignment</Tooltip>}>
+                    <OverlayTrigger placement="top" overlay={<Tooltip style={{ position:"fixed" }} id={`tooltip-delete-assignment-${assignment.id}`}>Delete Assignment</Tooltip>}>
                       <Button variant="outline-danger" size="sm" onClick={(e) => {e.currentTarget.blur(); handleDeleteAssignmentClick(assignment);}}><i className="fa-solid fa-trash"></i></Button>
                     </OverlayTrigger>
                   </td>
@@ -783,7 +783,7 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
                     <td className="text-center">
                       <div className="d-flex justify-content-center gap-2">
                         {invite.status === 'rejected' && (
-                          <OverlayTrigger overlay={<Tooltip>Try sending this invitation again</Tooltip>}>
+                          <OverlayTrigger overlay={<Tooltip style={{ position:"fixed" }}>Try sending this invitation again</Tooltip>}>
                             <Button 
                               variant="outline-primary" 
                               size="sm" 
@@ -794,7 +794,7 @@ export default function InstructorCourseView({ course, assignments, onBack, onTo
                           </OverlayTrigger>
                         )}
                         
-                        <OverlayTrigger overlay={<Tooltip>Withdraw this invitation</Tooltip>}>
+                        <OverlayTrigger overlay={<Tooltip style={{ position:"fixed" }}>Withdraw this invitation</Tooltip>}>
                           <Button 
                             variant="outline-danger" 
                             size="sm" 

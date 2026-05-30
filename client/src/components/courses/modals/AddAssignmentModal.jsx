@@ -363,7 +363,7 @@ export default function AddAssignmentModal({ show, onHide, onExited, courseId, o
                       <td>{proof.displayType}</td>
                       <td className="text-center">
                         {proof.is_locked ? (
-                          <OverlayTrigger overlay={<Tooltip>Cannot remove: Students have already started this proof.</Tooltip>}>
+                          <OverlayTrigger overlay={<Tooltip style={{ position:"fixed" }}>Cannot remove: Students have already started this proof.</Tooltip>}>
                             <span className="d-inline-block">
                               <Button variant="outline-secondary" size="sm" disabled style={{ pointerEvents: 'none' }}>
                                 <i className="fa-solid fa-lock"></i>

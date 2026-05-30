@@ -299,7 +299,7 @@ export default function SetParametersModal({ show, onHide, params, onSave, rules
                 <OverlayTrigger
                     placement="right"
                     overlay={
-                      <Tooltip>
+                      <Tooltip style={{ position:"fixed" }}>
                         all components toggled to Low, can still be set individually
                       </Tooltip>
                     }
@@ -317,7 +317,7 @@ export default function SetParametersModal({ show, onHide, params, onSave, rules
                 <OverlayTrigger
                     placement="right"
                     overlay={
-                      <Tooltip>
+                      <Tooltip style={{ position:"fixed" }}>
                         all components toggled to High, can still be set individually
                       </Tooltip>
                     }
@@ -352,7 +352,7 @@ export default function SetParametersModal({ show, onHide, params, onSave, rules
                   <OverlayTrigger
                     placement="right"
                     overlay={
-                      <Tooltip id={'tooltip-${key}'}>
+                      <Tooltip style={{ position:"fixed" }} id={'tooltip-${key}'}>
                         {TOOLTIPSLOW[key]}
                       </Tooltip>
                     }
@@ -370,7 +370,7 @@ export default function SetParametersModal({ show, onHide, params, onSave, rules
                   <OverlayTrigger
                     placement="right"
                     overlay={
-                      <Tooltip id={'tooltip-${key}'}>
+                      <Tooltip style={{ position:"fixed" }} id={'tooltip-${key}'}>
                         {TOOLTIPSHIGH[key]}
                       </Tooltip>
                     }
