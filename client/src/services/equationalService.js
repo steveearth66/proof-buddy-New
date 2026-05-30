@@ -104,6 +104,19 @@ const validateHiddenField = async (data) => {
   }
 };
 
+const validateHiddenDefinition = async ({ label, studentExpression }) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/validate-hidden-definition`,
+      { label, student_expression: studentExpression }
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, 'Error validating hidden definition:');
+    throw error;
+  }
+};
+
 const getRacketProofs = async ({ page = 1, query = "" }) => {
   try {
     const response = await axiosInstance.get(`${API_GATEWAY}/proofs?page=${page}&query=${query}`);
@@ -135,18 +148,6 @@ const clearProof = async () => {
     return response.data;
   } catch (error) {
     handleServiceError(error, "Error during proof clearing:");
-    throw error;
-  }
-};
-
-const discardProof = async () => {
-  try {
-    const response = await axiosInstance.post(
-      `${API_GATEWAY}/discard-proof`
-    );
-    return response.data;
-  } catch (error) {
-    handleServiceError(error, "Error during proof discard:");
     throw error;
   }
 };
@@ -210,6 +211,38 @@ const uploadProof = async (proofData) => {
   }
 };
 
+const saveComment = async (data) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/save-comment`,
+      data
+    );
+
+    return response.data;
+
+  } catch (error) {
+    handleServiceError(error, "Error saving comment:");
+    throw error;
+  }
+};
+
+const getComments = async (params) => {
+  try {
+    const response = await axiosInstance.get(
+      `${API_GATEWAY}/get-comments`,
+      {
+        params
+      }
+    );
+
+    return response.data;
+
+  } catch (error) {
+    handleServiceError(error, "Error loading comments:");
+    throw error;
+  }
+};
+
 const equationalService = {
   setCurrentProof,
   applyRule,
@@ -219,15 +252,17 @@ const equationalService = {
   getProofLines,
   toggleVisibility,
   validateHiddenField,
+  validateHiddenDefinition,
   getRacketProofs,
   getRacketProof,
   clearProof,
-  discardProof,
   saveProof,
   deleteRacketProof,
   setParameters,
   downloadProof,
-  uploadProof
+  uploadProof,
+  saveComment,
+  getComments
 };
 
 export default equationalService;

@@ -122,7 +122,10 @@ class ProofComponent:
         elif type == 'any':
             self.generics[label] = GenericAny()
         else:
-            raise ValueError('Invalid type string')
+            parsed = str2Type(type)
+            if parsed.getType() in FAIL_TYPES:
+                raise ValueError('Invalid type string')
+            self.generics[label] = GenericTyped(parsed)
 
 class TwoSidedProof(ProofComponent):
     def __init__(self, debug=False):
@@ -181,31 +184,37 @@ class TwoSidedProof(ProofComponent):
             self.isComplete = False
             return False
         
-        # Get last non-blank line from each side
+        # Get last non-blank line index from each side
         lhs_last = None
-        for line in reversed(lhs_lines):
+        lhs_last_idx = -1
+        for i, line in enumerate(reversed(lhs_lines)):
             if not is_blank(line):
                 lhs_last = str(line.exprTree).strip()
+                lhs_last_idx = len(lhs_lines) - 1 - i
                 break
-        
+
         rhs_last = None
-        for line in reversed(rhs_lines):
+        rhs_last_idx = -1
+        for i, line in enumerate(reversed(rhs_lines)):
             if not is_blank(line):
                 rhs_last = str(line.exprTree).strip()
+                rhs_last_idx = len(rhs_lines) - 1 - i
                 break
 
         # Check if last non-blank lines match
         if not lhs_last or not rhs_last or lhs_last != rhs_last:
             self.isComplete = False
             return False
-        
-        # Check for internal blank lines
-        for i, line in enumerate(lhs_lines[:-1]): 
+
+        # Check for internal blank lines only up to (not including) the last non-blank line.
+        # Blank lines AFTER the last non-blank line are ignored — they are cleared wrong
+        # attempts or the trailing blank kept for user input, not gaps in the proof chain.
+        for line in lhs_lines[:lhs_last_idx]:
             if is_blank(line):
                 self.isComplete = False
                 return False
-        
-        for i, line in enumerate(rhs_lines[:-1]): 
+
+        for line in rhs_lines[:rhs_last_idx]:
             if is_blank(line):
                 self.isComplete = False
                 return False
@@ -243,7 +252,7 @@ class ERProof(ProofComponent):
         self.proofLines: list[ERProofLine] = []
         self.premise: Node = None
 
-    def addProofLine(self, lineStr, ruleStr=None, highlightPos=0, substitution=None, auto_infer=False):
+    def addProofLine(self, lineStr, ruleStr=None, highlightPos=0, substitution=None, auto_infer=False, support_rewrite_complexity=False):
         # prooflines now contain pointers to their proof's ruleset so they can refer to UDFs
         if substitution != None:
             subLine = ERProofLine(substitution, self.debug, self.ruleSet, generics=self.generics)
@@ -255,9 +264,9 @@ class ERProof(ProofComponent):
         if proofLine.errLog == []:
             if ruleStr != None:
                 if substitution!=None:
-                    proofLine.applySubstitution(ruleStr, highlightPos, subLine)
+                    proofLine.applySubstitution(ruleStr, highlightPos, subLine, support_rewrite_complexity)
                 else:
-                    proofLine.applyRule(ruleStr, highlightPos, auto_infer=auto_infer)
+                    proofLine.applyRule(ruleStr, highlightPos, auto_infer=auto_infer, support_rewrite_complexity=support_rewrite_complexity)
             elif len(self.proofLines) == 0:
                 # This is the first line of the proof, so it's a premise
                 proofLine.appliedRule = "Premise"
@@ -433,7 +442,7 @@ class ERProofLine(ProofComponent):
                 return ruleObj.ruleType
         raise ValueError
 
-    def applyRule(self, rule: str, startPos: int, subNode: Node = None, auto_infer: bool = False):
+    def applyRule(self, rule: str, startPos: int, subNode: Node = None, auto_infer: bool = False, support_rewrite_complexity = True):
         fullRuleString = rule  # Store the original full rule string before parsing
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
         if targetNode == None:
@@ -516,9 +525,9 @@ class ERProofLine(ProofComponent):
                 self.errLog.extend(mismatch_errors)
                 return
         if selected._ruleType == RuleType.MATH:
-            ok, err = selected.isApplicable(targetNode, subNode)
+            ok, err = selected.isApplicable(targetNode, subNode, support_rewrite_complexity)
         elif selected._ruleType == RuleType.LOGIC:
-            ok, err = selected.isApplicable(targetNode, subNode)
+            ok, err = selected.isApplicable(targetNode, subNode, support_rewrite_complexity)
         elif ruleCategory == 'eval':
             ok, err = selected.isApplicable(targetNode)
         else:
@@ -541,7 +550,7 @@ class ERProofLine(ProofComponent):
         self.appliedRuleNodeId = startPos  # Where rule was applied (on previous line)
         self.resultNodeId = targetNode.startPosition  # The changed node in result (on this line)
 
-    def applySubstitution(self, rule: str, startPos: int, subLine: 'ERProofLine'):
+    def applySubstitution(self, rule: str, startPos: int, subLine: 'ERProofLine', support_rewrite_complexity=False):
         targetNode = findNode(self.exprTree, startPos, self.errLog)[0]
         if targetNode == None:
             self.errLog.append(
@@ -553,7 +562,7 @@ class ERProofLine(ProofComponent):
             self.errLog.append(f"Cannot apply rules within a quoted expression")
         if self.errLog == []:
             replacementExprTree = copy.deepcopy(subLine.exprTree)
-            subLine.applyRule(rule, 0, targetNode)
+            subLine.applyRule(rule, 0, targetNode, support_rewrite_complexity=support_rewrite_complexity)
             if subLine.errLog != []:
                 self.errLog.extend(subLine.errLog)
             elif not isMatch(subLine.exprTree, targetNode):

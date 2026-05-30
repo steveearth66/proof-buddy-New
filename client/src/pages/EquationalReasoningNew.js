@@ -52,6 +52,7 @@ import {
 import userService from "../services/userService";
 import erService from "../services/erService";
 import { useLocation, useNavigate } from "react-router-dom";
+import CommentsModal from "../components/CommentsModal";
 
 /**
  * Equational Reasoning component facilitates the Equational Reasoning Racket.
@@ -231,15 +232,18 @@ const EquationalReasoningNew = () => {
         // 3. PREPARE DEFINITIONS & GENERICS
         const normalizeType = (t) => (t || '').replace(/\s*->\s*/g, ' > ').trim();
         let definitions = [];
+        let savedDefs = [];
         let generics = [];
         try {
           const storedDefs = JSON.parse(sessionStorage.getItem('definitions')) || [];
           definitions = storedDefs.filter(d => d.applied && d.expression);
+          savedDefs = storedDefs.filter(d => d.applied);
           const storedGenerics = JSON.parse(sessionStorage.getItem('generics')) || [];
           generics = storedGenerics.filter(g => g.enabled);
         } catch (e) {
           console.error('Error reading session definitions:', e);
           definitions = [];
+          savedDefs = [];
           generics = [];
         }
         
@@ -296,10 +300,12 @@ const EquationalReasoningNew = () => {
               rightPremise: { ...rhsPremiseLine },
               leftRacketsAndRules: [],
               rightRacketsAndRules: [],
-              definitions: definitions.map(d => ({
+              definitions: savedDefs.map(d => ({
+                id: d.id || null,
                 label: d.label || d.name || '',
                 type: normalizeType(d.type),
-                expression: d.expression
+                expression: d.expression || '',
+                expression_hidden: d.expression_hidden || false
               })),
               generics: generics.map(g => ({
                 label: g.label || g.name || '',
@@ -320,7 +326,7 @@ const EquationalReasoningNew = () => {
               sessionStorage.setItem('erProofActive', 'true');
 
               // Persist any params the user pre-configured before starting the proof.
-              const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules'];
+              const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules', 'support_rewrite_complexity'];
               const hasCustomParams = PARAM_KEYS.some(k => proofParams[k] !== true && (typeof proofParams[k] === 'object' && proofParams[k].length > 0));
               if (hasCustomParams) {
                 try {
@@ -392,8 +398,15 @@ const EquationalReasoningNew = () => {
     support_premise: true,
     support_rule_set: true,
     support_value_mapping: true,
-    visible_rules: {}
+    visible_rules: {},
+    support_rewrite_complexity: true
   });
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [comments, setComments] = useState({});
+  const [activePadIndex, setActivePadIndex] = useState(null);
+  const [activeSide, setActiveSide] = useState(null);
+  const [studentComment, setStudentComment] = useState("");
+  const [instructorComment, setInstructorComment] = useState("");
   
   // Separate premises for base and leap cases
   const [leftPremise, setLeftPremise] = useState(INITIAL_PREMISE_STATE);
@@ -656,7 +669,7 @@ const EquationalReasoningNew = () => {
         setCurrentRHS(findLast(proofData.RHS) || proofData.rhsAnchorGoal);
 
           // F. Restore support params
-          const INIT_PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules'];
+          const INIT_PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules','support_rewrite_complexity'];
           const initExtracted = {};
           INIT_PARAM_KEYS.forEach(k => { if (k in proofData) initExtracted[k] = proofData[k]; });
           if (Object.keys(initExtracted).length > 0) setProofParams(prev => ({ ...prev, ...initExtracted }));
@@ -910,7 +923,7 @@ const EquationalReasoningNew = () => {
       }
 
       // Extract support params and proof_id
-      const PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules'];
+      const PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules','support_rewrite_complexity'];
       const extracted = {};
       PARAM_KEYS.forEach(k => { if (k in proofLines) extracted[k] = proofLines[k]; });
       if (Object.keys(extracted).length > 0) setProofParams(prev => ({ ...prev, ...extracted }));
@@ -1016,7 +1029,7 @@ const EquationalReasoningNew = () => {
     }
 
     try {
-      await equationalService.discardProof();
+      await equationalService.deleteRacketProof(proofParams.proof_id);
       // Clear sessionStorage flag so we don't restore from DB on reload
       sessionStorage.removeItem('erProofActive');
       sessionStorage.removeItem('current_proof_id');
@@ -1207,6 +1220,7 @@ const handleRuleKeyDown = (e) => {
         rule: ruleFromFooter,
         startPosition: previousStartPosition,
         selectedNode: previousStartPosition,
+        supportRewriteComplexity: proofParams.support_rewrite_complexity,
         ...(typeof currentIndex === 'number' && { lineNumber: currentIndex })
       };
 
@@ -1570,7 +1584,8 @@ const handleRuleKeyDown = (e) => {
         currentRacket: currentRacket,
         side: showSide,
         case: "base",
-        lineNumber: padIndex
+        lineNumber: padIndex,
+        supportRewriteComplexity: proofParams.support_rewrite_complexity
       };
 
       try {
@@ -1669,8 +1684,7 @@ const handleRuleKeyDown = (e) => {
   handleRowNumberClick,
   leftPremise,
   rightPremise,
-  caseType,
-  currentUserType
+  caseType
   }) {
     const isLHS = side === "LHS";
     const padIndex = index;
@@ -1751,12 +1765,32 @@ const handleRuleKeyDown = (e) => {
             ruleValidationError={ruleValidationError}
             isEditRow={false}
             showEyeButtons={true}
-            currentUserType={isReviewMode ? proofOwner : !currentUserType}
+            currentUserType={isReviewMode ? proofOwner : currentUserType}
             hideExpression={hideExpression}
             hideJustification={hideJustification}
             onRuleHiddenToggle={() => handleRuleHiddenToggle(side, index)}
             onExpressionHiddenToggle={() => handleExpressionHiddenToggle(side, index)}
           />
+        </Col>
+        <Col xs="auto" className="d-flex align-items-center">
+          <Button   
+          variant="secondary"
+          onClick={async() => {
+            const data = await equationalService.getComments({
+              side: side,
+              line_number: padIndex
+            })
+
+            setActivePadIndex(padIndex);
+            setActiveSide(side);
+            
+            setStudentComment(data.student || "");
+            setInstructorComment(data.instructor || "");
+            setShowCommentsModal(true);
+          }}
+          >
+            <i className="fa-regular fa-message"></i>
+          </Button>
         </Col>
       </Row>
     );
@@ -1950,6 +1984,8 @@ const handleRuleKeyDown = (e) => {
           <Definitions 
             toggleDefinitionsWindow={toggleDefinitionsWindow} 
             isLocked={proofStarted}
+            isStudent={currentUserType?.is_student}
+            validateHiddenDefinitionFn={equationalService.validateHiddenDefinition}
           />
         )}
 
@@ -2146,18 +2182,20 @@ const handleRuleKeyDown = (e) => {
                       >
                         New Proof
                       </Dropdown.Item>
-                      <Dropdown.Item 
-                        onClick={handleClearProof} 
-                        href="#" 
-                        disabled={!proofStarted}
-                        style={{ 
-                          color: proofStarted ? 'red' : '#999', 
-                          opacity: proofStarted ? 1 : 0.4,
-                          cursor: proofStarted ? 'pointer' : 'not-allowed'
-                        }}
-                      >
-                        Discard Proof
-                      </Dropdown.Item>
+                      {!isReviewMode && (
+                        <Dropdown.Item 
+                          onClick={handleClearProof} 
+                          href="#" 
+                          disabled={!proofStarted}
+                          style={{ 
+                            color: proofStarted ? 'red' : '#999', 
+                            opacity: proofStarted ? 1 : 0.4,
+                            cursor: proofStarted ? 'pointer' : 'not-allowed'
+                          }}
+                        >
+                          Discard Proof
+                        </Dropdown.Item>
+                      )}
                       <Dropdown.Item
                         onClick={handleDownloadProof}
                         href="#"
@@ -2444,8 +2482,7 @@ const handleRuleKeyDown = (e) => {
                       handleRowNumberClick,
                       leftPremise,
                       rightPremise,
-                      caseType: 'base',
-                      currentUserType: isReviewMode ? proofOwner : !currentUserType
+                      caseType: 'base'
                     });
                   })}
                   {showContinue(playState, 'base', showSide, erLastReal) && (
@@ -2767,6 +2804,32 @@ const handleRuleKeyDown = (e) => {
           }
         }}
       />
+      <CommentsModal
+              show={showCommentsModal}
+              onHide={() => setShowCommentsModal(false)}
+              studentComment={studentComment}
+              instructorComment={instructorComment}
+              onStudentCommentChange={setStudentComment}
+              OnInstructorCommentChange={setInstructorComment}
+              isStudent={currentUserType?.is_student}
+              onSave={async() => {
+                await equationalService.saveComment({
+                  side: activeSide,
+                  line_number: activePadIndex,
+                  role: "student",
+                  comment: studentComment
+                });
+
+                await equationalService.saveComment({
+                  side: activeSide,
+                  line_number: activePadIndex,
+                  role: "instructor",
+                  comment: instructorComment
+                });
+
+                setShowCommentsModal(false);
+              }}
+            />
     </MainLayout>
   );
 };

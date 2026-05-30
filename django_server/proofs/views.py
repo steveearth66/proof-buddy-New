@@ -325,6 +325,7 @@ def get_user_definitions(user):
                 "label": definition.label,
                 "type": definition.def_type,
                 "expression": definition.expression,
+                "expression_hidden": definition.expression_hidden,
                 "notes": definition.notes,
                 "applied": False,
             }
@@ -338,6 +339,7 @@ def create_user_definition(user, data):
         "label": data["label"],
         "def_type": data["type"],
         "expression": data["expression"],
+        "expression_hidden": data.get("expression_hidden", False),
         "notes": data["notes"],
     }
 
@@ -386,6 +388,7 @@ def get_definition(user, label):
         "label": definition.label,
         "type": definition.def_type,
         "expression": definition.expression,
+        "expression_hidden": definition.expression_hidden,
     }
 
 
@@ -399,6 +402,7 @@ def edit_definition(user, label, data):
     definition.label = data["label"]
     definition.def_type = data["type"]
     definition.expression = data["expression"]
+    definition.expression_hidden = data.get("expression_hidden", definition.expression_hidden)
     definition.notes = data["notes"]
     definition.save()
 

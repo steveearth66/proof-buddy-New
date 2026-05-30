@@ -445,7 +445,7 @@ else:
                 print(f"DEBUG: Math rewrite at node {targetID}")
                 print(f"  Rule: {parts[0].strip()}")
                 print(f"  Substitution: {subst_expr}")
-                indproof2.leapStep.RHS.addProofLine(prev, parts[0].strip(), int(targetID), subst_expr)
+                indproof2.leapStep.RHS.addProofLine(prev, parts[0].strip(), int(targetID), subst_expr, support_rewrite_complexity=True)
             else:
                 indproof2.leapStep.RHS.addProofLine(prev, ruleStr, int(targetID))
         else:

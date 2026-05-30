@@ -413,7 +413,6 @@ Perform find-and-replace in client/src/pages/EqRn.js and client/src/services/eqR
 7.4. Service method names (in eqRnService.js):
      startInductionProof → startEqRnProof
      checkInduction → checkEqRn
-     clearInduction → clearEqRn
      applyInductionRule → applyEqRnRule (if exists)
      
      Keep: setCurrentProof, applyRule, deleteLine, substitution, 
