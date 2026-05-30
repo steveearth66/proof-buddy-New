@@ -54,7 +54,7 @@ class EquationalProofAdmin(admin.ModelAdmin):
 
 @admin.register(EquationalProofLine)
 class EquationalProofLineAdmin(admin.ModelAdmin):
-    list_display = ['id', 'proof', 'side', 'line_number', 'rule', 'created_at']
+    list_display = ['id', 'proof', 'proof_id', 'side', 'line_number', 'rule', 'created_at']
     list_filter = ['side', 'created_at']
     search_fields = ['racket', 'rule']
     readonly_fields = ['created_at']

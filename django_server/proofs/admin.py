@@ -74,6 +74,7 @@ class ProofAdmin(admin.ModelAdmin):
 class ProofLineAdmin(admin.ModelAdmin):
     list_display = (
         "proof",
+        "proof_id",
         "get_proof_tag",
         "left_side",
         "racket",
