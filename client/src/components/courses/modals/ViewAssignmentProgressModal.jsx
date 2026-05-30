@@ -3,6 +3,7 @@ import { Modal, Button, Table, Badge, Spinner } from "react-bootstrap";
 import axios from 'axios'; // Ensure you use your project's fetch/axios instance
 import courseService from '../../../services/courseServices';
 import '../../../scss/_assignment-progress-modal.scss';
+import { useNavigate } from 'react-router-dom';
 
 export default function ViewAssignmentProgressModal({ show, onHide, assignment }) {
 
@@ -11,6 +12,7 @@ export default function ViewAssignmentProgressModal({ show, onHide, assignment }
   const [matrixData, setMatrixData] = useState({ columns: [], students: [] });
   const [isLoading, setIsLoading] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const navigate = useNavigate();
   
   const scrollContainerRef = useRef(null);
 
@@ -155,10 +157,12 @@ export default function ViewAssignmentProgressModal({ show, onHide, assignment }
                       return (
                         <td 
                           key={`${student.id}-${col.id}`}
-                          // style={{ cursor: hasStarted ? 'pointer' : 'default' }} // TODO: add ability for instructor to view the student's proofs
+                          style={{ cursor: hasStarted ? 'pointer' : 'default' }}
                           onClick={() => {
                             if (hasStarted) {
-                              // console.log(`Instructor wants to view clone ID: ${statusData.cloned_proof_id} (${statusData.proof_type})`);
+                              navigate(statusData.proof_type == 'equationalproof' ? '/equational-reasoning-new' : '/induction-racket', { 
+                                state: { id: statusData.cloned_proof_id } 
+                              });
                             }
                           }}
                         >
