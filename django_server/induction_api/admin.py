@@ -89,7 +89,7 @@ class InductionProofAdmin(admin.ModelAdmin):
 
 @admin.register(InductionProofLine)
 class InductionProofLineAdmin(admin.ModelAdmin):
-    list_display = ('proof', 'case', 'side', 'line_number', 'rule', 'racket_preview', 'created_at')
+    list_display = ('proof', 'proof_id', 'case', 'side', 'line_number', 'rule', 'racket_preview', 'created_at')
     list_filter = ('case', 'side', 'created_at')
     search_fields = ('proof__name', 'racket', 'rule')
     readonly_fields = ('created_at',)
