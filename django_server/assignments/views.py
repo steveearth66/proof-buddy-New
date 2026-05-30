@@ -543,6 +543,12 @@ def start_assignment_proof(request, assignment_id):
             line.id = None
             line.proof = cloned_proof  # Link the line to the new student clone
             line.save()
+
+        for comment in orig_proof.proof_comments.all():
+            comment.pk = None
+            comment.id = None
+            comment.proof = cloned_proof
+            comment.save()
             
     except ProofModel.DoesNotExist:
         return Response({"message": "Template proof not found."}, status=status.HTTP_404_NOT_FOUND)

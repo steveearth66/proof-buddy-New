@@ -121,7 +121,7 @@ class EquationalProofLineComment(models.Model):
         ('instructor', 'Instructor'),
     ]
 
-    proof = models.ForeignKey(EquationalProof, on_delete=models.CASCADE)
+    proof = models.ForeignKey(EquationalProof, related_name='proof_comments', on_delete=models.CASCADE)
     side = models.CharField(max_length=3)    # LHS / RHS
     line_number = models.IntegerField()
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)

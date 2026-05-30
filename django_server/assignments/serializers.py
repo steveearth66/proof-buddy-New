@@ -268,6 +268,11 @@ class CreateAssignmentSerializer(serializers.ModelSerializer):
                     line.pk = line.id = None
                     line.proof = cloned
                     line.save()
+                for comment in orig.proof_comments.all():
+                    comment.pk = None
+                    comment.id = None
+                    comment.proof = cloned
+                    comment.save()
                 ctype = ContentType.objects.get(app_label='equational_reasoning_api', model='equationalproof')
                 return AssignmentProof.objects.create(assignment=assignment, content_type=ctype, object_id=cloned.id)
             except EquationalProof.DoesNotExist: return None
@@ -285,6 +290,11 @@ class CreateAssignmentSerializer(serializers.ModelSerializer):
                     line.pk = line.id = None
                     line.proof = cloned
                     line.save()
+                for comment in orig.proof_comments.all():
+                    comment.pk = None
+                    comment.id = None
+                    comment.proof = cloned
+                    comment.save()
                 ctype = ContentType.objects.get(app_label='induction_api', model='inductionproof')
                 return AssignmentProof.objects.create(assignment=assignment, content_type=ctype, object_id=cloned.id)
             except InductionProof.DoesNotExist: return None
