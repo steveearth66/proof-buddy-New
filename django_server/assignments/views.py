@@ -737,8 +737,7 @@ class InstructorAssignmentShareView(APIView):
 
         # 2. Outgoing tracking sent out FROM this course environment
         sent_query = AssignmentShareRequest.objects.filter(
-            source_course=current_course,
-            status='pending'
+            source_course=current_course
         ).select_related('target_course__instructor', 'staged_assignment')
 
         # Format incoming requests array
@@ -800,14 +799,22 @@ class InstructorAssignmentShareView(APIView):
 
     def delete(self, request):
         """
-        Allows the original sender to revoke or drop a pending/rejected transfer block.
+        Allows the original sender to revoke or dismiss a share request tracking block.
         """
         share_request_id = request.data.get('share_request_id')
         share_request = get_object_or_404(AssignmentShareRequest, id=share_request_id, sender=request.user)
         
-        # Deleting the core staged assignment automatically drops the request row via CASCADE rules
-        share_request.staged_assignment.delete()
-        return Response({"message": "Share request successfully canceled and cleared."}, status=status.HTTP_200_OK)
+        if share_request.status == 'accepted':
+            # Delete the tracking request row wrapper ONLY. Do NOT touch the assignment.
+            share_request.delete()
+            return Response({"message": "Share notification dismissed successfully."}, status=status.HTTP_200_OK)
+        
+        else:
+            # Deleting the core staged assignment automatically drops the request row via CASCADE rules.
+            if share_request.staged_assignment:
+                share_request.staged_assignment.delete()
+                
+            return Response({"message": "Share request successfully canceled and cleared."}, status=status.HTTP_200_OK)
 
 
 @api_view(["GET"])
