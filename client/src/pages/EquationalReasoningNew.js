@@ -885,6 +885,29 @@ const EquationalReasoningNew = () => {
     }
   };
 
+  const handleSaveProof = async () => {
+    if (!proofStarted) {
+      toast.error('No active proof to save.');
+      return;
+    }
+    try {
+      const proofPayload = {
+        name: formValues.name || 'Untitled',
+        tag: formValues.tag || '',
+      };
+      const saveResponse = await equationalService.saveProof(proofPayload);
+      if (saveResponse && saveResponse.proofId) {
+        sessionStorage.setItem('current_proof_id', saveResponse.proofId);
+        toast.success('Proof saved!');
+      } else {
+        toast.error('Error saving proof.');
+      }
+    } catch (error) {
+      console.error('Error saving proof:', error);
+      toast.error('Error saving proof.');
+    }
+  };
+
   const handleNewProof = async () => {
     if (!window.confirm('Start a new proof? Your current proof will remain saved in "All Proofs".')) {
       return;
@@ -1953,6 +1976,13 @@ const handleGenerateAndCheck = async () => {
                         href="#"
                         disabled={!proofStarted}
                         style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}
+                      >
+                        Save Proof
+                      </Dropdown.Item>
+                      <Dropdown.Item
+                        onClick={handleSaveProof}
+                        style={{ cursor: proofStarted ? 'pointer' : 'not-allowed' }}
+                        disabled={!proofStarted}
                       >
                         New Proof
                       </Dropdown.Item>
