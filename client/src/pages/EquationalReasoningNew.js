@@ -892,8 +892,10 @@ const EquationalReasoningNew = () => {
     }
     try {
       const proofPayload = {
-        name: formValues.name || 'Untitled',
-        tag: formValues.tag || ''
+        name: formValues.proofName || 'Untitled',
+        tag: formValues.proofTag || '',
+        lHSGoal: (formValues.lHSGoal || '').trim(),
+        rHSGoal: (formValues.rHSGoal || '').trim()
       };
       const saveResponse = await equationalService.saveProof(proofPayload);
       if (saveResponse && saveResponse.proofId) {
