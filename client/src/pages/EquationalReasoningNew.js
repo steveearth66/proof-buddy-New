@@ -1658,6 +1658,7 @@ const handleGenerateAndCheck = async () => {
               await equationalService.updateComment({
                 side,
                 lineNumber: padIndex,
+                proofId: sessionStorage.getItem('current_proof_id'),
                 ...(payload.instructorComment !== undefined && { instructorComment: payload.instructorComment }),
                 ...(payload.studentComment !== undefined && { studentComment: payload.studentComment }),
                 ...(payload.commentCorrect !== undefined && { commentCorrect: payload.commentCorrect })
