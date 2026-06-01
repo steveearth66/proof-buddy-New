@@ -8,14 +8,14 @@ User = get_user_model()
 
 
 class EquationalProof(models.Model):
-        """
-            Stores equational reasoning proofs - a two-sided proof showing LHS = RHS.
-                Simpler than induction proofs: no base/leap cases, no induction variables.
-                    """
-        SIDES = [
-            ('LHS', 'Left Hand Side'),
-            ('RHS', 'Right Hand Side'),
-        ]
+    """
+    Stores equational reasoning proofs - a two-sided proof showing LHS = RHS.
+    Simpler than induction proofs: no base/leap cases, no induction variables.
+    """
+    SIDES = [
+        ('LHS', 'Left Hand Side'),
+        ('RHS', 'Right Hand Side'),
+    ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='equational_proofs', null=True, blank=True)
     name = models.CharField(max_length=255, blank=True, null=True)
@@ -40,33 +40,33 @@ class EquationalProof(models.Model):
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    is_active = models.BooleanField(default=True)  # Soft delete: False = archived
+    is_active = models.BooleanField(default=True)
 
     class Meta:
-                ordering = ['-created_at']
-                indexes = [
-                    models.Index(fields=['user', '-created_at']),
-                    models.Index(fields=['user', 'name', 'tag', 'is_active']),
-                ]
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['user', 'name', 'tag', 'is_active']),
+        ]
 
     def __str__(self):
-                suffix = '' if self.user else ' [Template]'
-                return f'{self.name} - Equational Reasoning{suffix}'
+        suffix = '' if self.user else ' [Template]'
+        return f'{self.name} - Equational Reasoning{suffix}'
 
     def admin_label(self):
-                owner = self.user.username if self.user else 'Assignment Template'
-                return f'Equational Proof - {owner}'
+        owner = self.user.username if self.user else 'Assignment Template'
+        return f'Equational Proof - {owner}'
 
 
 class EquationalProofLine(models.Model):
-        """
-            Stores individual proof lines for equational reasoning proofs.
-                Each line represents a step on either LHS or RHS.
-                    """
-        SIDE_CHOICES = [
-            ('LHS', 'Left Hand Side'),
-            ('RHS', 'Right Hand Side'),
-        ]
+    """
+    Stores individual proof lines for equational reasoning proofs.
+    Each line represents a step on either LHS or RHS.
+    """
+    SIDE_CHOICES = [
+        ('LHS', 'Left Hand Side'),
+        ('RHS', 'Right Hand Side'),
+    ]
 
     proof = models.ForeignKey(EquationalProof, on_delete=models.CASCADE, related_name='proof_lines')
     side = models.CharField(max_length=3, choices=SIDE_CHOICES)
@@ -88,10 +88,10 @@ class EquationalProofLine(models.Model):
     comment_correct = models.BooleanField(null=True, default=None)
 
     class Meta:
-                ordering = ['side', 'line_number']
-                indexes = [
-                    models.Index(fields=['proof', 'side', 'line_number']),
-                ]
+        ordering = ['side', 'line_number']
+        indexes = [
+            models.Index(fields=['proof', 'side', 'line_number']),
+        ]
 
     def __str__(self):
-                return f'{self.side} Line {self.line_number}: {self.racket[:50]}'
+        return f'{self.side} Line {self.line_number}: {self.racket[:50]}'
