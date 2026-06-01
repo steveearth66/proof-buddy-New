@@ -893,7 +893,7 @@ const EquationalReasoningNew = () => {
     try {
       const proofPayload = {
         name: formValues.name || 'Untitled',
-        tag: formValues.tag || '',
+        tag: formValues.tag || ''
       };
       const saveResponse = await equationalService.saveProof(proofPayload);
       if (saveResponse && saveResponse.proofId) {
