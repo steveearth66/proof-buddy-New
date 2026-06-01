@@ -1973,7 +1973,7 @@ const handleGenerateAndCheck = async () => {
                         Check Current Proof
                       </Dropdown.Item>
                       <Dropdown.Item
-                        onClick={handleNewProof}
+                        onClick={handleSaveProof}
                         href="#"
                         disabled={!proofStarted}
                         style={{ opacity: proofStarted ? 1 : 0.4, cursor: proofStarted ? 'pointer' : 'not-allowed' }}
@@ -1981,7 +1981,7 @@ const handleGenerateAndCheck = async () => {
                         Save Proof
                       </Dropdown.Item>
                       <Dropdown.Item
-                        onClick={handleSaveProof}
+                        onClick={handleNewProof}
                         style={{ cursor: proofStarted ? 'pointer' : 'not-allowed' }}
                         disabled={!proofStarted}
                       >
