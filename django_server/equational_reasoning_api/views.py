@@ -1552,17 +1552,12 @@ def update_comment(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    try:
-        line = EquationalProofLine.objects.get(
-            proof_id=proof_id,
-            side=side,
-            line_number=int(line_number)
-        )
-    except EquationalProofLine.DoesNotExist:
-        return Response(
-            {"error": f"Proof line {side} {line_number} not found."},
-            status=status.HTTP_404_NOT_FOUND
-        )
+    line, _ = EquationalProofLine.objects.get_or_create(
+        proof_id=proof_id,
+        side=side,
+        line_number=int(line_number),
+        defaults={'racket': '', 'errors': []}
+    )
 
     # Apply role-based access control
     is_instructor = getattr(user, 'is_instructor', False)
