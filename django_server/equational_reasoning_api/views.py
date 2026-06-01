@@ -1534,6 +1534,12 @@ def update_comment(request):
     user = request.user
     _, proof_id = get_or_set_equational_obj(user)
 
+    # Fall back to the proofId sent by the client when the server-side
+    # cache has no active proof (e.g. after a server restart or when the
+    # proof was loaded directly via URL/sessionStorage).
+    if not proof_id:
+        proof_id = request.data.get('proofId')
+
     if not proof_id:
         return Response(
             {"error": "No active proof session. Please open a proof first."},
