@@ -1556,7 +1556,7 @@ def update_comment(request):
         proof_id=proof_id,
         side=side,
         line_number=int(line_number),
-        defaults={'racket': '', 'errors': []}
+        defaults={'racket': '', 'errors': ''}
     )
 
     # Apply role-based access control
