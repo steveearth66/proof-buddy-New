@@ -52,6 +52,7 @@ import {
   getLastRealIndex
 } from "../utils/playModeUtils";
 import { useLocation } from "react-router-dom";
+import CommentsModal from "../components/CommentsModal";
 
 /**
  * InductionRacket component facilitates the Equational Reasoning Racket.
@@ -152,6 +153,7 @@ const InductionRacket = () => {
   const [showStartConfirmModal, setShowStartConfirmModal] = useState(false);
   const [conflictType, setConflictType] = useState(null);
   const [currentUserType, setCurrentUserType] = useState(null);
+  const [proofOwner, setProofOwner] = useState(null);
   const [showSetParams, setShowSetParams] = useState(false);
   const [proofParams, setProofParams] = useState({
     proof_id: null,
@@ -161,16 +163,17 @@ const InductionRacket = () => {
     support_premise: true,
     support_rule_set: true,
     support_value_mapping: true,
-    visible_rules: {}
+    visible_rules: {},
+    support_rewrite_complexity: true
   });
-
-  useEffect(() => {
-    async function loadUser() {
-      const profile = await userService.getUserProfile();
-      setCurrentUserType(profile);
-    }
-    loadUser();
-  }, []);
+  const [showIHModal, setShowIHModal] = useState(false);
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [comments, setComments] = useState({});
+  const [activePadIndex, setActivePadIndex] = useState(null);
+  const [activeSide, setActiveSide] = useState(null);
+  const [studentComment, setStudentComment] = useState("");
+  const [instructorComment, setInstructorComment] = useState("");
+  const [commentStatus, setCommentStatus] = useState({})
 
   const rulesInProof = useMemo(() => {
     if (!proofStarted) return [];
@@ -580,7 +583,7 @@ const InductionRacket = () => {
     try {
       const proofMeta = await inductionService.getCurrentProof();
       if (proofMeta?.hasProof) {
-        const PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping', 'visible_rules'];
+        const PARAM_KEYS = ['proof_id','support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping','visible_rules','support_rewrite_complexity'];
         const extracted = {};
         PARAM_KEYS.forEach(k => { if (k in proofMeta) extracted[k] = proofMeta[k]; });
         if (Object.keys(extracted).length > 0) setProofParams(prev => ({ ...prev, ...extracted }));
@@ -926,6 +929,7 @@ const InductionRacket = () => {
         rule: ruleFromFooter,
         startPosition: previousStartPosition,
         selectedNode: previousStartPosition,
+        supportRewriteComplexity: proofParams.support_rewrite_complexity,
         ...(typeof currentIndex === 'number' && { lineNumber: currentIndex })
       };
 
@@ -1022,6 +1026,9 @@ const InductionRacket = () => {
       initializedRef.current = true;
       
       try {
+        const profile = await userService.getUserProfile();
+        setCurrentUserType(profile);
+
         // -------------------------------------------------------------
         // STEP 1: NEGOTIATE SESSION ID & WAKE UP BACKEND
         // -------------------------------------------------------------
@@ -1055,7 +1062,10 @@ const InductionRacket = () => {
         // -------------------------------------------------------------
         if (navId) {
             const metaData = await inductionService.getInductionProof(navId);
-            
+            if (metaData?.user?.username) {
+                setProofOwner(metaData.user);
+            }
+
             const rawDefinitions = metaData.definition || [];
 
             // Separate the raw data into generics and definitions (generics have is_generic: true)
@@ -1275,9 +1285,9 @@ const InductionRacket = () => {
     const lastLhsLine = findLastNonEmptyLine(lhsLines, lhsLimit);
     const lastRhsLine = findLastNonEmptyLine(rhsLines, rhsLimit);
     setLhsValue(lastLhsLine?.racket || targetPremises.LHS?.racket || '');
-    setLhsHidden((currentUserType.is_student && lastLhsLine?.hide_expression) || false);
+    setLhsHidden(((isReviewMode ? proofOwner.is_student : !currentUserType.is_student) && lastLhsLine?.hide_expression) || false);
     setRhsValue(lastRhsLine?.racket || targetPremises.RHS?.racket || '');
-    setRhsHidden((currentUserType.is_student && lastRhsLine?.hide_expression) || false);
+    setRhsHidden(((isReviewMode ? proofOwner?.is_student : !currentUserType?.is_student) && lastRhsLine?.hide_expression) || false);
 
   }, [proofStarted, isAnchor, baseRacketFields, leapRacketFields, basePremises, leapPremises, playState]);
 
@@ -1468,12 +1478,12 @@ const InductionRacket = () => {
       return;
     }
 
-    if (!inductiveHypothesisLHS || inductiveHypothesisLHS.trim() === "") {
+    if ((!inductiveHypothesisLHS || inductiveHypothesisLHS.trim() === "") && !proofParams?.support_ih) { // i did this earlier I think
       toast.error("Inductive hypothesis for LHS must be provided.");
       return;
     }
 
-    if (!inductiveHypothesisRHS || inductiveHypothesisRHS.trim() === "") {
+    if ((!inductiveHypothesisRHS || inductiveHypothesisRHS.trim() === "") && !proofParams?.support_ih){
       toast.error("Inductive hypothesis for RHS must be provided.");
       return;
     }
@@ -1529,7 +1539,9 @@ const InductionRacket = () => {
       }
       
       // Validate LHS Inductive Hypothesis
-      try {
+      // if IH support is set to high, skip this and send the blanks to backend
+      if (!proofParams?.support_ih){
+        try {
         const lhsIHValidation = await inductionService.checkGoal({
           case: 'leap',
           side: 'LHS',
@@ -1573,6 +1585,7 @@ const InductionRacket = () => {
         toast.error(`RHS Inductive Hypothesis validation failed:\n${errorMessage}`);
         return;
       }
+      }
 
       // Prefer session definitions; include only enabled/applied ones
       let definitions = [];
@@ -1605,6 +1618,9 @@ const InductionRacket = () => {
 
       if (response && response.data) {
         if (response.status === 201 || response.status === 200) {
+          setInductiveHypothesisLHS(response.data.inductive_hypothesis_lhs);
+          setInductiveHypothesisRHS(response.data.inductive_hypothesis_rhs);
+
           // Handle generics created by backend (could be multiple for list induction)
           const genericsCreated = response.data.generics_created || 
                                   (response.data.generic_definition_created ? [response.data.generic_definition_created] : []);
@@ -1762,7 +1778,7 @@ const InductionRacket = () => {
 
               // Persist any params the user pre-configured before starting the proof.
               // Must be done BEFORE loadProofLinesFromDatabase reads them back from DB.
-              const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping', 'visible_rules'];
+              const PARAM_KEYS = ['support_errors','support_current_lhs_rhs','support_ih','support_premise','support_rule_set','support_value_mapping', 'visible_rules','support_rewrite_complexity'];
               const hasCustomParams = PARAM_KEYS.some(k => proofParams[k] !== true && (typeof proofParams[k] === 'object' && proofParams[k].length > 0));
               if (hasCustomParams) {
                 try {
@@ -1866,7 +1882,8 @@ const InductionRacket = () => {
         currentRacket: currentRacket,
         side: showSide,
         case: isAnchor ? "base" : "leap",
-        lineNumber: padIndex  // Tell backend which line to update
+        lineNumber: padIndex,  // Tell backend which line to update
+        supportRewriteComplexity: proofParams.support_rewrite_complexity
       };
 
       try {
@@ -2078,6 +2095,28 @@ const InductionRacket = () => {
             onExpressionHiddenToggle={() => handleExpressionHiddenToggle(side, index)} 
           />
         </Col>
+        <Col xs="auto" className="d-flex align-items-center">
+          <Button   
+          variant= "secondary" //{hasComments ? "warning" : "secondary"}
+          onClick={async() => {
+            const data = await inductionService.getComments({
+              side: side,
+              line_number: padIndex
+            });
+
+            setActivePadIndex(padIndex);
+            setActiveSide(side);
+            setStudentComment(data.student || "");
+            setInstructorComment(data.instructor || "");
+
+            //if either a student or instructor comment exists, make button a dif color
+
+            setShowCommentsModal(true);
+          }}
+          >
+            <i className="fa-regular fa-message"></i>
+          </Button>
+        </Col>
       </Row>
     );
   }
@@ -2255,8 +2294,31 @@ const InductionRacket = () => {
     }
   };
 
+  const isReviewMode = useMemo(() => {
+    return !!(
+      proofStarted && 
+      proofOwner && 
+      currentUserType && 
+      currentUserType.username !== proofOwner.username
+    );
+  }, [proofStarted, proofOwner, currentUserType]);
+
   return (
     <MainLayout>
+      {isReviewMode && (
+        <Alert 
+          variant="warning" 
+          className="d-flex align-items-center py-1 mb-0 justify-content-center shadow-sm border-warning rounded-0"
+        >
+          <div className="d-flex align-items-center gap-2">
+            <i className="fa-solid fa-user-shield text-warning fs-5"></i>
+            <div>
+              <strong className="text-dark">Review Mode:</strong> Viewing proof owned by 
+              <span className="badge bg-dark mx-1 fs-6">{proofOwner.username}</span>.
+            </div>
+          </div>
+        </Alert>
+      )}
       <Container className="er-racket-container">
         <OffcanvasRuleSet
           isActive={isOffcanvasActive}
@@ -2268,6 +2330,8 @@ const InductionRacket = () => {
           <Definitions 
             toggleDefinitionsWindow={toggleDefinitionsWindow} 
             isLocked={proofStarted}
+            isStudent={currentUserType?.is_student}
+            validateHiddenDefinitionFn={inductionService.validateHiddenDefinition}
           />
         )}
 
@@ -2320,7 +2384,7 @@ const InductionRacket = () => {
                                 <Form.Control 
                                   type="text" value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')} 
                                   readOnly 
-                                  style={{ cursor: "not-allowed", border: 'none', height: '40px', minWidth: `${Math.max((lhsValue?.length || 11), 11)}ch` }} 
+                                  style={{ cursor: "not-allowed", border: 'none', height: '40px', minWidth: `${Math.max((lhsValue?.length || 11), 11)}ch`, WebkitTextSecurity: proofStarted && lhsHidden ? "disc" : "none" }} 
                                 />
                                 <label>Current LHS</label>
                             </Form.Floating>
@@ -2332,7 +2396,7 @@ const InductionRacket = () => {
                                   type="text" 
                                   value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')} 
                                   readOnly 
-                                  style={{ cursor: "not-allowed", border: 'none', height: '40px', minWidth: `${Math.max((lhsValue?.length || 11), 11)}ch` }} 
+                                  style={{ cursor: "not-allowed", border: 'none', height: '40px', minWidth: `${Math.max((lhsValue?.length || 11), 11)}ch`, WebkitTextSecurity: proofStarted && rhsHidden ? "disc" : "none" }} 
                                 />
                                 <label>Current RHS</label>
                             </Form.Floating>
@@ -2356,7 +2420,7 @@ const InductionRacket = () => {
                                   ]
                                 }}
                               >
-                                  {!currentUserType?.is_student && (
+                                  {isReviewMode ? proofOwner?.is_student : !currentUserType?.is_student && (
                                     <Dropdown.Item onClick={() => setShowSetParams(true)} href="#">
                                       Set Parameters
                                     </Dropdown.Item>
@@ -2652,7 +2716,7 @@ const InductionRacket = () => {
                             </div>
                           </Form.Group>
                       </Row>
-                      {(!proofStarted || !isAnchor) && (
+                      {(proofParams?.support_ih || !proofStarted) && (!proofStarted || !isAnchor) && (
                         <Row className="g-5 mb-3">
                           <Form.Group as={Col} md="6" className="er-inductive-hypothesis-lhs">
                               <label htmlFor="eRInductiveHypothesisLHS" className="form-label small fw-bold mb-0">IH LHS</label>
@@ -2667,7 +2731,7 @@ const InductionRacket = () => {
                                 onClick={ihLhsSelect}
                                 ref={ihLhsRef}
                                 highlightPositions={ihLhsHighlights}
-                                disabled={proofStarted}
+                                disabled={proofStarted || proofParams.support_ih}
                               />
                           </Form.Group>
                           <Form.Group as={Col} md="6" className="er-inductive-hypothesis-rhs">
@@ -2683,7 +2747,7 @@ const InductionRacket = () => {
                                 onClick={ihRhsSelect}
                                 ref={ihRhsRef}
                                 highlightPositions={ihRhsHighlights}
-                                disabled={proofStarted}
+                                disabled={proofStarted || proofParams.support_ih}
                               />
                           </Form.Group>
                         </Row>
@@ -2691,8 +2755,24 @@ const InductionRacket = () => {
                       {(proofParams.support_current_lhs_rhs && (
                         <>
                           <Row className="justify-content-center er-current-state g-2 mb-0">
-                            <Form.Group as={Col} sm="6" className={showSide === "LHS" ? "active" : ""}><Form.Floating style={{ border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}><Form.Control type="text" value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')} readOnly style={{ border: 'none' }} /><label>Current LHS</label></Form.Floating></Form.Group>
-                            <Form.Group as={Col} sm="6" className={showSide === "RHS" ? "active" : ""}><Form.Floating style={{ border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}><Form.Control type="text" value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')} readOnly style={{ border: 'none' }} /><label>Current RHS</label></Form.Floating></Form.Group>
+                            <Form.Group as={Col} sm="6" className={showSide === "LHS" ? "active" : ""}>
+                              <Form.Floating style={{ border: showSide === "LHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}>
+                                <Form.Control 
+                                  type="text" 
+                                  value={lhsValue || (proofStarted ? (leftPremise?.racket || currentLHS) : '')} 
+                                  readOnly 
+                                  style={{ border: 'none', WebkitTextSecurity: proofStarted && lhsHidden ? "disc" : "none" }} 
+                                />
+                                <label>Current LHS</label></Form.Floating></Form.Group>
+                            <Form.Group as={Col} sm="6" className={showSide === "RHS" ? "active" : ""}>
+                              <Form.Floating style={{ border: showSide === "RHS" ? '3px solid #0d6efd' : '1px solid #ced4da', borderRadius: '0.375rem' }}>
+                                <Form.Control 
+                                  type="text" 
+                                  value={rhsValue || (proofStarted ? (rightPremise?.racket || currentRHS) : '')} 
+                                  readOnly 
+                                  style={{ border: 'none', WebkitTextSecurity: proofStarted && rhsHidden ? "disc" : "none" }} 
+                                />
+                                <label>Current RHS</label></Form.Floating></Form.Group>
                           </Row>
                         </>
                       )
@@ -2726,13 +2806,22 @@ const InductionRacket = () => {
                           ]
                         }}
                       >
-                        {!currentUserType?.is_student && (
+                        {isReviewMode ? proofOwner?.is_student : !currentUserType?.is_student && (
                           <Dropdown.Item onClick={() => setShowSetParams(true)} href="#">
                             Set Parameters
                           </Dropdown.Item>
                         )}
                         <Dropdown.Item onClick={toggleDefinitionsWindow} href="#">Definitions</Dropdown.Item>
                         <Dropdown.Item onClick={toggleOffcanvas} href="#">View Rule Set</Dropdown.Item>
+                        {!isAnchor && !proofParams?.support_ih && proofStarted && (
+                          <Dropdown.Item 
+                          onClick={() => setShowIHModal(true)}
+                          /* disabled={isAnchor || proofParams?.support_ih} style={{ opacity: !isAnchor && !proofParams.support_ih ? 1 : 0.4 }} */
+                          >
+                            Show IH
+                          </Dropdown.Item>
+                        )}
+                        
                         <Dropdown.Item 
                           onClick={checkCurrentProofStatus} 
                           disabled={!proofStarted}
@@ -2894,7 +2983,7 @@ const InductionRacket = () => {
                       leftPremise,
                       rightPremise,
                       caseType: indCaseKey,
-                      currentUserType: currentUserType
+                      currentUserType: isReviewMode ? proofOwner : !currentUserType
                     });
                   })}
                   {showContinue(playState, indCaseKey, showSide, indLastReal) && (
@@ -3202,6 +3291,50 @@ const InductionRacket = () => {
               console.error('[SetParameters] Save failed:', e);
             }
           }
+        }}
+      />
+
+      {/* Show IH Modal */}
+      <Modal show={showIHModal} onHide={() => setShowIHModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Induction Hypothesis</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="mb-3">
+            <strong>IH LHS</strong>
+            <div>{inductiveHypothesisLHS || "-"}</div>
+          </div>
+          <div>
+            <strong>IH RHS</strong>
+            <div>{inductiveHypothesisRHS || "-"}</div>
+          </div>
+        </Modal.Body>
+      </Modal>
+
+      <CommentsModal
+        show={showCommentsModal}
+        onHide={() => setShowCommentsModal(false)}
+        studentComment={studentComment}
+        instructorComment={instructorComment}
+        onStudentCommentChange={setStudentComment}
+        OnInstructorCommentChange={setInstructorComment}
+        isStudent={currentUserType?.is_student}
+        onSave={async () => {
+          await inductionService.saveComment({
+            side: activeSide,
+            line_number: activePadIndex,
+            role: "student",
+            comment: studentComment
+          });
+
+          await inductionService.saveComment({
+            side: activeSide,
+            line_number: activePadIndex,
+            role: "instructor",
+            comment: instructorComment
+          });
+          
+          setShowCommentsModal(false);
         }}
       />
     </MainLayout>

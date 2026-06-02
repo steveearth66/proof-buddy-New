@@ -1,10 +1,10 @@
-from expression_tree.ERProofEngine import TwoSidedProof, ERProof, ERProofLine
+from expression_tree.ERProofEngine import TwoSidedProof, ERProof, ERProofLine, ProofComponent
 from expression_tree.ERCommon import makeJson
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view
 from django.contrib.auth import get_user_model
-from proofs.models import Proof
+from proofs.models import Proof, Generic as GenericModel
 from proofs.views import (
     get_or_create_proof,
     user_proofs,
@@ -240,10 +240,20 @@ def add_definitions(request):
     user = request.user
     json_data = request.data
     proof = get_or_set_proof(user)
+    label = json_data.get("label", "")
+
+    # If a generic with this label exists, temporarily remove it from the proof engine
+    # so addUDF can use the label. If we return early on error we skip save_proof_to_cache,
+    # so the cache retains the original proof (with the generic still present).
+    had_generic = label in proof.generics
+    if had_generic:
+        del proof.generics[label]
 
     try:
         if json_data["expression"]:
             proof.addUDF(json_data["label"], json_data["type"], json_data["expression"])
+        elif json_data.get("expression_hidden"):
+            pass  # student-entry mode: no expression to register yet, skip addUDF
         else:
             raise ValueError('Definition must have expression')
 
@@ -257,7 +267,14 @@ def add_definitions(request):
             {"message": str(errors)}, status=status.HTTP_400_BAD_REQUEST
         )
 
+    # Always clean up any generic with this label from DB after successful addUDF.
+    # This handles both explicit conversion AND cache/DB desync cases (e.g. a prior
+    # 500 error that inserted the generic into DB without updating the proof cache).
+    GenericModel.objects.filter(label=label, created_by=user).delete()
+
     definition = create_user_definition(user, json_data)
+    if not definition:
+        return Response({"message": "Error saving definition"}, status=status.HTTP_400_BAD_REQUEST)
     definition["applied"] = True
     proof.definitions.append(definition)
     save_proof_to_cache(user, proof)
@@ -496,10 +513,32 @@ def use_definition(request, label):
 def update_definition(request):
     user = request.user
     json_data = request.data
-    definition = edit_definition(user, json_data["label"], json_data)
+    label = json_data.get("label", "")
+    expression = json_data.get("expression", "")
+
+    # Validate expression using a fresh ProofComponent — avoids interference
+    # from the user's working proof state (shared dict refs, existing UDFs, etc.)
+    if expression:
+        validator = ProofComponent()
+        try:
+            validator.addUDF(label, json_data.get("type", ""), expression)
+        except Exception:
+            return Response({"message": "label, type, and expression are inconsistent"}, status=status.HTTP_400_BAD_REQUEST)
+        errors = validator.errLog
+        if errors:
+            return Response({"message": str(errors)}, status=status.HTTP_400_BAD_REQUEST)
+        # Validation passed — update the working proof cache
+        proof = get_or_set_proof(user)
+        proof.removeUDF(label)
+        proof.addUDF(label, json_data.get("type", ""), expression)
+        proof.getErrorsAndClear()
+        proof.definitions = [d for d in proof.definitions if d.get("label") != label]
+        save_proof_to_cache(user, proof)
+
+    definition = edit_definition(user, label, json_data)
 
     if not definition:
-        return Response(status=status.HTTP_400_BAD_REQUEST)
+        return Response({"message": "Definition not found"}, status=status.HTTP_400_BAD_REQUEST)
 
     return Response(definition, status=status.HTTP_200_OK)
 
@@ -540,6 +579,20 @@ def add_generic(request):
     user = request.user
     data = request.data
     proof = get_or_set_proof(user)
+    label = data.get("label", "")
+    # Generics are restricted to primitive types (int, list, bool, any).
+    # Labels with whitespace or parentheses indicate function-type generics which are not supported.
+    if any(c in label for c in '() \t\n'):
+        return Response(
+            {'message': 'can only create primitive generics: integers, lists, and booleans'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    # Defensively remove any stale generic with this label from DB and cache.
+    # A prior 500 can leave a DB record without a matching cache entry, causing
+    # a duplicate-key error on the next create attempt.
+    GenericModel.objects.filter(label=label, created_by=user).delete()
+    if label in proof.generics:
+        del proof.generics[label]
     try:
         generic = create_user_generic(user, data)
         generic["enabled"] = True

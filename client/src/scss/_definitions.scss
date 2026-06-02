@@ -1,3 +1,9 @@
+.definition-choice-modal {
+    z-index: 3000 !important;
+}
+.definition-choice-modal-backdrop {
+    z-index: 2999 !important;
+}
 .overlay {
     position: fixed;
     top: 0;

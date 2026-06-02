@@ -24,6 +24,9 @@ urlpatterns = [
     path("set-parameters", views.set_parameters, name="set_parameters"),
     path("download-proof", views.download_proof, name="download_proof"),
     path("upload-proof", views.upload_proof, name="upload_proof"),
-    path("validate-hidden-field", views.validate_hidden_field, name="validate_hidden_field"),   
-    path("toggle-visibility", views.toggle_visibility, name="toggle_visibility")
+    path("validate-hidden-field", views.validate_hidden_field, name="validate_hidden_field"),
+    path("validate-hidden-definition", views.validate_hidden_definition, name="validate_hidden_definition"),
+    path("toggle-visibility", views.toggle_visibility, name="toggle_visibility"),
+    path("save-comment", views.save_comment, name="save_comment"),
+    path("get-comments", views.get_comments, name="get_comments"),
 ]
