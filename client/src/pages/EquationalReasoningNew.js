@@ -1033,7 +1033,7 @@ const EquationalReasoningNew = () => {
     }
 
     try {
-      await equationalService.discardProof();
+      await equationalService.deleteRacketProof(proofParams.proof_id);
       // Clear sessionStorage flag so we don't restore from DB on reload
       sessionStorage.removeItem('erProofActive');
       sessionStorage.removeItem('current_proof_id');
@@ -1773,8 +1773,7 @@ const handleRuleKeyDown = (e) => {
   handleRowNumberClick,
   leftPremise,
   rightPremise,
-  caseType,
-  currentUserType
+  caseType
   }) {
     const isLHS = side === "LHS";
     const padIndex = index;
@@ -1855,7 +1854,7 @@ const handleRuleKeyDown = (e) => {
             ruleValidationError={ruleValidationError}
             isEditRow={false}
             showEyeButtons={true}
-            currentUserType={isReviewMode ? proofOwner : !currentUserType}
+            currentUserType={isReviewMode ? proofOwner : currentUserType}
             hideExpression={hideExpression}
             hideJustification={hideJustification}
             onRuleHiddenToggle={() => handleRuleHiddenToggle(side, index)}
@@ -2282,18 +2281,20 @@ const handleRuleKeyDown = (e) => {
                       >
                         New Proof
                       </Dropdown.Item>
-                      <Dropdown.Item 
-                        onClick={handleClearProof} 
-                        href="#" 
-                        disabled={!proofStarted}
-                        style={{ 
-                          color: proofStarted ? 'red' : '#999', 
-                          opacity: proofStarted ? 1 : 0.4,
-                          cursor: proofStarted ? 'pointer' : 'not-allowed'
-                        }}
-                      >
-                        Discard Proof
-                      </Dropdown.Item>
+                      {!isReviewMode && (
+                        <Dropdown.Item 
+                          onClick={handleClearProof} 
+                          href="#" 
+                          disabled={!proofStarted}
+                          style={{ 
+                            color: proofStarted ? 'red' : '#999', 
+                            opacity: proofStarted ? 1 : 0.4,
+                            cursor: proofStarted ? 'pointer' : 'not-allowed'
+                          }}
+                        >
+                          Discard Proof
+                        </Dropdown.Item>
+                      )}
                       <Dropdown.Item
                         onClick={handleDownloadProof}
                         href="#"
@@ -2580,8 +2581,7 @@ const handleRuleKeyDown = (e) => {
                       handleRowNumberClick,
                       leftPremise,
                       rightPremise,
-                      caseType: 'base',
-                      currentUserType: isReviewMode ? proofOwner : !currentUserType
+                      caseType: 'base'
                     });
                   })}
                   {showContinue(playState, 'base', showSide, erLastReal) && (

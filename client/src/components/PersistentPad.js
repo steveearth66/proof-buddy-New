@@ -230,7 +230,7 @@ const PersistentPad = forwardRef(function PersistentPad(
             <OverlayTrigger
               popperConfig={{ strategy: 'fixed' }}
               overlay={
-                <Tooltip id={`tooltip-hide-row-${lineNum}`}>
+                <Tooltip style={{ position:"fixed" }} id={`tooltip-hide-row-${lineNum}`}>
                 {showRule ? "Hide" : "Unhide"} Rule
                 </Tooltip>
               }
@@ -327,7 +327,7 @@ const PersistentPad = forwardRef(function PersistentPad(
             <OverlayTrigger
               popperConfig={{ strategy: 'fixed' }}
               overlay={
-                <Tooltip id={`tooltip-hide-row-${lineNum}`}>
+                <Tooltip style={{ position:"fixed" }} id={`tooltip-hide-row-${lineNum}`}>
                 {showExpression ? "Hide" : "Unhide"} Expression
                 </Tooltip>
               }

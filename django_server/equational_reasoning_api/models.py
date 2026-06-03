@@ -42,6 +42,7 @@ class EquationalProof(models.Model):
     visible_rules = models.TextField(default=dict, blank=True)
     support_value_mapping = models.BooleanField(default=True)
     support_rewrite_complexity = models.BooleanField(default=True)
+    support_rewrite_complexity = models.BooleanField(default=True)
 
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
@@ -121,7 +122,7 @@ class EquationalProofLineComment(models.Model):
         ('instructor', 'Instructor'),
     ]
 
-    proof = models.ForeignKey(EquationalProof, on_delete=models.CASCADE)
+    proof = models.ForeignKey(EquationalProof, related_name='proof_comments', on_delete=models.CASCADE)
     side = models.CharField(max_length=3)    # LHS / RHS
     line_number = models.IntegerField()
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
