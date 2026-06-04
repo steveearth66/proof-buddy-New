@@ -12,7 +12,6 @@ jest.mock("react-toastify", () => ({
 }));
 
 jest.mock("../services/inductionService", () => ({
-  clearInduction: jest.fn(),
   checkNameConflict: jest.fn().mockResolvedValue({ conflict: false }),
 }));
 

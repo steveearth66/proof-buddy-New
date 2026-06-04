@@ -157,7 +157,7 @@ export default function StudentCatalog({ courses, onViewCourse, onJoinCourse, on
                   <OverlayTrigger
                     placement="top"
                     overlay={
-                      <Tooltip className="danger-tooltip" id={`tooltip-leave-${course.id}`}>
+                      <Tooltip className="danger-tooltip" style={{ position:"fixed" }} id={`tooltip-leave-${course.id}`}>
                         Leave Course
                       </Tooltip>
                     }

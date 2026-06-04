@@ -261,6 +261,63 @@ const respondToInvitation = async (invitationId, action) => {
     }
 };
 
+const getSharedAssignments = async (courseId) => {
+    try {
+        const response = await axiosInstance.get(`${API_GATEWAY}/assignments/shares`, {
+            params: { course_id: courseId }
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching incoming shared assignments:", error);
+        return { incoming: [], sent: [] };
+    }
+};
+
+const sendAssignmentShare = async (payload) => {
+    try {
+        const response = await axiosInstance.post(`${API_GATEWAY}/assignments/shares`, payload);
+        return response.data;
+    } catch (error) {
+        handleServiceError(error, "Error sending assignment share request:");
+        throw error;
+    }
+};
+
+const respondToShareRequest = async (shareRequestId, action) => {
+    try {
+        const response = await axiosInstance.post(`${API_GATEWAY}/assignments/shares`, {
+            share_request_id: shareRequestId,
+            action: action // 'accept' or 'reject'
+        });
+        return response.data;
+    } catch (error) {
+        console.error(`Error executing ${action} on share request:`, error);
+        throw error;
+    }
+};
+
+const cancelShareRequest = async (shareRequestId) => {
+    try {
+        const response = await axiosInstance.delete(`${API_GATEWAY}/assignments/shares`, {
+            data: { share_request_id: shareRequestId }
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Error canceling share request:", error);
+        throw error;
+    }
+};
+
+const getShareTargets = async () => {
+    try {
+        const response = await axiosInstance.get(`${API_GATEWAY}/instructors/share-targets`);
+        return response.data;
+    } catch (error) {
+        handleServiceError(error, "Error fetching sharing targets:");
+        throw error;
+    }
+};
+
 const courseService = { 
     getCourses, 
     createCourse, 
@@ -284,7 +341,12 @@ const courseService = {
     getCourseInvitations,
     cancelInvitation,
     getMyInvitations,
-    respondToInvitation
+    respondToInvitation,
+    getSharedAssignments,
+    sendAssignmentShare,
+    respondToShareRequest,
+    cancelShareRequest,
+    getShareTargets
 };
 
 export default courseService;

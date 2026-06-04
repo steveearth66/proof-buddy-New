@@ -67,16 +67,6 @@ const substitution = async (data) => {
   }
 };
 
-const clearInduction = async () => {
-  try {
-    const response = await axiosInstance.post(`${API_GATEWAY}/clear-induction`);
-    return response.data;
-  } catch (error) {
-    handleServiceError(error, "Error during induction clearing:");
-    throw error;
-  }
-};
-
 const newProof = async () => {
   try {
     const response = await axiosInstance.post(`${API_GATEWAY}/new-proof`);
@@ -319,7 +309,6 @@ const getComments = async (params) => {
 
 const inductionService = {
   startInductionProof,
-  clearInduction,
   newProof,
   checkInduction,
   substitution,

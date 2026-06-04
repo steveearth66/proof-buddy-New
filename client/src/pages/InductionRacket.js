@@ -727,7 +727,7 @@ const InductionRacket = () => {
     }
 
     try {
-      await inductionService.clearInduction();
+      await inductionService.deleteInductionProof(proofParams.proof_id);
       
       // Clear sessionStorage flag so we don't restore from DB on reload
       sessionStorage.removeItem('inductionProofActive');
@@ -1366,6 +1366,14 @@ const InductionRacket = () => {
     };
   }, [isBound, userRow.num, showSide, lhsPadRefs, rhsPadRefs]);
 
+  // Clear inductive hypotheses when switching to high support
+  useEffect(() => {
+  if (proofParams.support_ih) {
+    setInductiveHypothesisLHS('');
+    setInductiveHypothesisRHS('');
+  }
+  }, [proofParams.support_ih]);
+
   /**
    * Parse a top-level function application like "(f x y)".
    * Returns { name: 'f', params: ['x','y'] } or null if not a simple paren application.
@@ -1478,7 +1486,7 @@ const InductionRacket = () => {
       return;
     }
 
-    if ((!inductiveHypothesisLHS || inductiveHypothesisLHS.trim() === "") && !proofParams?.support_ih) { // i did this earlier I think
+    if ((!inductiveHypothesisLHS || inductiveHypothesisLHS.trim() === "") && !proofParams?.support_ih) {
       toast.error("Inductive hypothesis for LHS must be provided.");
       return;
     }
@@ -1555,36 +1563,36 @@ const InductionRacket = () => {
           toast.error(`LHS Inductive Hypothesis validation failed:\n${errorMessage}`);
           return;
         }
-      } catch (validationError) {
-        const errorMessage = validationError.response?.data?.errors?.join('\n') 
-          || validationError.message 
-          || 'Invalid LHS Inductive Hypothesis';
-        toast.error(`LHS Inductive Hypothesis validation failed:\n${errorMessage}`);
-        return;
-      }
+        } catch (validationError) {
+          const errorMessage = validationError.response?.data?.errors?.join('\n') 
+            || validationError.message 
+            || 'Invalid LHS Inductive Hypothesis';
+          toast.error(`LHS Inductive Hypothesis validation failed:\n${errorMessage}`);
+          return;
+        }
       
-      // Validate RHS Inductive Hypothesis
-      try {
-        const rhsIHValidation = await inductionService.checkGoal({
-          case: 'leap',
-          side: 'RHS',
-          goal: inductiveHypothesisRHS
-        });
-        
-        if (!rhsIHValidation.isValid) {
-          const errorMessage = rhsIHValidation.errors?.length 
-            ? rhsIHValidation.errors.join('\n') 
-            : 'Invalid RHS Inductive Hypothesis';
+        // Validate RHS Inductive Hypothesis
+        try {
+          const rhsIHValidation = await inductionService.checkGoal({
+            case: 'leap',
+            side: 'RHS',
+            goal: inductiveHypothesisRHS
+          });
+          
+          if (!rhsIHValidation.isValid) {
+            const errorMessage = rhsIHValidation.errors?.length 
+              ? rhsIHValidation.errors.join('\n') 
+              : 'Invalid RHS Inductive Hypothesis';
+            toast.error(`RHS Inductive Hypothesis validation failed:\n${errorMessage}`);
+            return;
+          }
+        } catch (validationError) {
+          const errorMessage = validationError.response?.data?.errors?.join('\n') 
+            || validationError.message 
+            || 'Invalid RHS Inductive Hypothesis';
           toast.error(`RHS Inductive Hypothesis validation failed:\n${errorMessage}`);
           return;
         }
-      } catch (validationError) {
-        const errorMessage = validationError.response?.data?.errors?.join('\n') 
-          || validationError.message 
-          || 'Invalid RHS Inductive Hypothesis';
-        toast.error(`RHS Inductive Hypothesis validation failed:\n${errorMessage}`);
-        return;
-      }
       }
 
       // Prefer session definitions; include only enabled/applied ones
@@ -1998,8 +2006,7 @@ const InductionRacket = () => {
     handleRowNumberClick,
     leftPremise,
     rightPremise,
-    caseType,
-    currentUserType
+    caseType
   }) {
     const isLHS = side === "LHS";
     // Since array index now equals database line_number, use index directly as padIndex
@@ -2088,7 +2095,7 @@ const InductionRacket = () => {
             ruleValidationError={ruleValidationError}
             isEditRow={false}
             showEyeButtons={true}
-            currentUserType={currentUserType}
+            currentUserType={isReviewMode ? proofOwner : currentUserType}
             hideExpression={hideExpression}
             hideJustification={hideJustification}
             onRuleHiddenToggle={() => handleRuleHiddenToggle(side, index)}
@@ -2429,18 +2436,20 @@ const InductionRacket = () => {
                                   >
                                     New Proof
                                   </Dropdown.Item>
-                                  <Dropdown.Item 
-                                    onClick={handleClearProof} 
-                                    href="#" 
-                                    disabled={!proofStarted}
-                                    style={{ 
-                                      color: proofStarted ? 'red' : '#999', 
-                                      opacity: proofStarted ? 1 : 0.4,
-                                      cursor: proofStarted ? 'pointer' : 'not-allowed'
-                                    }}
-                                  >
-                                    Discard Proof
-                                  </Dropdown.Item>
+                                  {!isReviewMode && (
+                                    <Dropdown.Item 
+                                      onClick={handleClearProof} 
+                                      href="#" 
+                                      disabled={!proofStarted}
+                                      style={{ 
+                                        color: proofStarted ? 'red' : '#999', 
+                                        opacity: proofStarted ? 1 : 0.4,
+                                        cursor: proofStarted ? 'pointer' : 'not-allowed'
+                                      }}
+                                    >
+                                      Discard Proof
+                                    </Dropdown.Item>
+                                  )}
                                   <Dropdown.Item
                                     onClick={handleDownloadProof}
                                     href="#"
@@ -2706,7 +2715,7 @@ const InductionRacket = () => {
                                 id="eRInductiveHypothesisLHS"
                                 name="inductiveHypothesisLHS"
                                 type="text"
-                                placeholder="Inductive Hypothesis LHS"
+                                placeholder={(proofParams.support_ih) ? "This field will be autogenerated" : "Enter Inductive Hypothesis LHS"}
                                 value={inductiveHypothesisLHS}
                                 onChange={(e) => setInductiveHypothesisLHS(e.target.value)}
                                 onKeyUp={ihLhsKeyUp}
@@ -2722,7 +2731,7 @@ const InductionRacket = () => {
                                 id="eRInductiveHypothesisRHS"
                                 name="inductiveHypothesisRHS"
                                 type="text"
-                                placeholder="Inductive Hypothesis RHS"
+                                placeholder={(proofParams.support_ih) ? "This field will be autogenerated" : "Enter Inductive Hypothesis RHS"}
                                 value={inductiveHypothesisRHS}
                                 onChange={(e) => setInductiveHypothesisRHS(e.target.value)}
                                 onKeyUp={ihRhsKeyUp}
@@ -2964,8 +2973,7 @@ const InductionRacket = () => {
                       handleRowNumberClick,
                       leftPremise,
                       rightPremise,
-                      caseType: indCaseKey,
-                      currentUserType: isReviewMode ? proofOwner : !currentUserType
+                      caseType: indCaseKey
                     });
                   })}
                   {showContinue(playState, indCaseKey, showSide, indLastReal) && (
