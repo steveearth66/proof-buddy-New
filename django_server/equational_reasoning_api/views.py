@@ -1579,6 +1579,13 @@ def discard_proof(request):
         if proof:
             proof.is_active = False
             proof.save()
+            mapping = StudentProofMapping.objects.filter(
+                            content_type=ContentType.objects.get_for_model(EquationalProof),
+                            object_id=proof.id
+                        ).first()
+
+            if mapping:
+                mapping.delete()
         clear_user_proofs(user)
         return Response({"message": "Proof archived successfully"}, status=status.HTTP_200_OK)
     except Exception as e:
@@ -1781,6 +1788,13 @@ def delete_proof(request):
         if proof_id is not None:
             # 1. Update the DB
             updated_count = EquationalProof.objects.filter(id=proof_id, user=user).update(is_active=False)
+            mapping = StudentProofMapping.objects.filter(
+                            content_type=ContentType.objects.get_for_model(EquationalProof),
+                            object_id=proof_id
+                        ).first()
+
+            if mapping:
+                mapping.delete()
             
             if updated_count == 0:
                 return Response({"error": "Proof not found"}, status=status.HTTP_404_NOT_FOUND)
