@@ -134,6 +134,32 @@ Intermediate transaction storage layer staging pending registration requests sen
 * **Meta Table Properties:**
   * Validation check prevents two rows from existing with the same combination of course and student foreign keys.
 
+### 2.6. `AssignmentShareRequest` Table
+
+Tracks peer-to-peer instructional assignment sharing workflows. It provides a transactional mapping layer for cross-classroom coursework propagation.
+
+| Field Name | Data Type | Null / Blank | Constraints / Options | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | `BigAutoField` (Auto) | `False` / `False` | Primary Key | Unique validation record primary row key. |
+| `sender` | `ForeignKey` | `False` / `False` | Restricted to User accounts where `is_instructor=True`. | Relational track link to the sending instructor account. |
+| `source_course` | `ForeignKey` | `False` / `False` | related_name=`sent_shares_history` | The originating container environment hosting the material asset. |
+| `target_course` | `ForeignKey` | `False` / `False` | related_name=`incoming_assignment_shares` | The destination container ecosystem designated to receive the asset. |
+| `staged_assignment` | `OneToOneField` | `False` / `False` | Unique relative pointer constraint. | Holds isolated staging reference copy block before action resolution. |
+| `status` | `CharField(10)` | `False` / `False` | `default='pending'` <br> Choices: `pending`, `accepted`, `rejected` | State-tracking transaction parameter flag. |
+| `sent_at` | `DateTimeField` | `False` / `False` | `auto_now_add=True` | Automation timestamp recorded when the model instantiates. |
+| `updated_at` | `DateTimeField` | `False` / `False` | `auto_now=True` | Tracks last dynamic modification timestamp. |
+
+* **Meta Table Properties:**
+  * Validation checks guarantee structural integrity by ensuring a unique combination of `source_course`, `target_course`, and `staged_assignment` fields across table rows.
+
+#### Sharing Workspace Mechanics (Deep Cloning Logic)
+
+To enforce strict tenant-isolation and protect student workspace contexts, accepting an assignment share request kicks off a nested background deep-clone process managed inside an atomic database transaction:
+
+* **Asset Separation:** The system looks up all `AssignmentProof` metadata bindings linked to the incoming `staged_assignment`.
+* **Polymorphic Deep-Cloning:** For each linked proof entry, the engine determines its table context (`equationalproof` or `inductionproof`), replicates the master proof record, copies its entire related arrays of `proof_lines` and `proof_comments`, wipes the primary keys (`pk`/`id` = `None`), and overrides ownership tracking by assigning the record to the receiving instructor. This allows the instructor to modify the base proof(s) if required and then replacing the ones one the assignment, or to simply replace a proof that was accidentally removed from a shared assignment.
+* **Administrative Handoff:** Once all child records are duplicated safely in memory, the main assignment shell's metadata properties update, explicitly changing `created_by` to the recipient user. This gives the accepting instructor a totally decoupled sandbox environment, completely separated from the original author's library.
+
 ---
 
 ## 3. Quality Assurance & Verification Loop
