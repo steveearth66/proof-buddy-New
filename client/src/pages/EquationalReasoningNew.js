@@ -407,6 +407,7 @@ const EquationalReasoningNew = () => {
   const [activeSide, setActiveSide] = useState(null);
   const [studentComment, setStudentComment] = useState("");
   const [instructorComment, setInstructorComment] = useState("");
+  const [commentStatus, setCommentStatus] = useState({});
   
   // Separate premises for base and leap cases
   const [leftPremise, setLeftPremise] = useState(INITIAL_PREMISE_STATE);
@@ -1409,6 +1410,15 @@ const handleRuleKeyDown = (e) => {
   }, [proofStarted, racketRuleFields, leftPremise, rightPremise, playState]);
 
   useEffect(() => {
+  const loadComments = async () => {
+    const status = await equationalService.getCommentStatus();
+    setCommentStatus(status);
+  };
+
+  loadComments();
+  }, []);
+
+  useEffect(() => {
     // Disabled: Confetti should only show when BOTH base AND leap cases are complete
     // Currently this triggers when just one case/side matches, which is incorrect
     // TODO: Re-enable when we have proper full proof completion detection
@@ -1775,22 +1785,20 @@ const handleRuleKeyDown = (e) => {
         </Col>
         <Col xs="auto" className="d-flex align-items-center">
           <Button   
-          variant="secondary"
-          onClick={async() => {
-            const data = await equationalService.getComments({
-              side: side,
-              line_number: padIndex
-            })
-
-            setActivePadIndex(padIndex);
-            setActiveSide(side);
-            
-            setStudentComment(data.student || "");
-            setInstructorComment(data.instructor || "");
-            setShowCommentsModal(true);
-          }}
+          variant={
+            commentStatus[`${side}-${padIndex}`]
+              ? "primary"
+              : "secondary"
+          }
+          onClick={() => handleCommentClick(side, padIndex)}
           >
-            <i className="fa-regular fa-message"></i>
+            <i
+              className={
+                commentStatus[`${side}-${padIndex}`]
+                  ? "fa-solid fa-message"
+                  : "fa-regular fa-message"
+              }
+            />
           </Button>
         </Col>
       </Row>
@@ -1957,6 +1965,20 @@ const handleRuleKeyDown = (e) => {
       throw error;
     }
   };
+
+  const handleCommentClick = async (side, padIndex) => {
+    const data = await equationalService.getComments({
+      side: side,
+      line_number: padIndex
+    });
+
+    setActivePadIndex(padIndex);
+    setActiveSide(side);
+    setStudentComment(data.student || "");
+    setInstructorComment(data.instructor || "");
+
+    setShowCommentsModal(true);
+  }
     
   return (
     <MainLayout>
@@ -2826,6 +2848,17 @@ const handleRuleKeyDown = (e) => {
                   role: "instructor",
                   comment: instructorComment
                 });
+
+                const key = `${activeSide}-${activePadIndex}`;
+
+                const hasComments =
+                  studentComment.trim() !== "" ||
+                  instructorComment.trim() !== "";
+
+                setCommentStatus(prev => ({
+                  ...prev,
+                  [key]: hasComments
+                }));
 
                 setShowCommentsModal(false);
               }}
