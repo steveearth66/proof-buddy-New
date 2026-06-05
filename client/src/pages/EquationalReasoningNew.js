@@ -1798,7 +1798,7 @@ const handleRuleKeyDown = (e) => {
 
   const renderFooterPad = () => {
     const padIndex = getPadIndex(userRow.num);
-    
+
     if (!userRow.num || userRow.num === "") {
       return null;
     }
@@ -1828,7 +1828,7 @@ const handleRuleKeyDown = (e) => {
           isRuleReadOnly={true}
           rulePlaceholder="Rule"
           isEditRow={true}
-          currentUserType={isReviewMode ? proofOwner : !currentUserType}
+          currentUserType={isReviewMode ? proofOwner : currentUserType}
           hideExpression={isExpressionHidden}
         />
       );
@@ -1871,7 +1871,7 @@ const handleRuleKeyDown = (e) => {
           isRuleInvalid={!!footerRuleError}
           ruleValidationError={footerRuleError}
           isEditRow={true}
-          currentUserType={isReviewMode ? proofOwner : !currentUserType}
+          currentUserType={isReviewMode ? proofOwner : currentUserType}
           hideExpression={isExpressionHidden}
         />
       );
