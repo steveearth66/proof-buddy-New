@@ -2520,3 +2520,41 @@ def get_comments(request):
             {"error": str(e)},
             status=status.HTTP_400_BAD_REQUEST
         )
+    
+@api_view(["GET"])
+def get_comment_status(request):
+
+    try:
+
+        user = request.user
+        _, proof_id = get_or_set_induction_obj(user)
+
+        if proof_id is None:
+            return Response({}, status=status.HTTP_200_OK)
+
+        comments = InductionProofLineComment.objects.filter(
+            proof_id=proof_id
+        )
+
+        result = {}
+
+        for comment in comments:
+
+            # Ignore blank comments
+            if not comment.comment or comment.comment.strip() == "":
+                continue
+
+            key = f"{comment.side}-{comment.line_number}"
+
+            result[key] = True
+
+        return Response(result, status=status.HTTP_200_OK)
+
+    except Exception as e:
+
+        print(f"GET COMMENT STATUS ERROR: {str(e)}")
+
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
