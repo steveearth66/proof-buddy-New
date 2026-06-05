@@ -2233,7 +2233,6 @@ def validate_hidden_field(request):
         
         errors = []
         changed = False
-        is_correct = False
         
         # 4. Logic: Master Key Validation (Rule + Selection)
         if student_rule is not None:
@@ -2249,12 +2248,10 @@ def validate_hidden_field(request):
                 if line.hide_justification:
                     line.hide_justification = False
                     changed = True
-                if line.hide_expression:
-                    line.hide_expression = False
-                    changed = True
-                is_correct = True
             elif not rule_text_match:
                 errors.append("Rule does not match.")
+        else:
+            errors.append("You must provide a rule.")
         
         # 5. Logic: Expression Tree Match (JSON Dictionary Comparison)
         if student_expression is not None and student_expression.strip() != "":
@@ -2276,7 +2273,6 @@ def validate_hidden_field(request):
                     if student_tree == line.json_tree:
                         line.hide_expression = False
                         changed = True
-                        is_correct = True
                     else:
                         errors.append("Expression does not match.")
                 else:
@@ -2289,10 +2285,10 @@ def validate_hidden_field(request):
         if changed:
             line.save()
         
-        message = "Correct!" if is_correct and not errors else None
+        message = "Correct!" if not errors else None
         
         return Response({
-            "isValid": is_correct,
+            "isValid": not errors,
             "errors": errors,
             "hide_expression": line.hide_expression,
             "hide_justification": line.hide_justification,

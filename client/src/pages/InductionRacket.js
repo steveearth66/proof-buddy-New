@@ -2160,7 +2160,7 @@ const InductionRacket = () => {
           isRuleReadOnly={true}
           rulePlaceholder="Rule"
           isEditRow={true}
-          currentUserType={currentUserType}
+          currentUserType={isReviewMode ? proofOwner : currentUserType}
           hideExpression={isExpressionHidden}
         />
       );
@@ -2204,7 +2204,7 @@ const InductionRacket = () => {
           isRuleInvalid={!!footerRuleError}
           ruleValidationError={footerRuleError}
           isEditRow={true}
-          currentUserType={currentUserType}
+          currentUserType={isReviewMode ? proofOwner : currentUserType}
           hideExpression={isExpressionHidden}
         />
       );
