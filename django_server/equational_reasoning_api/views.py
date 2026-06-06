@@ -1064,7 +1064,7 @@ def toggle_visibility_premise(request):
         side = request.data.get('side')
         line_number = request.data.get('lineNumber')
         field = request.data.get('field') 
-        setting_visibility = request.data.get('setting_visibility');
+        setting_visibility = request.data.get('setting_visibility')
         
         if not side or line_number is None or field not in ['expression', 'justification']:
             return Response({"error": "Invalid parameters"}, status=status.HTTP_400_BAD_REQUEST)

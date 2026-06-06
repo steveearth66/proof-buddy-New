@@ -2430,6 +2430,76 @@ def toggle_visibility(request):
         import traceback
         traceback.print_exc()
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def toggle_visibility_premise(request):
+    user = request.user
+    
+    # 1. Get the session object
+    proof_obj, proof_id = get_or_set_induction_obj(user)
+    
+    if not proof_id:
+        return Response({"error": "Session expired or invalid proof ID"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        reload_proof_lines_from_db(proof_obj, proof_id)
+
+        side = request.data.get('side')
+        line_number = request.data.get('lineNumber')
+        field = request.data.get('field') 
+        case = request.data.get('case')
+        setting_visibility = request.data.get('setting_visibility')
+        
+        if not side or line_number is None or field not in ['expression', 'justification'] or not case:
+            return Response({"error": "Invalid parameters"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        side = side.upper()
+        target_case = proof_obj.baseCase if case == 'base' else proof_obj.leapStep
+        target_proof = target_case.LHS if side == 'LHS' else target_case.RHS
+        
+        # Now this check will pass because proofLines is fully populated
+        if line_number < 0 or line_number >= len(target_proof.proofLines):
+            return Response({
+                "error": f"Line number {line_number} out of bounds. Total lines: {len(target_proof.proofLines)}"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        line_obj = target_proof.proofLines[line_number]
+        
+        # Toggle attribute in Memory
+        attr_name = 'hide_expression' if field == 'expression' else 'hide_justification'
+        current_val = getattr(line_obj, attr_name, False)
+        new_val = setting_visibility if setting_visibility is not None else not current_val
+        setattr(line_obj, attr_name, new_val)
+
+        # Save updated object to Cache
+        save_induction_obj_to_cache(user, proof_obj, proof_id)
+        
+        # Update Database
+        try:
+            db_line = InductionProofLine.objects.get(
+                proof_id=proof_id, side=side, line_number=line_number, case=case
+            )
+            if field == 'expression':
+                db_line.hide_expression = new_val
+            else:
+                db_line.hide_justification = new_val
+            db_line.save()
+        except InductionProofLine.DoesNotExist:
+            pass 
+
+        return Response({
+            "success": True,
+            "line_number": line_number,
+            "side": side,
+            "field": field,
+            "new_value": new_val
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(["POST"])
 def save_comment(request):

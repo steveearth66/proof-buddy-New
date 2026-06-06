@@ -27,6 +27,7 @@ urlpatterns = [
     path("validate-hidden-field", views.validate_hidden_field, name="validate_hidden_field"),
     path("validate-hidden-definition", views.validate_hidden_definition, name="validate_hidden_definition"),
     path("toggle-visibility", views.toggle_visibility, name="toggle_visibility"),
+    path("toggle-visibility_premise", views.toggle_visibility_premise, name="toggle_visibility_premise"),
     path("save-comment", views.save_comment, name="save_comment"),
     path("get-comments", views.get_comments, name="get_comments"),
 ]

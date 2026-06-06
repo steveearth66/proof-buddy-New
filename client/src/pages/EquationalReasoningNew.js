@@ -797,8 +797,8 @@ const EquationalReasoningNew = () => {
         setFooterRule(field?.rule || "");
       }
     } else {
-      if (field?.hidden_justification) {
-        setFooterRule("")
+      if (field?.hide_justification) {
+        setFooterRule("");
       } else {
          setFooterRule("Premise");
       }
@@ -1128,7 +1128,7 @@ const handleRuleKeyDown = (e) => {
             expressionFromFooter = footerPadRef.current.getEquationValue() || "";
         }
 
-        if (userRow.num !== "000") {
+        // if (userRow.num !== "000") {
           const previousRowIndex = userIndex - 1;
           const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
 
@@ -1146,7 +1146,7 @@ const handleRuleKeyDown = (e) => {
           }
           studentSelectedNode = previousStartPosition;
           currentIndex = userIndex;
-        }
+        // }
       }
 
       if (!ruleFromFooter || ruleFromFooter.trim() === '') {
@@ -1157,51 +1157,51 @@ const handleRuleKeyDown = (e) => {
       setFooterRuleError('');
 
       // special validation for premise 
-      if (userRow.num === "000") {
-        const premiseRacket = showSide === "LHS"? leftPremise.racket :rightPremise.racket;
+      // if (userRow.num === "000") {
+      //   const premiseRacket = showSide === "LHS"? leftPremise.racket :rightPremise.racket;
 
-        if (ruleFromFooter.trim().toLowerCase() !== "premise") {
-          toast.error("Invalid rule for premise line");
-          isProcessingRef.current = false;
-          return;
-        }
+      //   if (ruleFromFooter.trim().toLowerCase() !== "premise") {
+      //     toast.error("Invalid rule for premise line");
+      //     isProcessingRef.current = false;
+      //     return;
+      //   }
 
-        if (expressionFromFooter.trim() !== premiseRacket.trim()) {
-          toast.error("Incorrect expression for premise line");
-          isProcessingRef.current = false;
-          return;
-        }
+      //   if (expressionFromFooter.trim() !== premiseRacket.trim()) {
+      //     toast.error("Incorrect expression for premise line");
+      //     isProcessingRef.current = false;
+      //     return;
+      //   }
 
-        toast.success("Correct!");
+      //   toast.success("Correct!");
 
-        // save to DB
-        await equationalService.toggleVisibilityPremise({
-          side: showSide,
-          lineNumber: 0,
-          field: 'expression',
-          setting_visibility: false
-        });
-        await equationalService.toggleVisibilityPremise({
-          side: showSide,
-          lineNumber: 0,
-          field: 'justification',
-          setting_visibility: false
-        });
+      //   // save to DB
+      //   await equationalService.toggleVisibilityPremise({
+      //     side: showSide,
+      //     lineNumber: 0,
+      //     field: 'expression',
+      //     setting_visibility: false
+      //   });
+      //   await equationalService.toggleVisibilityPremise({
+      //     side: showSide,
+      //     lineNumber: 0,
+      //     field: 'justification',
+      //     setting_visibility: false
+      //   });
 
-        // Update premise lines state to reflect immediately without waiting for refresh
-        setRacketRuleFields(prev => ({
-          ...prev,
-          [showSide]: prev[showSide].map((field, idx) =>
-            idx === 0
-              ? { ...field, hide_expression: false, hide_justification: false }
-              : field
-          )
-        }));
+      //   // Update premise lines state to reflect immediately without waiting for refresh
+      //   setRacketRuleFields(prev => ({
+      //     ...prev,
+      //     [showSide]: prev[showSide].map((field, idx) =>
+      //       idx === 0
+      //         ? { ...field, hide_expression: false, hide_justification: false }
+      //         : field
+      //     )
+      //   }));
 
-        unbindFooter();
-        isProcessingRef.current = false;
-        return;
-      }
+      //   unbindFooter();
+      //   isProcessingRef.current = false;
+      //   return;
+      // }
 
       // If user typed "rewrite math" or "rewrite logic", open Substitution modal with rule pre-filled
       if (ruleFromFooter.trim().toLowerCase() === 'rewrite math' || ruleFromFooter.trim().toLowerCase() === 'rewrite logic') {

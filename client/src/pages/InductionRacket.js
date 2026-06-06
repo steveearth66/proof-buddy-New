@@ -449,11 +449,11 @@ const InductionRacket = () => {
     setUserRow({ num: paddedRowNum });
     setIsBound(true);
 
+    // Array index now equals line number, so use userIndex directly
+    const field = (racketRuleFields?.[showSide] || [])[userIndex];
+
     // Set footer rule initially to what the field has
-    if (paddedRowNum !== "000") {
-      // Array index now equals line number, so use userIndex directly
-      const field = (racketRuleFields?.[showSide] || [])[userIndex];
-      
+    if (paddedRowNum !== "000") {     
       // Only set the rule if it's NOT hidden
       if (field?.hide_justification) {
         setFooterRule("");  // Keep it blank if hidden
@@ -461,7 +461,11 @@ const InductionRacket = () => {
         setFooterRule(field?.rule || "");
       }
     } else {
-      setFooterRule("Premise");
+        if (field?.hide_justification) {
+          setFooterRule("");
+        } else {
+          setFooterRule("Premise");
+        }
     }
 
     setTimeout(() => {
@@ -820,14 +824,14 @@ const InductionRacket = () => {
 
       if (isBound) {
         const userIndex = getPadIndex(userRow.num);
-        ruleFromFooter = userRow.num === "000" ? "Premise" : footerRule;
+        ruleFromFooter = (userRow.num === "000" && proofParams.support_premise) ? "Premise" : footerRule;
 
         // --- FOOTER EXPRESSION REFERENCE ---
         if (footerPadRef.current) {
             expressionFromFooter = footerPadRef.current.getEquationValue() || "";
         }
 
-        if (userRow.num !== "000") {
+        // if (userRow.num !== "000") {
           const previousRowIndex = userIndex - 1;
           const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
 
@@ -848,7 +852,7 @@ const InductionRacket = () => {
           }
           studentSelectedNode = previousStartPosition;
           currentIndex = userIndex; // index in array now equals line number
-        }
+        // }
       }
 
       // Validate rule is entered
@@ -860,6 +864,55 @@ const InductionRacket = () => {
 
       // Clear validation error if rule is valid
       setFooterRuleError('');
+
+      // special validation for premise
+      // if (userRow === "000") {
+      //   const premiseRacket = showSide === "LHS" ? leftPremise.racket : rightPremise.racket;
+
+      //   if (ruleFromFooter.trim().toLowerCase() !== "premise") {
+      //     toast.error("Invalid rule for premise line");
+      //     isProcessingRef.current = false;
+      //     return;
+      //   }
+
+      //   if (expressionFromFooter.trim() !== premiseRacket.trim()) {
+      //     toast.error("Incorrect expression for premise line");
+      //     isProcessingRef.current = false;
+      //     return;
+      //   }
+
+      //   toast.success("Correct!");
+        
+      //   // save to DB
+      //   await inductionService.toggleVisibilityPremise({
+      //     side: showSide,
+      //     case: isAnchor ? 'base' : 'leap',
+      //     lineNumber: 0,
+      //     field: 'justification',
+      //     setting_visibility: false
+      //   })
+      //   await inductionService.toggleVisibilityPremise({
+      //     side: showSide,
+      //     case: isAnchor ? 'base' : 'leap',
+      //     lineNumber: 0,
+      //     field: 'justification',
+      //     setting_visibility: false
+      //   })
+
+      //   // update premise lines state to reflect immediately without waiting for refresh
+      //   setRacketRuleFields(prev => ({
+      //     ...prev,
+      //     [showSide]: prev[showSide].map((field, idx) =>
+      //       idx === 0
+      //         ? { ...field, hide_expression: false, hide_justification: false }  
+      //         : field
+      //     )
+      //   }));
+
+      //   unbindFooter();
+      //   isProcessingRef.current = false;
+      //   return;
+      // }
 
       // If user typed "rewrite math" or "rewrite logic", open Substitution modal with rule pre-filled
       if (ruleFromFooter.trim().toLowerCase() === 'rewrite math' || ruleFromFooter.trim().toLowerCase() === 'rewrite logic') {
@@ -1365,6 +1418,53 @@ const InductionRacket = () => {
       document.removeEventListener("keydown", handleGlobalKeyDown);
     };
   }, [isBound, userRow.num, showSide, lhsPadRefs, rhsPadRefs]);
+
+  useEffect(() => {
+    console.log("Effect triggered — support_premise:", proofParams.support_premise, "proofStarted:", proofStarted, "LHS length:", racketRuleFields?.LHS?.length);
+    if(!proofStarted) return;
+    if (!racketRuleFields?.LHS?.length || !racketRuleFields?.RHS?.length) return;
+
+    console.log("LHS fields:", racketRuleFields.LHS);  
+    console.log("RHS fields:", racketRuleFields.RHS);  
+
+    const sides = ['LHS', 'RHS'];
+    const shouldHide = !proofParams.support_premise;
+
+    sides.forEach(async (side) => {
+      try {
+        await inductionService.toggleVisibilityPremise({
+          side,
+          case: isAnchor ? 'base' : 'leap',
+          lineNumber: 0,
+          field: 'expression',
+          setting_visibility: shouldHide
+          
+        });
+        await inductionService.toggleVisibilityPremise({
+          side,
+          case: isAnchor ? 'base' : 'leap',
+          lineNumber: 0,
+          field: 'justification',
+          setting_visibility: shouldHide
+        });
+
+        setRacketRuleFields(prev => {
+          const updated = {
+            ...prev,
+            [side]: prev[side].map((field, idx) => 
+              idx === 0
+                ? { ...field, hide_expression: shouldHide, hide_justification: shouldHide }
+                : field)
+          };
+          return updated;
+        });
+      } catch (error) {
+        console.error("Toast error:", error);
+        console.log("side:", side, "shouldHide:", shouldHide, "proofParams:", proofParams);
+        toast.error(`Failed to update premise ${side} visibility`);
+      }
+    });
+  }, [proofParams.support_premise, proofStarted]);
 
   // Clear inductive hypotheses when switching to high support
   useEffect(() => {
@@ -2135,7 +2235,7 @@ const InductionRacket = () => {
       return null;
     }
 
-    if (userRow.num === "000") {
+    if (userRow.num === "000" && proofParams.support_premise) {
       const equation = showSide === "LHS" ? leftPremise?.racket : rightPremise?.racket;
       
       if (!equation) {
@@ -2233,7 +2333,17 @@ const InductionRacket = () => {
 
   const handleRuleHiddenToggle = async (side, index) => {
     try {
-      const result = await inductionService.toggleVisibility({
+      const isPremiseLine = !proofParams.support_premise && index === 0;
+
+      const result = isPremiseLine
+        ? await inductionService.toggleVisibilityPremise({
+        side: side,
+        case: isAnchor ? 'base' : 'leap',
+        lineNumber: index,
+        field: 'justification',
+        setting_visibility: !racketRuleFields[side][index].hide_justification
+      })
+      : await inductionService.toggleVisibility({
         side: side,
         case: isAnchor ? 'base' : 'leap',
         lineNumber: index,
@@ -2242,21 +2352,12 @@ const InductionRacket = () => {
 
       const actualStatus = result.new_value; 
 
-      if (!proofParams.support_premise && index === 0) {
-        setRacketRuleFields(prev => ({
-          ...prev,
-          [side]: prev[side].map((field, idx) => 
-            idx === 0 ? { ...field, hide_justification: true } : field
-          )
-        }));
-      } else {
-        setRacketRuleFields(prev => ({
-          ...prev,
-          [side]: prev[side].map((field, idx) => 
-            idx === index ? { ...field, hide_justification: actualStatus } : field
-          )
-        }));
-    }
+      setRacketRuleFields(prev => ({
+        ...prev,
+        [side]: prev[side].map((field, idx) => 
+          idx === index ? { ...field, hide_justification: actualStatus } : field
+        )
+      }));
   
       return actualStatus; 
 
@@ -2277,21 +2378,12 @@ const InductionRacket = () => {
 
       const actualStatus = result.new_value;
 
-      if (!proofParams.support_premise && index === 0) {
-        setRacketRuleFields(prev => ({
-          ...prev,
-          [side]: prev[side].map((field, idx) => 
-            idx === 0 ? { ...field, hide_expression: true } : field
-          )
-        }));
-      } else {
-        setRacketRuleFields(prev => ({
-          ...prev,
-          [side]: prev[side].map((field, idx) => 
-            idx === index ? { ...field, hide_expression: actualStatus } : field
-          )
-        }));
-      }
+      setRacketRuleFields(prev => ({
+        ...prev,
+        [side]: prev[side].map((field, idx) => 
+          idx === index ? { ...field, hide_expression: actualStatus } : field
+        )
+      }));
 
       return actualStatus;
 
