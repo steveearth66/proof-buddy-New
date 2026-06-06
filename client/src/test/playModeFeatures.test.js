@@ -77,7 +77,6 @@ jest.mock('../services/equationalService', () => ({
 jest.mock('../services/inductionService', () => ({
   getInductionProofs: jest.fn(),
   deleteInductionProof: jest.fn(),
-  clearInduction: jest.fn(),
 }));
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

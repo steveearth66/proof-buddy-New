@@ -4,9 +4,10 @@ import string
 from datetime import timedelta
 from django.utils import timezone
 from rest_framework import serializers
+from django.db import transaction
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from .models import Assignment, StudentProofMapping, Course, AssignmentProof, CourseInvitation
+from .models import Assignment, StudentProofMapping, Course, AssignmentProof, CourseInvitation, AssignmentShareRequest
 from accounts.serializers import UserSerializer
 from equational_reasoning_api.models import EquationalProof
 from induction_api.models import InductionProof
@@ -123,6 +124,7 @@ class AssignmentSerializer(serializers.ModelSerializer):
             type = ap.content_type.model
             proof_info = {
                 "id": template_proof.id, # Template ID
+                "original_proof_id": ap.original_proof_id,
                 "name": getattr(template_proof, 'name', 'Untitled Proof'),
                 "tag": getattr(template_proof, 'tag', 'General'),
                 "type": type,
@@ -148,17 +150,14 @@ class AssignmentSerializer(serializers.ModelSerializer):
 
                 if mapping:
                     student_proof = mapping.student_proof
-                    # If the student deleted their copy (is_active=False), treat it as Not Started
-                    # so the frontend calls startAssignmentProof and gets a fresh clone.
-                    if student_proof and not getattr(student_proof, 'is_active', True):
-                        pass
+                    proof_info["student_proof_id"] = mapping.object_id
+                    
+                    is_completed = getattr(student_proof, 'is_complete', False) 
+                    
+                    if is_completed:
+                        proof_info["status"] = "Completed"
                     else:
-                        proof_info["student_proof_id"] = mapping.object_id
-                        is_completed = getattr(student_proof, 'is_complete', False)
-                        if is_completed:
-                            proof_info["status"] = "Completed"
-                        else:
-                            proof_info["status"] = "In Progress"
+                        proof_info["status"] = "In Progress"
 
             proof_data.append(proof_info)
 
@@ -181,13 +180,16 @@ class CreateAssignmentSerializer(serializers.ModelSerializer):
 
         assignment = super().create(validated_data)
 
-        # 2. Deep Clone the Proofs
-        for proof in proofs_data:
+        for index, proof in enumerate(proofs_data):
             p_type = proof.get('type')
             p_id = proof.get('id')
             p_name = proof.get('name')
             
-            self._clone_and_bind_proof(assignment, p_id, p_type, p_name)
+            # The incoming id is the original template ID from the library
+            cloned_ap = self._clone_and_bind_proof(assignment, p_id, p_type, p_name, original_id=p_id)
+            if cloned_ap:
+                cloned_ap.order = index
+                cloned_ap.save()
 
         return assignment
     
@@ -229,7 +231,7 @@ class CreateAssignmentSerializer(serializers.ModelSerializer):
                     new_proof_list.append(existing)
                 else:
                     # clone newly added proof
-                    cloned_ap = self._clone_and_bind_proof(assignment, p_id, p_type, p_name)
+                    cloned_ap = self._clone_and_bind_proof(assignment, p_id, p_type, p_name, original_id=p_id)
                     if cloned_ap:
                         cloned_ap.order = index
                         cloned_ap.save()
@@ -253,8 +255,8 @@ class CreateAssignmentSerializer(serializers.ModelSerializer):
 
         return assignment
     
-    def _clone_and_bind_proof(self, assignment, p_id, p_type, p_name):
-        """Helper to handle the cloning logic you used in create()"""
+    def _clone_and_bind_proof(self, assignment, p_id, p_type, p_name, original_id=None):
+        """Helper to handle the cloning logic with permanent original template ID assignment"""
         # Logic for EquationalProof
         if p_type == 'equationalproof':
             try:
@@ -269,12 +271,17 @@ class CreateAssignmentSerializer(serializers.ModelSerializer):
                     line.proof = cloned
                     line.save()
                 for comment in orig.proof_comments.all():
-                    comment.pk = None
-                    comment.id = None
+                    comment.pk = comment.id = None
                     comment.proof = cloned
                     comment.save()
                 ctype = ContentType.objects.get(app_label='equational_reasoning_api', model='equationalproof')
-                return AssignmentProof.objects.create(assignment=assignment, content_type=ctype, object_id=cloned.id)
+                
+                return AssignmentProof.objects.create(
+                    assignment=assignment, 
+                    content_type=ctype, 
+                    object_id=cloned.id,
+                    original_proof_id=original_id
+                )
             except EquationalProof.DoesNotExist: return None
 
         # Logic for InductionProof
@@ -291,16 +298,22 @@ class CreateAssignmentSerializer(serializers.ModelSerializer):
                     line.proof = cloned
                     line.save()
                 for comment in orig.proof_comments.all():
-                    comment.pk = None
-                    comment.id = None
+                    comment.pk = comment.id = None
                     comment.proof = cloned
                     comment.save()
                 ctype = ContentType.objects.get(app_label='induction_api', model='inductionproof')
-                return AssignmentProof.objects.create(assignment=assignment, content_type=ctype, object_id=cloned.id)
+                
+                # FIX: Explicitly populate original_proof_id field during model initialization
+                return AssignmentProof.objects.create(
+                    assignment=assignment, 
+                    content_type=ctype, 
+                    object_id=cloned.id,
+                    original_proof_id=original_id
+                )
             except InductionProof.DoesNotExist: return None
         return None
 
-# serializers.py
+
 class CourseInvitationSerializer(serializers.ModelSerializer):
     student = UserSerializer(read_only=True)
     course_name = serializers.CharField(source='course.name', read_only=True)
@@ -309,3 +322,133 @@ class CourseInvitationSerializer(serializers.ModelSerializer):
     class Meta:
         model = CourseInvitation
         fields = ['id', 'course', 'course_name', 'instructor_name', 'student', 'status', 'sent_at']
+
+class AssignmentShareCreateSerializer(serializers.ModelSerializer):
+    source_course_id = serializers.IntegerField(write_only=True)
+    target_course_id = serializers.IntegerField(write_only=True)
+    title = serializers.CharField(write_only=True)
+    description = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    due_date = serializers.DateTimeField(write_only=True)
+    proofs = serializers.ListField(child=serializers.DictField(), write_only=True)
+
+    class Meta:
+        model = AssignmentShareRequest
+        fields = ['source_course_id','target_course_id', 'title', 'description', 'due_date', 'proofs']
+
+    def validate_target_course_id(self, value):
+        if not Course.objects.filter(id=value).exists():
+            raise serializers.ValidationError("The target course does not exist.")
+        return value
+
+    def create(self, validated_data):
+        sender = self.context['request'].user
+        source_course = Course.objects.get(id=validated_data['source_course_id'])
+        target_course = Course.objects.get(id=validated_data['target_course_id'])
+        proofs_data = validated_data.pop('proofs', [])
+
+        with transaction.atomic():
+            # 1. Create the staged assignment assigned to the destination course
+            staged_assignment = Assignment.objects.create(
+                title=validated_data['title'],
+                description=validated_data.get('description', ''),
+                due_date=validated_data['due_date'],
+                course=target_course,
+                created_by=sender  # Initial ownership points to sender
+            )
+
+            # 2. Re-use proof binding logic to attach proofs to assignment shell
+            helper = CreateAssignmentSerializer()
+            for index, p_info in enumerate(proofs_data):
+                p_id = p_info.get('id')
+                p_type = p_info.get('type')
+                p_name = p_info.get('name')
+                
+                cloned_ap = helper._clone_and_bind_proof(staged_assignment, p_id, p_type, p_name, original_id=p_id)
+                if cloned_ap:
+                    cloned_ap.order = index
+                    cloned_ap.save()
+
+            # 3. Create the tracking Share Request object wrapper
+            share_request = AssignmentShareRequest.objects.create(
+                sender=sender,
+                source_course=source_course,
+                target_course=target_course,
+                staged_assignment=staged_assignment,
+                status='pending'
+            )
+            
+        return share_request
+
+
+class AssignmentShareResponseSerializer(serializers.Serializer):
+    action = serializers.ChoiceField(choices=['accept', 'reject'])
+
+    def update(self, instance, validated_data):
+        action = validated_data['action']
+        recipient = self.context['request'].user
+        assignment = instance.staged_assignment
+
+        if action == 'reject':
+            instance.status = 'rejected'
+            instance.save()
+            return instance
+
+        if action == 'accept':
+            with transaction.atomic():
+                # 1. Look up all AssignmentProof objects pointing to our staged assignment shell
+                staged_proofs = AssignmentProof.objects.filter(assignment=assignment)
+                
+                for ap in staged_proofs:
+                    orig_proof_obj = ap.proof_object
+                    if not orig_proof_obj:
+                        continue
+                    
+                    # 2. Handle sub-app deep cloning routine natively 
+                    # We duplicate the structural data and transfer workspace entity ownership
+                    if ap.content_type.model == 'equationalproof':
+                        cloned = EquationalProof.objects.get(id=orig_proof_obj.id)
+                        cloned.pk = cloned.id = None
+                        cloned.user = recipient
+                        cloned.save()
+                        
+                        # Clone lines
+                        for line in orig_proof_obj.proof_lines.all():
+                            line.pk = line.id = None
+                            line.proof = cloned
+                            line.save()
+                        # Clone comments
+                        for comment in orig_proof_obj.proof_comments.all():
+                            comment.pk = comment.id = None
+                            comment.proof = cloned
+                            comment.save()
+
+                    elif ap.content_type.model == 'inductionproof':
+                        cloned = InductionProof.objects.get(id=orig_proof_obj.id)
+                        cloned.pk = cloned.id = None
+                        cloned.user = recipient
+                        cloned.save()
+                        
+                        # Clone lines
+                        for line in orig_proof_obj.proof_lines.all():
+                            line.pk = line.id = None
+                            line.proof = cloned
+                            line.save()
+                        # Clone comments
+                        for comment in orig_proof_obj.proof_comments.all():
+                            comment.pk = comment.id = None
+                            comment.proof = cloned
+                            comment.save()
+                    
+                    ap.object_id = cloned.id
+                    ap.original_proof_id = cloned.id
+                    ap.save()
+
+                # 3. Transfer assignment creator control over to recipient
+                assignment.created_by = recipient
+                assignment.save()
+
+                # 4. Finalize tracking lifecycle state
+                instance.status = 'accepted'
+                instance.save()
+
+            return instance

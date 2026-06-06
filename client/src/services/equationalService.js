@@ -152,18 +152,6 @@ const clearProof = async () => {
   }
 };
 
-const discardProof = async () => {
-  try {
-    const response = await axiosInstance.post(
-      `${API_GATEWAY}/discard-proof`
-    );
-    return response.data;
-  } catch (error) {
-    handleServiceError(error, "Error during proof discard:");
-    throw error;
-  }
-};
-
 const saveProof = async (proof) => {
   try {
     const response = await axiosInstance.post(
@@ -281,7 +269,6 @@ const equationalService = {
   getRacketProofs,
   getRacketProof,
   clearProof,
-  discardProof,
   saveProof,
   deleteRacketProof,
   setParameters,

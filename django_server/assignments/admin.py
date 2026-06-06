@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Assignment, Course, AssignmentProof, StudentProofMapping, CourseInvitation
+from .models import Assignment, Course, AssignmentProof, StudentProofMapping, CourseInvitation, AssignmentShareRequest
 import csv
 from django.http import HttpResponse
 
@@ -114,7 +114,6 @@ class StudentProofMappingAdmin(admin.ModelAdmin):
 
 
 class CourseInvitationAdmin(admin.ModelAdmin):
-    """ ADDED: Managing user course invitation logs directly """
     list_display = ('course', 'student', 'status', 'sent_at', 'updated_at')
     search_fields = ('course__name', 'student__username', 'student__email')
     list_filter = ('status', 'course')
@@ -127,9 +126,21 @@ class CourseInvitationAdmin(admin.ModelAdmin):
     ordering = ('-sent_at',)
 
 
+class AssignmentShareRequestAdmin(admin.ModelAdmin):
+    list_display = ('sender', 'source_course', 'target_course', 'staged_assignment', 'status')
+    search_fields = ('staged_assignment__title', 'sender__username', 'sender__email', 'target_course__name')
+    list_filter = ('status', 'sender', 'target_course')
+    actions = [export_to_csv]
+
+    fieldsets = (
+        (None, {"fields": ("sender", "source_course", "target_course", "staged_assignment", "status")}),
+    )
+    ordering = ('-id',)
+
 # --- Registration ---
 
 admin.site.register(Assignment, AssignmentAdmin)
 admin.site.register(Course, CourseAdmin)
 admin.site.register(StudentProofMapping, StudentProofMappingAdmin)
-admin.site.register(CourseInvitation, CourseInvitationAdmin) # Registered new mapping
+admin.site.register(CourseInvitation, CourseInvitationAdmin)
+admin.site.register(AssignmentShareRequest, AssignmentShareRequestAdmin)

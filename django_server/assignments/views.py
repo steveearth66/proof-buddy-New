@@ -1,5 +1,5 @@
-from .models import Assignment, StudentProofMapping, Course, CourseInvitation
-from .serializers import AssignmentSerializer, CourseSerializer, StudentViewCourseSerializer, CreateCourseSerializer, CreateAssignmentSerializer, CourseInvitationSerializer
+from .models import Assignment, StudentProofMapping, Course, CourseInvitation, AssignmentShareRequest
+from .serializers import AssignmentSerializer, CourseSerializer, StudentViewCourseSerializer, CreateCourseSerializer, CreateAssignmentSerializer, CourseInvitationSerializer, AssignmentShareCreateSerializer, AssignmentShareResponseSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -14,6 +14,7 @@ from equational_reasoning_api.models import EquationalProof
 from induction_api.models import InductionProof
 from django.shortcuts import get_object_or_404
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q
 
 User = get_user_model()
 
@@ -179,7 +180,9 @@ class AssignmentViewSet(APIView):
         if not (user.is_instructor and course.instructor == user) and user not in course.students.all() and not user.is_superuser:
             return Response({"message": "You are not authorized to view any assignments for this course."}, status=status.HTTP_403_FORBIDDEN)
 
-        assignments = Assignment.objects.filter(course=course)
+        assignments = Assignment.objects.filter(course=course).exclude(
+            share_request__status__in=['pending', 'rejected']
+        )
         serializer = AssignmentSerializer(assignments, many=True, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -508,17 +511,11 @@ def start_assignment_proof(request, assignment_id):
     ).first()
 
     if existing_mapping:
-        # Return the existing clone only if it is still active (not deleted by the student).
-        # If the student deleted their copy, fall through to create a fresh clone below.
-        active_proof = ProofModel.objects.filter(
-            id=existing_mapping.object_id, is_active=True
-        ).first()
-        if active_proof:
-            return Response({
-                "success": True,
-                "new_proof_id": existing_mapping.object_id,
-                "type": proof_type
-            }, status=status.HTTP_200_OK)
+        return Response({
+            "success": True, 
+            "new_proof_id": existing_mapping.object_id,
+            "type": proof_type
+        }, status=status.HTTP_200_OK)
 
     # 3. DEEP CLONE THE PROOF
     try:
@@ -553,19 +550,14 @@ def start_assignment_proof(request, assignment_id):
     except ProofModel.DoesNotExist:
         return Response({"message": "Template proof not found."}, status=status.HTTP_404_NOT_FOUND)
 
-    # 4. Save (or update) the mapping linking the assignment, student, and the new clone.
-    # If the student previously deleted their copy, update the mapping to point to the fresh clone.
-    if existing_mapping:
-        existing_mapping.object_id = cloned_proof.id
-        existing_mapping.save()
-    else:
-        StudentProofMapping.objects.create(
-            assignment=assignment,
-            student=request.user,
-            template_proof_id=template_proof_id,
-            content_type=content_type,
-            object_id=cloned_proof.id
-        )
+    # 4. Save the mapping linking the assignment, student, and the new clone
+    StudentProofMapping.objects.create(
+        assignment=assignment,
+        student=request.user,
+        template_proof_id=template_proof_id,
+        content_type=content_type,
+        object_id=cloned_proof.id
+    )
 
     return Response({
         "success": True, 
@@ -719,3 +711,139 @@ class StudentInvitationView(APIView):
 
         return Response({"error": "Invalid action."}, status=status.HTTP_400_BAD_REQUEST)
     
+class InstructorAssignmentShareView(APIView):
+    """
+    Instructor-facing view to manage, preview, and respond to incoming assignment sharing requests.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        # Read the active course identifier from query parameters: ?course_id=X
+        course_id = request.query_params.get('course_id')
+        if not course_id:
+            return Response({"error": "course_id query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        current_course = get_object_or_404(Course, id=course_id)
+        
+        # Guard clause: Ensure the requesting user actually owns this course container
+        if current_course.instructor != request.user and not request.user.is_superuser:
+            return Response({"message": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
+
+        # 1. Incoming packages targeting THIS course
+        incoming_query = AssignmentShareRequest.objects.filter(
+            target_course=current_course,
+            status='pending'
+        ).select_related('sender', 'staged_assignment')
+
+        # 2. Outgoing tracking sent out FROM this course environment
+        sent_query = AssignmentShareRequest.objects.filter(
+            source_course=current_course
+        ).select_related('target_course__instructor', 'staged_assignment')
+
+        # Format incoming requests array
+        incoming_data = [{
+            "share_request_id": item.id,
+            "sender_username": item.sender.username,
+            "status": item.status,
+            "assignment": {
+                "title": item.staged_assignment.title,
+                "description": item.staged_assignment.description,
+                "proofs": [{
+                    "id": p.object_id,
+                    "name": getattr(p.proof_object, 'name', 'Proof'),
+                    "type": p.content_type.model
+                } for p in item.staged_assignment.proof_items.all()]
+            }
+        } for item in incoming_query]
+
+        # Format outgoing sent requests tracking array
+        sent_data = [{
+            "share_request_id": item.id,
+            "target_course_name": item.target_course.name,
+            "recipient_instructor": item.target_course.instructor.username,
+            "status": item.status,
+            "assignment_title": item.staged_assignment.title
+        } for item in sent_query]
+
+        # Pre-split response structure
+        return Response({
+            "incoming": incoming_data,
+            "sent": sent_data
+        }, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        share_request_id = request.data.get('share_request_id')
+
+        # --- Sub-path A: Create a share request (Sender) ---
+        if not share_request_id:
+            serializer = AssignmentShareCreateSerializer(data=request.data, context={'request': request})
+            if serializer.is_valid():
+                serializer.save()
+                return Response({"message": "Assignment share request sent."}, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # --- Sub-path B: Accept/Reject an incoming share (Recipient) ---
+        # only the recipient can respond
+        share_request = get_object_or_404(
+            AssignmentShareRequest, 
+            id=share_request_id, 
+            target_course__instructor=request.user
+        )
+
+        serializer = AssignmentShareResponseSerializer(instance=share_request, data=request.data, context={'request': request})
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": f"Successfully executed share request modification."}, status=status.HTTP_200_OK)
+            
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request):
+        """
+        Allows the original sender to revoke or dismiss a share request tracking block.
+        """
+        share_request_id = request.data.get('share_request_id')
+        share_request = get_object_or_404(AssignmentShareRequest, id=share_request_id, sender=request.user)
+        
+        if share_request.status == 'accepted':
+            # Delete the tracking request row wrapper ONLY. Do NOT touch the assignment.
+            share_request.delete()
+            return Response({"message": "Share notification dismissed successfully."}, status=status.HTTP_200_OK)
+        
+        else:
+            # Deleting the core staged assignment automatically drops the request row via CASCADE rules.
+            if share_request.staged_assignment:
+                share_request.staged_assignment.delete()
+                
+            return Response({"message": "Share request successfully canceled and cleared."}, status=status.HTTP_200_OK)
+
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAuthenticated])
+def get_share_targets(request):
+    """
+    Returns a minimal tree of all other instructors and their courses 
+    for quick selection inside the sharing modal.
+    """
+    if not (request.user.is_instructor or request.user.is_superuser):
+        return Response({"message": "Only instructors can view share targets."}, status=status.HTTP_403_FORBIDDEN)
+
+    instructors = User.objects.filter(
+        is_instructor=True,
+        course_instructor__isnull=False
+    ).exclude(id=request.user.id).prefetch_related('course_instructor').distinct()
+
+    payload = []
+    for instructor in instructors:
+        payload.append({
+            "id": instructor.id,
+            "displayName": instructor.username,
+            "courses": [
+                {
+                    "id": course.id,
+                    "displayLabel": f"{course.name} ({course.term})"
+                }
+                for course in instructor.course_instructor.all()
+            ]
+        })
+
+    return Response(payload, status=status.HTTP_200_OK)

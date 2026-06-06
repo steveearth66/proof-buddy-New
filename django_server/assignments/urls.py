@@ -16,5 +16,7 @@ urlpatterns = [
     path('assignments/<int:assignment_id>/start-assignment-proof', views.start_assignment_proof, name='start-assignment-proof'),
     path('assignments/<int:assignment_id>/progress', views.AssignmentProgressMatrixView.as_view(), name='assignment-progress'),
     path('courses/<int:course_id>/invitations', views.CourseInvitationView.as_view(), name='course-invitations'),
-    path('invitations/me', views.StudentInvitationView.as_view(), name='student-invitations')
+    path('invitations/me', views.StudentInvitationView.as_view(), name='student-invitations'),
+    path("assignments/shares", views.InstructorAssignmentShareView.as_view(), name='instructor-shares'),
+    path("instructors/share-targets", views.get_share_targets)
 ]

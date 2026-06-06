@@ -98,6 +98,7 @@ class AssignmentProof(models.Model):
     )
     
     object_id = models.PositiveIntegerField()
+    original_proof_id = models.PositiveIntegerField(null=True, blank=True)
     
     proof_object = GenericForeignKey('content_type', 'object_id')
 
@@ -170,7 +171,50 @@ class CourseInvitation(models.Model):
 
     def __str__(self):
         return f"Invite: {self.course.name} -> {self.student.username} ({self.status})"
+    
 
+class AssignmentShareRequest(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('accepted', 'Accepted'),
+        ('rejected', 'Rejected'),
+    ]
+
+    sender = models.ForeignKey(
+        "accounts.Account", 
+        on_delete=models.CASCADE, 
+        related_name="sent_assignment_shares",
+        limit_choices_to={"is_instructor": True}
+    )
+    source_course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name="sent_shares_history"
+    )
+    target_course = models.ForeignKey(
+        Course, 
+        on_delete=models.CASCADE, 
+        related_name="incoming_assignment_shares"
+    )
+    staged_assignment = models.OneToOneField(
+        Assignment, 
+        on_delete=models.CASCADE, 
+        related_name="share_request"
+    )
+    status = models.CharField(
+        max_length=10, 
+        choices=STATUS_CHOICES, 
+        default='pending'
+    )
+    sent_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('source_course', 'target_course', 'staged_assignment')
+
+    def __str__(self):
+        return f"Share Request: {self.staged_assignment.title} -> {self.target_course.name} ({self.status})"
+    
 
 # Sends emails for assignments and submissions, leave commented out for now to prevent issues when deployed
 # @receiver(post_save, sender=Assignment)

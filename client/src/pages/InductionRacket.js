@@ -727,7 +727,7 @@ const InductionRacket = () => {
     }
 
     try {
-      await inductionService.clearInduction();
+      await inductionService.deleteInductionProof(proofParams.proof_id);
       
       // Clear sessionStorage flag so we don't restore from DB on reload
       sessionStorage.removeItem('inductionProofActive');
@@ -2015,8 +2015,7 @@ const InductionRacket = () => {
     handleRowNumberClick,
     leftPremise,
     rightPremise,
-    caseType,
-    currentUserType
+    caseType
   }) {
     const isLHS = side === "LHS";
     // Since array index now equals database line_number, use index directly as padIndex
@@ -2105,7 +2104,7 @@ const InductionRacket = () => {
             ruleValidationError={ruleValidationError}
             isEditRow={false}
             showEyeButtons={true}
-            currentUserType={currentUserType}
+            currentUserType={isReviewMode ? proofOwner : currentUserType}
             hideExpression={hideExpression}
             hideJustification={hideJustification}
             onRuleHiddenToggle={() => handleRuleHiddenToggle(side, index)}
@@ -2456,18 +2455,20 @@ const InductionRacket = () => {
                                   >
                                     New Proof
                                   </Dropdown.Item>
-                                  <Dropdown.Item 
-                                    onClick={handleClearProof} 
-                                    href="#" 
-                                    disabled={!proofStarted}
-                                    style={{ 
-                                      color: proofStarted ? 'red' : '#999', 
-                                      opacity: proofStarted ? 1 : 0.4,
-                                      cursor: proofStarted ? 'pointer' : 'not-allowed'
-                                    }}
-                                  >
-                                    Discard Proof
-                                  </Dropdown.Item>
+                                  {!isReviewMode && (
+                                    <Dropdown.Item 
+                                      onClick={handleClearProof} 
+                                      href="#" 
+                                      disabled={!proofStarted}
+                                      style={{ 
+                                        color: proofStarted ? 'red' : '#999', 
+                                        opacity: proofStarted ? 1 : 0.4,
+                                        cursor: proofStarted ? 'pointer' : 'not-allowed'
+                                      }}
+                                    >
+                                      Discard Proof
+                                    </Dropdown.Item>
+                                  )}
                                   <Dropdown.Item
                                     onClick={handleDownloadProof}
                                     href="#"
@@ -2991,8 +2992,7 @@ const InductionRacket = () => {
                       handleRowNumberClick,
                       leftPremise,
                       rightPremise,
-                      caseType: indCaseKey,
-                      currentUserType: isReviewMode ? proofOwner : !currentUserType
+                      caseType: indCaseKey
                     });
                   })}
                   {showContinue(playState, indCaseKey, showSide, indLastReal) && (

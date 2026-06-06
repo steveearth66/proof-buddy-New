@@ -150,7 +150,7 @@ function AddStudent({ students, setStudents }) {
               key='top'
               placement='top'
               overlay={
-                <Tooltip id='tooltip-top'>
+                <Tooltip style={{ position:"fixed" }} id='tooltip-top'>
                   Click to remove student
                 </Tooltip>
               }
