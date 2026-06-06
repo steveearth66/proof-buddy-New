@@ -1156,53 +1156,6 @@ const handleRuleKeyDown = (e) => {
       }
       setFooterRuleError('');
 
-      // special validation for premise 
-      // if (userRow.num === "000") {
-      //   const premiseRacket = showSide === "LHS"? leftPremise.racket :rightPremise.racket;
-
-      //   if (ruleFromFooter.trim().toLowerCase() !== "premise") {
-      //     toast.error("Invalid rule for premise line");
-      //     isProcessingRef.current = false;
-      //     return;
-      //   }
-
-      //   if (expressionFromFooter.trim() !== premiseRacket.trim()) {
-      //     toast.error("Incorrect expression for premise line");
-      //     isProcessingRef.current = false;
-      //     return;
-      //   }
-
-      //   toast.success("Correct!");
-
-      //   // save to DB
-      //   await equationalService.toggleVisibilityPremise({
-      //     side: showSide,
-      //     lineNumber: 0,
-      //     field: 'expression',
-      //     setting_visibility: false
-      //   });
-      //   await equationalService.toggleVisibilityPremise({
-      //     side: showSide,
-      //     lineNumber: 0,
-      //     field: 'justification',
-      //     setting_visibility: false
-      //   });
-
-      //   // Update premise lines state to reflect immediately without waiting for refresh
-      //   setRacketRuleFields(prev => ({
-      //     ...prev,
-      //     [showSide]: prev[showSide].map((field, idx) =>
-      //       idx === 0
-      //         ? { ...field, hide_expression: false, hide_justification: false }
-      //         : field
-      //     )
-      //   }));
-
-      //   unbindFooter();
-      //   isProcessingRef.current = false;
-      //   return;
-      // }
-
       // If user typed "rewrite math" or "rewrite logic", open Substitution modal with rule pre-filled
       if (ruleFromFooter.trim().toLowerCase() === 'rewrite math' || ruleFromFooter.trim().toLowerCase() === 'rewrite logic') {
         updateShowSubstitution();
@@ -1533,44 +1486,6 @@ const handleRuleKeyDown = (e) => {
       document.removeEventListener("keydown", handleGlobalKeyDown);
     };
   }, [isBound, userRow.num, showSide, lhsPadRefs, rhsPadRefs]);
-
-  useEffect(() => {
-    if (!proofStarted) return;
-
-    const sides = ['LHS', 'RHS'];
-    const shouldHide = !proofParams.support_premise;
-
-    sides.forEach(async (side) => {
-      try {
-        await equationalService.toggleVisibilityPremise({
-          side,
-          lineNumber: 0,
-          field: 'expression',
-          setting_visibility: shouldHide
-        });
-        await equationalService.toggleVisibilityPremise({
-          side,
-          lineNumber: 0,
-          field: 'justification',
-          setting_visibility: shouldHide
-        });
-
-        setRacketRuleFields(prev => {
-          const updated = {
-            ...prev,
-            [side]: prev[side].map((field, idx) => 
-              idx === 0
-                ? { ...field, hide_expression: shouldHide, hide_justification: shouldHide }
-                : field)
-          };
-          return updated;
-        });
-
-      } catch (error) {
-        toast.error(`Failed to update update premise ${side} visibility`);
-      }
-    });
-  }, [proofParams.support_premise, proofStarted, racketRuleFields?.LHS?.length, racketRuleFields?.RHS?.length]);
 
   const handleSubstitution = useCallback(
     async ({ substitution, rule }) => {

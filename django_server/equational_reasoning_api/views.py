@@ -464,6 +464,7 @@ def apply_rule(request):
         rule = data.get("rule")
         start_position = data.get("startPosition", 0)
         selected_node = data.get("selectedNode")
+        print("selected node:", selected_node)
         substitution = data.get("substitution")
         line_number = data.get("lineNumber")
         support_rewrite_complexity = data.get("supportRewriteComplexity", True)
@@ -1151,7 +1152,7 @@ def validate_hidden_field(request):
         line_number = request.data.get('lineNumber')
         student_expression = request.data.get('studentExpression')
         student_rule = request.data.get('studentRule')
-        student_selected = request.data.get('studentSelectedNode')
+        student_selected = request.data.get('studentSelectedNode') 
         
         if not side or line_number is None:
             return Response({"error": "Missing parameters."}, status=status.HTTP_400_BAD_REQUEST)
@@ -1168,6 +1169,7 @@ def validate_hidden_field(request):
         
         errors = []
         changed = False
+        is_correct = False
         
         # 4. Logic: Master Key Validation (Rule + Selection)
         if student_rule is not None:
@@ -1184,10 +1186,12 @@ def validate_hidden_field(request):
                 if line.hide_justification:
                     line.hide_justification = False
                     changed = True
+                if line.hide_expression:
+                    line.hide_expression = False
+                    changed = True
+                is_correct = True
             elif not rule_text_match:
                 errors.append("Rule does not match.")
-        else:
-            errors.append("You must provide a rule.")
         
         # 5. Logic: Expression Tree Match
         if student_expression is not None and student_expression.strip() != "":
@@ -1209,6 +1213,7 @@ def validate_hidden_field(request):
                     if student_tree == line.json_tree:
                         line.hide_expression = False
                         changed = True
+                        is_correct = True
                     else:
                         errors.append("Expression does not match.")
                 else:
@@ -1218,14 +1223,14 @@ def validate_hidden_field(request):
         else:
             errors.append("You must provide an expression.")
 
-        if not errors and changed:
+        if changed:
             line.save()
         
         # Determine success message
-        message = "Correct!" if not errors else None
+        message = "Correct!" if is_correct and not errors else None
         
         return Response({
-            "isValid": not errors,
+            "isValid": is_correct,
             "errors": errors,
             "hide_expression": line.hide_expression,
             "hide_justification": line.hide_justification,

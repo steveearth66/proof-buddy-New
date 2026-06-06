@@ -560,7 +560,7 @@ const InductionRacket = () => {
         if (line0) {
             return {
                 racket: line0.racket,
-                rule: 'Premise',
+                rule: line0.rule || 'Premise',
                 startPosition: 0,
                 selectedNode: line0.selectedNode || 0,
                 jsonTree: line0.jsonTree || {}
@@ -865,55 +865,6 @@ const InductionRacket = () => {
       // Clear validation error if rule is valid
       setFooterRuleError('');
 
-      // special validation for premise
-      // if (userRow === "000") {
-      //   const premiseRacket = showSide === "LHS" ? leftPremise.racket : rightPremise.racket;
-
-      //   if (ruleFromFooter.trim().toLowerCase() !== "premise") {
-      //     toast.error("Invalid rule for premise line");
-      //     isProcessingRef.current = false;
-      //     return;
-      //   }
-
-      //   if (expressionFromFooter.trim() !== premiseRacket.trim()) {
-      //     toast.error("Incorrect expression for premise line");
-      //     isProcessingRef.current = false;
-      //     return;
-      //   }
-
-      //   toast.success("Correct!");
-        
-      //   // save to DB
-      //   await inductionService.toggleVisibilityPremise({
-      //     side: showSide,
-      //     case: isAnchor ? 'base' : 'leap',
-      //     lineNumber: 0,
-      //     field: 'justification',
-      //     setting_visibility: false
-      //   })
-      //   await inductionService.toggleVisibilityPremise({
-      //     side: showSide,
-      //     case: isAnchor ? 'base' : 'leap',
-      //     lineNumber: 0,
-      //     field: 'justification',
-      //     setting_visibility: false
-      //   })
-
-      //   // update premise lines state to reflect immediately without waiting for refresh
-      //   setRacketRuleFields(prev => ({
-      //     ...prev,
-      //     [showSide]: prev[showSide].map((field, idx) =>
-      //       idx === 0
-      //         ? { ...field, hide_expression: false, hide_justification: false }  
-      //         : field
-      //     )
-      //   }));
-
-      //   unbindFooter();
-      //   isProcessingRef.current = false;
-      //   return;
-      // }
-
       // If user typed "rewrite math" or "rewrite logic", open Substitution modal with rule pre-filled
       if (ruleFromFooter.trim().toLowerCase() === 'rewrite math' || ruleFromFooter.trim().toLowerCase() === 'rewrite logic') {
         updateShowSubstitution();
@@ -934,6 +885,7 @@ const InductionRacket = () => {
                 studentExpression: expressionFromFooter, // Sending the Expression
                 studentSelectedNode: studentSelectedNode // Sending the Selection
               };
+              console.log("validation payload:", validationPayload);
       
               try {
                 const validationResult = await inductionService.validateHiddenField(validationPayload);
@@ -1418,53 +1370,6 @@ const InductionRacket = () => {
       document.removeEventListener("keydown", handleGlobalKeyDown);
     };
   }, [isBound, userRow.num, showSide, lhsPadRefs, rhsPadRefs]);
-
-  useEffect(() => {
-    console.log("Effect triggered — support_premise:", proofParams.support_premise, "proofStarted:", proofStarted, "LHS length:", racketRuleFields?.LHS?.length);
-    if(!proofStarted) return;
-    if (!racketRuleFields?.LHS?.length || !racketRuleFields?.RHS?.length) return;
-
-    console.log("LHS fields:", racketRuleFields.LHS);  
-    console.log("RHS fields:", racketRuleFields.RHS);  
-
-    const sides = ['LHS', 'RHS'];
-    const shouldHide = !proofParams.support_premise;
-
-    sides.forEach(async (side) => {
-      try {
-        await inductionService.toggleVisibilityPremise({
-          side,
-          case: isAnchor ? 'base' : 'leap',
-          lineNumber: 0,
-          field: 'expression',
-          setting_visibility: shouldHide
-          
-        });
-        await inductionService.toggleVisibilityPremise({
-          side,
-          case: isAnchor ? 'base' : 'leap',
-          lineNumber: 0,
-          field: 'justification',
-          setting_visibility: shouldHide
-        });
-
-        setRacketRuleFields(prev => {
-          const updated = {
-            ...prev,
-            [side]: prev[side].map((field, idx) => 
-              idx === 0
-                ? { ...field, hide_expression: shouldHide, hide_justification: shouldHide }
-                : field)
-          };
-          return updated;
-        });
-      } catch (error) {
-        console.error("Toast error:", error);
-        console.log("side:", side, "shouldHide:", shouldHide, "proofParams:", proofParams);
-        toast.error(`Failed to update premise ${side} visibility`);
-      }
-    });
-  }, [proofParams.support_premise, proofStarted]);
 
   // Clear inductive hypotheses when switching to high support
   useEffect(() => {
