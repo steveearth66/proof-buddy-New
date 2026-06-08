@@ -275,6 +275,19 @@ const toggleVisibility = async (data) => {
   }
 };
 
+const toggleVisibilityPremise = async (data) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/toggle-visibility-premise`,
+      data
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error toggling visibility for premise:");
+    throw error;
+  }
+};
+
 const saveComment = async (data) => {
   try {
     const response = await axiosInstance.post(
@@ -343,6 +356,7 @@ const inductionService = {
   validateHiddenField,
   validateHiddenDefinition,
   toggleVisibility,
+  toggleVisibilityPremise,
   saveComment,
   getComments,
   getCommentStatus

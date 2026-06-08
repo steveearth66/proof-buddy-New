@@ -449,11 +449,11 @@ const InductionRacket = () => {
     setUserRow({ num: paddedRowNum });
     setIsBound(true);
 
+    // Array index now equals line number, so use userIndex directly
+    const field = (racketRuleFields?.[showSide] || [])[userIndex];
+
     // Set footer rule initially to what the field has
-    if (paddedRowNum !== "000") {
-      // Array index now equals line number, so use userIndex directly
-      const field = (racketRuleFields?.[showSide] || [])[userIndex];
-      
+    if (paddedRowNum !== "000") {     
       // Only set the rule if it's NOT hidden
       if (field?.hide_justification) {
         setFooterRule("");  // Keep it blank if hidden
@@ -461,7 +461,11 @@ const InductionRacket = () => {
         setFooterRule(field?.rule || "");
       }
     } else {
-      setFooterRule("Premise");
+        if (field?.hide_justification) {
+          setFooterRule("");
+        } else {
+          setFooterRule("Premise");
+        }
     }
 
     setTimeout(() => {
@@ -556,7 +560,7 @@ const InductionRacket = () => {
         if (line0) {
             return {
                 racket: line0.racket,
-                rule: 'Premise',
+                rule: line0.rule || 'Premise',
                 startPosition: 0,
                 selectedNode: line0.selectedNode || 0,
                 jsonTree: line0.jsonTree || {}
@@ -820,14 +824,14 @@ const InductionRacket = () => {
 
       if (isBound) {
         const userIndex = getPadIndex(userRow.num);
-        ruleFromFooter = userRow.num === "000" ? "Premise" : footerRule;
+        ruleFromFooter = (userRow.num === "000" && proofParams.support_premise) ? "Premise" : footerRule;
 
         // --- FOOTER EXPRESSION REFERENCE ---
         if (footerPadRef.current) {
             expressionFromFooter = footerPadRef.current.getEquationValue() || "";
         }
 
-        if (userRow.num !== "000") {
+        // if (userRow.num !== "000") {
           const previousRowIndex = userIndex - 1;
           const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
 
@@ -848,7 +852,7 @@ const InductionRacket = () => {
           }
           studentSelectedNode = previousStartPosition;
           currentIndex = userIndex; // index in array now equals line number
-        }
+        // }
       }
 
       // Validate rule is entered
@@ -881,6 +885,7 @@ const InductionRacket = () => {
                 studentExpression: expressionFromFooter, // Sending the Expression
                 studentSelectedNode: studentSelectedNode // Sending the Selection
               };
+              console.log("validation payload:", validationPayload);
       
               try {
                 const validationResult = await inductionService.validateHiddenField(validationPayload);
@@ -2140,7 +2145,7 @@ const InductionRacket = () => {
       return null;
     }
 
-    if (userRow.num === "000") {
+    if (userRow.num === "000" && proofParams.support_premise) {
       const equation = showSide === "LHS" ? leftPremise?.racket : rightPremise?.racket;
       
       if (!equation) {
@@ -2165,7 +2170,7 @@ const InductionRacket = () => {
           isRuleReadOnly={true}
           rulePlaceholder="Rule"
           isEditRow={true}
-          currentUserType={currentUserType}
+          currentUserType={isReviewMode ? proofOwner : currentUserType}
           hideExpression={isExpressionHidden}
         />
       );
@@ -2209,7 +2214,7 @@ const InductionRacket = () => {
           isRuleInvalid={!!footerRuleError}
           ruleValidationError={footerRuleError}
           isEditRow={true}
-          currentUserType={currentUserType}
+          currentUserType={isReviewMode ? proofOwner : currentUserType}
           hideExpression={isExpressionHidden}
         />
       );
@@ -2238,7 +2243,17 @@ const InductionRacket = () => {
 
   const handleRuleHiddenToggle = async (side, index) => {
     try {
-      const result = await inductionService.toggleVisibility({
+      const isPremiseLine = !proofParams.support_premise && index === 0;
+
+      const result = isPremiseLine
+        ? await inductionService.toggleVisibilityPremise({
+        side: side,
+        case: isAnchor ? 'base' : 'leap',
+        lineNumber: index,
+        field: 'justification',
+        setting_visibility: !racketRuleFields[side][index].hide_justification
+      })
+      : await inductionService.toggleVisibility({
         side: side,
         case: isAnchor ? 'base' : 'leap',
         lineNumber: index,
@@ -2253,7 +2268,7 @@ const InductionRacket = () => {
           idx === index ? { ...field, hide_justification: actualStatus } : field
         )
       }));
-
+  
       return actualStatus; 
 
     } catch (error) {

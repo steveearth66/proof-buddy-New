@@ -786,11 +786,11 @@ const EquationalReasoningNew = () => {
     setUserRow({ num: paddedRowNum });
     setIsBound(true);
 
+    // Array index now equals line number, so use userIndex directly
+    const field = (racketRuleFields?.[showSide] || [])[userIndex];
+    
     // Set footer rule initially to what the field has
-    if (paddedRowNum !== "000") {
-      // Array index now equals line number, so use userIndex directly
-      const field = (racketRuleFields?.[showSide] || [])[userIndex];
-      
+    if (paddedRowNum !== "000") {      
       // Only set the rule if it's NOT hidden
       if (field?.hide_justification) {
         setFooterRule("");  // Keep it blank if hidden
@@ -798,7 +798,11 @@ const EquationalReasoningNew = () => {
         setFooterRule(field?.rule || "");
       }
     } else {
-      setFooterRule("Premise");
+      if (field?.hide_justification) {
+        setFooterRule("");
+      } else {
+         setFooterRule("Premise");
+      }
     }
 
     setTimeout(() => {
@@ -1118,14 +1122,14 @@ const handleRuleKeyDown = (e) => {
 
       if (isBound) {
         const userIndex = getPadIndex(userRow.num);
-        ruleFromFooter = userRow.num === "000" ? "Premise" : footerRule;
+        ruleFromFooter = (userRow.num === "000" && proofParams.support_premise) ? "Premise" : footerRule;
 
         // --- FOOTER EXPRESSION REFERENCE ---
         if (footerPadRef.current) {
             expressionFromFooter = footerPadRef.current.getEquationValue() || "";
         }
 
-        if (userRow.num !== "000") {
+        // if (userRow.num !== "000") {
           const previousRowIndex = userIndex - 1;
           const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
 
@@ -1143,7 +1147,7 @@ const handleRuleKeyDown = (e) => {
           }
           studentSelectedNode = previousStartPosition;
           currentIndex = userIndex;
-        }
+        // }
       }
 
       if (!ruleFromFooter || ruleFromFooter.trim() === '') {
@@ -1806,12 +1810,12 @@ const handleRuleKeyDown = (e) => {
 
   const renderFooterPad = () => {
     const padIndex = getPadIndex(userRow.num);
-    
+
     if (!userRow.num || userRow.num === "") {
       return null;
     }
 
-    if (userRow.num === "000") {
+    if (userRow.num === "000" && proofParams.support_premise) {
       const equation = showSide === "LHS" ? leftPremise?.racket : rightPremise?.racket;
       
       if (!equation) {
@@ -1836,7 +1840,7 @@ const handleRuleKeyDown = (e) => {
           isRuleReadOnly={true}
           rulePlaceholder="Rule"
           isEditRow={true}
-          currentUserType={isReviewMode ? proofOwner : !currentUserType}
+          currentUserType={isReviewMode ? proofOwner : currentUserType}
           hideExpression={isExpressionHidden}
         />
       );
@@ -1879,7 +1883,7 @@ const handleRuleKeyDown = (e) => {
           isRuleInvalid={!!footerRuleError}
           ruleValidationError={footerRuleError}
           isEditRow={true}
-          currentUserType={isReviewMode ? proofOwner : !currentUserType}
+          currentUserType={isReviewMode ? proofOwner : currentUserType}
           hideExpression={isExpressionHidden}
         />
       );
@@ -1917,11 +1921,20 @@ const handleRuleKeyDown = (e) => {
 
   const handleRuleHiddenToggle = async (side, index) => {
     try {
-      const result = await equationalService.toggleVisibility({
-        side: side,
-        lineNumber: index,
-        field: 'justification'
-      });
+      const isPremiseLine = !proofParams.support_premise && index === 0;
+
+      const result = isPremiseLine
+        ? await equationalService.toggleVisibilityPremise({
+          side: side,
+          lineNumber: index,
+          field: 'justification',
+          setting_visibility: !racketRuleFields[side][index].hide_justification
+        })
+        : await equationalService.toggleVisibility({
+          side: side,
+          lineNumber: index,
+          field: 'justification'
+        });
 
       const actualStatus = result.new_value; 
 
@@ -1933,7 +1946,6 @@ const handleRuleKeyDown = (e) => {
       }));
 
       return actualStatus; 
-
     } catch (error) {
       toast.error("Database update failed.");
       throw error;
@@ -1942,11 +1954,13 @@ const handleRuleKeyDown = (e) => {
 
   const handleExpressionHiddenToggle = async (side, index) => {
     try {
+      const isPremiseLine = !proofParams.support_premise && index === 0;
+
       const response = await equationalService.toggleVisibility({
-        side: side,
-        lineNumber: index,
-        field: 'expression'
-      });
+          side: side,
+          lineNumber: index,
+          field: 'expression'
+        });
 
       const actualValue = response.new_value;
 
