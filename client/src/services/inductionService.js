@@ -307,6 +307,19 @@ const getComments = async (params) => {
   }
 };
 
+const getCommentStatus = async () => {
+  try {
+    const response = await axiosInstance.get(
+      `${API_GATEWAY}/get-comment-status`
+    );
+
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error loading comment status:");
+    throw error;
+  }
+};
+
 const inductionService = {
   startInductionProof,
   newProof,
@@ -331,7 +344,8 @@ const inductionService = {
   validateHiddenDefinition,
   toggleVisibility,
   saveComment,
-  getComments
+  getComments,
+  getCommentStatus
 };
 
 export default inductionService;

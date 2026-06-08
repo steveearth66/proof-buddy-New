@@ -29,4 +29,5 @@ urlpatterns = [
     path("toggle-visibility", views.toggle_visibility, name="toggle_visibility"),
     path("save-comment", views.save_comment, name="save_comment"),
     path("get-comments", views.get_comments, name="get_comments"),
+    path("get-comment-status", views.get_comment_status, name="get_comment_status"),
 ]

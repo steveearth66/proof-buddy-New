@@ -173,7 +173,7 @@ const InductionRacket = () => {
   const [activeSide, setActiveSide] = useState(null);
   const [studentComment, setStudentComment] = useState("");
   const [instructorComment, setInstructorComment] = useState("");
-  const [commentStatus, setCommentStatus] = useState({})
+  const [commentStatus, setCommentStatus] = useState({});
 
   const rulesInProof = useMemo(() => {
     if (!proofStarted) return [];
@@ -1374,6 +1374,15 @@ const InductionRacket = () => {
   }
   }, [proofParams.support_ih]);
 
+  useEffect(() => {
+  const loadComments = async () => {
+    const status = await inductionService.getCommentStatus();
+    setCommentStatus(status);
+  };
+
+  loadComments();
+  }, []);
+
   /**
    * Parse a top-level function application like "(f x y)".
    * Returns { name: 'f', params: ['x','y'] } or null if not a simple paren application.
@@ -2104,24 +2113,20 @@ const InductionRacket = () => {
         </Col>
         <Col xs="auto" className="d-flex align-items-center">
           <Button   
-          variant= "secondary" //{hasComments ? "warning" : "secondary"}
-          onClick={async() => {
-            const data = await inductionService.getComments({
-              side: side,
-              line_number: padIndex
-            });
-
-            setActivePadIndex(padIndex);
-            setActiveSide(side);
-            setStudentComment(data.student || "");
-            setInstructorComment(data.instructor || "");
-
-            //if either a student or instructor comment exists, make button a dif color
-
-            setShowCommentsModal(true);
-          }}
+          variant={
+            commentStatus[`${side}-${padIndex}`]
+              ? "primary"
+              : "secondary"
+          }
+          onClick={() => handleCommentClick(side, padIndex)}
           >
-            <i className="fa-regular fa-message"></i>
+            <i
+              className={
+                commentStatus[`${side}-${padIndex}`]
+                  ? "fa-solid fa-message"
+                  : "fa-regular fa-message"
+              }
+            />
           </Button>
         </Col>
       </Row>
@@ -2282,6 +2287,20 @@ const InductionRacket = () => {
       throw error;
     }
   };
+
+  const handleCommentClick = async (side, padIndex) => {
+    const data = await inductionService.getComments({
+      side: side,
+      line_number: padIndex
+    });
+
+    setActivePadIndex(padIndex);
+    setActiveSide(side);
+    setStudentComment(data.student || "");
+    setInstructorComment(data.instructor || "");
+
+    setShowCommentsModal(true);
+  }
 
   const isReviewMode = useMemo(() => {
     return !!(
@@ -3323,6 +3342,17 @@ const InductionRacket = () => {
             role: "instructor",
             comment: instructorComment
           });
+
+          const key = `${activeSide}-${activePadIndex}`;
+
+          const hasComments =
+            studentComment.trim() !== "" ||
+            instructorComment.trim() !== "";
+
+          setCommentStatus(prev => ({
+            ...prev,
+            [key]: hasComments
+          }));
           
           setShowCommentsModal(false);
         }}

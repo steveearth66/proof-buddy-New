@@ -24,4 +24,5 @@ urlpatterns = [
     path("upload-proof", views.upload_proof, name="upload_proof"),
     path("save-comment", views.save_comment, name="save_comment"),
     path("get-comments", views.get_comments, name="get_comments"),
+    path("get-comment-status", views.get_comment_status, name="get_comment_status"),
 ]

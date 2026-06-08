@@ -243,6 +243,19 @@ const getComments = async (params) => {
   }
 };
 
+const getCommentStatus = async () => {
+  try {
+    const response = await axiosInstance.get(
+      `${API_GATEWAY}/get-comment-status`
+    );
+
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error loading comment status:");
+    throw error;
+  }
+};
+
 const equationalService = {
   setCurrentProof,
   applyRule,
@@ -262,7 +275,8 @@ const equationalService = {
   downloadProof,
   uploadProof,
   saveComment,
-  getComments
+  getComments,
+  getCommentStatus
 };
 
 export default equationalService;
