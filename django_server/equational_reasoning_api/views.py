@@ -464,6 +464,7 @@ def apply_rule(request):
         rule = data.get("rule")
         start_position = data.get("startPosition", 0)
         selected_node = data.get("selectedNode")
+        print("selected node:", selected_node)
         substitution = data.get("substitution")
         line_number = data.get("lineNumber")
         support_rewrite_complexity = data.get("supportRewriteComplexity", True)
@@ -1046,6 +1047,78 @@ def toggle_visibility(request):
         import traceback
         traceback.print_exc()
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def toggle_visibility_premise(request):
+    user = request.user
+    
+    # 1. Get the session object
+    proof_obj, proof_id = get_or_set_equational_obj(user)
+    
+    if not proof_id:
+        return Response({"error": "Session expired or invalid proof ID"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        reload_proof_lines_from_db(proof_obj, proof_id)
+
+        side = request.data.get('side')
+        line_number = request.data.get('lineNumber')
+        field = request.data.get('field') 
+        setting_visibility = request.data.get('setting_visibility')
+        
+        if not side or line_number is None or field not in ['expression', 'justification']:
+            return Response({"error": "Invalid parameters"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # maybe remove? 
+        if setting_visibility is not None and not isinstance(setting_visibility, bool):
+            return Response({"error": "setting_visibility must be boolean"}, status=status.HTTP_400_BAD_REQUEST)
+
+        side = side.upper()
+        target_proof = proof_obj.LHS if side == 'LHS' else proof_obj.RHS
+        
+        # Now this check will pass because proofLines is fully populated
+        if line_number < 0 or line_number >= len(target_proof.proofLines):
+            return Response({
+                "error": f"Line number {line_number} out of bounds. Total lines: {len(target_proof.proofLines)}"
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        line_obj = target_proof.proofLines[line_number]
+        
+        # Toggle attribute in Memory
+        attr_name = 'hide_expression' if field == 'expression' else 'hide_justification'
+        current_val = getattr(line_obj, attr_name, False)
+        new_val = setting_visibility if setting_visibility is not None else not current_val
+        setattr(line_obj, attr_name, new_val)
+
+        # Save updated object to Cache
+        save_equational_obj_to_cache(user, proof_obj, proof_id)
+        
+        # Update Database
+        try:
+            db_line = EquationalProofLine.objects.get(
+                proof_id=proof_id, side=side, line_number=line_number
+            )
+            if field == 'expression':
+                db_line.hide_expression = new_val
+            else:
+                db_line.hide_justification = new_val
+            db_line.save()
+        except EquationalProofLine.DoesNotExist:
+            pass 
+
+        return Response({
+            "success": True,
+            "line_number": line_number,
+            "side": side,
+            "field": field,
+            "new_value": new_val
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 def normalize_whitespace(text):
     """Remove all whitespace for comparison"""
@@ -1094,6 +1167,15 @@ def validate_hidden_field(request):
         except EquationalProofLine.DoesNotExist:
             return Response({"error": "Line not found"}, status=status.HTTP_404_NOT_FOUND)
         
+        try:
+            prev_line = EquationalProofLine.objects.get(
+                proof_id=proof_id, 
+                side=side.upper(), 
+                line_number=(line_number - 1)
+            )
+        except EquationalProofLine.DoesNotExist:
+            prev_line = None
+
         errors = []
         changed = False
         is_correct = False
@@ -1103,8 +1185,8 @@ def validate_hidden_field(request):
             rule_text_match = compare_exact(student_rule, line.rule)
             
             selection_match = True
-            if line.selected_node is not None and student_selected is not None:
-                 if int(student_selected) != int(line.selected_node):
+            if prev_line.selected_node is not None and student_selected is not None:
+                 if int(student_selected) != int(prev_line.selected_node):
                      selection_match = False
                      errors.append("Incorrect selection.")
 
@@ -2048,6 +2130,44 @@ def get_comments(request):
     except Exception as e:
 
         print("GET COMMENTS ERROR:", e)
+
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+@api_view(["GET"])
+def get_comment_status(request):
+
+    try:
+
+        user = request.user
+        _, proof_id = get_or_set_equational_obj(user)
+
+        if proof_id is None:
+            return Response({}, status=status.HTTP_200_OK)
+
+        comments = EquationalProofLineComment.objects.filter(
+            proof_id=proof_id
+        )
+
+        result = {}
+
+        for comment in comments:
+
+            # Ignore blank comments
+            if not comment.comment or comment.comment.strip() == "":
+                continue
+
+            key = f"{comment.side}-{comment.line_number}"
+
+            result[key] = True
+
+        return Response(result, status=status.HTTP_200_OK)
+
+    except Exception as e:
+
+        print(f"GET COMMENT STATUS ERROR: {str(e)}")
 
         return Response(
             {"error": str(e)},

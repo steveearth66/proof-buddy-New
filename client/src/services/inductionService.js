@@ -275,6 +275,19 @@ const toggleVisibility = async (data) => {
   }
 };
 
+const toggleVisibilityPremise = async (data) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/toggle-visibility-premise`,
+      data
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error toggling visibility for premise:");
+    throw error;
+  }
+};
+
 const saveComment = async (data) => {
   try {
     const response = await axiosInstance.post(
@@ -307,6 +320,19 @@ const getComments = async (params) => {
   }
 };
 
+const getCommentStatus = async () => {
+  try {
+    const response = await axiosInstance.get(
+      `${API_GATEWAY}/get-comment-status`
+    );
+
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error loading comment status:");
+    throw error;
+  }
+};
+
 const inductionService = {
   startInductionProof,
   newProof,
@@ -330,8 +356,10 @@ const inductionService = {
   validateHiddenField,
   validateHiddenDefinition,
   toggleVisibility,
+  toggleVisibilityPremise,
   saveComment,
-  getComments
+  getComments,
+  getCommentStatus
 };
 
 export default inductionService;

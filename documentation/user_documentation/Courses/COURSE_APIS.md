@@ -567,9 +567,191 @@ Possible actions are "accept" and "reject" for the student to either accept the 
 }
 ```
 
-## 8. Individual APIs
+## 8. Assignment Share View (`InstructorAssignmentShareView`)
 
-### 8.1 `POST` check_user
+### `GET` /instructor/shares
+
+Gathers active incoming pending share requests and all historic outgoing requests linked to a specific course.
+
+* **Authentication Required:** Yes
+* **Access Scope:** Course Owner or Superuser Only
+
+#### Request Parameters & Body
+
+```json
+{
+    "course_id": 14
+}
+```
+
+#### Expected Responses
+
+* **Success (`200 OK`)**
+
+```json
+{
+    "incoming": [
+        {
+            "share_request_id": 14,
+            "sender_username": "int566",
+            "status": "pending",
+            "assignment": {
+                "title": "Equational Logic HW",
+                "description": "Please solve all problems.",
+                "proofs": [
+                    {
+                        "id": 1,
+                        "name": "Proof 1",
+                        "type": "equationalproof"
+                    }
+                ]
+            }
+        }
+    ],
+    "sent": [
+        {
+            "share_request_id": 15,
+            "target_course_name": "Advanced Discrete Structures",
+            "recipient_instructor": "prof_smith",
+            "status": "pending",
+            "assignment_title": "Induction Basics"
+        }
+    ]
+}
+```
+
+* **Failure (`400 Bad Request`)**
+
+```json
+{
+    "error": "course_id query parameter is required."
+}
+```
+
+* **Failure (`403 Forbidden`)**
+
+```json
+{
+    "message": "Unauthorized"
+}
+```
+
+### `POST` /assignments/shares
+
+Orchestrates multi-tenant assignment sharing workflows. This endpoint dynamically routes between staging an outbound share request (Flow A) or responding to an inbound request row (Flow B).
+
+* **Authentication Required:** Yes
+* **Access Scope:** Instructors and Superusers Only
+
+#### **Flow A:** Dispatch an Assignment Share Request (Sender)
+
+Omit share_request_id from the payload to package and stage an assignment copy out to another course.
+
+#### Request Parameters & Body
+
+```json
+{
+    "source_course_id": 1,
+    "target_course_id": 2,
+    "title": "Shared Assignment 1",
+    "description": "Optional instructions detail",
+    "due_date": "2026-12-15T23:59:59Z",
+    "proofs": [
+        {
+            "id": 1,
+            "type": "equationalproof",
+            "name": "Proof 1"
+        }
+    ]
+}
+```
+
+#### Expected Responses
+
+* **Success (`201 Created`)**
+
+```json
+{
+    "message": "Assignment share request sent."
+}
+```
+
+* **Failure (`400 Bad Request`)**
+
+```json
+{
+    "target_course_id": ["The target course does not exist."]
+}
+```
+
+#### **Flow B:** Process an Incoming Share Request (Recipient)
+
+Provide a valid share_request_id alongside an explicit action option flag (accept or reject) to finalize the lifecycle block.
+
+#### Request Parameters & Body
+
+```json
+{
+    "share_request_id": 14,
+    "action": "accept"
+}
+```
+
+#### Expected Responses
+
+* **Success (`200 OK`)**
+
+```json
+{
+    "message": "Successfully executed share request modification."
+}
+```
+
+* **Failure (`400 Bad Request`)**
+
+```json
+{
+    "action": ["\"invalid_action\" is not a valid choice."]
+}
+```
+
+### `DELETE` /assignments/shares
+
+Allows the original issuing sender account to cleanly rescind a pending request tracking index or securely clear a historic request record.
+
+* **Authentication Required:** Yes
+* **Access Scope:** Original Request Sender Only
+
+#### Request Parameters & Payload
+
+```json
+{
+    "share_request_id": 14
+}
+```
+
+#### Expected Responses
+
+* **Success (`200 OK`)**
+  * Context: Request was already 'accepted'. Deletes the tracking request notification row wrapper ONLY without touching the assignment asset.
+
+  ```json
+  {
+      "message": "Share notification dismissed successfully."
+  }
+  ```
+  
+  * Context: Request was 'pending' or 'rejected'. Deleting the tracking block cascades and completely purges the underlying staged assignment shell.
+
+  ```json
+  {
+      "message": "Share request successfully canceled and cleared."
+  }
+  ```
+
+## 9. Individual APIs
+
+### 9.1 `POST` check_user
 
 Checks if a user exists. This was a legacy api that is now unused.
 
@@ -588,7 +770,7 @@ Checks if a user exists. This was a legacy api that is now unused.
 }
 ```
 
-### 8.2 `POST` remove_student
+### 9.2 `POST` remove_student
 
 Drops a target student directly from a course roster.
 
@@ -635,7 +817,7 @@ or if the user does not exist:
 }
 ```
 
-### 8.3 `POST` add_student
+### 9.3 `POST` add_student
 
 Creates a course invitation or sets an existing invitation back to a pending state.
 
@@ -749,7 +931,7 @@ Creates a course invitation or sets an existing invitation back to a pending sta
 }
 ```
 
-### 8.4 `POST` join_course
+### 9.4 `POST` join_course
 
 Processes immediate enrollment using a matching unexpired join code.
 
@@ -804,7 +986,7 @@ or if the user is already in the course:
 }
 ```
 
-### 8.5 `POST` leave_course
+### 9.5 `POST` leave_course
 
 Allows a student to voluntarily remove themselves from a course roster.
 
@@ -845,7 +1027,7 @@ Allows a student to voluntarily remove themselves from a course roster.
 }
 ```
 
-### 8.6 `POST` start_assignment_proof
+### 9.6 `POST` start_assignment_proof
 
 Creates a copy of an assignment proof for the student to use. Couples the student's new proof with the existing assignment.
 
@@ -897,5 +1079,39 @@ Creates a copy of an assignment proof for the student to use. Couples the studen
 ```json
 {
     "message": "Template proof not found."
+}
+```
+
+### 9.7. `GET` get_share_targets
+
+Returns a structured tree list of all other instructors and their associated courses to populate quick-selection options inside a sharing modal.
+
+* **Authentication Required:** Yes
+* **Access Scope:** Instructors and Superusers Only
+
+#### Expected Responses
+
+* **Success (`200 OK`)**
+
+```json
+[
+    {
+        "id": 5,
+        "displayName": "prof_smith",
+        "courses": [
+            {
+                "id": 12,
+                "displayLabel": "Intro to Logic (Fall 2025)"
+            }
+        ]
+    }
+]
+```
+
+* **Failure (`403 Forbidden`)**
+
+```json
+{
+    "message": "Only instructors can view share targets."
 }
 ```

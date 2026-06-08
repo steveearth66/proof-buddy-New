@@ -91,6 +91,19 @@ const toggleVisibility = async (data) => {
   }
 };
 
+const toggleVisibilityPremise = async (data) => {
+  try {
+    const response = await axiosInstance.post(
+      `${API_GATEWAY}/toggle-visibility-premise`,
+      data
+    );
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error toggling visibility for premise:");
+    throw error;
+  }
+};
+
 const validateHiddenField = async (data) => {
   try {
     const response = await axiosInstance.post(
@@ -243,6 +256,19 @@ const getComments = async (params) => {
   }
 };
 
+const getCommentStatus = async () => {
+  try {
+    const response = await axiosInstance.get(
+      `${API_GATEWAY}/get-comment-status`
+    );
+
+    return response.data;
+  } catch (error) {
+    handleServiceError(error, "Error loading comment status:");
+    throw error;
+  }
+};
+
 const equationalService = {
   setCurrentProof,
   applyRule,
@@ -251,6 +277,7 @@ const equationalService = {
   checkCompletion,
   getProofLines,
   toggleVisibility,
+  toggleVisibilityPremise,
   validateHiddenField,
   validateHiddenDefinition,
   getRacketProofs,
@@ -262,7 +289,8 @@ const equationalService = {
   downloadProof,
   uploadProof,
   saveComment,
-  getComments
+  getComments,
+  getCommentStatus
 };
 
 export default equationalService;

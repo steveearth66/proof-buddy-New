@@ -2231,17 +2231,25 @@ def validate_hidden_field(request):
         except InductionProofLine.DoesNotExist:
             return Response({"error": "Line not found"}, status=status.HTTP_404_NOT_FOUND)
         
+        try:
+            prev_line = InductionProofLine.objects.get(
+                proof_id=proof_id, 
+                side=side.upper(), 
+                line_number=(line_number - 1)
+            )
+        except InductionProofLine.DoesNotExist:
+            prev_line = None
+
         errors = []
         changed = False
-        is_correct = False
         
         # 4. Logic: Master Key Validation (Rule + Selection)
         if student_rule is not None:
             rule_text_match = compare_exact(student_rule, line.rule)
             
             selection_match = True
-            if line.selected_node is not None and student_selected is not None:
-                 if int(student_selected) != int(line.selected_node):
+            if prev_line.selected_node is not None and student_selected is not None:
+                 if int(student_selected) != int(prev_line.selected_node):
                      selection_match = False
                      errors.append("Incorrect selection.")
 
@@ -2249,12 +2257,10 @@ def validate_hidden_field(request):
                 if line.hide_justification:
                     line.hide_justification = False
                     changed = True
-                if line.hide_expression:
-                    line.hide_expression = False
-                    changed = True
-                is_correct = True
             elif not rule_text_match:
                 errors.append("Rule does not match.")
+        else:
+            errors.append("You must provide a rule.")
         
         # 5. Logic: Expression Tree Match (JSON Dictionary Comparison)
         if student_expression is not None and student_expression.strip() != "":
@@ -2276,7 +2282,6 @@ def validate_hidden_field(request):
                     if student_tree == line.json_tree:
                         line.hide_expression = False
                         changed = True
-                        is_correct = True
                     else:
                         errors.append("Expression does not match.")
                 else:
@@ -2286,13 +2291,13 @@ def validate_hidden_field(request):
         else:
             errors.append("You must provide an expression.")
 
-        if changed:
+        if not errors and changed:
             line.save()
         
-        message = "Correct!" if is_correct and not errors else None
+        message = "Correct!" if not errors else None
         
         return Response({
-            "isValid": is_correct,
+            "isValid": not errors,
             "errors": errors,
             "hide_expression": line.hide_expression,
             "hide_justification": line.hide_justification,
@@ -2434,6 +2439,76 @@ def toggle_visibility(request):
         import traceback
         traceback.print_exc()
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def toggle_visibility_premise(request):
+    user = request.user
+    
+    # 1. Get the session object
+    proof_obj, proof_id = get_or_set_induction_obj(user)
+    
+    if not proof_id:
+        return Response({"error": "Session expired or invalid proof ID"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        reload_proof_lines_from_db(proof_obj, proof_id)
+
+        side = request.data.get('side')
+        line_number = request.data.get('lineNumber')
+        field = request.data.get('field') 
+        case = request.data.get('case')
+        setting_visibility = request.data.get('setting_visibility')
+        
+        if not side or line_number is None or field not in ['expression', 'justification'] or not case:
+            return Response({"error": "Invalid parameters"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        side = side.upper()
+        target_case = proof_obj.baseCase if case == 'base' else proof_obj.leapStep
+        target_proof = target_case.LHS if side == 'LHS' else target_case.RHS
+        
+        # Now this check will pass because proofLines is fully populated
+        if line_number < 0 or line_number >= len(target_proof.proofLines):
+            return Response({
+                "error": f"Line number {line_number} out of bounds. Total lines: {len(target_proof.proofLines)}"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        line_obj = target_proof.proofLines[line_number]
+        
+        # Toggle attribute in Memory
+        attr_name = 'hide_expression' if field == 'expression' else 'hide_justification'
+        current_val = getattr(line_obj, attr_name, False)
+        new_val = setting_visibility if setting_visibility is not None else not current_val
+        setattr(line_obj, attr_name, new_val)
+
+        # Save updated object to Cache
+        save_induction_obj_to_cache(user, proof_obj, proof_id)
+        
+        # Update Database
+        try:
+            db_line = InductionProofLine.objects.get(
+                proof_id=proof_id, side=side, line_number=line_number, case=case
+            )
+            if field == 'expression':
+                db_line.hide_expression = new_val
+            else:
+                db_line.hide_justification = new_val
+            db_line.save()
+        except InductionProofLine.DoesNotExist:
+            pass 
+
+        return Response({
+            "success": True,
+            "line_number": line_number,
+            "side": side,
+            "field": field,
+            "new_value": new_val
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(["POST"])
 def save_comment(request):
@@ -2515,6 +2590,44 @@ def get_comments(request):
     except Exception as e:
 
         print("GET COMMENTS ERROR:", e)
+
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+@api_view(["GET"])
+def get_comment_status(request):
+
+    try:
+
+        user = request.user
+        _, proof_id = get_or_set_induction_obj(user)
+
+        if proof_id is None:
+            return Response({}, status=status.HTTP_200_OK)
+
+        comments = InductionProofLineComment.objects.filter(
+            proof_id=proof_id
+        )
+
+        result = {}
+
+        for comment in comments:
+
+            # Ignore blank comments
+            if not comment.comment or comment.comment.strip() == "":
+                continue
+
+            key = f"{comment.side}-{comment.line_number}"
+
+            result[key] = True
+
+        return Response(result, status=status.HTTP_200_OK)
+
+    except Exception as e:
+
+        print(f"GET COMMENT STATUS ERROR: {str(e)}")
 
         return Response(
             {"error": str(e)},

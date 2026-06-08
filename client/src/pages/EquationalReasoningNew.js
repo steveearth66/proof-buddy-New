@@ -407,6 +407,7 @@ const EquationalReasoningNew = () => {
   const [activeSide, setActiveSide] = useState(null);
   const [studentComment, setStudentComment] = useState("");
   const [instructorComment, setInstructorComment] = useState("");
+  const [commentStatus, setCommentStatus] = useState({});
   
   // Separate premises for base and leap cases
   const [leftPremise, setLeftPremise] = useState(INITIAL_PREMISE_STATE);
@@ -785,11 +786,11 @@ const EquationalReasoningNew = () => {
     setUserRow({ num: paddedRowNum });
     setIsBound(true);
 
+    // Array index now equals line number, so use userIndex directly
+    const field = (racketRuleFields?.[showSide] || [])[userIndex];
+    
     // Set footer rule initially to what the field has
-    if (paddedRowNum !== "000") {
-      // Array index now equals line number, so use userIndex directly
-      const field = (racketRuleFields?.[showSide] || [])[userIndex];
-      
+    if (paddedRowNum !== "000") {      
       // Only set the rule if it's NOT hidden
       if (field?.hide_justification) {
         setFooterRule("");  // Keep it blank if hidden
@@ -797,7 +798,11 @@ const EquationalReasoningNew = () => {
         setFooterRule(field?.rule || "");
       }
     } else {
-      setFooterRule("Premise");
+      if (field?.hide_justification) {
+        setFooterRule("");
+      } else {
+         setFooterRule("Premise");
+      }
     }
 
     setTimeout(() => {
@@ -1117,14 +1122,14 @@ const handleRuleKeyDown = (e) => {
 
       if (isBound) {
         const userIndex = getPadIndex(userRow.num);
-        ruleFromFooter = userRow.num === "000" ? "Premise" : footerRule;
+        ruleFromFooter = (userRow.num === "000" && proofParams.support_premise) ? "Premise" : footerRule;
 
         // --- FOOTER EXPRESSION REFERENCE ---
         if (footerPadRef.current) {
             expressionFromFooter = footerPadRef.current.getEquationValue() || "";
         }
 
-        if (userRow.num !== "000") {
+        // if (userRow.num !== "000") {
           const previousRowIndex = userIndex - 1;
           const padRefs = getPadRefs(showSide, lhsPadRefs, rhsPadRefs);
 
@@ -1142,7 +1147,7 @@ const handleRuleKeyDown = (e) => {
           }
           studentSelectedNode = previousStartPosition;
           currentIndex = userIndex;
-        }
+        // }
       }
 
       if (!ruleFromFooter || ruleFromFooter.trim() === '') {
@@ -1407,6 +1412,15 @@ const handleRuleKeyDown = (e) => {
     setRhsHidden(((isReviewMode ? proofOwner?.is_student : !currentUserType?.is_student) && lastRhsLine?.hide_expression) || false);
 
   }, [proofStarted, racketRuleFields, leftPremise, rightPremise, playState]);
+
+  useEffect(() => {
+  const loadComments = async () => {
+    const status = await equationalService.getCommentStatus();
+    setCommentStatus(status);
+  };
+
+  loadComments();
+  }, []);
 
   useEffect(() => {
     // Disabled: Confetti should only show when BOTH base AND leap cases are complete
@@ -1774,22 +1788,20 @@ const handleRuleKeyDown = (e) => {
         </Col>
         <Col xs="auto" className="d-flex align-items-center">
           <Button   
-          variant="secondary"
-          onClick={async() => {
-            const data = await equationalService.getComments({
-              side: side,
-              line_number: padIndex
-            })
-
-            setActivePadIndex(padIndex);
-            setActiveSide(side);
-            
-            setStudentComment(data.student || "");
-            setInstructorComment(data.instructor || "");
-            setShowCommentsModal(true);
-          }}
+          variant={
+            commentStatus[`${side}-${padIndex}`]
+              ? "primary"
+              : "secondary"
+          }
+          onClick={() => handleCommentClick(side, padIndex)}
           >
-            <i className="fa-regular fa-message"></i>
+            <i
+              className={
+                commentStatus[`${side}-${padIndex}`]
+                  ? "fa-solid fa-message"
+                  : "fa-regular fa-message"
+              }
+            />
           </Button>
         </Col>
       </Row>
@@ -1798,12 +1810,12 @@ const handleRuleKeyDown = (e) => {
 
   const renderFooterPad = () => {
     const padIndex = getPadIndex(userRow.num);
-    
+
     if (!userRow.num || userRow.num === "") {
       return null;
     }
 
-    if (userRow.num === "000") {
+    if (userRow.num === "000" && proofParams.support_premise) {
       const equation = showSide === "LHS" ? leftPremise?.racket : rightPremise?.racket;
       
       if (!equation) {
@@ -1828,7 +1840,7 @@ const handleRuleKeyDown = (e) => {
           isRuleReadOnly={true}
           rulePlaceholder="Rule"
           isEditRow={true}
-          currentUserType={isReviewMode ? proofOwner : !currentUserType}
+          currentUserType={isReviewMode ? proofOwner : currentUserType}
           hideExpression={isExpressionHidden}
         />
       );
@@ -1871,7 +1883,7 @@ const handleRuleKeyDown = (e) => {
           isRuleInvalid={!!footerRuleError}
           ruleValidationError={footerRuleError}
           isEditRow={true}
-          currentUserType={isReviewMode ? proofOwner : !currentUserType}
+          currentUserType={isReviewMode ? proofOwner : currentUserType}
           hideExpression={isExpressionHidden}
         />
       );
@@ -1909,11 +1921,20 @@ const handleRuleKeyDown = (e) => {
 
   const handleRuleHiddenToggle = async (side, index) => {
     try {
-      const result = await equationalService.toggleVisibility({
-        side: side,
-        lineNumber: index,
-        field: 'justification'
-      });
+      const isPremiseLine = !proofParams.support_premise && index === 0;
+
+      const result = isPremiseLine
+        ? await equationalService.toggleVisibilityPremise({
+          side: side,
+          lineNumber: index,
+          field: 'justification',
+          setting_visibility: !racketRuleFields[side][index].hide_justification
+        })
+        : await equationalService.toggleVisibility({
+          side: side,
+          lineNumber: index,
+          field: 'justification'
+        });
 
       const actualStatus = result.new_value; 
 
@@ -1925,7 +1946,6 @@ const handleRuleKeyDown = (e) => {
       }));
 
       return actualStatus; 
-
     } catch (error) {
       toast.error("Database update failed.");
       throw error;
@@ -1934,11 +1954,13 @@ const handleRuleKeyDown = (e) => {
 
   const handleExpressionHiddenToggle = async (side, index) => {
     try {
+      const isPremiseLine = !proofParams.support_premise && index === 0;
+
       const response = await equationalService.toggleVisibility({
-        side: side,
-        lineNumber: index,
-        field: 'expression'
-      });
+          side: side,
+          lineNumber: index,
+          field: 'expression'
+        });
 
       const actualValue = response.new_value;
 
@@ -1956,6 +1978,20 @@ const handleRuleKeyDown = (e) => {
       throw error;
     }
   };
+
+  const handleCommentClick = async (side, padIndex) => {
+    const data = await equationalService.getComments({
+      side: side,
+      line_number: padIndex
+    });
+
+    setActivePadIndex(padIndex);
+    setActiveSide(side);
+    setStudentComment(data.student || "");
+    setInstructorComment(data.instructor || "");
+
+    setShowCommentsModal(true);
+  }
     
   return (
     <MainLayout>
@@ -2826,6 +2862,17 @@ const handleRuleKeyDown = (e) => {
                   role: "instructor",
                   comment: instructorComment
                 });
+
+                const key = `${activeSide}-${activePadIndex}`;
+
+                const hasComments =
+                  studentComment.trim() !== "" ||
+                  instructorComment.trim() !== "";
+
+                setCommentStatus(prev => ({
+                  ...prev,
+                  [key]: hasComments
+                }));
 
                 setShowCommentsModal(false);
               }}
