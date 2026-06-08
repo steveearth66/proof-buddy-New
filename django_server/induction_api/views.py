@@ -2291,7 +2291,7 @@ def validate_hidden_field(request):
         else:
             errors.append("You must provide an expression.")
 
-        if changed:
+        if not errors and changed:
             line.save()
         
         message = "Correct!" if not errors else None
