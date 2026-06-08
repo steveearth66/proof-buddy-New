@@ -447,7 +447,7 @@ def join_course(request):
 
     # 2. Hash the incoming code using the exact same method as generation
     input_hash = hashlib.sha256(join_code.encode('utf-8')).hexdigest()
-    print(input_hash)
+    #print(input_hash)
     # 3. Iterate and compare the raw hashes
     for course in potential_courses:
         if course.join_code_hash == input_hash:
