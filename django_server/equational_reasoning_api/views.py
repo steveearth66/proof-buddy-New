@@ -1167,6 +1167,15 @@ def validate_hidden_field(request):
         except EquationalProofLine.DoesNotExist:
             return Response({"error": "Line not found"}, status=status.HTTP_404_NOT_FOUND)
         
+        try:
+            prev_line = EquationalProofLine.objects.get(
+                proof_id=proof_id, 
+                side=side.upper(), 
+                line_number=(line_number - 1)
+            )
+        except EquationalProofLine.DoesNotExist:
+            prev_line = None
+
         errors = []
         changed = False
         is_correct = False
@@ -1176,8 +1185,8 @@ def validate_hidden_field(request):
             rule_text_match = compare_exact(student_rule, line.rule)
             
             selection_match = True
-            if line.selected_node is not None and student_selected is not None:
-                 if int(student_selected) != int(line.selected_node):
+            if prev_line.selected_node is not None and student_selected is not None:
+                 if int(student_selected) != int(prev_line.selected_node):
                      selection_match = False
                      errors.append("Incorrect selection.")
 
