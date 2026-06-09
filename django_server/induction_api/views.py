@@ -2235,6 +2235,7 @@ def validate_hidden_field(request):
             prev_line = InductionProofLine.objects.get(
                 proof_id=proof_id, 
                 side=side.upper(), 
+                case=case,
                 line_number=(line_number - 1)
             )
         except InductionProofLine.DoesNotExist:
