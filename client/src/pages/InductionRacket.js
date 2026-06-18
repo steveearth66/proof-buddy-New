@@ -1380,13 +1380,14 @@ const InductionRacket = () => {
   }, [proofParams.support_ih]);
 
   useEffect(() => {
+  if (!proofStarted) return;
   const loadComments = async () => {
     const status = await inductionService.getCommentStatus();
     setCommentStatus(status);
   };
 
   loadComments();
-  }, []);
+  }, [proofStarted]);
 
   /**
    * Parse a top-level function application like "(f x y)".
