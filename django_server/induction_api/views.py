@@ -2192,21 +2192,59 @@ def compare_exact(student_input, actual_value):
     """
     return normalize_whitespace(student_input) == normalize_whitespace(actual_value)
 
+def normalize_rule_string(rule):
+    """
+    Normalize a rule string for comparison:
+    - Replace Unicode arrows ↦ (U+21A6) and → (U+2192) with '='
+    - Remove optional 'with' keyword
+    - Normalize spaces around '=' and ','
+    - Collapse whitespace
+    """
+    s = (rule or '').replace('\u21a6', '=').replace('\u2192', '=')
+    parts = s.split()
+    if len(parts) >= 3 and parts[2].lower() == 'with':
+        parts.pop(2)
+    s = ' '.join(parts)
+    s = re.sub(r'\s*=\s*', '=', s)
+    s = re.sub(r'\s*,\s*', ', ', s)
+    return s.strip()
+
+def compare_rule(student_input, stored_value, high_support=False):
+    """
+    Compare a student-entered rule string against the stored rule.
+    Handles:
+    - Missing 'with' keyword
+    - Unicode arrow variants (↦ vs → vs =)
+    - HIGH support mode: bare 'apply F' (no params) matches 'apply F with a↦5, b↦0'
+    """
+    norm_student = normalize_rule_string(student_input)
+    norm_stored = normalize_rule_string(stored_value)
+    if norm_student == norm_stored:
+        return True
+    if high_support:
+        student_parts = norm_student.split()
+        stored_parts = norm_stored.split()
+        # Bare name: exactly 2 tokens (e.g. 'apply F') matching first 2 tokens of stored
+        if len(student_parts) == 2 and len(stored_parts) >= 2:
+            if student_parts[0] == stored_parts[0] and student_parts[1] == stored_parts[1]:
+                return True
+    return False
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def validate_hidden_field(request):
     """
     Validate student input against hidden field value.
     Validates Rule + Selection OR Expression via AST JSON tree comparison.
-    """    
+    """
     user = request.user
-    
+
     # 1. Grab the fully populated engine from the cache instead of manually reading it
     proof_obj, proof_id = get_or_set_induction_obj(user)
-    
+
     if not proof_id:
         return Response({"error": "No active proof session found. Please reload."}, status=status.HTTP_400_BAD_REQUEST)
-    
+
     try:
         # 2. Extract Data
         side = request.data.get('side')
@@ -2241,12 +2279,20 @@ def validate_hidden_field(request):
         except InductionProofLine.DoesNotExist:
             prev_line = None
 
+        # Read support_value_mapping for compare_rule HIGH support check
+        _support_value_mapping = False
+        try:
+            _db_ind_proof = InductionProof.objects.get(id=proof_id)
+            _support_value_mapping = bool(_db_ind_proof.support_value_mapping)
+        except InductionProof.DoesNotExist:
+            pass
+
         errors = []
         changed = False
-        
+
         # 4. Logic: Master Key Validation (Rule + Selection)
         if student_rule is not None:
-            rule_text_match = compare_exact(student_rule, line.rule)
+            rule_text_match = compare_rule(student_rule, line.rule, high_support=_support_value_mapping)
             
             selection_match = True
             if prev_line.selected_node is not None and student_selected is not None:
