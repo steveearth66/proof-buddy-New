@@ -1414,13 +1414,14 @@ const handleRuleKeyDown = (e) => {
   }, [proofStarted, racketRuleFields, leftPremise, rightPremise, playState]);
 
   useEffect(() => {
+  if (!proofStarted) return;
   const loadComments = async () => {
     const status = await equationalService.getCommentStatus();
     setCommentStatus(status);
   };
 
   loadComments();
-  }, []);
+  }, [proofStarted]);
 
   useEffect(() => {
     // Disabled: Confetti should only show when BOTH base AND leap cases are complete
