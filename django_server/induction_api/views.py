@@ -45,7 +45,11 @@ def _lookup_lemma(name: str, user):
     from .models import InductionProof as _IndProof
 
     # Check i: does an equational proof with this name exist?
-    eq = _EqProof.objects.filter(name=name, user=user, is_active=True).order_by('-created_at').first()
+    # Also accept assignment copies whose name is "<name> (Assignment Copy)" or "<name> (Assignment Copy) ..."
+    eq = (
+        _EqProof.objects.filter(name=name, user=user, is_active=True).order_by('-created_at').first()
+        or _EqProof.objects.filter(name__startswith=f"{name} (", user=user, is_active=True).order_by('-created_at').first()
+    )
     if eq is not None:
         # Check ii: is it complete?
         if not eq.is_complete:
@@ -53,7 +57,10 @@ def _lookup_lemma(name: str, user):
         return eq.lhs_goal, eq.rhs_goal, None
 
     # Check i: does an induction proof with this name exist?
-    ind = _IndProof.objects.filter(name=name, user=user, is_active=True).order_by('-created_at').first()
+    ind = (
+        _IndProof.objects.filter(name=name, user=user, is_active=True).order_by('-created_at').first()
+        or _IndProof.objects.filter(name__startswith=f"{name} (", user=user, is_active=True).order_by('-created_at').first()
+    )
     if ind is not None:
         # Check ii: is it complete?
         if not ind.is_complete:
