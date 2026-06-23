@@ -192,6 +192,7 @@ Defined in `ERRuleset.py`:
 ### 7.2 The Rule Application Process
 
 1. The rule string from the user is parsed to extract the rule name and optional label (e.g., `"apply length"` or `"eval +"` or `"rewrite IH"`).
+   - For documentation for the use of Lemmas see: [Lemma Documentation](https://github.com/steveearth66/proof-buddy-New/blob/stage/documentation/user_documentation/Lemma/LEMMA.md)
 2. The selected node in the expression tree is located using `startPosition`.
 3. The rule object's `isApplicable()` method checks whether the rule can be applied to the selected node.
 4. If applicable, `insertSubstitution()` computes the replacement subtree.
