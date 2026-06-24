@@ -10,7 +10,10 @@
     ![Highlighted Check Proof Complete button from Proof Utilites dropdown](check_current_proof_dropdown.png)
     ![Proof Complete UI](proof_complete.png)
 4. To apply a lemma, use the "**apply**" keyword followed by the name of the lemma
+    - If you forget the name of a Lemma while in a proof, clicking "All Proof" to see list of all lemma, then go back to where you left off in the proof
     - **For example**: if the lemma is named "consLen" the rule entered should be `apply consLen`
+        - **On High Support**: parameter mapping is optional, but if given it must be correct (i.e.`apply consLen x↦x B↦'(cons y null)`)
+        - **On Low Support**: parameter mapping must be typed in manually and must be correct (i.e.`apply consLen x↦x B↦'(cons y null)`)
     - Ensure that the highlighted expression matches what the premise of the lemma
     ![Input apply consLen into line 001 rule](input_lemma.png)
 5. To finish the application of the lemma, click `Generate & Check` button, which will validate the application
@@ -20,12 +23,12 @@
 <mark>*It should be noted that any completed proofs can be applied as a lemma</mark>
 
 ## 2. Data Model
-Unlike other rule applications or evaluations in Proof Buddy, lemmas do not have a Rule Type defined in `ERRuleset.py` and there is no seperate `Lemma` model. There is no dedicated table for lemmas.
+Unlike other rule applications or evaluations in Proof Buddy, lemmas do not have a Rule Type defined in `ERRuleset.py` and there is no separate `Lemma` model. There is no dedicated table for lemmas.
 
 Lemmas are not built-in rules (e.g. `first-cons`) as they are user-created, user-specific, and stored in the database, rather than being hard-coded.
 
 **Lemmas are sourced from existing proof models:**
-- For a proof to be eligiable to be used a lemma, it must have:
+- For a proof to be eligible to be used a lemma, it must have:
     - `is_complete=True`
     - `is_active=True`
     - have a non-null `name` field
