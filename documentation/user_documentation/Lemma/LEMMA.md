@@ -11,11 +11,16 @@
     ![Proof Complete UI](proof_complete.png)
 4. To apply a lemma, use the "**apply**" keyword followed by the name of the lemma
     - If you forget the name of a Lemma while in a proof, clicking "All Proof" to see list of all lemma, then go back to where you left off in the proof
+        ![Hovering over All Proofs button](all_proofs_hover.png)
+        ![All Proofs Page](all_proofs_page.png)
     - **For example**: if the lemma is named "consLen" the rule entered should be `apply consLen`
-        - **On High Support**: parameter mapping is optional, but if given it must be correct (i.e.`apply consLen x↦x B↦'(cons y null)`)
-        - **On Low Support**: parameter mapping must be typed in manually and must be correct (i.e.`apply consLen x↦x B↦'(cons y null)`)
+        - **On High Support**: parameter mapping is optional, but if given it must be correct (i.e.`apply consLen x↦x, B↦'(cons y null)`)
+        - **On Low Support**: parameter mapping must be typed in manually and must be correct (i.e.`apply consLen x↦x, B↦'(cons y null)`)
     - Ensure that the highlighted expression matches what the premise of the lemma
-    ![Input apply consLen into line 001 rule](input_lemma.png)
+        - Without parameter mapping inputted 
+        ![Input apply consLen into line 001 rule with no parameter mapping](input_lemma.png)
+        - With parameter mapping inputted
+        ![Input apply consLen into line 001 rule with parameter mapping](input_lemma_param_mapping.png)
 5. To finish the application of the lemma, click `Generate & Check` button, which will validate the application
     - If valid, the next line in the proof will be available. Otherwise, there will be a toast message stating the error
     ![Validated line 001 where consLen lemma was applied](check_lemma.png)
