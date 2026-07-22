@@ -39,7 +39,33 @@ This component renders one proof line and handles node selection. It reads `json
 
 All rules are in `django_server/expression_tree/ERRuleset.py`.
 
-### Rule class hierarchy
+The rules define legal ways to transform an expression. Every rule must have the methods: `isApplicable` and `insertSubstitution`.
+- `isApplicable` → (bool, message)
+  - checks if the rule can be used on the expression, and if not, lists the outputs the reason why not
+- `insertSubstitution` → Node
+  - performs the rewriting of the expression, returning a new expression tree
+
+### 2.1 Rule base contract
+All defind rules are subclasses of the abstract `Rule` class.
+Every rule must provide `label`, `ruleType` and implement the `isApplicable` method and the `insertSubstitution` method. 
+
+### 2.2 Eval vs Rewrite modes
+Every rule belongs to one of two "modes", each with it's own dictionary. There is also a third, which is a placeholder for `apply`.
+```python
+DEFAULT_RULE_SET: dict[str, dict[str, Rule]] = {
+    'eval': EVAL_PROCEDURES,
+    'apply': {},
+    'rewrite': REWRITE_RULES
+}
+```
+- `EVAL_PROCEDURES` is a dictionary that maps built-in Racker procedure's name to its rule object (e.g. `'if' → If()`). These rules **require concrete, fully-resolved arguments/known values**.  
+
+- `REWRITE_RULES` is a dictionary that maps an axiom/advanced rule to its rule object (e.g. `'cons-first-rest → ConsProp()`). These rules allows unresolved arguments and recognize a **structural identity that holds**.
+  - e.g. `(cons (first L) (rest L)) = L` is recognized for any non-empty list L and the expression can be swapped with an equivalent one.
+
+- `DEFAULT_RULE_SET['apply']` is a dictionary that holds user-defined functions (`UDF`). It starts as an **empty** dictionary because `UDF` rule bojects are populated per-proof-session as users define their own functions.
+
+### 2.3 Rule class hierarchy
 
 ```
 Rule (abstract base)
@@ -61,15 +87,39 @@ Rule (abstract base)
 │   └── AndProp     — (and #t X) → X, etc.
 ├── UDF             — User-defined recursive functions
 └── IH              — Inductive Hypothesis (induction proofs only)
+
 ```
 
-### How a rule is registered and looked up
+### 2.4 How a rule is registered and looked up
 
 Each `ERProof` carries a `ruleSet` dictionary. This dictionary is populated when the proof is initialized in:
 - `equational_reasoning_api/views.py` → `set_current_proof()`
 - `induction_api/views.py` → `start_induction_proof()`
 
 The rule set maps rule labels (strings like `"+"`, `"cons"`, `"length"`) to `Rule` instances. When a user types `"eval +"`, the label `"+"` is extracted and looked up in this dictionary to find the corresponding `Math.Plus` rule object.
+
+### 2.5 Rule class types
+`BuiltIn`: the built-in functions Racket provides (e.g. `cons`, `first`, `rest`, `if`, `zero?`). Requires concrete, known values.
+- Includes `Symbolic` subclass which is `Math` and `Logic` inherit from.
+- `Math`/`Logic`: evaluates built-in arithmetic/logic operators (`+`, `-`, `*`, `and`, `or`, etc.) by converting the expression to a string and handing it to SymPy to simplify/compute, rather than hand-coding each operator's behavior.
+
+`Axiom`: structural rewrite identities that hold regardless of actual values, which works for unknown/generic values if side-conditions are met.
+
+`UDF`: a user-defined function that user create while using Proof Buddy. Applying results in the substitution of the arguments for the parameters in function's body.
+
+`IH`: allows user to cite the induction hypothesis. Compares the whole target expression against two fixed, pre-stored trees (the IH's LHS and RHS) and swaps to whichever side doesn't match. Takes no parameters.
+
+`LemmaRule`: allows user to cite previously proven lemma (Proof that has`is_active` and `is_complete` flags set to `true`). Requires explicit `param=value` assignments and substitutes them into lemma's stored premise. Checks the result structurally matches highlighted expression before substituting the same values into lemma's conclusion.
+
+`Advmath`/`AdvLogic` ():  general-purpose "these two expressions are equivalent" rewrites. Lets the student propose any replacement expression; non-math/non-logic subexpressions get abstracted into placeholder variables, then SymPy (symbolically, or numerically as a fallback) verifies the two sides are truly equivalent.
+
+### 2.6 Comparison table
+|  | BuiltIn | Axiom | UDF | LemmaRule | IH |
+| ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
+| Needs resolved args | Yes | No | Yes (positional) | No | No |
+| Works on generics | Only if allowed | Typically, with side-conditions | No | Depends on the lemma | N/A |
+| Params origin | Fixed positions | `paramFinder` + user inputted | Call site | User-inputted | None |
+| Purpose | Compute a value | Recognize a pattern | Unfold a definition | Cite a proven theorem | Cite induction hypothesis |
 
 ---
 
