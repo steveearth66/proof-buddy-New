@@ -963,3 +963,33 @@ WHY THE REGRESSION HAPPENED: In a prior session, validateHiddenDefinitionFn was 
 THE FIX: Added an onHiddenReveal callback prop to the Definition component. After a successful check in handleCheckHidden, call onHiddenReveal(label, expression). In ShowDefinitions, implement handleHiddenReveal to update BOTH sessionStorage['definitions'] AND sessionStorage['temp_definitions'] (mapping over each list to update any entry whose label matches, flipping expression_hidden to false and setting the expression), and also update React state via setDefinitions and setTempDefinitions. Pass onHiddenReveal={handleHiddenReveal} to all three Definition rendering sites.
 
 KEY LESSON: When a component unmounts (e.g., a collapsible panel closes), all local state in it and its descendants is destroyed. Any "revealed" or "unlocked" status that needs to survive a close/reopen cycle must be persisted to sessionStorage immediately on success — not just held in local component state. When refactoring a callback from a wrapper (that had side effects) to a direct service call, audit what side effects the wrapper was providing and ensure they are preserved elsewhere.
+
+---
+
+SESSION 2026-07-29: Duplicate Highlight Bug — DAG Tree from Parameter Substitution
+
+PROBLEM: In ER proofs (and potentially Induction), applying a UDF rule (e.g., "apply length") to a multi-element list caused duplicate identical highlights to appear in the generated line. The bug was visible as soon as the user navigated to a node with arrow keys — no G&C needed. When the user then applied a rule, it was applied at the wrong (duplicate) node.
+
+DEAD-END ANALYSIS — WHY I MISSED THE REAL CAUSE:
+My first hypothesis was a frontend issue: when a new proof line is created, `newField.selectedNode` is set to `previousStartPosition` (a character-position node ID from the *source* line's tree). I reasoned that this stale value from the source tree could accidentally match a character position in the new tree, causing an extra target highlight. This analysis was not entirely wrong — it IS a real flaw — but it was not what caused this specific bug. The decisive evidence against it was that the user reproduced the duplicate highlight simply by pressing an arrow key, before any G&C. That disproved the "character-position collision between two different expressions" theory, because no new line had been generated yet.
+
+WHY I THOUGHT IT WAS THE FRONTEND:
+The reported symptom (duplicate highlights) fit the frontend theory superficially. I also focused on the visible highlight system (DivMakerComponent, PersistentPad, selectedNode state) rather than the tree structure that feeds it. The user's original hypothesis about "string equality" made me look at comparison logic rather than the tree data itself.
+
+ACTUAL ROOT CAUSE:
+In django_server/expression_tree/ERRuleset.py, recursiveReplaceNodes replaces each occurrence of a parameter with:
+
+    node.replaceWith(values[index])
+
+Node.replaceWith does self.children = newNode.children — a reference copy, not a value copy. When a parameter like L appears twice in a rule body (e.g., (if (null? L) 0 (+ 1 (length (rest L)))) for length), both replacement sites end up pointing at the same children list from the argument node. This makes the result tree a DAG (directed acyclic graph), not a proper tree. updatePositions then traverses the shared children twice, overwriting their startPosition values. makeJson serializes both parent nodes as referencing the same child node (same key in the dict). When DivMakerComponent renders, both parents recurse into the same shared child — rendering it twice in the DOM — and both DOM elements match selected === e.startPosition, producing duplicate highlights.
+
+THE FIX:
+One line change in recursiveReplaceNodes:
+
+    node.replaceWith(copy.deepcopy(values[index]))
+
+Each occurrence of the parameter now gets its own independent subtree. updatePositions assigns distinct startPosition values to each, makeJson produces distinct entries, and only one DOM element matches any given selected value.
+
+This fix applies to both ER and Induction since both pipelines use the same recursiveReplaceNodes function. copy was already imported in ERRuleset.py. All existing tests passed after the change.
+
+LESSON: When a highlighting bug appears before any rule application (purely from arrow-key navigation), the problem is in the tree data structure being rendered, not in the state management around rule application. Suspect node sharing (DAG) in the expression tree whenever identical subexpressions appear in two places after applying a function whose definition contains the parameter more than once.
