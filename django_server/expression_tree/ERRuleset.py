@@ -1227,7 +1227,7 @@ class AdvLogic(Rule):
 def recursiveReplaceNodes(node: Node, params: list, values: list) -> None:
     if node.data in params:
         index = params.index(node.data)
-        node.replaceWith(values[index])
+        node.replaceWith(copy.deepcopy(values[index]))  # deep copy so shared params get independent subtrees
         return  # no need to check children if we replaced the node
     for child in node.children:
         recursiveReplaceNodes(child, params, values)
