@@ -33,13 +33,13 @@ def isMatch(xNode: Node, yNode: Node) -> bool:
     return sofar
 
 class RuleType(Enum):
-    BUILT_IN = 0
-    DEFINITION = 1
-    AXIOM = 2
-    MATH = 3
-    LEMMA = 4
-    IH = 5
-    LOGIC = 6
+    BUILT_IN = 0    # evaluating a Racket built-in procedure
+    DEFINITION = 1  # applying a user defined function (UDF)
+    AXIOM = 2       # a structural rewrite, e.g. cons-first-rest
+    MATH = 3        # arithmetic simplification/verification (SymPy)
+    LEMMA = 4       # previously proven theorem/proof
+    IH = 5          # induction hypothesis
+    LOGIC = 6       # propositional logic simplification/verification
 
     def __str__(self):
         if self == RuleType.BUILT_IN:
@@ -52,6 +52,11 @@ class RuleType(Enum):
             return 'propositional logic rule'
         return self.name.lower()
     
+# ---------------------------------------------------------------------------
+# Rule: the abstract base class that every rule in this file inherits from.
+# It holds a label (the rule's name, e.g. "cons", "zero?+") and a RuleType.
+# The subclasses must implement isApplicable/insertSubstitution.
+# ---------------------------------------------------------------------------
 class Rule(ABC):
     def __init__(self, label, ruleType: RuleType = RuleType.BUILT_IN):
         self._label = label
@@ -71,10 +76,13 @@ class Rule(ABC):
 
     @abstractmethod
     def isApplicable(self, ruleNode: Node, rawParams: list[str] = None, support_review_complexity = True) -> tuple[bool, str]:
+        # Returns (True, SuccessMessage) or (False, FailureMessage)
         pass
 
     @abstractmethod
     def insertSubstitution(self, ruleNode: Node) -> Node:
+        # Subclasses produces new expression tree resulting from applying rule to ruleNode
+        # Only meaningful if called after isApplicable() returned True
         pass
 
 class BuiltIn(Rule):
@@ -84,16 +92,20 @@ class BuiltIn(Rule):
 
     def isApplicable(self, ruleNode: Node, rawParams: list[str] = None) -> tuple[bool, str]:
         if rawParams:
+            # BuiltIns don't accept user-supplied parameter assignments
             return False, f"Unexpected assignments {rawParams[1:-1]}"
         if not ruleNode.children:
+            # BuiltIns must have at least one child 
             return False, f"Cannot apply '{self.label}' on a '{ruleNode.name}'"
         # Check if the operator matches the rule label
         if ruleNode.children[0].data != self.label:
             return False, f"Cannot evaluate {self.label} on a '{ruleNode.children[0].data}' expression"
-        #if (len(ruleNode.children[1].children) != 0 and ruleNode.children[1].data != "'(") or (len(ruleNode.children[2].children) != 0 and ruleNode.children[2].data != "'("):
+        # if (len(ruleNode.children[1].children) != 0 and ruleNode.children[1].data != "'(") or (len(ruleNode.children[2].children) != 0 and ruleNode.children[2].data != "'("):
+        # for every argument (children[1:]), reject if it's still an unresolved nested expression or TBD
         if True in map(lambda child: (len(child.children) != 0 and child.data != "'(") or child.name == 'TBD', ruleNode.children[1:]):
             return False, 'Insufficiently resolved arguments'
         if not self._allowGenerics:
+            # If generics is not allowed, check if any of the arguments are ERGeneric placeholders
             generics = [child.data for child in ruleNode.children[1:] if isinstance(child.name, ERGeneric)]
             if len(generics) != 0:
                 return False, f"Cannot evaluate '{self.label}' expression with generic arguments"
@@ -102,22 +114,26 @@ class BuiltIn(Rule):
 class If(BuiltIn):
     def __init__(self):
         super().__init__('if', allowGenerics=True)
-        self.racType = str2Type("(BOOL,ANY,ANY)>ANY")
+        self.racType = str2Type("(BOOL,ANY,ANY)>ANY") # the Racket type signature
 
     def isApplicable(self, ruleNode: Node, rawParams: list[str] = None) -> tuple[bool, str]:
         # Check if the operator matches the rule label
         if ruleNode.children[0].data != self.label:
             return False, f"Cannot evaluate if on a '{ruleNode.children[0].data}' expression"
+        # Check if condition if sufficiently resolved to #t or #f before evaluating
         if len((cond := ruleNode.children[1]).children) != 0 and cond.data == '(' or cond.name == 'TBD':
             return False, "Insufficiently resolved condition argument"
         if not isMatch(ruleNode.children[2], ruleNode.children[3]) and isinstance(ruleNode.children[1].name, ERGeneric):
+            # generic condition blocks evalation unless the then-branch and else-branch are identical
             return False, f"Cannot determine truth value of generic argument '{ruleNode.children[1].data}'"
         return True, 'If.isApplicable() PASS'
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
         condition = ruleNode.children[1]
-        xNode = ruleNode.children[2]
-        yNode = ruleNode.children[3]
+        xNode = ruleNode.children[2] # then-branch
+        yNode = ruleNode.children[3] # else-branch
+        # if both branches are identical it doesn't matter what the condition is
+        # true condition -> take then-branch
         if condition.data == '#t' or isMatch(xNode, yNode):
             return xNode
         elif condition.data == '#f':
@@ -129,10 +145,13 @@ class NullQ(BuiltIn):
         self.racType = str2Type("ANY>BOOL")
 
     def isApplicable(self, ruleNode: Node, rawParams: list[str] = None) -> tuple[bool, str]:
+        # re-checks the generic BuiltIn coditions 
         parentPassed, parentMessage = super().isApplicable(ruleNode)
         if not parentPassed:
             return parentPassed, parentMessage
+        # Checks if argument is symbolic/unknown
         if isinstance(ruleNode.children[1].name, (GenericList, GenericAny)):
+            # If the argument is a generic list, null? can still be answered if it can never be "null"
             if ruleNode.children[1].name.neverNull:
                 return True, 'NullQ.isApplicable() PASS'
             return False, f"Cannot determine value of 'null?' expression with generic argument '{ruleNode.children[1]}'"
@@ -141,6 +160,7 @@ class NullQ(BuiltIn):
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
         if not ruleNode.children[1].type.isType("LIST") or isinstance(ruleNode.children[1].name, ERGeneric):
+            # non-list arguments/unresolved generics are never "null"
             return Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
         # must check nonlists first to avoid thinking no children is a null list
         if len(ruleNode.children[1].children) == 0:
@@ -175,6 +195,7 @@ class ZeroQ(BuiltIn):
         if not parentPassed:
             return parentPassed, parentMessage
         if isinstance(ruleNode.children[1].name, (GenericInt, GenericAny)):
+            # if we know generic value cannot be 0 symbolically, can still apply zero? and return #f
             if ruleNode.children[1].name != 0:
                 return True, 'ZeroQ.isApplicable() PASS'
             return False, f"Cannot determine value of 'zero?' expression with generic argument '{ruleNode.children[1].data}'"
@@ -205,6 +226,7 @@ class ConsList(BuiltIn):
                 newtype = ruleNode.children[1].children[0].type
                 if newtype.getType() == Type.FUNCTION:
                     newtype = newtype.getRange()  # changing the type of the paren to be the output type of the operand
+            # wrap first argument's contents in "(" node without ' (prevents double quotation later)
             parenNode = Node(
                 children=ruleNode.children[1].children, data="(", tokenType=newtype, parent=ruleNode.children[1])
             for ch in ruleNode.children[1].children:
@@ -213,8 +235,10 @@ class ConsList(BuiltIn):
             lNode = ruleNode.children[1]  # this will be the node used for replacement
             lNode.children.extend(ruleNode.children[2].children)
         else:  # consObj is a nonquoted object
+            # builds new quoted list node with the consed item as the first element, followed by all elements of tail list
             lNode = Node(children=[ruleNode.children[1]], data="'(", tokenType=RacType((None, Type.LIST)))  # length=len(self.children[2].children)+1)
             lNode.children.extend(ruleNode.children[2].children)
+            # fixes parent pointers on children of new list
             for child in lNode.children:
                 child.parent = lNode
         return lNode
@@ -232,10 +256,10 @@ class FirstList(BuiltIn):
         return True, 'FirstList.isApplicable() PASS'
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
-        origList = copy.deepcopy(ruleNode.children[1])
+        origList = copy.deepcopy(ruleNode.children[1]) # a copy so that the orinal tree is not mutated
         if origList.children[0].data == "(":
-            origList.children[0].data = "'("
-        return origList.children[0]
+            origList.children[0].data = "'(" # add on the ' if the first element is unquotes (
+        return origList.children[0] # first element of the list
 
 class RestList(BuiltIn):
     def __init__(self):
@@ -252,7 +276,9 @@ class RestList(BuiltIn):
     def insertSubstitution(self, ruleNode: Node) -> Node:
         origList = ruleNode.children[1]
         if (n :=len(origList.children)) == 1:
+            # only one element ("rest" is empty)
             return Node(data="null", tokenType=RacType((None, Type.LIST)), name=[])
+        # otherwise, build new list node with all elements except the first
         newNode = Node(data="'(", tokenType=RacType((None, Type.LIST)), \
                     name=origList.name[1:] if isinstance(oname :=origList.name, list) and \
                     len(oname) >0 else None, length=n-1)
@@ -333,10 +359,12 @@ class Math(Rule):
 class Symbolic(BuiltIn, ABC):
     @abstractmethod
     def getStdExpr(self, ruleNode: Node) -> str:
+        # subclasses return string verion of ruleNode that is parseable by SymPy
         pass
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
         try:
+            # Turn Racket Expression into string that can be parsed by SymPy, which is then simplified into a single value/expression
             symbolicExpr = sp.simplify(sp.sympify(self.getStdExpr(ruleNode)))
             
             # Determine the type of the result (e.g., INT or BOOL)
@@ -357,10 +385,12 @@ class Symbolic(BuiltIn, ABC):
         except Exception as e:
             raise ValueError(f"Error in insertSubstitution: {str(e)}")
 
+# Math: for Symbolic subclasses, getStdExpr() calls Node.mathStr()
 class Math(Symbolic):
     def getStdExpr(self, ruleNode: Node) -> str:
         return ruleNode.mathStr()
 
+# Each represent one arithmetic/comparison operator, whch all reuse Math's insertSubstitution via Symbolic
 class Plus(Math):
     def __init__(self):
         super().__init__('+')
@@ -382,7 +412,7 @@ class Quotient(Math):
         if not parentPassed:
             return False, parentMessage
         if int(ruleNode.children[-1].data) == 0:
-            return False, "denominator can't be zero"
+            return False, "denominator can't be zero" # extra guard beyond the generic BuiltIn checks
         return True, 'Quotient.isApplicable() PASS'
 
 class Remainder(Math):
@@ -455,6 +485,7 @@ class GreaterOrEqual(Math):
         newtype = RacType((None, Type.BOOL))
         return Node(data=newdata, tokenType=newtype, name=newname)  # converting node """
 
+# Logic: for Symbolic subclasses, getStdExpr() calls Node.logicStr()
 class Logic(Symbolic):
     def getStdExpr(self, ruleNode: Node) -> str:
         return ruleNode.logicStr()
@@ -478,12 +509,13 @@ class Xor(Logic):
 class Implies(Logic):
     def __init__(self):
         super().__init__('implies')
+
 class UDF(Rule):
     def __init__(self, label, filledBodyNode, racTypeObj, paramsList):
         super().__init__(label, RuleType.DEFINITION)
-        self.body = filledBodyNode
-        self.racType = racTypeObj
-        self.params = paramsList
+        self.body = filledBodyNode  # function's body as an expression with parameter placeholders
+        self.racType = racTypeObj   # function's Racket type signature
+        self.params = paramsList    # ordered list of parameter names
 
     def isApplicable(self, ruleNode: Node, rawParams: list[str] = None) -> tuple[bool, str]:
         if ruleNode.children != []:
@@ -497,20 +529,21 @@ class UDF(Rule):
             expectedIns = [x if isinstance(x, RacType) else RacType(x) for x in
                            self.racType.value[0]]  # tricky since value[1] could be tuple or could be RacType
             if not all(x == y for x, y in zip(providedIns, expectedIns)):
+                # returns a list not a tuple
                 return [False,
                         f'Cannot match argument out typeList {[str(x) for x in providedIns]} with expected typeList {[str(x) for x in expectedIns]}']
         return True, f"{self.label.capitalize()}.isApplicable() PASS"  # string should not print out if debug=False
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
-        expCopy = copy.deepcopy(self.body)
-        recursiveReplaceNodes(expCopy, self.params, ruleNode.children[1:])
+        expCopy = copy.deepcopy(self.body) # don't mutate the saved function body
+        recursiveReplaceNodes(expCopy, self.params, ruleNode.children[1:]) # swap in the actual call arguments
         return expCopy
 
 class IH(Rule):
     def __init__(self, indHypLHS: Node, indHypRHS: Node):
         super().__init__('IH', RuleType.IH)
-        self.indHypLHS = indHypLHS
-        self.indHypRHS = indHypRHS
+        self.indHypLHS = indHypLHS # left-hand side of the induction hypothesis equation
+        self.indHypRHS = indHypRHS # right-hand side of the induction hypothesis equation
 
     def isApplicable(self, ruleNode: Node, rawParams: list[str] = None) -> tuple[bool, str]:
         if rawParams:
@@ -549,7 +582,7 @@ class LemmaRule(Rule):
         self.premise_tree = premise_tree
         self.conclusion_tree = conclusion_tree
         self.param_names = param_names
-        self._param_values: dict = {}   # filled by isApplicable
+        self._param_values: dict = {}   # filled by isApplicable() with concrete values the user supplied for each param
 
     def isApplicable(self, targetNode: Node, rawParams: list = None) -> tuple:
         rawParams = rawParams or []
@@ -567,6 +600,7 @@ class LemmaRule(Rule):
         # iv. param names match (and collect parsed values)
         self._param_values = {}
         for raw in rawParams:
+            # each rowParam looks like "name=value" -> split and validate it
             if '=' not in raw:
                 return False, f"Parameter assignment '{raw}' is missing '='"
             name, value_str = raw.split('=', 1)
@@ -577,7 +611,7 @@ class LemmaRule(Rule):
                     f"Unknown parameter '{name}' for lemma '{self.label}' "
                     f"(expected: {', '.join(self.param_names)})"
                 )
-            value_node, errs = makeBasicAst(value_str)
+            value_node, errs = makeBasicAst(value_str) # parse the user's typed value into an expression tree
             if errs:
                 return False, f"Could not parse value '{value_str}' for parameter '{name}': {errs}"
             self._param_values[name] = value_node
@@ -592,6 +626,7 @@ class LemmaRule(Rule):
         value_list = [self._param_values[n] for n in param_list]
         recursiveReplaceNodes(premise_copy, param_list, value_list)
         if not isMatch(premise_copy, targetNode):
+            # after substitution, the Lemma's LHS must match exactly with the expression the user is trying to rewrite
             return False, (
                 f"Lemma '{self.label}' LHS after substitution is '{str(premise_copy)}', "
                 f"which does not match highlighted expression '{str(targetNode)}'"
@@ -603,20 +638,20 @@ class LemmaRule(Rule):
         conclusion_copy = copy.deepcopy(self.conclusion_tree)
         param_list = self.param_names
         value_list = [self._param_values[n] for n in param_list]
-        recursiveReplaceNodes(conclusion_copy, param_list, value_list)
+        recursiveReplaceNodes(conclusion_copy, param_list, value_list) # plug the same values into the RHS
         return conclusion_copy
 
 class Axiom(Rule, ABC):
     ParamFinder = Callable[[Node], tuple[Node | tuple[Node, ...], ...]] 
     # ParamFinder is a custom type representing a function that takes a node and returns a tuple
     # of the nodes where the param should be found in relation to the input node.
-    # When a param *may* be in different locations (e.g. when an axiom is commutative),
+    # When a param *may* be in different locations (e.g. when am is commutative),
     # the ParamFinder function should include logic to determine which location is correct.
     # If there are more than one correct locations, members of the output tuple may also be a tuple of Nodes
 
     def __init__(self, label: str, paramFinders: dict[str, ParamFinder]):
         super().__init__(label, ruleType=RuleType.AXIOM)
-        self._paramFinders = paramFinders
+        self._paramFinders = paramFinders # dict of parameters -> function that finds that parameter's location in the tree
 
         # Maps param to a representative node in the expression tree  
         self._paramMappings: dict[str, Node | None] = {key: None for key in paramFinders.keys()}
@@ -626,10 +661,13 @@ class Axiom(Rule, ABC):
         return self._paramFinders
     
     def _matchSingleParam(self, ruleNode: Node, param: str, assignment: str) -> tuple[bool, str]:
+        # Checks that a single "param=assignment" string the user typed matches what's at that param's location in the tree
         finder = self._paramFinders[param]
         
         for paramLocation in finder(ruleNode):
             if isinstance(paramLocation, tuple):
+                # commutativ case where param could correctly be at several locations
+                # checks if assignment matches any of them
                 expectedValues: list[str] = []
                 for loc in paramLocation:
                     if (expected := str(loc)) == assignment:
@@ -648,10 +686,11 @@ class Axiom(Rule, ABC):
                 return True, ""
             return False, (f'Value mismatch: expected "{str(paramLocation)}" '
                            f'for {param}, but "{assignment}" was provided')
-        self._paramMappings[param] = paramLocation
+        self._paramMappings[param] = paramLocation # runs if finder(ruleNode) returns nothing, using loop variables from before loop started
         return True, ""
     
     def _getUnassignedParamsMsg(self, unassignedParams: set[str]) -> str:
+        # Builds a friendly error message listing which params the user forgot to supply
         if len(unassignedParams) == 0:
             return ''
         if len(unassignedParams) == 1:
@@ -662,6 +701,7 @@ class Axiom(Rule, ABC):
                 "do not have assignments")
     
     def matchParams(self, ruleNode: Node, rawParams: list[str]) -> tuple[bool, str]:
+        # validales all the user's "param=value" assignment strings for this axiom
         unassignedParams = set(self._paramFinders.keys())
 
         for paramAssignment in rawParams:
@@ -677,6 +717,7 @@ class Axiom(Rule, ABC):
                 return False, message
             unassignedParams.remove(param)
         if len(unassignedParams) != 0:
+            # the user didn't supply a value for every required param
             return False, self._getUnassignedParamsMsg(unassignedParams)
         return True, 'PASS'
     
@@ -693,7 +734,7 @@ class Axiom(Rule, ABC):
         Checks that the mapped values are valid to rewrite with the axiom.
         Runs after matchParams() in isApplicable()
         """
-        return True, "PASS"
+        return True, "PASS" # default: no extra value checks; can be overriden by subclasses
 
     def isApplicable(self, ruleNode: Node, rawParams: list[str] = None) -> tuple[bool, str]:
         if not rawParams:
@@ -722,6 +763,7 @@ class Axiom(Rule, ABC):
 
 class ConsProp(Axiom):
     def __init__(self):
+        # L is found as the shared argument of "first" and "rest" respectively
         LFinder: Axiom.ParamFinder = lambda node: (node.children[1].children[1], node.children[2].children[1])
         super().__init__('cons-first-rest', {'L': LFinder})
     
@@ -732,6 +774,7 @@ class ConsProp(Axiom):
         ruleNode.children[1].children[0].data != 'first' or ruleNode.children[2].children[0].data != 'rest':
             return False, "Can only rewrite with cons-first-rest rule when first arg is a 'first' expression and second arg is a 'rest' expression"
         elif not isMatch(ruleNode.children[1].children[1], ruleNode.children[2].children[1]):
+            # both 'first' and 'rest' must must be operating on the same list
             return False, "Cannot rewrite with cons-first-rest rule when the arguments of 'first' and 'rest' are different lists"
         return True, "PASS"
     
@@ -746,7 +789,7 @@ class ConsProp(Axiom):
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
         lNode = ruleNode.children[1].children[1]
-        return lNode
+        return lNode # simply return L itself
 
 class FirstProp(Axiom):
     def __init__(self):
@@ -764,7 +807,7 @@ class FirstProp(Axiom):
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
         xNode = ruleNode.children[1].children[1]
-        return xNode
+        return xNode # return the consed item
 
 class RestProp(Axiom):
     def __init__(self):
@@ -782,7 +825,7 @@ class RestProp(Axiom):
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
         lNode = ruleNode.children[1].children[2]
-        return lNode
+        return lNode # return the tail list
 
 class NullQCons(Axiom):
     def __init__(self):
@@ -879,7 +922,7 @@ class MinusPlus(Axiom):
         return True, ""
     
     def insertSubstitution(self, ruleNode: Node) -> Node:
-        return self._paramMappings['k']
+        return self._paramMappings['k'] # whichever term of the + was not subtracted off
 
 class AndProp(Axiom):
     def __init__(self):
@@ -921,6 +964,7 @@ class ImpliesProp(Axiom):
     def __init__(self):
         def PFinder(node: Node):
             if node.children[1].data == '#f' and node.children[2].data == '#t':
+                # both conditions hold at once -> offer both children as valid matches
                 return ((node.children[1], node.children[2]),)
             if node.children[1].data == '#f':
                 return (node.children[2],)
@@ -953,6 +997,7 @@ class TypeQProp(Axiom):
     
     def verifyValues(self) -> tuple[bool, str]:
         if self._paramMappings['op'].type.getRange().isType('ANY'):
+            # if the function's return type is unknown, we can't decide the type-check
             return False, "Cannot determine output type of 'op'"
         return True, ""
     
@@ -996,8 +1041,10 @@ def _fresh_var(used: set) -> str:
                 return name
     return "z_var"  # unreachable in practice
 
+# sets of operator tokens recognize as "core" math and boolean operators
 _MATH_OPS = MathSet | ARITHMETIC  # {'+','-','*','expt','quotient','remainder','=','>','<','<=','>='}
 _BOOL_OPS = {'and', 'or', 'not', 'xor', 'implies'}
+# Racket operator spellings tranlsated to SymPy syntax
 _OP_TRANSLATE = {"expt": "**", "quotient": "//", "remainder": "%", "=": "=="}
 
 def _abstractedMathStr(node: Node, abstract_pairs: list, used_names: set) -> str:
@@ -1008,6 +1055,7 @@ def _abstractedMathStr(node: Node, abstract_pairs: list, used_names: set) -> str
     # Leaf node: number, variable name, or math-operator token (+ - * etc.)
     if node.children == []:
         return node.data
+    
     # Parenthesized application: data="(", children=[op_node, arg1, arg2]
     if node.data == "(" and len(node.children) >= 2:
         op = node.children[0].data
@@ -1029,7 +1077,7 @@ def _abstractedMathStr(node: Node, abstract_pairs: list, used_names: set) -> str
             var_name = _fresh_var(used_names)
             abstract_pairs.append((node, var_name))
             return var_name
-    return "ERROR"
+    return "ERROR" # anything else is a shape we don't know how to translate
 
 def _racketNodeToSympyBool(node: Node, abstract_pairs: list, used_names: set):
     # Converts a boolean Racket node tree to a SymPy boolean expression.
@@ -1061,6 +1109,7 @@ def _racketNodeToSympyBool(node: Node, abstract_pairs: list, used_names: set):
             if op == 'xor':
                 return sp.Xor(left, right)
             return sp.Implies(left, right)
+        # if it's not a recognized boolean operator -> abstract the whole tree as a symbol
         for existing_node, var_name in abstract_pairs:
             if isMatch(existing_node, node):
                 return sp.Symbol(var_name)
@@ -1073,7 +1122,7 @@ def _count_racket_math_ops(node, abstract_pairs: list) -> int:
     """
     Recursively counts core math operations in a Racket Node tree.
     """
-    # 1. CHUNKING CHECK: If this node is chunked, drop it and its children entirely
+    # 1. CHUNKING CHECK: If this node is chunked, drop it and its children entirely (internal complexity isn't counted)
     if any(pair[0] == node for pair in abstract_pairs):
         return 0
     
@@ -1215,6 +1264,7 @@ class AdvLogic(Rule):
                     return False, "at least one of the expressions must be under 5 core operations or else it is too complex to be done in a single rewrite"
 
             from sympy.logic.inference import satisfiable
+            # Two boolean formulas are lgoically equivalent exactly when XOR is unsatifiable (no truth assignment making them differ)
             if satisfiable(sp.Xor(main_sympy, sub_sympy)) == False:  # noqa: E712
                 return True, 'advLogic.isApplicable() PASS'
             return False, 'main and substitute expressions are not logically equivalent'
@@ -1249,6 +1299,7 @@ class AdvMath(Rule):
                 child = AdvMath().insertSubstitution(child)
         ruleNode = Math().insertSubstitution(ruleNode) """
 
+# Rules used to evaluated built-in Racket procedure calls
 EVAL_PROCEDURES: dict[str, BuiltIn] = {
     'if': If(),
     'null?': NullQ(),
@@ -1276,6 +1327,7 @@ EVAL_PROCEDURES: dict[str, BuiltIn] = {
     'list?': ListQ(),
 }
 
+# rules used to rewrite expression through axioms/advanced-math/advanced-logic
 REWRITE_RULES: dict[str, Rule] = {
     'and': AndProp(),
     'or': OrProp(),
@@ -1299,6 +1351,9 @@ DEFAULT_RULE_SET: dict[str, dict[str, Rule]] = {
 }
 
 def getDefaultRuleSet():
+    # returns a shallow copy of the default rule set so callers are able to add
+    # their own UDFs into 'apply' without mutating the shared
+    # global DEFAULT_RULE_SET dictionary
     result = DEFAULT_RULE_SET.copy()
     result['apply'] = dict(DEFAULT_RULE_SET['apply'])
     return result
