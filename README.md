@@ -36,7 +36,6 @@ For instructions for running the application, please view: documentation/user_do
 
 ## API Reference
 
-For API Reference please view: documentation/user_documentation/local_installation/documentation/readme_resources/4_API_reference.md
+**Primary:** [API Reference](documentation/API_REFERENCE.md) — current HTTP API documentation (routes, parameters, responses).
 
-
-[API Reference](documentation/user_documentation/local_installation/documentation/readme_resources/4_API_reference.md)
+**Legacy:** [4_API_reference.md](documentation/user_documentation/local_installation/documentation/readme_resources/4_API_reference.md) — older auth-only stub; not kept up to date (some paths no longer match the API). Retained for existing install-doc links.
