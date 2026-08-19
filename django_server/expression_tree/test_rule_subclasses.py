@@ -12,7 +12,8 @@ Run from django_server/:
 
 from __future__ import annotations
 
-from expression_tree.ERProofEngine import ERProof, ERProofLine, TwoSidedProof
+from expression_tree.ERProofEngine import ERProof, ERProofLine, TwoSidedProof, updatePositions
+from expression_tree.Decorator import decorateTree
 from expression_tree.ERRuleset import (
     AdvLogic,
     AdvMath,
@@ -353,18 +354,34 @@ expect_inapplicable(
     udf, arity_node, fragment="must take",
 )
 
-# type mismatch: use decorated call with list arg if possible
-list_call = parse("(double '(1))")
-ok_u4, msg_u4 = udf.isApplicable(list_call)
-# Depending on typing of quoted list, domain check may or may not fire at UDF level.
-# After labelTree alone, types may be incomplete — accept either type fail or pass-then-engine-fail.
-# Prefer: if types are present and mismatch, expect False.
-if ok_u4:
-    # Without full decoration, UDF type check may not see LIST — mark as soft skip detail
-    check("[error] U4 type mismatch (soft)", True, "UDF.isApplicable did not see types without decoration")
-else:
-    check("[error] U4 type mismatch", "type" in msg_u4.lower() or "Cannot match" in msg_u4 or "typeList" in msg_u4,
-          msg_u4)
+# U4: INT>INT must reject a list argument. Students usually hit this at decorate
+# (the line never enters the proof). UDF.isApplicable is the apply-time backstop
+# and must return a (bool, str) tuple, not a list.
+list_line = ERProofLine("(double '(1))", ruleDict=udf_proof.ruleSet)
+check(
+    "[error] U4a decorate rejects (double '(1))",
+    list_line.errLog != [] and any(
+        "type" in e.lower() or "match" in e.lower() or "LIST" in e or "INT" in e
+        for e in list_line.errLog
+    ),
+    str(list_line.errLog),
+)
+# Apply-time check: decorate types onto the tree even if checkFunctions would fail,
+# then UDF.isApplicable must refuse and return a tuple.
+list_ast, list_errs = makeBasicAst("(double '(1))")
+check("[error] U4b parse (double '(1))", not list_errs, str(list_errs))
+if not list_errs:
+    labelTree(list_ast, udf_proof.defDict)
+    list_ast, _ = updatePositions(list_ast)
+    list_ast, _ = decorateTree(list_ast, [], defDict=udf_proof.defDict)
+    ret_u4 = udf.isApplicable(list_ast)
+    check("[error] U4c isApplicable returns tuple", isinstance(ret_u4, tuple) and len(ret_u4) == 2, repr(ret_u4))
+    ok_u4, msg_u4 = ret_u4
+    check(
+        "[error] U4 type mismatch",
+        (not ok_u4) and ("type" in msg_u4.lower() or "Cannot match" in msg_u4 or "typeList" in msg_u4),
+        msg_u4,
+    )
 
 
 # ===========================================================================
@@ -469,15 +486,57 @@ expect_inapplicable(
 )
 
 # RestProp
+node_rc = parse("(rest (cons 7 '(1)))")
 expect_applicable(
     "[normal] A7 rest-cons",
-    RestProp(), parse("(rest (cons 7 '(1)))"), ["x=7", "L='(1)"], result="'(1)",
+    RestProp(), node_rc, ["x=7", "L='(1)"], result="'(1)",
+)
+expect_inapplicable(
+    "[error] A7b rest-cons missing params",
+    RestProp(), node_rc, [], fragment="assignment",
+)
+expect_inapplicable(
+    "[error] A7c rest-cons on first expression",
+    RestProp(), parse("(first (cons 7 '(1)))"), ["x=7", "L='(1)"], fragment="rest",
+)
+expect_inapplicable(
+    "[error] A7d rest-cons argument is not cons",
+    RestProp(), parse("(rest '(1 2))"), ["x=1", "L='(2)"], fragment="cons",
+)
+expect_inapplicable(
+    "[error] A7e rest-cons value mismatch",
+    RestProp(), node_rc, ["x=8", "L='(1)"], fragment="mismatch",
+)
+expect_inapplicable(
+    "[error] A7f rest-cons assignment without '='",
+    RestProp(), node_rc, ["x7"], fragment="equals",
 )
 
 # NullQCons
+node_nqc = parse("(null? (cons 7 null))")
 expect_applicable(
     "[normal] A8 null?-cons -> #f",
-    NullQCons(), parse("(null? (cons 7 null))"), ["x=7", "L=null"], result="#f",
+    NullQCons(), node_nqc, ["x=7", "L=null"], result="#f",
+)
+expect_inapplicable(
+    "[error] A8b null?-cons missing params",
+    NullQCons(), node_nqc, [], fragment="assignment",
+)
+expect_inapplicable(
+    "[error] A8c null?-cons on first expression",
+    NullQCons(), parse("(first (cons 7 null))"), ["x=7", "L=null"], fragment="null?",
+)
+expect_inapplicable(
+    "[error] A8d null?-cons argument is not cons",
+    NullQCons(), parse("(null? null)"), ["x=7", "L=null"], fragment="cons",
+)
+expect_inapplicable(
+    "[error] A8e null?-cons value mismatch",
+    NullQCons(), node_nqc, ["x=8", "L=null"], fragment="mismatch",
+)
+expect_inapplicable(
+    "[error] A8f null?-cons assignment without '='",
+    NullQCons(), node_nqc, ["x7"], fragment="equals",
 )
 
 # ConsProp
@@ -504,8 +563,13 @@ expect_inapplicable(
     "[error] A11 cons-first-rest different lists",
     ConsProp(), p_diff.proofLines[-1].exprTree, ["L=A"], fragment="different",
 )
+expect_inapplicable(
+    "[error] A11b cons-first-rest different concrete lists",
+    ConsProp(), parse("(cons (first '(1 2)) (rest '(3 4)))"), ["L='(1 2)"], fragment="different",
+)
 
 # ZeroQPlus
+# by default, "int" is set to "Non-negative", thus allowing A12 and A13 to not raise an error
 zq = ZeroQPlus()
 p_zq = make_proof_with_generics(k="int")
 p_zq.addProofLine("(zero? (+ 1 k))")
@@ -555,6 +619,7 @@ expect_applicable(
     "[normal] A17 and with #f -> #f",
     AndProp(), parse("(and #f #t)"), ["p=#t"], result="#f",
 )
+# AndProp only appllies when one argument is #f
 expect_inapplicable(
     "[error] A18 and without #f",
     AndProp(), parse("(and #t #t)"), ["p=#t"], fragment="#f",
@@ -577,17 +642,19 @@ if iq_line.errLog == []:
         IntegerQProp(), iq_line.exprTree, ["op=+"], result="#t",
     )
 
-# A22 — ANY range: hard to construct reliably; use a bare symbol call if decoration allows.
-# Skip soft if we cannot build it.
-any_line = ERProofLine("(integer? (f 1))")
+# A22: rewrite integer? needs a known range for the inner operator. Undefined `f`
+# never becomes a proof line. Use a UDF whose range is ANY so decoration succeeds
+# but the axiom must refuse.
+any_proof = ERProof()
+any_proof.addUDF("(f x)", "(INT)>ANY", "x")
+check("[error] A22a addUDF f : (INT)>ANY", any_proof.errLog == [], str(any_proof.errLog))
+any_line = ERProofLine("(integer? (f 1))", ruleDict=any_proof.ruleSet)
+check("[error] A22b decorate (integer? (f 1))", any_line.errLog == [], str(any_line.errLog))
 if any_line.errLog == []:
-    ok_a22, msg_a22 = IntegerQProp().isApplicable(any_line.exprTree, ["op=f"])
-    if not ok_a22 and ("output type" in msg_a22.lower() or "op" in msg_a22.lower()):
-        check("[error] A22 integer? prop unknown op range", True)
-    else:
-        check("[error] A22 integer? prop unknown op range (soft)", True, msg_a22)
-else:
-    check("[error] A22 integer? prop unknown op range (setup skipped)", True, str(any_line.errLog))
+    expect_inapplicable(
+        "[error] A22 integer? prop unknown op range",
+        IntegerQProp(), any_line.exprTree, ["op=f"], fragment="output type",
+    )
 
 
 # ===========================================================================

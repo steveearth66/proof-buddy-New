@@ -529,9 +529,12 @@ class UDF(Rule):
             expectedIns = [x if isinstance(x, RacType) else RacType(x) for x in
                            self.racType.value[0]]  # tricky since value[1] could be tuple or could be RacType
             if not all(x == y for x, y in zip(providedIns, expectedIns)):
-                # returns a list not a tuple
-                return [False,
-                        f'Cannot match argument out typeList {[str(x) for x in providedIns]} with expected typeList {[str(x) for x in expectedIns]}']
+                # Must be a (bool, str) tuple like every other Rule.isApplicable path.
+                # A list here breaks callers that unpack ok, msg = udf.isApplicable(...).
+                return False, (
+                    f'Cannot match argument out typeList {[str(x) for x in providedIns]} '
+                    f'with expected typeList {[str(x) for x in expectedIns]}'
+                )
         return True, f"{self.label.capitalize()}.isApplicable() PASS"  # string should not print out if debug=False
 
     def insertSubstitution(self, ruleNode: Node) -> Node:

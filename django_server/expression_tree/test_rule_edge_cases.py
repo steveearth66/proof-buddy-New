@@ -229,17 +229,6 @@ check(
     msg,
 )
 
-# [edge] zero?+ a=0,k=0 — known gap: may accept because name is str '0'
-ok, msg = ZeroQPlus().isApplicable(parse("(zero? (+ 0 0))"), ["a=0", "k=0"])
-if not ok and "positive" in msg.lower():
-    check("[error] A_ZQ00 zero?+ a=0,k=0 rejected", True)
-else:
-    check(
-        "[edge] A_ZQ00 zero?+ a=0,k=0 accepted (known gap: str vs int zero check)",
-        ok,
-        msg,
-    )
-
 # [error] Commutative zero?+ with wrong explicit assignment (a is 1, not 2)
 p = make_proof_with_generics(k="int")
 p.addProofLine("(zero? (+ 1 k))")
@@ -272,20 +261,6 @@ check("[edge] IH_WS parse (+ 1  2)", line.errLog == [], str(line.errLog))
 if line.errLog == []:
     ok, msg = ih.isApplicable(line.exprTree)
     check("[edge] IH_WS matches despite source whitespace", ok, msg)
-
-# [error] UDF type mismatch — return value is currently a list (known gap)
-p = ERProof()
-p.addUDF("(double x)", "(INT)>INT", "(+ x x)")
-udf = p.ruleSet["apply"]["double"]
-ret = udf.isApplicable(parse("(double '(1))"))
-check(
-    "[error] UDF_TYPE_LIST isApplicable returns list on type fail (known gap)",
-    isinstance(ret, list) and ret[0] is False,
-    f"type={type(ret)} ret={ret}",
-)
-# Still must be treated as failure by callers that unpack
-ok_u, msg_u = ret[0], ret[1]
-check("[error] UDF_TYPE still falsy first element", ok_u is False, msg_u)
 
 # [error] UDF on non-matching call label
 ok, msg = udf.isApplicable(parse("(other 3)"))
