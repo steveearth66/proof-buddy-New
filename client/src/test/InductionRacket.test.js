@@ -1,9 +1,14 @@
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "react-toastify";
 import InductionRacket from "../pages/InductionRacket";
 import inductionService from "../services/inductionService";
+
+// When true, force the real SetParametersModal open (RB Dropdown menus often
+// do not stay open under jsdom). Reset in beforeEach so other tests are unaffected.
+// Name must start with `mock` so jest.mock factory can close over it.
+let mockForceShowSetParametersModal = false;
 
 jest.mock("react-toastify", () => ({
   toast: {
@@ -14,6 +19,20 @@ jest.mock("react-toastify", () => ({
 jest.mock("../services/inductionService", () => ({
   checkNameConflict: jest.fn().mockResolvedValue({ conflict: false }),
 }));
+
+jest.mock("../components/SetParametersModal", () => {
+  const React = require("react");
+  const Actual = jest.requireActual("../components/SetParametersModal").default;
+  return {
+    __esModule: true,
+    default: function SetParametersModal(props) {
+      return React.createElement(Actual, {
+        ...props,
+        show: mockForceShowSetParametersModal || props.show,
+      });
+    },
+  };
+});
 
 jest.mock("react-router-dom", () => ({
   useLocation: () => ({ state: null, pathname: '/induction' }),
@@ -158,6 +177,7 @@ describe("InductionRacket Component", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     sessionStorage.clear();
+    mockForceShowSetParametersModal = false;
   });
 
   // Helper: submit the form via fireEvent to bypass HTML5 constraint validation,
@@ -314,9 +334,24 @@ describe("InductionRacket Component", () => {
       );
     });
 
-    test("shows error when inductive hypothesis is missing", async () => {
+    test("shows error when inductive hypothesis is missing when ih support is false", async () => {
+      mockForceShowSetParametersModal = true;
       const { container } = render(<InductionRacket />);
-      // All checks before IH pass: valid anchor, non-overlapping leap var
+
+      // Real SetParametersModal (forced open: jsdom often fails to open RB Dropdown menus)
+      await waitFor(() => screen.getByText("Induction Hypothesis"));
+      const ihRow = screen.getByText("Induction Hypothesis").closest("tr");
+      // fireEvent: OverlayTrigger-wrapped buttons often miss userEvent clicks in jsdom
+      fireEvent.click(within(ihRow).getByRole("button", { name: "Low" }));
+      // Clear flag before Save so the re-render from onSave/onHide actually closes the modal
+      mockForceShowSetParametersModal = false;
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+      await waitFor(() =>
+        expect(screen.getByPlaceholderText("Enter Inductive Hypothesis LHS")).toBeInTheDocument()
+      );
+
+      // All checks before IH pass: valid anchor, non-overlapping leap var; IH left empty
       userEvent.type(screen.getByPlaceholderText("Induction Variable"), "n");
       userEvent.type(screen.getByPlaceholderText("Anchor Value"), "0");
       userEvent.type(screen.getByPlaceholderText("Leap Variable"), "k");
