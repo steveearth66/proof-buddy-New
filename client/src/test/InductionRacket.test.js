@@ -20,6 +20,7 @@ jest.mock("../services/inductionService", () => ({
   checkNameConflict: jest.fn().mockResolvedValue({ conflict: false }),
 }));
 
+// wraps real SetParametersModal in a mock that forces it to open when mockForceShowSetParametersModal is true
 jest.mock("../components/SetParametersModal", () => {
   const React = require("react");
   const Actual = jest.requireActual("../components/SetParametersModal").default;
@@ -70,6 +71,7 @@ jest.mock("../components/OffcanvasRuleSet", () => {
   };
 });
 
+// (no forwardRef — may log a ref warning; harmless for these tests).
 jest.mock("../components", () => {
   const React = require('react');
   return {
@@ -118,7 +120,7 @@ jest.mock("../hooks/useInputState", () => ({
       const { name, value } = e.target;
       setValues((prev) => ({ ...prev, [name]: value }));
     };
-    return [values, handleChange];
+    return [values, handleChange, setValues];
   },
 }));
 
@@ -285,6 +287,38 @@ describe("InductionRacket Component", () => {
       userEvent.type(input, "k");
       await waitFor(() => expect(input).toHaveValue("k"));
     });
+
+    test("updates LHS goal field when typed into", async () => {
+      render(<InductionRacket />);
+      const input = screen.getByPlaceholderText("LHS Goal");
+      userEvent.type(input, "(f n)");
+      await waitFor(() => expect(input).toHaveValue("(f n)"));
+    });
+
+    test("updates RHS goal field when typed into", async () => {
+      render(<InductionRacket />);
+      const input = screen.getByPlaceholderText("RHS Goal");
+      userEvent.type(input, "(f n)");
+      await waitFor(() => expect(input).toHaveValue("(f n)"));
+    });
+
+    test("updates only LHS goal field when only LHS goal is typed into", async () => {
+      render(<InductionRacket />);
+      const lhs = screen.getByPlaceholderText("LHS Goal");
+      const rhs = screen.getByPlaceholderText("RHS Goal");
+      userEvent.type(lhs, "(f n)");
+      await waitFor(() => expect(lhs).toHaveValue("(f n)"));
+      expect(rhs).toHaveValue("");
+    });
+
+    test("updates only RHS goal field when only RHS goal is typed into", async () => {
+      render(<InductionRacket />);
+      const lhs = screen.getByPlaceholderText("LHS Goal");
+      const rhs = screen.getByPlaceholderText("RHS Goal");
+      userEvent.type(rhs, "(f n)");
+      await waitFor(() => expect(rhs).toHaveValue("(f n)"));
+      expect(lhs).toHaveValue("");
+    });
   });
 
   describe("Validation Logic", () => {
@@ -382,6 +416,19 @@ describe("InductionRacket Component", () => {
       await waitFor(() =>
         expect(screen.getByText("Are you sure you want to continue?")).toBeInTheDocument()
       );
+    });
+
+    test("confirmation modal closes when Cancel is clicked", async () => {
+      const { container } = render(<InductionRacket />);
+      fireEvent.submit(container.querySelector("form"));
+      await waitFor(() =>
+        expect(screen.getByText("Are you sure you want to continue?")).toBeInTheDocument()
+      );
+      userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      await waitFor(() =>
+        expect(screen.queryByText("Are you sure you want to continue?")).not.toBeInTheDocument()
+      );
+      expect(screen.getByText("Start Induction Proof")).toBeInTheDocument();
     });
   });
 });
