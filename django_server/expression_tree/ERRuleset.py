@@ -551,26 +551,19 @@ class IH(Rule):
     def isApplicable(self, ruleNode: Node, rawParams: list[str] = None) -> tuple[bool, str]:
         if rawParams:
             return False, f"IH rule takes no parameters"
-        
-        # Check if ruleNode matches either indHypLHS or indHypRHS by comparing string representations
-        nodeStr = str(ruleNode)
-        lhsStr = str(self.indHypLHS)
-        rhsStr = str(self.indHypRHS)
-        
-        if nodeStr == lhsStr or nodeStr == rhsStr:
+
+        if isMatch(self.indHypLHS, ruleNode) or isMatch(self.indHypRHS, ruleNode):
             return True, "IH.isApplicable() PASS"
         else:
-            return False, f"Node '{nodeStr}' does not match induction hypothesis LHS '{lhsStr}' or RHS '{rhsStr}'"
+            return False, (
+            f"Node '{str(ruleNode)}' does not match induction hypothesis LHS "
+            f"'{str(self.indHypLHS)}' or RHS '{str(self.indHypRHS)}'"
+        )
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
-        nodeStr = str(ruleNode)
-        lhsStr = str(self.indHypLHS)
-        rhsStr = str(self.indHypRHS)
-        
-        # If the node matches LHS, replace with RHS; if it matches RHS, replace with LHS
-        if nodeStr == lhsStr:
+        if isMatch(self.indHypLHS, ruleNode):
             return self.indHypRHS.clone()
-        elif nodeStr == rhsStr:
+        elif isMatch(self.indHypRHS, ruleNode):
             return self.indHypLHS.clone()
 
 class LemmaRule(Rule):

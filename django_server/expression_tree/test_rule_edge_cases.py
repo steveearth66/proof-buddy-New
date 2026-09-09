@@ -263,6 +263,10 @@ if line.errLog == []:
     check("[edge] IH_WS matches despite source whitespace", ok, msg)
 
 # [error] UDF on non-matching call label
+udf_proof = ERProof()
+udf_proof.addUDF("(double x)", "(INT)>INT", "(+ x x)")
+check("[edge] UDF_SETUP addUDF succeeds", udf_proof.errLog == [], str(udf_proof.errLog))
+udf = udf_proof.ruleSet["apply"]["double"]
 ok, msg = udf.isApplicable(parse("(other 3)"))
 # other may return tuple
 if isinstance(msg, str):

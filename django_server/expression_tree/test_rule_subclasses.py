@@ -411,6 +411,63 @@ expect_inapplicable(
     ih, parse("(length (cons x L))"), ["n=1"], fragment="no parameters",
 )
 
+expect_applicable(
+    "[normal] H5 independently parsed LHS",
+    ih, parse("(length (cons x L))"), result="(+ 1 (length L))",
+)
+
+p_ih = make_proof_with_generics(x="int", L="list")
+highlight_line = ERProofLine("(length (cons x L))", generics=p_ih.generics)
+check("[edge] H6 ERProofLine parses", highlight_line.errLog == [], str(highlight_line.errLog))
+if highlight_line.errLog == []:
+    expect_applicable(
+        "[edge] H6 decorated highlight matches IH from parse",
+        ih, highlight_line.exprTree, result="(+ 1 (length L))",
+    )
+
+expect_inapplicable(
+    "[error] H7 wrong operator head",
+    ih, parse("(cons x L)"), fragment="does not match",
+)
+expect_inapplicable(
+    "[error] H8 swapped cons arguments",
+    ih, parse("(length (cons L x))"), fragment="does not match",
+)
+expect_inapplicable(
+    "[error] H9 extra child on RHS form",
+    ih, parse("(+ 1 (length L) 0)"), fragment="does not match",
+)
+expect_inapplicable(
+    "[error] H10 nested superset of IH LHS",
+    ih, parse("(+ 0 (length (cons x L)))"), fragment="does not match",
+)
+
+lhs_h11 = parse("(length (cons x L))")
+mid_h11 = ih.insertSubstitution(lhs_h11)
+ok_h11_mid, msg_h11_mid = ih.isApplicable(mid_h11)
+check("[normal] H11 round-trip mid applicable", ok_h11_mid, msg_h11_mid)
+if ok_h11_mid:
+    back_h11 = ih.insertSubstitution(mid_h11)
+    check(
+        "[normal] H11 round-trip LHS->RHS->LHS",
+        str(back_h11) == "(length (cons x L))",
+        f"got {str(back_h11)!r}",
+    )
+
+ih_eq = IH(parse("3"), parse("3"))
+expect_applicable("[edge] H12 equal LHS/RHS", ih_eq, parse("3"), result="3")
+
+bad_h13 = parse("(length L)")
+ok_h13, msg_h13 = ih.isApplicable(bad_h13)
+check(
+    "[error] H13 failure message quotes node and IH sides",
+    (not ok_h13)
+    and "(length L)" in msg_h13
+    and "(length (cons x L))" in msg_h13
+    and "(+ 1 (length L))" in msg_h13,
+    msg_h13,
+)
+
 
 # ===========================================================================
 print("\n=== LemmaRule ===")
