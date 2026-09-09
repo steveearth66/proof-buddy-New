@@ -18,7 +18,8 @@ This document explains every significant directory and file in the repository. I
 | `EquationalReasoningStatus.txt` | Current status summary of the equational reasoning feature. |
 | `LIST_INDUCTION_PROGRESS.md` | Tracks the in-progress work to support list induction (as distinct from integer induction). |
 | `eqrnPlan.txt` | Earlier planning notes for equational reasoning. |
-| `TESTING_GUIDE.md` | Instructions for running tests. |
+| `TESTING.md` | Catalog of every automated test file and how each suite is run (Django, Jest, expression-tree scripts, live-server scripts). |
+| `TESTING_MANUAL_QA.md` | Manual browser QA checklist for equational reasoning (not the automated suite). |
 | `test_equational_api.py` | Standalone integration test script for the equational reasoning API (runs outside Django test runner). |
 | `trial.ps1` / `trial-automation.js` | Scripts for automated testing of proof workflows. |
 | `make_proofbuddy_induction_ppt.py` | Utility to generate a PowerPoint presentation describing the induction proof system. (Research/presentation artifact.) |

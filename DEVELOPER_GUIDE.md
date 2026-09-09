@@ -111,7 +111,7 @@ In `client/src/components/RuleSet.js`, add the new rule's name and syntax to the
 
 ### Step 4: Add tests
 
-Add test cases to `django_server/expression_tree/testApplyRule.py` or the relevant `tests.py` file. Run with:
+Add test cases to `django_server/expression_tree/testApplyRule.py` or the relevant `tests.py` file. See [TESTING.md](TESTING.md) for the full catalog. Run with:
 ```
 cd django_server
 python manage.py test equational_reasoning_api

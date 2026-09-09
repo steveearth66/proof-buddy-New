@@ -134,13 +134,17 @@ Documentation for specific product features and modules.
 
 
 
-- For manual browser QA of equational reasoning, please view: TESTING_GUIDE.md
+- For comprehensive list of all existing tests and how to run them, please view: TESTING.md
 
-    - [Manual QA Checklist](TESTING_GUIDE.md) — step-by-step smoke tests in the browser
+    - [Testing Guide](TESTING.md) - all existing tests and commands
 
-- For backend test suite organization, please view: django_server/proofs/TEST_STRUCTURE.md
+- For manual browser QA of equational reasoning, please view: TESTING_MANUAL_QA.md
 
-    - [Test Structure](django_server/proofs/TEST_STRUCTURE.md) — Django test modules and how to run them
+    - [Manual QA Checklist](TESTING_MANUAL_QA.md) — step-by-step smoke tests in the browser
+
+- For backend proof-engine module organization, please view: django_server/proofs/TEST_STRUCTURE.md
+
+    - [Test Structure](django_server/proofs/TEST_STRUCTURE.md) — `proofs/` import-time modules and how to run them
 
 
 
