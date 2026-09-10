@@ -1,0 +1,237 @@
+## INSTRUCTOR USER GUIDE
+
+The proof editor is the same as for students. For writing steps, rules, definitions, and induction, see [STUDENT USER GUIDE](STUDENT_USER_GUIDE.md).
+
+This guide covers instructor accounts, authoring scaffolded problems, courses, assignments, and reviewing student work.
+
+### Welcome
+
+To access Proof Buddy, visit [proofbuddy.net](http://proofbuddy.net)
+
+### 1. Account and Home
+
+#### 1.1 To create an (instructor) account:
+
+1. Click on the **Sign Up** button
+  ![Proof Buddy Landing Page](../../readme_resources/User_Guide/landing_page.png)
+2. Choose the **Instructor** account option
+  ![Proof Buddy Sign Up Account Type Page](../../readme_resources/User_Guide/sign_up_page.png)
+3. Click **Sign Up** button after filling out **Username**, **Email**, **Password**, and **Confirm Password** fields
+  ![Proof Buddy Instructor Sign Up Page](../../readme_resources/User_Guide/instructor_sign_up_page.png)
+
+Student and instructor accounts are chosen at sign up and do not switch later.
+
+#### 1.2 Logging In:
+
+1. Click on the **Login** button
+2. Fill in **Username** and **Password** fields, then click **Login**
+  ![Proof Buddy Login Page](../../readme_resources/User_Guide/login_page.png)
+
+If you've forgotten your password, you may reset it through **Forgot Password**.
+![Proof Buddy Reset Password Page](../../readme_resources/User_Guide/forgot_password_page.png)
+
+#### 1.3 Account Home:
+
+Once logged in, you will see **Proof Buddy**, **Courses**, **All Proofs**, and **Help** in the Header. By default, you will be on the home page upon login (which can also be reached by clicking **Proof Buddy** in the Header).
+
+- **Courses**: where you create and manage courses you own, or join another instructor's course as an observer
+- **All Proofs**: your proof library. Proofs you attach to assignments are copied from here
+
+![Proof Buddy Home Page](../../readme_resources/User_Guide/instructor_home_page.png)
+
+Create a new proof by selecting Equational Reasoning or Induction in the **Type of Proof** dropdown and clicking **Let's Begin**. How to write the proof itself is in the [STUDENT USER GUIDE](STUDENT_USER_GUIDE.md#2-starting-first-equational-proof).
+
+![Proof Buddy Home Proof Type Dropdown Opened](../../readme_resources/User_Guide/home_dropdown_open.png)
+
+If you open a course you do not own, you see the student-style (observer) view, not the manage page.
+
+### 2. Author a Problem
+
+Write the full solution first, then hide the parts students should fill in, then set support. Attach that snapshot to an assignment (see [§4](#4-courses-rosters-and-assignments)).
+
+How to enter goals, apply rules, use definitions, and finish a proof: [STUDENT USER GUIDE §2–§7](STUDENT_USER_GUIDE.md#2-starting-first-equational-proof).
+
+#### 2.1 Hide lines (eye icons)
+
+On each proof line, instructors see eye buttons that students do not:
+
+- **Hide / Unhide Rule**: students must type the justification (for example `eval +`)
+- **Hide / Unhide Expression**: students must type the expression on that line
+![2 unhidden, 2 hidden lines of proof](../../readme_resources/User_Guide/unhidden_hidden.png)
+
+Click the eye so the field is hidden before you assign the proof. Students fill the blank and click **Generate & Check**. The step is accepted only if it matches what you stored.
+
+You can still **Check Current Proof** as an instructor while lines are hidden. Students cannot mark the proof complete until every hidden field is filled correctly.
+
+#### 2.2 Hide a definition body
+
+1. Open **Proof Utilities** → **Definitions**
+  ![Proof Utilities Dropdown With Definitions Highlighted](../../readme_resources/User_Guide/instructor_proof_utilities_dropdown.png)
+2. Create or edit a definition
+  ![Proof Utilities Create New Definition](../../readme_resources/User_Guide/instructor_new_def.png)
+3. Use the eye next to the expression to hide the body
+  ![Instructor View of Edit Definition Window](../../readme_resources/User_Guide/instructor_edit_definition.png)
+
+Students see that the definition exists but must reconstruct the hidden expression. Built-in definitions (`length`, `append`) cannot be edited or deleted; you can still enable or disable them on the proof.
+
+![Proof Utilities Definitions Window Popup](../../readme_resources/User_Guide/proof_tools_definitions.png)
+
+#### 2.3 Set Parameters
+
+**Set Parameters** is in **Proof Utilities** and is instructor-only.
+
+1. Open **Proof Utilities**
+2. Click **Set Parameters**
+3. Choose **Low** or **High** per row (or **ALL** to set every row at once)
+4. Save
+
+![Default Set Parameters Popup Window](../../readme_resources/User_Guide/set_params_popup.png)
+
+What students see:
+
+- **Error Messages**: Low: generic “your latest command contains an error”. High: targeted hint
+- **Current LHS/RHS**: Low: those fields are not shown. High: they stay visible
+- **Induction Hypothesis**: Low: student types it; only under **Proof Utilities** → **Show IH**. High: autogenerated and visible
+- **Premise**: Low: student types it. High: autogenerated
+- **Rule Set**: Low: full list. High: only the rules you allow (click the pen badge to pick eval/rewrite rules)
+  ![Default Configure Visible Rules Popup Window](../../readme_resources/User_Guide/configure_rules.png)
+- **Value Mapping**: Low: student types `x↦…` when applying a lemma or definition. High: mapping is inferred
+- **Rewrite Complexity**: extra support row on the same screen
+
+Rules already used in the proof stay locked on in the customized rule set. You cannot hide a rule the solution already depends on.
+
+After you hide lines and set parameters, run **Check Current Proof** yourself so the library copy is complete before you attach it to an assignment.
+
+### 3. Lemmas
+
+Lemmas work the same way as for students. Complete and name a proof, then later type `apply <proof name>` on a highlighted matching expression. Full walkthrough: [Lemma Guide: Use Instructions](../Lemma/LEMMA.md#1-use-instructions) and [STUDENT USER GUIDE §5](STUDENT_USER_GUIDE.md#5-lemmas).
+
+If an assignment requires a lemma:
+
+- Finish that lemma in your library first
+- Keep **High Support** if you want mapping inferred; use **Low Support** if students must type `x↦…`
+- Attach both the lemma proof (if they need to complete it) and the proof that uses `apply`, or make sure the lemma is already a completed proof they can look up under **All Proofs** after they start the assignment copy
+
+### 4. Courses, Rosters, and Assignments
+
+Classroom setup details: [Course User Instructions: Instructor Operations](../Courses/COURSE_USER_INSTRUCTIONS.md#1-instructor-operations).
+
+**Recommended order:** finish the solution proof → hide lines and set parameters → attach it from your library → mark the course **Active** → share a join code (codes last **7 days**).
+
+#### 4.1 Create a course
+
+1. Click **Courses** in the header
+  ![Instructor Courses Page](../../readme_resources/User_Guide/instructor_courses_page.png)
+2. Click **Create Course**
+3. Provide a unique course name. You can optionally generate a join code immediately
+  ![Create Course Popup](../../readme_resources/User_Guide/instructor_create_course_popup.png)
+
+New courses start inactive. Students cannot see them until **Course Visibility** is **Active**.
+
+You can also click **Join Course** and paste another instructor's code. That opens their course in the student-style observer view, not **Manage Course**.
+
+![Join Course Popup](../../readme_resources/User_Guide/instructor_join_course_popup.png)
+
+#### 4.2 Manage a course you own
+
+Open the course to reach **Manage Course**.
+
+![Manage Course](../../readme_resources/User_Guide/instructor_manage_course.png)
+
+![Course Main Values](../../readme_resources/Courses/instructor_course_values.png)
+
+- Turn **Course Visibility** to **Active** so students can enroll and work
+- Set the term (season and year) and description
+- Click **Generate New Code** for an 8-character join code. Save it when it appears; it is shown once. The code is active for **7 days**
+  ![New Join Code](../../readme_resources/User_Guide/instructor_manage_course_new_code.png)
+
+#### 4.3 Roster
+
+Two ways to enroll students (see also [Course User Instructions §1.3](../Courses/COURSE_USER_INSTRUCTIONS.md#13-enrolling-students-invitations--codes)):
+
+- **Join code**: give students the code; they enter it under **Join a Course**
+- **Add Student Manually**: enter a username or email and click **Add Student**. If more than one student matches, pick the correct account. The student must **Accept** the invitation
+
+![Add Student Pending](../../readme_resources/User_Guide/instructor_manage_course_add_student_pending.png)
+
+You can remove a student from the roster on the same page.
+
+#### 4.4 Create an assignment
+
+1. On **Manage Course**, click **Add Assignment**
+2. Give it a name and a due date
+  ![Assignment Due Date](../../readme_resources/User_Guide/instructor_manage_course_create_due_date_dropdown.png)
+3. Attach proofs from your library (equational or induction)
+  ![Select Proofs](../../readme_resources/User_Guide/instructor_manage_course_create_select_proof.png)
+4. Save when the form is filled
+  ![Create Assignment Filled](../../readme_resources/User_Guide/instructor_manage_course_create_filled.png)
+
+The assignment stores a **copy of the proof as it is now** (hidden lines, definitions, and parameters included). Editing the library proof later does not change copies already attached.
+
+**Edit** (pen icon): you can always rename the assignment, change the due date, reorder proofs, and add proofs. You can remove or rename a proof only if no student has started that proof.
+
+### 5. Watch and Comment
+
+On the assignment **Action** column, click the eye icon (**View Student Progress**).
+
+![View Student Progress Popup](../../readme_resources/User_Guide/student_progress.png)
+
+The progress matrix maps each student to each proof:
+
+- **Not Started**
+- **In Progress**
+- **Completed**
+- **Completed (Late)**
+
+Click a status that is not **Not Started** to open that student's proof. A banner shows whose proof it is.
+
+![View Student Progress In Assigned Proof](../../readme_resources/User_Guide/opened_student_progress.png)
+
+On each line, the comment (message) button opens two boxes. You edit **Instructor Comment**. Students can only edit **Student Comment**.
+
+A filled (blue) message icon means that line already has a comment. An outline (gray) icon means it does not.
+
+![Instructor View of Comments Popup Window](../../readme_resources/User_Guide/instructor_comment.png)
+
+Completion is stored the first time **Check Current Proof** succeeds on the student's copy. If that is after the due date, it is **late**. Checking again later does not change that. See [Course User Instructions §3](../Courses/COURSE_USER_INSTRUCTIONS.md#3-implemented-enforcements-system-guardrails).
+
+### 6. Copy and Share Assignments
+
+Details: [Course User Instructions §1.4](../Courses/COURSE_USER_INSTRUCTIONS.md#14-assignment-staging--student-progress-tracking).
+
+On an assignment, click the copy icon.
+
+- **Copy to one of your courses**: you may add, rename, or remove proofs freely. The new assignment does not change the original. Proofs come from the version that was on the source assignment
+  ![Empty Copy Assignment Within Course Popup](../../readme_resources/User_Guide/copy_assignment_in_course.png)
+- **Share to another instructor**: they receive an invitation. If they accept, the proofs are copied into their library and the assignment is added to the course you sent it to
+  ![Empty Share Assignment Popup](../../readme_resources/User_Guide/share_assignment_with_instructor.png)
+
+Incoming and sent shares appear on **Manage Course** under **Shared Assignment Packages** (**Incoming Packages** / **Sent Tracking**). Accept or decline incoming packages there.
+
+Both instructors must already have a course. You cannot send or receive an assignment share if the other instructor has no course.
+
+### 7. FAQ
+
+**Students cannot join or cannot see the course.**
+- Mark **Course Visibility** **Active**, and give them a join code that has not expired (7 days). They must use a **student** account.
+
+**Students have different proofs from each other.**
+- The assignment copies the proof at assign/edit time. Change the library copy, then add that version to a new assignment (or to an assignment where nobody has started that proof yet).
+
+**I cannot remove a proof from an assignment.**
+- A student has already started it. You can still reorder and add proofs.
+
+**Share failed.**
+- The other instructor needs at least one course. Shares only go between existing courses.
+
+**I opened a colleague's course and cannot manage it.**
+- That is observer mode (student-style view). Only the owner sees **Manage Course**.
+
+**Students cannot check the proof complete.**
+- Something is still hidden, or LHS does not yet equal RHS. Fill-in steps must match the stored solution.
+
+**I do not see Set Parameters.**
+- That item is instructor-only, in **Proof Utilities**. Students never see it. Set parameters on the library proof *before* you attach it to an assignment, so every student copy gets the same settings.
+
+**I signed up as a student by mistake.**
+- Role does not switch. Create an instructor account from **Sign Up** → **Instructor**.
