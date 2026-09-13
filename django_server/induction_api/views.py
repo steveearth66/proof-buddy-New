@@ -27,7 +27,64 @@ from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 
+from expression_tree.ERCommon import Node
+from expression_tree.ERGenerics import GenericInt
+
 User = get_user_model()
+
+
+def _extract_base_case_depth(body: Node, param_name: str) -> int:
+    """Walk the if-chain in a UDF body, counting consecutive integer base cases.
+    Returns max(covered_values), which is the minimum valid leap variable value.
+    Returns 0 if only one base case (or none recognized)."""
+    covered = set()
+    node = body
+    while (node and node.data == '(' and node.children
+           and node.children[0].data == 'if'):
+        guard = node.children[1]
+        # Pattern: (zero? param) → covers 0
+        if (guard.data == '(' and len(guard.children) == 2
+                and guard.children[0].data == 'zero?'
+                and guard.children[1].data == param_name
+                and not guard.children[1].children):
+            covered.add(0)
+        # Pattern: (= param m) or (= m param) where m is an integer literal
+        elif (guard.data == '(' and len(guard.children) == 3
+                and guard.children[0].data == '='
+                and guard.children[1].data == param_name
+                and not guard.children[1].children
+                and not guard.children[2].children
+                and isinstance(guard.children[2].name, int)):
+            covered.add(int(guard.children[2].name))
+        elif (guard.data == '(' and len(guard.children) == 3
+                and guard.children[0].data == '='
+                and guard.children[2].data == param_name
+                and not guard.children[2].children
+                and not guard.children[1].children
+                and isinstance(guard.children[1].name, int)):
+            covered.add(int(guard.children[1].name))
+        # Pattern: (< param m) → covers 0, 1, ..., m-1
+        elif (guard.data == '(' and len(guard.children) == 3
+                and guard.children[0].data == '<'
+                and guard.children[1].data == param_name
+                and not guard.children[1].children
+                and not guard.children[2].children
+                and isinstance(guard.children[2].name, int)
+                and guard.children[2].name > 0):
+            covered.update(range(int(guard.children[2].name)))
+        # Pattern: (> m param) → same meaning as (< param m)
+        elif (guard.data == '(' and len(guard.children) == 3
+                and guard.children[0].data == '>'
+                and not guard.children[1].children
+                and isinstance(guard.children[1].name, int)
+                and guard.children[1].name > 0
+                and guard.children[2].data == param_name
+                and not guard.children[2].children):
+            covered.update(range(int(guard.children[1].name)))
+        else:
+            break  # unrecognized guard pattern — stop conservatively
+        node = node.children[3]  # advance to else branch
+    return max(covered) if len(covered) > 1 else 0
 
 
 # ========================
@@ -918,7 +975,16 @@ def set_current_proof(request):
 
         # Prepare leap step: add generic for lvar, build premises with proper successor
         try:
-            ind.leapStep.addGeneric(lvar, struct)
+            leap_lower_bound = 0
+            if struct == "int":
+                # Auto-detect the function's base-case depth from the UDF definition
+                func_name = lhsPremise.strip().lstrip('(').split()[0] if lhsPremise.strip().startswith('(') else None
+                if func_name:
+                    udf = ind.leapStep.ruleSet['apply'].get(func_name)
+                    if udf and getattr(udf, 'params', None) and udf.params:
+                        leap_lower_bound = _extract_base_case_depth(udf.body, udf.params[0])
+            restrictions = {'min_val': leap_lower_bound} if leap_lower_bound > 0 else None
+            ind.leapStep.addGeneric(lvar, struct, restrictions=restrictions)
         except Exception:
             # ignore if invalid; frontend can still proceed applying IH/rules
             pass

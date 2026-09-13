@@ -21,7 +21,7 @@ class GenericInt(ERGeneric):
         minVal: the minimum possible value of the GenericInt, currently assigned by providing an assumption
         maxVal: the maximum possible value of the GenericInt, currently assigned by providing an assumption
     """
-    def __init__(self, assumption: str = 'Non-negative'):
+    def __init__(self, assumption: str = 'Non-negative', min_val: int | None = None):
         super().__init__(RacType((None, Type.INT)))
         self._assumption = assumption
         match self._assumption:
@@ -42,6 +42,9 @@ class GenericInt(ERGeneric):
                 self._maxVal = float('inf')
             case _:
                 raise ValueError('Invalid string for GenericInt assumption')
+        # Explicit lower bound overrides assumption-derived minVal
+        if min_val is not None and min_val > self._minVal:
+            self._minVal = min_val
     
     @property
     def assumption(self):

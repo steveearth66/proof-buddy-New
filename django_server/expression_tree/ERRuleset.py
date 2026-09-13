@@ -32,6 +32,92 @@ def isMatch(xNode: Node, yNode: Node) -> bool:
         sofar &= isMatch(xNode.children[i], yNode.children[i])
     return sofar
 
+def _walk_for_generic(node: Node) -> tuple:
+    """Return (variable_name, minVal) for the first GenericInt leaf found, else (None, 0)."""
+    if not node.children and isinstance(node.name, GenericInt):
+        return node.data, node.name.minVal
+    for child in node.children:
+        result = _walk_for_generic(child)
+        if result[0] is not None:
+            return result
+    return None, 0
+
+def _sympy_eval_nonzero(arg_node: Node) -> bool:
+    """Return True if arg_node is provably != 0 given GenericInt lower bounds via sympy."""
+    try:
+        math_str = arg_node.mathStr()
+        if math_str == 'ERROR':
+            return False
+        gen_name, min_val = _walk_for_generic(arg_node)
+        if gen_name is None:
+            return False
+        k = sp.Symbol(gen_name, nonnegative=True)
+        expr = sp.sympify(math_str, locals={gen_name: k})
+        if min_val > 0:
+            k_s = sp.Symbol(f'{gen_name}_s', nonnegative=True)
+            expr = sp.simplify(expr.subs(k, k_s + min_val))
+        return sp.simplify(expr).is_positive == True
+    except Exception:
+        return False
+
+def _sympy_eval_neq(node1: Node, node2: Node) -> bool:
+    """Return True if node1 != node2 is provably true given GenericInt lower bounds."""
+    try:
+        s1 = node1.mathStr() if node1.children else node1.data
+        s2 = node2.mathStr() if node2.children else node2.data
+        if 'ERROR' in (s1, s2):
+            return False
+        gen_name, min_val = _walk_for_generic(node1)
+        if gen_name is None:
+            gen_name, min_val = _walk_for_generic(node2)
+        if gen_name is None:
+            return False
+        k = sp.Symbol(gen_name, nonnegative=True)
+        e1 = sp.sympify(s1, locals={gen_name: k})
+        e2 = sp.sympify(s2, locals={gen_name: k})
+        diff = sp.simplify(e1 - e2)
+        if min_val > 0:
+            k_s = sp.Symbol(f'{gen_name}_s', nonnegative=True)
+            diff = sp.simplify(diff.subs(k, k_s + min_val))
+        return diff.is_positive == True or diff.is_negative == True
+    except Exception:
+        return False
+
+def _sympy_eval_comparison(op: str, node1: Node, node2: Node) -> 'bool | None':
+    """Return True/False for (op node1 node2) via sympy and GenericInt lower bounds, or None if undetermined."""
+    try:
+        s1 = node1.mathStr() if node1.children else node1.data
+        s2 = node2.mathStr() if node2.children else node2.data
+        if 'ERROR' in (s1, s2):
+            return None
+        gen_name, min_val = _walk_for_generic(node1)
+        if gen_name is None:
+            gen_name, min_val = _walk_for_generic(node2)
+        if gen_name is None:
+            return None
+        k = sp.Symbol(gen_name, nonnegative=True)
+        e1 = sp.sympify(s1, locals={gen_name: k})
+        e2 = sp.sympify(s2, locals={gen_name: k})
+        diff = sp.simplify(e1 - e2)  # positive ↔ e1 > e2
+        if min_val > 0:
+            k_s = sp.Symbol(f'{gen_name}_s', nonnegative=True)
+            diff = sp.simplify(diff.subs(k, k_s + min_val))
+        if op == '<':
+            if diff.is_negative == True: return True
+            if diff.is_nonnegative == True: return False
+        elif op == '>':
+            if diff.is_positive == True: return True
+            if diff.is_nonpositive == True: return False
+        elif op == '<=':
+            if diff.is_nonpositive == True: return True
+            if diff.is_positive == True: return False
+        elif op == '>=':
+            if diff.is_nonnegative == True: return True
+            if diff.is_negative == True: return False
+        return None
+    except Exception:
+        return None
+
 class RuleType(Enum):
     BUILT_IN = 0
     DEFINITION = 1
@@ -178,7 +264,7 @@ class ZeroQ(BuiltIn):
             if ruleNode.children[1].name != 0:
                 return True, 'ZeroQ.isApplicable() PASS'
             return False, f"Cannot determine value of 'zero?' expression with generic argument '{ruleNode.children[1].data}'"
-        return True, 'ZeroQ.isApplicable() PASS'  # string should not print out if debug=False
+        return True, 'ZeroQ.isApplicable() PASS'
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
         trueNode = Node(data='#t', tokenType=RacType(
@@ -264,10 +350,80 @@ class Equals(BuiltIn):
     def __init__(self):
         super().__init__('=', allowGenerics=True)
 
-    def insertSubstitution(self, ruleNode: Node|None):
+    def insertSubstitution(self, ruleNode: Node | None):
         argOne = str(ruleNode.children[1])
         argTwo = str(ruleNode.children[2])
         return Node(data="#t" if argOne == argTwo else "#f", tokenType=RacType((None, Type.BOOL)), name=argOne == argTwo)  # converting node
+
+
+class ZeroQSymbolic(Rule):
+    """rewrite zero? — uses sympy to prove a compound arithmetic expression is non-zero."""
+    def __init__(self):
+        super().__init__('zero?', RuleType.BUILT_IN)
+
+    def isApplicable(self, ruleNode: Node, rawParams: list[str] = None) -> tuple[bool, str]:
+        if rawParams:
+            return False, "rewrite zero? takes no parameters"
+        if not ruleNode.children or ruleNode.children[0].data != 'zero?':
+            return False, f"Cannot rewrite with zero? here"
+        arg = ruleNode.children[1]
+        if not arg.children and isinstance(arg.name, GenericInt) and arg.name != 0:
+            return True, 'ZeroQSymbolic.isApplicable() PASS'
+        if arg.allMath() and _sympy_eval_nonzero(arg):
+            return True, 'ZeroQSymbolic.isApplicable() PASS'
+        return False, "Cannot verify expression is non-zero given available constraints on the induction variable"
+
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        return Node(data='#f', tokenType=RacType((None, Type.BOOL)), name=False)
+
+
+class EqualsSymbolic(Rule):
+    """rewrite = — uses sympy to prove two arithmetic expressions are unequal."""
+    def __init__(self):
+        super().__init__('=', RuleType.BUILT_IN)
+
+    def isApplicable(self, ruleNode: Node, rawParams: list[str] = None) -> tuple[bool, str]:
+        if rawParams:
+            return False, "rewrite = takes no parameters"
+        if not ruleNode.children or ruleNode.children[0].data != '=':
+            return False, "Cannot rewrite with = here"
+        arg1, arg2 = ruleNode.children[1], ruleNode.children[2]
+        if ((arg1.allMath() or not arg1.children) and
+                (arg2.allMath() or not arg2.children) and
+                _sympy_eval_neq(arg1, arg2)):
+            return True, 'EqualsSymbolic.isApplicable() PASS'
+        return False, "Cannot verify expressions are unequal given available constraints on the induction variable"
+
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        argOne = str(ruleNode.children[1])
+        argTwo = str(ruleNode.children[2])
+        return Node(data="#t" if argOne == argTwo else "#f", tokenType=RacType((None, Type.BOOL)), name=argOne == argTwo)
+
+
+class ComparisonSymbolic(Rule):
+    """rewrite <, >, <=, >= — uses sympy to determine comparison result given GenericInt lower bounds."""
+    def __init__(self, op: str):
+        super().__init__(op, RuleType.BUILT_IN)
+        self._op = op
+
+    def isApplicable(self, ruleNode: Node, rawParams: list[str] = None) -> tuple[bool, str]:
+        if rawParams:
+            return False, f"rewrite {self._op} takes no parameters"
+        if not ruleNode.children or ruleNode.children[0].data != self._op:
+            return False, f"Cannot rewrite with {self._op} here"
+        arg1, arg2 = ruleNode.children[1], ruleNode.children[2]
+        if not (arg1.allMath() or not arg1.children) or not (arg2.allMath() or not arg2.children):
+            return False, "Non-arithmetic arguments"
+        result = _sympy_eval_comparison(self._op, arg1, arg2)
+        if result is not None:
+            return True, f'ComparisonSymbolic({self._op}).isApplicable() PASS'
+        return False, f"Cannot determine result of {self._op} given available constraints on the induction variable"
+
+    def insertSubstitution(self, ruleNode: Node) -> Node:
+        arg1, arg2 = ruleNode.children[1], ruleNode.children[2]
+        result = _sympy_eval_comparison(self._op, arg1, arg2)
+        bool_val = bool(result)
+        return Node(data='#t' if bool_val else '#f', tokenType=RacType((None, Type.BOOL)), name=bool_val)
 
 
 # NOTE: for [type]? expressions, when the argument is of type ANY, it currently evaluates to #f
@@ -1338,7 +1494,13 @@ REWRITE_RULES: dict[str, Rule] = {
     '-+': MinusPlus(),
     'zero?+': ZeroQPlus(),
     'math': AdvMath(),
-    'logic': AdvLogic()
+    'logic': AdvLogic(),
+    'zero?': ZeroQSymbolic(),
+    '=': EqualsSymbolic(),
+    '<': ComparisonSymbolic('<'),
+    '>': ComparisonSymbolic('>'),
+    '<=': ComparisonSymbolic('<='),
+    '>=': ComparisonSymbolic('>='),
 }
 
 DEFAULT_RULE_SET: dict[str, dict[str, Rule]] = {

@@ -144,9 +144,15 @@ const PersistentPad = forwardRef(function PersistentPad(
 
   const handleRuleChange = (e) => {
     let transformedValue = e.target.value;
-    
+
     if (transformedValue.split(" ")[0] !== "eval") {
-      transformedValue = transformedValue.replace(/=/g, "\u21A6");
+      // Only replace '=' in the parameter portion — never in the rule name itself.
+      // Split into [category, ruleName, ...params] so that rule names containing
+      // '=', '<=', '>=' (e.g. "rewrite =", "rewrite <=") are not corrupted.
+      const words = transformedValue.split(" ");
+      const prefix = words.slice(0, 2).join(" ");
+      const paramStr = words.slice(2).join(" ");
+      transformedValue = prefix + (paramStr ? " " + paramStr.replace(/=/g, "\u21A6") : "");
     }
     
     setRule(transformedValue);

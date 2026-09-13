@@ -109,10 +109,15 @@ class ProofComponent:
         if not self._validateNewLabel(label):
             self.errLog.append(f"Can not use generic with label '{label}': label is already being used")
         type = type.lower()
-        if type == 'int' and (restrictions is None or restrictions.get("assumption") is None):
-            self.generics[label] = GenericInt()
-        elif type == 'int':
-            self.generics[label] = GenericInt(restrictions['assumption'])
+        if type == 'int':
+            assumption = None if restrictions is None else restrictions.get('assumption')
+            min_val = None if restrictions is None else restrictions.get('min_val')
+            if assumption:
+                self.generics[label] = GenericInt(assumption=assumption, min_val=min_val)
+            elif min_val is not None:
+                self.generics[label] = GenericInt(min_val=min_val)
+            else:
+                self.generics[label] = GenericInt()
         elif type == 'list' and (restrictions is None or restrictions.get("neverNull") is None):
             self.generics[label] = GenericList()
         elif type == 'list':
