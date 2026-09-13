@@ -507,35 +507,84 @@ class UDF(Rule):
         return expCopy
 
 class IH(Rule):
-    def __init__(self, indHypLHS: Node, indHypRHS: Node):
+    def __init__(self, indHypLHS: Node, indHypRHS: Node, lvar: str = None):
         super().__init__('IH', RuleType.IH)
         self.indHypLHS = indHypLHS
         self.indHypRHS = indHypRHS
+        self.lvar = lvar  # leap variable name; enables strong-induction matching when set
+        self._matched_e = None      # expression substituted for lvar (set by isApplicable)
+        self._matched_lhs = None    # True if LHS template matched, False if RHS matched
+
+    def _find_lvar_match(self, template: Node, target: Node) -> tuple:
+        """Return (True, e) if template[lvar→e] == target, else (False, None).
+        Distinguishes a structural mismatch from "lvar not present in this subtree"."""
+        if template.data == self.lvar and not template.children:
+            return (True, target)
+        if template.data != target.data or len(template.children) != len(target.children):
+            return (False, None)
+        found_e = None
+        for t_child, r_child in zip(template.children, target.children):
+            ok, child_e = self._find_lvar_match(t_child, r_child)
+            if not ok:
+                return (False, None)  # propagate structural mismatch
+            if child_e is not None:
+                if found_e is None:
+                    found_e = child_e
+                elif str(found_e) != str(child_e):
+                    return (False, None)  # inconsistent binding for lvar
+        return (True, found_e)
+
+    def _is_leq_lvar(self, e: Node) -> bool:
+        """Return True iff sympy can prove e <= lvar for all positive integers lvar."""
+        if str(e) == self.lvar:
+            return True
+        try:
+            math_str = e.mathStr()
+            if math_str == "ERROR":
+                return False
+            k_sym = sp.Symbol(self.lvar, positive=True, integer=True)
+            e_sym = sp.sympify(math_str, locals={self.lvar: k_sym})
+            diff = sp.simplify(k_sym - e_sym)
+            return diff.is_nonnegative == True
+        except Exception:
+            return False
 
     def isApplicable(self, ruleNode: Node, rawParams: list[str] = None) -> tuple[bool, str]:
         if rawParams:
             return False, f"IH rule takes no parameters"
-        
-        # Check if ruleNode matches either indHypLHS or indHypRHS by comparing string representations
         nodeStr = str(ruleNode)
         lhsStr = str(self.indHypLHS)
         rhsStr = str(self.indHypRHS)
-        
+        # Exact match (weak induction / exact k)
         if nodeStr == lhsStr or nodeStr == rhsStr:
             return True, "IH.isApplicable() PASS"
-        else:
-            return False, f"Node '{nodeStr}' does not match induction hypothesis LHS '{lhsStr}' or RHS '{rhsStr}'"
+        # Strong induction: try substituting e for lvar in each IH side
+        if self.lvar:
+            for template, matched_lhs in ((self.indHypLHS, True), (self.indHypRHS, False)):
+                ok, e = self._find_lvar_match(template, ruleNode)
+                if ok and e is not None:
+                    if self._is_leq_lvar(e):
+                        self._matched_e = e
+                        self._matched_lhs = matched_lhs
+                        return True, "IH.isApplicable() PASS"
+                    return False, f"cannot verify that {str(e)} is <= {self.lvar}"
+        return False, f"Node '{nodeStr}' does not match induction hypothesis LHS '{lhsStr}' or RHS '{rhsStr}'"
 
     def insertSubstitution(self, ruleNode: Node) -> Node:
         nodeStr = str(ruleNode)
         lhsStr = str(self.indHypLHS)
         rhsStr = str(self.indHypRHS)
-        
-        # If the node matches LHS, replace with RHS; if it matches RHS, replace with LHS
         if nodeStr == lhsStr:
             return self.indHypRHS.clone()
-        elif nodeStr == rhsStr:
+        if nodeStr == rhsStr:
             return self.indHypLHS.clone()
+        # Strong induction: substitute matched e for lvar in the opposite side
+        if self._matched_e is not None:
+            result = copy.deepcopy(self.indHypRHS if self._matched_lhs else self.indHypLHS)
+            recursiveReplaceNodes(result, [self.lvar], [self._matched_e])
+            self._matched_e = None
+            self._matched_lhs = None
+            return result
 
 class LemmaRule(Rule):
     """

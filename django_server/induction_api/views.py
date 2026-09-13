@@ -912,7 +912,7 @@ def set_current_proof(request):
         recursiveReplaceNodes(ih_rhs_line.exprTree, [ivar], [lvar_line_rhs.exprTree])
         ind.indHypLHS = ih_lhs_line.exprTree
         ind.indHypRHS = ih_rhs_line.exprTree
-        ih_rule = IH(ind.indHypLHS, ind.indHypRHS)
+        ih_rule = IH(ind.indHypLHS, ind.indHypRHS, lvar=lvar)
         ind.baseCase.ruleSet['apply']['IH'] = ih_rule
         ind.leapStep.ruleSet['apply']['IH'] = ih_rule
 
@@ -1170,7 +1170,7 @@ def apply_rule(request):
                                     _ih_lhs_line = ERProofLine(_ih_lhs_str, target.debug, target.ruleSet, generics=target.generics)
                                     _ih_rhs_line = ERProofLine(_ih_rhs_str, target.debug, target.ruleSet, generics=target.generics)
                                     if not _ih_lhs_line.errLog and not _ih_rhs_line.errLog:
-                                        _ih_rule = IH(_ih_lhs_line.exprTree, _ih_rhs_line.exprTree)
+                                        _ih_rule = IH(_ih_lhs_line.exprTree, _ih_rhs_line.exprTree, lvar=_db_proof.leap_variable)
                                         proof.baseCase.ruleSet['apply']['IH'] = _ih_rule
                                         proof.leapStep.ruleSet['apply']['IH'] = _ih_rule
                                         # Re-save the repaired proof to cache so future
