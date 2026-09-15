@@ -33,6 +33,14 @@ from expression_tree.ERGenerics import GenericInt
 User = get_user_model()
 
 
+def _parse_avals(aval_str: str, struct: str) -> list:
+    """Parse a comma-separated anchor value string into a list of stripped non-empty strings.
+    For non-int structs (lists) the string is returned as a single-element list unchanged."""
+    if struct != 'int':
+        return [aval_str]
+    return [v.strip() for v in str(aval_str).split(',') if v.strip()]
+
+
 def _extract_base_case_depth(body: Node, param_name: str) -> int:
     """Walk the if-chain in a UDF body, counting consecutive integer base cases.
     Returns max(covered_values), which is the minimum valid leap variable value.
@@ -325,14 +333,23 @@ def start_induction_proof(request):
         
         # 1. Validate anchor value based on structure type
         if struct == 'int':
-            # For integers: must be a valid integer (but keep as string for model)
-            try:
-                int(anchor_value)  # Validate it's an integer
-            except (ValueError, TypeError):
+            # For integers: each comma-separated value must be a nonneg integer
+            parsed_avals = _parse_avals(anchor_value, struct)
+            if not parsed_avals:
                 return Response(
-                    {"error": "Anchor value (aVal) must be a valid integer for integer induction"},
+                    {"error": "Anchor value (aVal) cannot be empty"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
+            for av in parsed_avals:
+                try:
+                    v = int(av)
+                    if v < 0:
+                        raise ValueError()
+                except (ValueError, TypeError):
+                    return Response(
+                        {"error": "Anchor value (aVal) must be a valid non-negative integer for integer induction"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
         else:
             # For lists: anchor_value stays as string (e.g., 'null', "'()", etc.)
             pass
@@ -874,7 +891,7 @@ def set_current_proof(request):
         definitions_and_generics = data.get("definitions", [])
         definitions = []
         generics = data.get("generics", [])
-        
+
         for item in definitions_and_generics:
             if item.get('is_generic'):
                 generics.append(item)
@@ -886,6 +903,10 @@ def set_current_proof(request):
         missing = [k for k in ("ivar","aval","lvar","lhsPremise","rhsPremise") if not data.get(k)]
         if missing:
             return Response({"isValid": False, "errors": [f"Missing fields: {', '.join(missing)}"]}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Parse aval into a list; for this step only the first value is used for base case
+        avals = _parse_avals(aval, struct)
+        aval = avals[0]  # remaining values handled in later steps
 
         # Create a fresh IndProof engine, but preserve existing proof_id if available
         _, existing_proof_id = get_or_set_induction_obj(user)
