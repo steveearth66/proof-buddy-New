@@ -17,10 +17,11 @@ export default function Substitution({
   racketRuleFields,
   handleSubstitution,
   errors,
-  initialRule
+  initialRule,
+  initialSubstitution
 }) {
   const initialValues = {
-    substitution: "",
+    substitution: initialSubstitution || "",
     rule: initialRule || ""
   };
 

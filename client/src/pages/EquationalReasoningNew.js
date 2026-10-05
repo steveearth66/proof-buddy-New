@@ -2036,6 +2036,10 @@ const handleRuleKeyDown = (e) => {
             handleSubstitution={handleSubstitution}
             errors={SubErrors}
             initialRule={footerRule}
+            initialSubstitution={(() => {
+              const f = isBound ? racketRuleFields?.[showSide]?.[getPadIndex(userRow.num)] : null;
+              return (f?.racket && !f?.hide_expression) ? f.racket : "";
+            })()}
           />
         )}
 

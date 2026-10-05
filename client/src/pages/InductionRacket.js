@@ -1468,15 +1468,18 @@ const InductionRacket = () => {
         return;
       }
     } else {
-      // For integers: must be a nonnegative integer
-      if (!/^\d+$/.test(inductionValue || "")) {
+      // For integers: one or more comma-separated nonneg integers
+      const segments = (inductionValue || '').split(',').map(s => s.trim()).filter(s => s.length > 0);
+      if (segments.length === 0) {
         toast.error("Anchor value must be a nonnegative integer.");
         return;
       }
-      const parsedVal = parseInt(inductionValue, 10);
-      if (isNaN(parsedVal) || parsedVal < 0) {
-        toast.error("Anchor value must be a nonnegative integer.");
-        return;
+      for (const seg of segments) {
+        const v = parseInt(seg, 10);
+        if (!/^\d+$/.test(seg) || isNaN(v) || v < 0) {
+          toast.error("All anchor values must be nonneg integers, separated by commas.");
+          return;
+        }
       }
     }
 
@@ -2369,6 +2372,10 @@ const InductionRacket = () => {
             handleSubstitution={handleInductionSubstitution}
             errors={inductionSubErrors}
             initialRule={footerRule}
+            initialSubstitution={(() => {
+              const f = isBound ? racketRuleFields?.[showSide]?.[getPadIndex(userRow.num)] : null;
+              return (f?.racket && !f?.hide_expression) ? f.racket : "";
+            })()}
           />
         )}
 
@@ -2622,7 +2629,7 @@ const InductionRacket = () => {
                             </div>
                           </Form.Group>
                           <Form.Group as={Col} md="4">
-                            <label className="form-label small fw-bold mb-0">AVal</label>
+                            <label className="form-label small fw-bold mb-0">AVal(s)</label>
                             <div className="position-relative">
                               <RacketInput
                                 id="eRInductionValue"
