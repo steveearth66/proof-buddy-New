@@ -2372,6 +2372,10 @@ const InductionRacket = () => {
             handleSubstitution={handleInductionSubstitution}
             errors={inductionSubErrors}
             initialRule={footerRule}
+            initialSubstitution={(() => {
+              const f = isBound ? racketRuleFields?.[showSide]?.[getPadIndex(userRow.num)] : null;
+              return (f?.racket && !f?.hide_expression) ? f.racket : "";
+            })()}
           />
         )}
 

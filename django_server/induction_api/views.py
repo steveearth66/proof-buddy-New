@@ -2398,39 +2398,43 @@ def validate_hidden_field(request):
                 if line.hide_justification:
                     line.hide_justification = False
                     changed = True
+                if line.hide_expression:
+                    line.hide_expression = False
+                    changed = True
             elif not rule_text_match:
                 errors.append("Rule does not match.")
         else:
             errors.append("You must provide a rule.")
         
-        # 5. Logic: Expression Tree Match (JSON Dictionary Comparison)
-        if student_expression is not None and student_expression.strip() != "":
-            try:
-                # Use the target's actual ruleSet and generics so UDFs are parsed correctly
-                temp_line = ERProofLine(
-                    student_expression, 
-                    target.debug, 
-                    target.ruleSet, 
-                    generics=target.generics
-                )
-                
-                if not temp_line.errLog:
-                    raw_student_tree = makeJson(temp_line.exprTree)
+        # 5. Logic: Expression Tree Match — only runs when the expression is actually hidden
+        if line.hide_expression:
+            if student_expression is not None and student_expression.strip() != "":
+                try:
+                    # Use the target's actual ruleSet and generics so UDFs are parsed correctly
+                    temp_line = ERProofLine(
+                        student_expression, 
+                        target.debug, 
+                        target.ruleSet, 
+                        generics=target.generics
+                    )
                     
-                    student_tree = json.loads(json.dumps(raw_student_tree))
-                    
-                    # 3. Deep compare
-                    if student_tree == line.json_tree:
-                        line.hide_expression = False
-                        changed = True
+                    if not temp_line.errLog:
+                        raw_student_tree = makeJson(temp_line.exprTree)
+                        
+                        student_tree = json.loads(json.dumps(raw_student_tree))
+                        
+                        # 3. Deep compare
+                        if student_tree == line.json_tree:
+                            line.hide_expression = False
+                            changed = True
+                        else:
+                            errors.append("Expression does not match.")
                     else:
-                        errors.append("Expression does not match.")
-                else:
-                    errors.append("Syntax error in expression.")
-            except Exception as e:
-                errors.append(f"Error parsing expression: {str(e)}")
-        else:
-            errors.append("You must provide an expression.")
+                        errors.append("Syntax error in expression.")
+                except Exception as e:
+                    errors.append(f"Error parsing expression: {str(e)}")
+            else:
+                errors.append("You must provide an expression.")
 
         if not errors and changed:
             line.save()
