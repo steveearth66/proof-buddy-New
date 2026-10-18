@@ -76,7 +76,7 @@ zeroQ_tests = [
     ("(zero? 0)", '#t'),
     ("(zero? 1)", '#f')
 ]
-totalFails += test_racket_function('zero?', zeroQ_tests)
+totalFails += test_racket_function('zero?', zeroQ_tests, hasAxiom=True)
 
 nullQ_tests = [
     ("(+ 1 2)", ["Cannot evaluate null? on a '+' expression"]),

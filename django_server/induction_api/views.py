@@ -2175,6 +2175,8 @@ def download_proof(request):
                 'resultNode': l.result_node,
                 'substitution': l.substitution,
                 'jsonTree': l.json_tree,
+                'hideExpression': l.hide_expression,
+                'hideJustification': l.hide_justification,
             }
             for l in lines
         ]
@@ -2212,6 +2214,15 @@ def download_proof(request):
                 'RHS': get_side_lines('leap', 'RHS'),
             },
         },
+        'comments': [
+            {
+                'side': c.side,
+                'lineNumber': c.line_number,
+                'role': c.role,
+                'comment': c.comment,
+            }
+            for c in InductionProofLineComment.objects.filter(proof=proof).order_by('side', 'line_number', 'role')
+        ],
     }
     return Response(data, status=status.HTTP_200_OK)
 
@@ -2270,7 +2281,17 @@ def upload_proof(request):
                         result_node=int(line.get('resultNode') or 0),
                         substitution=line.get('substitution') or '',
                         json_tree=line.get('jsonTree') or {},
+                        hide_expression=bool(line.get('hideExpression', False)),
+                        hide_justification=bool(line.get('hideJustification', False)),
                     )
+        for c in data.get('comments', []):
+            InductionProofLineComment.objects.create(
+                proof=proof,
+                side=c.get('side', 'LHS'),
+                line_number=int(c.get('lineNumber') or 0),
+                role=c.get('role', 'student'),
+                comment=c.get('comment', ''),
+            )
         return Response({'proofId': proof.id, 'proofName': name}, status=status.HTTP_201_CREATED)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

@@ -129,7 +129,7 @@ eq_tests = [
     ("(= (2 3) '(2 3))", ['Insufficiently resolved arguments']), # compare unquoted list to quoted list
     ("(= 3 '(3))", '#f')
 ]
-totalFails += test_racket_function('=', eq_tests)
+totalFails += test_racket_function('=', eq_tests, hasAxiom=True)
 
 lt_tests = [
     # bad operation
@@ -144,7 +144,7 @@ lt_tests = [
     ("(< 3 3)", '#f'), # equal
     ("(< 3 4)", '#t') # less than
 ]
-totalFails += test_racket_function('<', lt_tests)
+totalFails += test_racket_function('<', lt_tests, hasAxiom=True)
 
 le_tests = [
     # bad operation
@@ -159,7 +159,7 @@ le_tests = [
     ("(<= 3 3)", '#t'), # equal
     ("(<= 3 4)", '#t') # less than
 ]
-totalFails += test_racket_function('<=', le_tests)
+totalFails += test_racket_function('<=', le_tests, hasAxiom=True)
 
 gt_tests = [
     # bad operation
@@ -174,7 +174,7 @@ gt_tests = [
     ("(> 3 3)", '#f'), # equal
     ("(> 3 4)", '#f') # less than
 ]
-totalFails += test_racket_function('>', gt_tests)
+totalFails += test_racket_function('>', gt_tests, hasAxiom=True)
 
 ge_tests = [
     # bad operation
@@ -189,7 +189,7 @@ ge_tests = [
     ("(>= 3 3)", '#t'), # equal
     ("(>= 3 4)", '#f') # less than
 ]
-totalFails += test_racket_function('>=', ge_tests)
+totalFails += test_racket_function('>=', ge_tests, hasAxiom=True)
 
 # Check that 'math' rule can no longer be used in place of the individual operators
 totalFails += do_single_test_case('eval math', '(+ 1 2)', 
