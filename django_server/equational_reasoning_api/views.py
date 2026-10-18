@@ -2041,6 +2041,8 @@ def download_proof(request):
             'resultNode': line.result_node,
             'substitution': line.substitution,
             'jsonTree': line.json_tree,
+            'hideExpression': line.hide_expression,
+            'hideJustification': line.hide_justification,
         }
     data = {
         'proofType': 'equational',
@@ -2061,6 +2063,15 @@ def download_proof(request):
             'LHS': [line_to_dict(l) for l in lhs_lines],
             'RHS': [line_to_dict(l) for l in rhs_lines],
         },
+        'comments': [
+            {
+                'side': c.side,
+                'lineNumber': c.line_number,
+                'role': c.role,
+                'comment': c.comment,
+            }
+            for c in EquationalProofLineComment.objects.filter(proof=proof).order_by('side', 'line_number', 'role')
+        ],
     }
     return Response(data, status=status.HTTP_200_OK)
 
@@ -2106,7 +2117,17 @@ def upload_proof(request):
                     result_node=int(line.get('resultNode') or 0),
                     substitution=line.get('substitution') or '',
                     json_tree=line.get('jsonTree') or {},
+                    hide_expression=bool(line.get('hideExpression', False)),
+                    hide_justification=bool(line.get('hideJustification', False)),
                 )
+        for c in data.get('comments', []):
+            EquationalProofLineComment.objects.create(
+                proof=proof,
+                side=c.get('side', 'LHS'),
+                line_number=int(c.get('lineNumber') or 0),
+                role=c.get('role', 'student'),
+                comment=c.get('comment', ''),
+            )
         return Response({'proofId': proof.id, 'proofName': name}, status=status.HTTP_201_CREATED)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
