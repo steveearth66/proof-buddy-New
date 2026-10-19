@@ -1389,7 +1389,18 @@ def apply_rule(request):
                 if calculated_line_number < len(target.proofLines):
                     error_value = target.proofLines[calculated_line_number].errors
 
-                # Save the NEW line with selected_node=None (unknown until next line generated)
+                # Preserve selected_node when regenerating an existing line.
+                # selected_node records which node on this line the user selected to
+                # generate the NEXT line (the answer key for hidden-field validation).
+                # Overwriting it with start_position (from the source of THIS line)
+                # corrupts that answer key.
+                _ind_existing = InductionProofLine.objects.filter(
+                    proof_id=proof_id, case=case.lower(),
+                    side=side.upper(), line_number=calculated_line_number
+                ).first()
+                _ind_save_sel = _ind_existing.selected_node if _ind_existing else None
+
+                # Save the line, preserving the answer-key selected_node on existing lines
                 save_proof_line_to_db(
                     proof_id=proof_id,
                     case=case,
@@ -1399,7 +1410,7 @@ def apply_rule(request):
                     start_position=startPosition,
                     line_number=calculated_line_number,
                     substitution=substitution or '',
-                    selected_node=None,  # Unknown until user generates next line
+                    selected_node=_ind_save_sel,
                     result_node=result_node_id,
                     json_tree=jsonTree,
                     errors=error_value
@@ -1681,7 +1692,14 @@ def substitution(request):
                 if calculated_line_number < len(target.proofLines):
                     error_value = target.proofLines[calculated_line_number].errors
 
-                # Save the NEW line with selected_node=None (unknown until next line generated)
+                # Preserve selected_node when regenerating an existing line.
+                _ind_sub_existing = InductionProofLine.objects.filter(
+                    proof_id=proof_id, case=case.lower(),
+                    side=side.upper(), line_number=calculated_line_number
+                ).first()
+                _ind_sub_sel = _ind_sub_existing.selected_node if _ind_sub_existing else None
+
+                # Save the line, preserving the answer-key selected_node on existing lines
                 save_proof_line_to_db(
                     proof_id=proof_id,
                     case=case,
@@ -1691,7 +1709,7 @@ def substitution(request):
                     start_position=startPosition,
                     line_number=calculated_line_number,
                     substitution=substitution or '',
-                    selected_node=None,  # Unknown until user generates next line
+                    selected_node=_ind_sub_sel,
                     result_node=result_node_id,
                     json_tree=jsonTree,
                     errors=error_value

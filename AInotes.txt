@@ -993,3 +993,15 @@ Each occurrence of the parameter now gets its own independent subtree. updatePos
 This fix applies to both ER and Induction since both pipelines use the same recursiveReplaceNodes function. copy was already imported in ERRuleset.py. All existing tests passed after the change.
 
 LESSON: When a highlighting bug appears before any rule application (purely from arrow-key navigation), the problem is in the tree data structure being rendered, not in the state management around rule application. Suspect node sharing (DAG) in the expression tree whenever identical subexpressions appear in two places after applying a function whose definition contains the parameter more than once.
+
+---
+
+SESSION 2026-10-19: Answer-Key Field Corruption via Re-apply
+
+SYMPTOM: A student got "Incorrect selection" on a hidden line even though the highlight was visually correct. Bug only appeared if they had first hit G&C on a visible line above it without changing anything.
+
+ROOT CAUSE: The `selected_node` field on line N is the answer key — it records which node was selected on line N to generate line N+1. It gets correctly written when line N+1 is first created. But when the student re-ran G&C on line N, `save_proof_line_to_db` used `update_or_create` and silently overwrote `selected_node` with `start_position` (a completely different value belonging to the previous line's context), corrupting the answer key.
+
+FIX: Before calling `save_proof_line_to_db` on a line, check if a DB record already exists for it. If it does, preserve its `selected_node` (and hide flags in equational). Pass the preserved value instead of overwriting. Applied in 4 locations: `apply_rule` and `substitution` in both `equational_reasoning_api/views.py` and `induction_api/views.py`.
+
+KEY LESSON: When a DB save function uses `update_or_create`, every field in `defaults` gets unconditionally overwritten on both create AND update. Any field that serves as an answer key or was set by a different operation than the one currently running must be explicitly preserved by reading the existing value first. The symptom of this class of bug is: something works fine the first time through, but breaks after an apparently no-op action — because the no-op secretly corrupted a field that was set by a different code path.
