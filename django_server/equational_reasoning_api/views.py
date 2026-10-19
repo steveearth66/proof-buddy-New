@@ -586,7 +586,19 @@ def apply_rule(request):
                 error_value = ''
                 if calculated_line_number < len(target.proofLines):
                     error_value = target.proofLines[calculated_line_number].errors
-                
+
+                # When regenerating an existing line, preserve its selected_node
+                # (the answer key set when the NEXT line was first created) and its
+                # hide flags.  Overwriting selected_node here is what caused
+                # "Incorrect selection" errors on subsequently hidden lines.
+                _existing = EquationalProofLine.objects.filter(
+                    proof_id=proof_id, side=side.upper(),
+                    line_number=calculated_line_number
+                ).first()
+                _save_selected = _existing.selected_node if _existing else start_position
+                _save_hide_expr = _existing.hide_expression if _existing else False
+                _save_hide_just = _existing.hide_justification if _existing else False
+
                 # Save the new line
                 save_proof_line_to_db(
                     proof_id=proof_id,
@@ -596,9 +608,11 @@ def apply_rule(request):
                     start_position=start_position,
                     line_number=calculated_line_number,
                     substitution=substitution or '',
-                    selected_node=start_position,
+                    selected_node=_save_selected,
                     result_node=result_node_id,
-                    errors=error_value
+                    errors=error_value,
+                    hide_expression=_save_hide_expr,
+                    hide_justification=_save_hide_just,
                 )
             else:
                 line_index = calculated_line_number - 1
@@ -710,6 +724,14 @@ def substitution(request):
                         ).update(selected_node=start_position)
                 
                 if proof_id:  # Only save to DB if we have a proof_id
+                    # Preserve selected_node and hide flags on existing lines
+                    _existing_sub = EquationalProofLine.objects.filter(
+                        proof_id=proof_id, side=side.upper(),
+                        line_number=calculated_line_number
+                    ).first()
+                    _save_sel_sub = _existing_sub.selected_node if _existing_sub else start_position
+                    _save_hide_expr_sub = _existing_sub.hide_expression if _existing_sub else False
+                    _save_hide_just_sub = _existing_sub.hide_justification if _existing_sub else False
                     save_proof_line_to_db(
                         proof_id=proof_id,
                         side=side,
@@ -718,8 +740,10 @@ def substitution(request):
                         start_position=start_position,
                         line_number=calculated_line_number,
                         substitution=substitution_expr or '',
-                        selected_node=start_position,
-                        result_node=result_node_id
+                        selected_node=_save_sel_sub,
+                        result_node=result_node_id,
+                        hide_expression=_save_hide_expr_sub,
+                        hide_justification=_save_hide_just_sub,
                     )
         else:
             line_index = line_number - 1
