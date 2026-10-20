@@ -221,11 +221,39 @@ class ValidateHiddenFieldBothHiddenTest(TestCase):
     def tearDown(self):
         cache.delete(f'equational_obj_{self.user.username}')
 
-    def test_correct_rule_reveals_both_no_expression_error(self):
-        """Correct rule alone must reveal both fields with no spurious expression error."""
+    def test_correct_rule_requires_expression_too(self):
+        """When both fields are hidden, correct rule alone is NOT enough — expression must match too."""
         resp = self.client.post(_URL, {
             'side': 'LHS', 'lineNumber': 1,
             'studentRule': 'eval +', 'studentSelectedNode': 0,
+            # No studentExpression provided
+        }, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.data['isValid'])
+        self.assertIn('You must provide an expression.', resp.data['errors'])
+        # Neither field must be revealed when the submission is incomplete
+        self.assertTrue(resp.data['hide_justification'])
+        self.assertTrue(resp.data['hide_expression'])
+
+    def test_correct_rule_wrong_expression_reveals_nothing(self):
+        """Correct rule + wrong expression reveals neither field and reports expression error."""
+        resp = self.client.post(_URL, {
+            'side': 'LHS', 'lineNumber': 1,
+            'studentRule': 'eval +', 'studentSelectedNode': 0,
+            'studentExpression': '99',  # wrong value
+        }, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.data['isValid'])
+        self.assertIn('Expression does not match.', resp.data['errors'])
+        self.assertTrue(resp.data['hide_justification'])
+        self.assertTrue(resp.data['hide_expression'])
+
+    def test_correct_rule_and_expression_reveals_both(self):
+        """Correct rule + correct expression reveals both fields."""
+        resp = self.client.post(_URL, {
+            'side': 'LHS', 'lineNumber': 1,
+            'studentRule': 'eval +', 'studentSelectedNode': 0,
+            'studentExpression': '3',  # correct
         }, format='json')
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.data['isValid'])
