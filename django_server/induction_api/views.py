@@ -2423,52 +2423,51 @@ def validate_hidden_field(request):
         errors = []
         changed = False
 
-        # 4. Logic: Master Key Validation (Rule + Selection)
-        if student_rule is not None:
-            rule_text_match = compare_rule(student_rule, line.rule, high_support=_support_value_mapping)
-            # Premise rule ("Premise") is accepted case-insensitively
-            if not rule_text_match and line_number == 0:
-                rule_text_match = (student_rule or '').strip().lower() == (line.rule or '').strip().lower()
+        # Track original hide state so we can gate DB saves on full correctness.
+        orig_hide_just = line.hide_justification
+        orig_hide_expr = line.hide_expression
 
-            selection_match = True
-            if prev_line is not None and prev_line.selected_node is not None and student_selected is not None:
-                if int(student_selected) != int(prev_line.selected_node):
-                    selection_match = False
-                    errors.append("Incorrect selection.")
+        # A field that isn't hidden doesn't need checking — treat as already "ok".
+        rule_ok = not orig_hide_just
+        expr_ok = not orig_hide_expr
 
-            if rule_text_match and selection_match:
-                if line.hide_justification:
-                    line.hide_justification = False
-                    changed = True
-                if line.hide_expression:
-                    line.hide_expression = False
-                    changed = True
-            elif not rule_text_match:
-                errors.append("Rule does not match.")
-        else:
-            errors.append("You must provide a rule.")
-        
-        # 5. Logic: Expression Tree Match — only runs when the expression is actually hidden
-        if line.hide_expression:
+        errors = []
+
+        # 4. Rule / selection check (only when rule is hidden)
+        if orig_hide_just:
+            if student_rule is not None:
+                rule_text_match = compare_rule(student_rule, line.rule, high_support=_support_value_mapping)
+                # Premise rule ("Premise") is accepted case-insensitively
+                if not rule_text_match and line_number == 0:
+                    rule_text_match = (student_rule or '').strip().lower() == (line.rule or '').strip().lower()
+
+                selection_match = True
+                if prev_line is not None and prev_line.selected_node is not None and student_selected is not None:
+                    if int(student_selected) != int(prev_line.selected_node):
+                        selection_match = False
+                        errors.append("Incorrect selection.")
+
+                if rule_text_match and selection_match:
+                    rule_ok = True
+                elif not rule_text_match:
+                    errors.append("Rule does not match.")
+            else:
+                errors.append("You must provide a rule.")
+
+        # 5. Expression tree check (only when expression is hidden)
+        if orig_hide_expr:
             if student_expression is not None and student_expression.strip() != "":
                 try:
-                    # Use the target's actual ruleSet and generics so UDFs are parsed correctly
                     temp_line = ERProofLine(
-                        student_expression, 
-                        target.debug, 
-                        target.ruleSet, 
+                        student_expression,
+                        target.debug,
+                        target.ruleSet,
                         generics=target.generics
                     )
-                    
                     if not temp_line.errLog:
-                        raw_student_tree = makeJson(temp_line.exprTree)
-                        
-                        student_tree = json.loads(json.dumps(raw_student_tree))
-                        
-                        # 3. Deep compare
+                        student_tree = json.loads(json.dumps(makeJson(temp_line.exprTree)))
                         if student_tree == line.json_tree:
-                            line.hide_expression = False
-                            changed = True
+                            expr_ok = True
                         else:
                             errors.append("Expression does not match.")
                     else:
@@ -2478,11 +2477,20 @@ def validate_hidden_field(request):
             else:
                 errors.append("You must provide an expression.")
 
+        # Only reveal fields and save when ALL required checks passed with no errors.
+        if not errors:
+            if orig_hide_just and rule_ok:
+                line.hide_justification = False
+                changed = True
+            if orig_hide_expr and expr_ok:
+                line.hide_expression = False
+                changed = True
+
         if not errors and changed:
             line.save()
-        
+
         message = "Correct!" if not errors else None
-        
+
         return Response({
             "isValid": not errors,
             "errors": errors,
@@ -2490,7 +2498,7 @@ def validate_hidden_field(request):
             "hide_justification": line.hide_justification,
             "message": message
         }, status=status.HTTP_200_OK)
-        
+
     except Exception as e:
         import traceback
         traceback.print_exc()
