@@ -2426,12 +2426,15 @@ def validate_hidden_field(request):
         # 4. Logic: Master Key Validation (Rule + Selection)
         if student_rule is not None:
             rule_text_match = compare_rule(student_rule, line.rule, high_support=_support_value_mapping)
-            
+            # Premise rule ("Premise") is accepted case-insensitively
+            if not rule_text_match and line_number == 0:
+                rule_text_match = (student_rule or '').strip().lower() == (line.rule or '').strip().lower()
+
             selection_match = True
-            if prev_line.selected_node is not None and student_selected is not None:
-                 if int(student_selected) != int(prev_line.selected_node):
-                     selection_match = False
-                     errors.append("Incorrect selection.")
+            if prev_line is not None and prev_line.selected_node is not None and student_selected is not None:
+                if int(student_selected) != int(prev_line.selected_node):
+                    selection_match = False
+                    errors.append("Incorrect selection.")
 
             if rule_text_match and selection_match:
                 if line.hide_justification:

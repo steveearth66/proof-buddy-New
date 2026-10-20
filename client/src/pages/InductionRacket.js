@@ -825,7 +825,13 @@ const InductionRacket = () => {
 
       if (isBound) {
         const userIndex = getPadIndex(userRow.num);
-        ruleFromFooter = (userRow.num === "000" && proofParams.support_premise) ? "Premise" : footerRule;
+        if (userRow.num === "000" && proofParams.support_premise) {
+          const premiseField = racketRuleFields?.[showSide]?.[0];
+          // If the rule is hidden, student must type it; otherwise hardcode "Premise"
+          ruleFromFooter = premiseField?.hide_justification ? footerRule : "Premise";
+        } else {
+          ruleFromFooter = footerRule;
+        }
 
         // --- FOOTER EXPRESSION REFERENCE ---
         if (footerPadRef.current) {
@@ -2158,6 +2164,7 @@ const InductionRacket = () => {
       }
       const field = racketRuleFields?.[showSide][padIndex];
       const isExpressionHidden = field.hide_expression || false;
+      const isRuleHidden = field.hide_justification || false;
       const displayEquation = isExpressionHidden ? "" : equation;
 
       return (
@@ -2170,13 +2177,17 @@ const InductionRacket = () => {
           lineNum={padIndex}
           startPosition={0}
           tabIndex={0}
-          ruleValue="Premise"
-          onRuleChange={() => {}}
-          isRuleReadOnly={true}
+          ruleValue={isRuleHidden ? "" : "Premise"}
+          onRuleChange={isRuleHidden ? e => { setFooterRule(e.target.value.trim()); setFooterRuleError(''); } : () => {}}
+          onRuleKeyDown={isRuleHidden ? handleRuleKeyDown : undefined}
+          isRuleReadOnly={!isRuleHidden}
           rulePlaceholder="Rule"
+          isRuleInvalid={isRuleHidden && !!footerRuleError}
+          ruleValidationError={footerRuleError}
           isEditRow={true}
           currentUserType={isReviewMode ? proofOwner : currentUserType}
           hideExpression={isExpressionHidden}
+          hideJustification={isRuleHidden}
         />
       );
     } else {
