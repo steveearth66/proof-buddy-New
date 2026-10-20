@@ -47,6 +47,7 @@ import {
   showContinue,
   advancePlay,
   cancelPlay,
+  cancelAllPlay,
   getLastRealIndex
 } from "../utils/playModeUtils";
 import userService from "../services/userService";
@@ -2532,9 +2533,12 @@ const handleRuleKeyDown = (e) => {
                         {showContinue(playState, 'base', showSide, erLastReal) && (
                           <Button
                             variant="primary"
-                            onClick={() => setPlayState(prev =>
-                              advancePlay(prev, 'base', showSide, erLastReal)
-                            )}
+                            onClick={() => setPlayState(prev => {
+                              const next = advancePlay(prev, 'base', showSide, erLastReal);
+                              // If this was the final step on this side, exit all play mode
+                              // so Check Proof is not blocked by other sides still active.
+                              return playIsActive(next, 'base', showSide) ? next : cancelAllPlay(next);
+                            })}
                           >
                             <i className="fa-solid fa-play" style={{ marginRight: '0.4rem' }}></i>
                             Continue
@@ -2545,7 +2549,7 @@ const handleRuleKeyDown = (e) => {
                         <Button
                           variant="outline-danger"
                           size="sm"
-                          onClick={() => setPlayState(prev => cancelPlay(prev, 'base', showSide))}
+                          onClick={() => setPlayState(prev => cancelAllPlay(prev))}
                         >
                           <i className="fa-solid fa-xmark" style={{ marginRight: '0.4rem' }}></i>
                           Cancel Play Mode

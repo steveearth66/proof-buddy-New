@@ -158,12 +158,32 @@ function showContinue(playState, caseKey, side, lastRealIndex) {
   return entry.active && entry.lineIndex < lastRealIndex;
 }
 
+/**
+ * Cancel play mode for ALL case+side combinations at once.
+ * Use this for the "Exit Play Mode" button so that checking completion
+ * is not blocked by a side the user didn't happen to be viewing.
+ *
+ * @param {object} playState
+ * @returns {object} new playState with every entry set to active:false
+ */
+function cancelAllPlay(playState) {
+  const result = {};
+  for (const caseKey of Object.keys(playState)) {
+    result[caseKey] = {};
+    for (const side of Object.keys(playState[caseKey])) {
+      result[caseKey][side] = { active: false, lineIndex: Infinity };
+    }
+  }
+  return result;
+}
+
 export {
   initPlayState,
   getPlayEntry,
   getLastRealIndex,
   advancePlay,
   cancelPlay,
+  cancelAllPlay,
   isActive,
   visibleLineCount,
   showContinue
