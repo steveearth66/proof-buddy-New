@@ -49,6 +49,7 @@ import {
   showContinue,
   advancePlay,
   cancelPlay,
+  cancelAllPlay,
   getLastRealIndex
 } from "../utils/playModeUtils";
 import { useLocation } from "react-router-dom";
@@ -3027,9 +3028,12 @@ const InductionRacket = () => {
                         {showContinue(playState, indCaseKey, showSide, indLastReal) && (
                           <Button
                             variant="primary"
-                            onClick={() => setPlayState(prev =>
-                              advancePlay(prev, indCaseKey, showSide, indLastReal)
-                            )}
+                            onClick={() => setPlayState(prev => {
+                              const next = advancePlay(prev, indCaseKey, showSide, indLastReal);
+                              // If this was the final step on this side/case, exit all play mode
+                              // so Check Proof is not blocked by other sides/cases still active.
+                              return playIsActive(next, indCaseKey, showSide) ? next : cancelAllPlay(next);
+                            })}
                           >
                             <i className="fa-solid fa-play" style={{ marginRight: '0.4rem' }}></i>
                             Continue
@@ -3040,7 +3044,7 @@ const InductionRacket = () => {
                         <Button
                           variant="outline-danger"
                           size="sm"
-                          onClick={() => setPlayState(prev => cancelPlay(prev, indCaseKey, showSide))}
+                          onClick={() => setPlayState(prev => cancelAllPlay(prev))}
                         >
                           <i className="fa-solid fa-xmark" style={{ marginRight: '0.4rem' }}></i>
                           Cancel Play Mode
