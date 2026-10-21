@@ -137,19 +137,22 @@ header {
                   padding: 8px 0;
                 }
 
-                a {
-                  font-size: 18px;
-                  color: $color-white;
-                  padding: 6px 9px 6px 2px;
+                a,
+                button {
+                  &.dropdown-item {
+                    font-size: 18px;
+                    color: $color-white;
+                    padding: 6px 9px 6px 2px;
 
-                  @media (min-width: $breakpoint-md) {
-                    padding: 4px 16px;
-                  }
+                    @media (min-width: $breakpoint-md) {
+                      padding: 4px 16px;
+                    }
 
-                  &:hover,
-                  &:focus {
-                    color: $color-drexel-orange;
-                    background: transparent;
+                    &:hover,
+                    &:focus {
+                      color: $color-drexel-orange;
+                      background: transparent;
+                    }
                   }
                 }
 
