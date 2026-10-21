@@ -21,7 +21,7 @@ const helpContent = {
           information is displayed here for traceability and release tracking.
         </p>
       </>
-    ),
+    )
   },
   feedback: {
     title: 'Report Bug / Feedback',
@@ -35,7 +35,7 @@ const helpContent = {
         </p>
         <p>We appreciate your feedback.</p>
       </>
-    ),
+    )
   },
   about: {
     title: 'About Proof Buddy',
@@ -50,8 +50,8 @@ const helpContent = {
           coursework and learning support.
         </p>
       </>
-    ),
-  },
+    )
+  }
 };
 
 /**
