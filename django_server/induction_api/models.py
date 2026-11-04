@@ -143,6 +143,7 @@ class InductionProofLineComment(models.Model):
     ]
 
     proof = models.ForeignKey(InductionProof, related_name='proof_comments', on_delete=models.CASCADE)
+    case = models.CharField(max_length=10, default='base')  # base / leap
     side = models.CharField(max_length=3)    # LHS / RHS
     line_number = models.IntegerField()
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)

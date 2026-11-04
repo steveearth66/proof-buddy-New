@@ -2234,12 +2234,13 @@ def download_proof(request):
         },
         'comments': [
             {
+                'case': c.case,
                 'side': c.side,
                 'lineNumber': c.line_number,
                 'role': c.role,
                 'comment': c.comment,
             }
-            for c in InductionProofLineComment.objects.filter(proof=proof).order_by('side', 'line_number', 'role')
+            for c in InductionProofLineComment.objects.filter(proof=proof).order_by('case', 'side', 'line_number', 'role')
         ],
     }
     return Response(data, status=status.HTTP_200_OK)
@@ -2305,6 +2306,7 @@ def upload_proof(request):
         for c in data.get('comments', []):
             InductionProofLineComment.objects.create(
                 proof=proof,
+                case=c.get('case', 'base'),
                 side=c.get('side', 'LHS'),
                 line_number=int(c.get('lineNumber') or 0),
                 role=c.get('role', 'student'),
@@ -2721,6 +2723,7 @@ def save_comment(request):
 
         side = data.get("side")
         line_number = data.get("line_number")
+        case = data.get("case", "base")
         role = data.get("role")
         comment_text = data.get("comment")
 
@@ -2732,6 +2735,7 @@ def save_comment(request):
 
         comment_obj, created = InductionProofLineComment.objects.update_or_create(
             proof_id=proof_id,
+            case=case,
             side=side,
             line_number=line_number,
             role=role,
@@ -2760,9 +2764,11 @@ def get_comments(request):
 
         side = request.GET.get("side")
         line_number = int(request.GET.get("line_number"))
+        case = request.GET.get("case", "base")
 
         comments = InductionProofLineComment.objects.filter(
             proof_id=proof_id,
+            case=case,
             side=side,
             line_number=line_number
         )
@@ -2814,7 +2820,7 @@ def get_comment_status(request):
             if not comment.comment or comment.comment.strip() == "":
                 continue
 
-            key = f"{comment.side}-{comment.line_number}"
+            key = f"{comment.case}-{comment.side}-{comment.line_number}"
 
             result[key] = True
 
