@@ -172,6 +172,7 @@ const InductionRacket = () => {
   const [comments, setComments] = useState({});
   const [activePadIndex, setActivePadIndex] = useState(null);
   const [activeSide, setActiveSide] = useState(null);
+  const [activeCase, setActiveCase] = useState('base');
   const [studentComment, setStudentComment] = useState("");
   const [instructorComment, setInstructorComment] = useState("");
   const [commentStatus, setCommentStatus] = useState({});
@@ -2133,7 +2134,7 @@ const InductionRacket = () => {
         <Col xs="auto" className="d-flex align-items-center">
           <Button   
           variant={
-            commentStatus[`${side}-${padIndex}`]
+            commentStatus[`${caseType}-${side}-${padIndex}`]
               ? "primary"
               : "secondary"
           }
@@ -2141,7 +2142,7 @@ const InductionRacket = () => {
           >
             <i
               className={
-                commentStatus[`${side}-${padIndex}`]
+                commentStatus[`${caseType}-${side}-${padIndex}`]
                   ? "fa-solid fa-message"
                   : "fa-regular fa-message"
               }
@@ -2323,13 +2324,16 @@ const InductionRacket = () => {
   };
 
   const handleCommentClick = async (side, padIndex) => {
+    const caseStr = isAnchor ? 'base' : 'leap';
     const data = await inductionService.getComments({
       side: side,
-      line_number: padIndex
+      line_number: padIndex,
+      case: caseStr
     });
 
     setActivePadIndex(padIndex);
     setActiveSide(side);
+    setActiveCase(caseStr);
     setStudentComment(data.student || "");
     setInstructorComment(data.instructor || "");
 
@@ -3376,6 +3380,7 @@ const InductionRacket = () => {
           await inductionService.saveComment({
             side: activeSide,
             line_number: activePadIndex,
+            case: activeCase,
             role: "student",
             comment: studentComment
           });
@@ -3383,11 +3388,12 @@ const InductionRacket = () => {
           await inductionService.saveComment({
             side: activeSide,
             line_number: activePadIndex,
+            case: activeCase,
             role: "instructor",
             comment: instructorComment
           });
 
-          const key = `${activeSide}-${activePadIndex}`;
+          const key = `${activeCase}-${activeSide}-${activePadIndex}`;
 
           const hasComments =
             studentComment.trim() !== "" ||
