@@ -872,13 +872,10 @@ const InductionRacket = () => {
       // Clear validation error if rule is valid
       setFooterRuleError('');
 
-      // If user typed "rewrite math" or "rewrite logic", open Substitution modal with rule pre-filled
-      if (ruleFromFooter.trim().toLowerCase() === 'rewrite math' || ruleFromFooter.trim().toLowerCase() === 'rewrite logic') {
-        updateShowSubstitution();
-        return;
-      }
-
        // --- VALIDATION BLOCK ---
+       // Hidden-field check must come BEFORE the "rewrite math" modal redirect.
+       // If this line has a hidden justification whose rule happens to be "rewrite math",
+       // the redirect would fire first and the hidden field would never get validated.
             const boundField = racketRuleFields?.[showSide][currentIndex];
             const hasHiddenRule = boundField?.hide_justification || false;
             const hasHiddenExpression = boundField?.hide_expression || false;
@@ -927,6 +924,12 @@ const InductionRacket = () => {
                 return;
               }
             }
+
+      // If user typed "rewrite math" or "rewrite logic", open Substitution modal with rule pre-filled
+      if (ruleFromFooter.trim().toLowerCase() === 'rewrite math' || ruleFromFooter.trim().toLowerCase() === 'rewrite logic') {
+        updateShowSubstitution();
+        return;
+      }
 
       // Validate payload before sending
       if (!previousRacketValue || previousRacketValue.trim() === '') {
