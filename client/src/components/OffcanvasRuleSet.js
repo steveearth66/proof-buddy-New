@@ -169,26 +169,60 @@ const OffcanvasRuleSet = ({ isActive, toggleFunction, visibleRules = {}, support
         )}
         {applyRules.length > 0 && (
           <>
-            <h3>Rewrite Rules:</h3>
-          
-            <Table striped bordered hover>
-              <thead>
-                <tr>
-                  <th style={{ width: "10%" }}>Rule Name</th>
-                  <th>Highlight</th>
-                  <th>Result</th>
-                </tr>
-              </thead>
-              <tbody>
-                {applyRules.map((rule, index) => (
-                  <tr key={index}>
-                    <td>{rule.procedure}</td>
-                    <td>{rule.highlight}</td>
-                    <td>{rule.result}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+            {(() => {
+              const rewriteOnly = applyRules.filter(r => r.section !== 'apply');
+              const applyOnly   = applyRules.filter(r => r.section === 'apply');
+              return (
+                <>
+                  {rewriteOnly.length > 0 && (
+                    <>
+                      <h3>Rewrite Rules:</h3>
+                      <Table striped bordered hover>
+                        <thead>
+                          <tr>
+                            <th style={{ width: "10%" }}>Rule Name</th>
+                            <th>Highlight</th>
+                            <th>Result</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rewriteOnly.map((rule, index) => (
+                            <tr key={index}>
+                              <td>{rule.procedure}</td>
+                              <td>{rule.highlight}</td>
+                              <td>{rule.result}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </Table>
+                    </>
+                  )}
+                  {applyOnly.length > 0 && (
+                    <>
+                      <h3>Apply Operations:</h3>
+                      <Table striped bordered hover>
+                        <thead>
+                          <tr>
+                            <th style={{ width: "10%" }}>Rule Name</th>
+                            <th>Highlight</th>
+                            <th>Result</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {applyOnly.map((rule, index) => (
+                            <tr key={index}>
+                              <td>{rule.procedure}</td>
+                              <td>{rule.highlight}</td>
+                              <td>{rule.result}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </Table>
+                    </>
+                  )}
+                </>
+              );
+            })()}
           </>
         )}
       </OffCanvas.Body>

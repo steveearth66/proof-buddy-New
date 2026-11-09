@@ -134,17 +134,20 @@ const ruleSet = () => {
       {
         procedure: "<function name>",
         highlight: "(<function name> ...)",
-        result: "function definiton with parameters mapped to values"
+        result: "function definiton with parameters mapped to values",
+        section: "apply"
       },
       {
         procedure: "<proof name>",
         highlight: "<proof LHS>",
-        result: "<proof RHS>"
+        result: "<proof RHS>",
+        section: "apply"
       },
       {
         procedure: "IH",
         highlight: "<IH LHS>",
-        result: "<IH RHS>"
+        result: "<IH RHS>",
+        section: "apply"
       },
       {
         procedure: "-+",
