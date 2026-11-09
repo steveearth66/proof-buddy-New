@@ -2789,7 +2789,7 @@ const InductionRacket = () => {
                           <Form.Group as={Col} md="6" className="er-inductive-hypothesis-rhs">
                               <div className="d-flex justify-content-between align-items-baseline">
                                 <label htmlFor="eRInductiveHypothesisRHS" className="form-label small fw-bold mb-0">IH RHS</label>
-                                <span className="small fw-normal text-muted">(the IH assumption also holds for any values &lt; k as well)</span>
+                                <span className="small fw-normal text-muted">(the IH assumption also holds for any values below {formValues.leapVariable || 'k'} as well)</span>
                               </div>
                               <RacketInput
                                 id="eRInductiveHypothesisRHS"
